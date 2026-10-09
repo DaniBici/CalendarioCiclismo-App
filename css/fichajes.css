@@ -56,9 +56,9 @@
   line-height: 1.35;
 }
 
-/* En móvil el feed puede reunir ocho confirmaciones: se hace algo más denso
-   para que el selector y el inicio de la parrilla de equipos sigan asomando
-   en la primera pantalla, sin sacrificar la lectura a una línea. */
+/* En móvil las filas del feed son algo más densas para que el selector y el
+   inicio de la parrilla de equipos asomen en la primera pantalla, sin
+   sacrificar la lectura a una línea. */
 @media (max-width: 768px) {
   .tr-row {
     gap: 0.45rem;
@@ -299,20 +299,17 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-feed-column .tr-row--link:hover { background:var(--hover-bg); }
 .tr-feed-list { margin-bottom:-1px; }
 .tr-feed-column .tr-empty { padding:12px; }
-/* Sin desplazamiento (móvil y tableta), el feed se corta en FEED_MAX_*. */
-.tr-feed-extra { display:none; }
+/* Fichajes y Renovaciones a la misma altura fija, con desplazamiento propio
+   en todos los anchos. */
+.tr-feed-list {
+  height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 @media(min-width:1100px) {
   #trFeedBtns { display:none; }
   #trFeed { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
   .tr-feed-column { display:block; }
   .tr-feed-title { display:flex; }
-  /* Fichajes y Renovaciones a la misma altura fija, con desplazamiento propio. */
-  .tr-feed-extra { display:flex; }
-  .tr-feed-day.tr-feed-extra { display:block; }
-  .tr-feed-list {
-    height: 22rem;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
 }

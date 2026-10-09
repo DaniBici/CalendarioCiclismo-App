@@ -103,15 +103,29 @@ fun RaceScreen(raceId: String, navController: NavController, raceName: String? =
     val networkErrorFallback = stringResource(R.string.startlist_error_unknown)
     LaunchedEffect(raceId) {
         state = RaceState.Loading
+        // Room primero: con todas las etapas y sus perfiles en caché la carrera
+        // se pinta al instante y la red la actualiza después.
+        val cached = runCatching { app.repository.cachedRaceComplete(raceId) }.getOrNull()
+        if (cached != null) {
+            state = RaceState.Ready(cached.first, cached.second)
+            // Recién descargada (p. ej. al abrirla desde Temporada): sin repetir.
+            if (app.repository.raceSnapshotIsFresh(raceId)) return@LaunchedEffect
+        }
         runCatching { app.repository.refreshRaceComplete(raceId) }
             .onSuccess { (race, days) -> state = RaceState.Ready(race, days) }
-            .onFailure { state = RaceState.Error(it.message ?: networkErrorFallback) }
+            .onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                // Con la caché en pantalla se conserva el contenido.
+                if (cached == null) state = RaceState.Error(error.message ?: networkErrorFallback)
+            }
     }
 
     // Analytics: paridad con iOS — race_id + race_name. Se dispara cuando
     // state pasa a Ready (no en LaunchedEffect(raceId)) porque necesitamos
     // race.name. Ver docs/memory/analytics.md.
-    LaunchedEffect(state) {
+    // Una vez por apertura: la sustitución de la caché por la red no repite.
+    val isReady = state is RaceState.Ready
+    LaunchedEffect(raceId, isReady) {
         val ready = state as? RaceState.Ready ?: return@LaunchedEffect
         app.analytics.logScreenView(
             "race_detail",
@@ -127,7 +141,11 @@ fun RaceScreen(raceId: String, navController: NavController, raceName: String? =
     // bloqueante. Pasa las jornadas para resolver el caso de un día/general
     // (stage sin raceDayId).
     var inhouseByDay by remember(raceId) { mutableStateOf<Map<String, Int?>>(emptyMap()) }
-    LaunchedEffect(state) {
+    // Clave = jornadas listadas: la sustitución de la caché por la red no
+    // repite la consulta si las etapas son las mismas.
+    val readyDaysKey = (state as? RaceState.Ready)?.days
+        ?.joinToString(",") { "${it.raceDay.id}:${it.raceDay.stageNumber}:${it.raceDay.isCancelledDay}" }
+    LaunchedEffect(readyDaysKey) {
         val ready = state as? RaceState.Ready ?: return@LaunchedEffect
         val days = ready.days.map { it.raceDay.id to it.raceDay.stageNumber }
         val cancelled = ready.days.filter { it.raceDay.isCancelledDay }.map { it.raceDay.id }.toSet()
@@ -211,7 +229,7 @@ fun RaceScreen(raceId: String, navController: NavController, raceName: String? =
                                     // con la web): conserva recorrido, perfil y
                                     // documentación. El descanso no tiene ficha.
                                     if (!day.raceDay.isRestDay) {
-                                        navController.navigate(Routes.stage(day.id))
+                                        navController.navigate(Routes.stage(day.id, title = Routes.jornadaTitle(s.race.localizedName, day.raceDay)))
                                     }
                                 },
                                 onShowResults = if (showResults) {
@@ -522,7 +540,7 @@ private fun StageRow(
                     modifier = Modifier.size(18.dp),
                 )
                 else -> Text(
-                    text = rd.stageLabelShort.ifEmpty { "—" },
+                    text = rd.stageLabelShort.ifEmpty { "-" },
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -79,7 +79,7 @@ function profilePathD(prof) {
 // nombra la página. Las páginas generadas traen el nombre real en <title>
 // («La Vuelta, Etapa 20: …» → «La Vuelta, Etapa 20»); la portada, la agenda.
 function loadingSubject(en) {
-  const title = document.title.split(' — ')[0].split(':')[0].trim();
+  const title = document.title.split(' - ')[0].split(':')[0].trim();
   if (!title || title === 'Calendario Ciclismo App') return en ? "Today's races" : 'Carreras de hoy';
   return title;
 }

@@ -48,7 +48,7 @@ def _page(lang, title, canonical, script, fallback):
 <html lang="{lang}">
 <head>
   <meta charset="UTF-8">
-  <title>{title} — Calendario Ciclismo App</title>
+  <title>{title} - Calendario Ciclismo App</title>
   <link rel="canonical" href="{ORIGIN}{canonical}">
   <script>{script}</script>
   <meta http-equiv="refresh" content="0;url={fallback}">

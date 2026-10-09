@@ -27,6 +27,29 @@ enum RaceLogic {
         return .scheduled
     }
 
+    /// ¿Conviene el refresco periódico de Hoy? Solo si alguna jornada real
+    /// está en curso, a menos de una hora de su salida (o sin hora conocida)
+    /// o terminada en las últimas 6 h sin resultados in-house.
+    static func needsLiveRefresh(_ items: [EnrichedRaceDay], inhouseDayIds: Set<String>, now: Date = Date()) -> Bool {
+        items.contains { item in
+            guard !item.isPlaceholder else { return false }
+            let rd = item.raceDay
+            switch todayRaceState(rd: rd, hasInhouseResults: inhouseDayIds.contains(rd.id), now: now) {
+            case .cancelled, .rest, .results:
+                return false
+            case .running:
+                return true
+            case .waiting:
+                guard let finish = rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO) else { return true }
+                return now.timeIntervalSince(finish) < 6 * 3600
+            case .scheduled:
+                let startRaw = rd.realStartTimeUtc.flatMap { $0.isEmpty ? nil : $0 } ?? rd.neutralStartTimeUtc
+                guard let start = startRaw.flatMap(DateFormatting.parseISO) else { return true }
+                return start.timeIntervalSince(now) < 3600
+            }
+        }
+    }
+
     /// Avance (0…1) del miniperfil de la tarjeta de Hoy. Espejo de
     /// `profileProgress` (js/services/race-presentation.js): con resultados o
     /// estado terminado, completo; crono en curso sin avance único (salidas

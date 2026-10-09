@@ -4,7 +4,7 @@ import { matchCxCompetition, nameSignal, parseDataRideEpoch } from '../results-f
 const NOW = new Date('2026-10-17T12:00:00Z');
 
 function race(over = {}) {
-  return { id: 'r1', name: 'Copa del Mundo de Cyclocross', nameEn: null, abbrev: null, class: 'CDM',
+  return { id: 'r1', name: 'Copa del Mundo de Cyclocross', nameEn: null, class: 'CDM',
     countryCode: 'FR', seasonKey: '2026-27', dateKey: '2026-10-17', endDateKey: null, ...over };
 }
 function competition(over = {}) {

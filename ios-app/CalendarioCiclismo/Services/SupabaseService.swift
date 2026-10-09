@@ -45,15 +45,90 @@ final class SupabaseService {
         return URLSession(configuration: configuration)
     }
 
+    // MARK: - Peticiones compartidas
+
+    /// Petición en vuelo o recién resuelta, compartida por clave.
+    private struct SharedRequest {
+        let id: UUID
+        let task: Task<any Sendable, Error>
+        var expiresAt: Date?
+    }
+
+    private var sharedRequests: [String: SharedRequest] = [:]
+
+    /// Comparte una petición idéntica entre llamadores simultáneos (p. ej. la
+    /// precarga del arranque y la primera carga de Hoy) y reutiliza la
+    /// respuesta durante `reuseWindow` segundos. `forceNetwork` ignora la
+    /// respuesta reutilizable y lanza una petición nueva (pull-to-refresh).
+    func sharedRequest<T: Sendable>(
+        _ key: String,
+        reuseWindow: TimeInterval = 10,
+        forceNetwork: Bool = false,
+        _ operation: @escaping @MainActor @Sendable () async throws -> T
+    ) async throws -> T {
+        let now = Date()
+        sharedRequests = sharedRequests.filter { $0.value.expiresAt.map { $0 > now } ?? true }
+        if !forceNetwork, let entry = sharedRequests[key],
+           let value = try await entry.task.value as? T {
+            // La tarea compartida no se cancela con un llamador; quien se
+            // canceló recibe la cancelación al terminar, como antes.
+            try Task.checkCancellation()
+            return value
+        }
+        let id = UUID()
+        let task = Task<any Sendable, Error> { try await operation() }
+        sharedRequests[key] = SharedRequest(id: id, task: task, expiresAt: nil)
+        do {
+            let value = try await task.value
+            if sharedRequests[key]?.id == id {
+                sharedRequests[key]?.expiresAt = Date().addingTimeInterval(reuseWindow)
+            }
+            guard let typed = value as? T else { throw CancellationError() }
+            try Task.checkCancellation()
+            return typed
+        } catch {
+            if sharedRequests[key]?.id == id { sharedRequests[key] = nil }
+            throw error
+        }
+    }
+
     // MARK: - Races
 
-    /// Todas las carreras de un año.
-    func racesByYear(_ year: Int) async throws -> [Race] {
-        try await client.from("races")
-            .select()
-            .eq("year", value: year)
-            .execute()
-            .value
+    /// Columnas de `races` que decodifica `Race`. Evita traer traducciones,
+    /// metadatos de importación y otros campos que la app no lee.
+    static let raceColumns =
+        "id,name,nameEn,uciCategory,gender,raceFormat,countryCode,colorHex,logoUrl,websiteUrl," +
+        "hideFlag,isGrandTour,isCancelled,startDate,endDate,year,slug,originalName," +
+        "startlistImportedAt,startlistProvisional"
+
+    /// Todas las carreras de un año. Pagina en bloques de 1.000 (2026 supera
+    /// las 1.200 carreras) para no depender del tope de filas por respuesta de
+    /// PostgREST, ordenando por `id` para que las páginas sean estables. Las llamadas simultáneas o
+    /// muy seguidas comparten la misma descarga.
+    func racesByYear(_ year: Int, forceNetwork: Bool = false) async throws -> [Race] {
+        try await sharedRequest("racesByYear:\(year)", forceNetwork: forceNetwork) {
+            try await self.pagedRaces { $0.eq("year", value: year) }
+        }
+    }
+
+    /// Descarga paginada de `races` con el filtro indicado.
+    private func pagedRaces(
+        _ filter: (PostgrestFilterBuilder) -> PostgrestFilterBuilder
+    ) async throws -> [Race] {
+        var all: [Race] = []
+        var offset = 0
+        let chunk = 1000
+        while true {
+            let page: [Race] = try await filter(client.from("races").select(Self.raceColumns))
+                .order("id")
+                .range(from: offset, to: offset + chunk - 1)
+                .execute()
+                .value
+            all.append(contentsOf: page)
+            if page.count < chunk { break }
+            offset += chunk
+        }
+        return all
     }
 
     /// Challenges de un año (agrupaciones de carreras de un día).
@@ -68,7 +143,7 @@ final class SupabaseService {
     /// Una carrera por ID.
     func race(byId id: String) async throws -> Race {
         try await client.from("races")
-            .select()
+            .select(Self.raceColumns)
             .eq("id", value: id)
             .single()
             .execute()
@@ -78,7 +153,7 @@ final class SupabaseService {
     /// Una carrera por slug.
     func race(bySlug slug: String) async throws -> Race {
         try await client.from("races")
-            .select()
+            .select(Self.raceColumns)
             .eq("slug", value: slug)
             .single()
             .execute()
@@ -87,23 +162,22 @@ final class SupabaseService {
 
     /// Carreras por IDs (batch).
     func races(byIds ids: [String]) async throws -> [Race] {
-        guard !ids.isEmpty else { return [] }
-        return try await client.from("races")
-            .select()
-            .in("id", values: ids)
-            .execute()
-            .value
+        try await inChunks(ids) { chunk in
+            try await self.client.from("races")
+                .select(Self.raceColumns)
+                .in("id", values: chunk)
+                .execute()
+                .value
+        }
     }
 
     /// Carreras cuyo intervalo se solapa con el rango solicitado. La vista de
     /// Mes usa este filtro para no descargar todas las ediciones del año.
     func racesOverlapping(from startKey: String, to endKey: String) async throws -> [Race] {
-        try await client.from("races")
-            .select()
-            .lte("startDate", value: endKey)
-            .gte("endDate", value: startKey)
-            .execute()
-            .value
+        try await pagedRaces {
+            $0.lte("startDate", value: endKey)
+                .gte("endDate", value: startKey)
+        }
     }
 
     /// Jornadas y carreras necesarias para un mes. Además del solapamiento de
@@ -124,7 +198,7 @@ final class SupabaseService {
     /// un rango de fechas de salida. Espejo de la query en `js/campeonatos.js`.
     func championshipRaces(year: Int, from startKey: String, to endKey: String) async throws -> [Race] {
         try await client.from("races")
-            .select()
+            .select(Self.raceColumns)
             .eq("uciCategory", value: "CN")
             .eq("year", value: year)
             .gte("startDate", value: startKey)
@@ -146,17 +220,37 @@ final class SupabaseService {
 
     // MARK: - Race Days
 
-    /// Columnas de race_days sin los campos de perfil de elevación (JSONB pesados).
-    /// Para queries masivas (Mes, Temporada, Búsqueda) donde esos datos no son necesarios.
-    private static let raceDaySlimColumns =
+    /// Columnas de race_days para listas y tarjetas: sin textos editoriales ni
+    /// perfil de elevación (JSONB pesados). Mes, Temporada, Campeonatos,
+    /// hermanas de la Jornada, feed de resultados y cintillo.
+    static let raceDayCoreColumns =
         "id,raceId,dateKey,slug,isRestDay,isCancelledDay,stageNumber," +
-        "startLocation,finishLocation,distanceKm,primaryType,secondaryType," +
-        "neutralStartTimeUtc,realStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
-        "startLocationEn,finishLocationEn,translations,editorialStatus,hasAssets,updatedAt,countryCode,routeGpxUrl"
-        + ",raceStatus,competitiveDistanceKm,timingPolicy,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis,metricsUpdatedAt"
+        "startLocation,finishLocation,startLocationEn,finishLocationEn,distanceKm,primaryType,secondaryType," +
+        "neutralStartTimeUtc,realStartTimeUtc,estimatedFinishTimeUtc,tvStatus," +
+        "editorialStatus,hasAssets,updatedAt,countryCode,routeGpxUrl,profileNotViewable," +
+        "raceStatus,competitiveDistanceKm,timingPolicy,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis,metricsUpdatedAt"
+
+    /// Textos editoriales de la jornada (solo los lee la ficha de Jornada).
+    private static let raceDayEditorialColumns = ",description,bonuses,notes,translations"
+
+    /// Perfil de elevación, cimas y puntos de paso.
+    private static let raceDayProfileFields = ",elevationProfile,profileSummits,profileWaypoints"
+
+    /// Núcleo + textos editoriales, sin perfil. Hoy: la caché del día alimenta
+    /// también la ficha de Jornada sin red, que muestra la descripción.
+    static let raceDaySlimColumns = raceDayCoreColumns + raceDayEditorialColumns
+
+    /// Núcleo + perfil, sin textos editoriales (Carrera y Resultados).
+    static let raceDayProfileColumns = raceDayCoreColumns + raceDayProfileFields
+
+    /// Todas las columnas que decodifica `RaceDay` (ficha de Jornada).
+    static let raceDayFullColumns = raceDaySlimColumns + raceDayProfileFields
+
+    /// Núcleo + desnivel positivo extraído del JSON del perfil, sin sus puntos.
+    /// `RaceDay` lo decodifica como un perfil sin puntos (feed de resultados).
+    static let raceDayFeedColumns = raceDayCoreColumns + ",elevationGain:elevationProfile->elevationGain"
 
     /// Jornadas publicadas para una fecha concreta (sin perfil de elevación).
-    /// La elevación se carga de forma diferida en `loadDayComplete`.
     func raceDays(byDate dateKey: String) async throws -> [RaceDay] {
         try await client.from("race_days")
             .select(SupabaseService.raceDaySlimColumns)
@@ -166,11 +260,23 @@ final class SupabaseService {
             .value
     }
 
-    /// Datos de elevación para un conjunto de jornadas (carga diferida).
-    func raceDays(byIds ids: [String]) async throws -> [RaceDay] {
+    /// Perfil de elevación de las jornadas publicadas de una fecha. No depende
+    /// de la consulta de jornadas, así que `loadDayComplete` lo lanza a la vez.
+    private func raceDaysElevation(byDate dateKey: String) async throws -> [RaceDayElevationData] {
+        try await client.from("race_days")
+            .select("id,elevationProfile,profileSummits,profileWaypoints,profileNotViewable")
+            .eq("dateKey", value: dateKey)
+            .eq("editorialStatus", value: "published")
+            .execute()
+            .value
+    }
+
+    /// Jornadas por ID. Por defecto con todas las columnas que decodifica
+    /// `RaceDay`; los llamadores que solo pintan una fila piden `raceDayCoreColumns`.
+    func raceDays(byIds ids: [String], columns: String = SupabaseService.raceDayFullColumns) async throws -> [RaceDay] {
         guard !ids.isEmpty else { return [] }
         return try await client.from("race_days")
-            .select()
+            .select(columns)
             .in("id", values: ids)
             .execute()
             .value
@@ -185,45 +291,78 @@ final class SupabaseService {
             .value
     }
 
-    /// Jornadas publicadas de una carrera.
-    func raceDays(byRaceId raceId: String) async throws -> [RaceDay] {
+    /// Jornadas publicadas de una carrera. Las columnas por defecto omiten los
+    /// textos editoriales; las hermanas de la Jornada piden `raceDayCoreColumns`.
+    func raceDays(byRaceId raceId: String, columns: String = SupabaseService.raceDayProfileColumns) async throws -> [RaceDay] {
         try await client.from("race_days")
-            .select()
+            .select(columns)
             .eq("raceId", value: raceId)
             .eq("editorialStatus", value: "published")
             .execute()
             .value
     }
 
-    /// Jornadas publicadas de un conjunto de carreras (batch). Usado por el Modo
-    /// Campeonatos para traer las jornadas de todas las carreras CN del rango.
-    func raceDays(byRaceIds ids: [String]) async throws -> [RaceDay] {
-        guard !ids.isEmpty else { return [] }
-        return try await client.from("race_days")
-            .select()
-            .in("raceId", values: ids)
-            .eq("editorialStatus", value: "published")
-            .execute()
-            .value
+    /// Fila mínima de jornada (solo el identificador y la fecha).
+    private struct RaceDayIdRow: Codable {
+        let id: String
+        let dateKey: String
     }
 
-    /// Jornadas publicadas en un rango de fechas (sin perfil de elevación).
-    /// Pagina manualmente en chunks de 1.000: PostgREST aplica un tope
-    /// server-side de 1.000 filas por request que un `.limit()` más alto NO
-    /// evita (mismo tope que ya documenta `panel.js` para riders_men/women).
-    /// Sin esto, cualquier consumidor que solicite más de 1.000 jornadas se
-    /// truncaría en silencio y la parte recortada no tendría por qué coincidir
-    /// con el final cronológico del rango.
-    /// Se pagina por `id` (clave única) para que el orden entre páginas sea
-    /// estable — paginar por `dateKey` (no único) puede saltar o duplicar
-    /// filas en el borde de cada página.
-    func raceDays(from startKey: String, to endKey: String) async throws -> [RaceDay] {
+    /// IDs de las jornadas publicadas de una carrera, por fecha. Temporada solo
+    /// necesita saber si existen y cuál es la primera.
+    func raceDayIds(byRaceId raceId: String) async throws -> [String] {
+        let rows: [RaceDayIdRow] = try await client.from("race_days")
+            .select("id,dateKey")
+            .eq("raceId", value: raceId)
+            .eq("editorialStatus", value: "published")
+            .order("dateKey")
+            .execute()
+            .value
+        return rows.map(\.id)
+    }
+
+    /// Jornadas publicadas de un conjunto de carreras (batch, columnas de
+    /// lista). Usado por el Modo Campeonatos y por el programa del feed de
+    /// resultados. Pagina por `id` para no depender del tope de filas por
+    /// respuesta de PostgREST.
+    func raceDays(byRaceIds ids: [String], columns: String = SupabaseService.raceDayCoreColumns) async throws -> [RaceDay] {
+        guard !ids.isEmpty else { return [] }
         var all: [RaceDay] = []
         var offset = 0
         let chunk = 1000
         while true {
             let page: [RaceDay] = try await client.from("race_days")
-                .select(SupabaseService.raceDaySlimColumns)
+                .select(columns)
+                .in("raceId", values: ids)
+                .eq("editorialStatus", value: "published")
+                .order("id")
+                .range(from: offset, to: offset + chunk - 1)
+                .execute()
+                .value
+            all.append(contentsOf: page)
+            if page.count < chunk { break }
+            offset += chunk
+        }
+        return all
+    }
+
+    /// Jornadas publicadas en un rango de fechas (columnas de lista, sin perfil
+    /// ni textos editoriales: Mes y feed no los muestran).
+    /// Pagina manualmente en bloques de 1.000: PostgREST aplica un tope
+    /// server-side de filas por respuesta que un `.limit()` más alto NO
+    /// evita. Sin paginar, un consumidor que superase ese tope se truncaría
+    /// en silencio y la parte recortada no tendría por qué coincidir con el
+    /// final cronológico del rango.
+    /// Se pagina por `id` (clave única) para que el orden entre páginas sea
+    /// estable — paginar por `dateKey` (no único) puede saltar o duplicar
+    /// filas en el borde de cada página.
+    func raceDays(from startKey: String, to endKey: String, columns: String = SupabaseService.raceDayCoreColumns) async throws -> [RaceDay] {
+        var all: [RaceDay] = []
+        var offset = 0
+        let chunk = 1000
+        while true {
+            let page: [RaceDay] = try await client.from("race_days")
+                .select(columns)
                 .eq("editorialStatus", value: "published")
                 .gte("dateKey", value: startKey)
                 .lte("dateKey", value: endKey)
@@ -238,10 +377,20 @@ final class SupabaseService {
         return all
     }
 
+    /// Una jornada por ID con todas las columnas que decodifica `RaceDay`.
+    func raceDay(byId id: String) async throws -> RaceDay {
+        try await client.from("race_days")
+            .select(SupabaseService.raceDayFullColumns)
+            .eq("id", value: id)
+            .single()
+            .execute()
+            .value
+    }
+
     /// Una jornada por slug.
     func raceDay(bySlug slug: String) async throws -> RaceDay {
         try await client.from("race_days")
-            .select()
+            .select(SupabaseService.raceDayFullColumns)
             .eq("slug", value: slug)
             .single()
             .execute()
@@ -271,6 +420,29 @@ final class SupabaseService {
             .value
     }
 
+    /// Emisiones de las jornadas publicadas de una fecha. Filtra por la
+    /// relación con `race_days` para no esperar a la lista de jornadas.
+    func broadcasts(byPublishedDate dateKey: String) async throws -> [Broadcast] {
+        try await client.from("broadcasts")
+            .select("*,race_days!inner(dateKey)")
+            .eq("race_days.dateKey", value: dateKey)
+            .eq("race_days.editorialStatus", value: "published")
+            .order("sortOrder", ascending: true)
+            .execute()
+            .value
+    }
+
+    /// Emisiones de las jornadas publicadas de una carrera.
+    func broadcasts(byPublishedRaceId raceId: String) async throws -> [Broadcast] {
+        try await client.from("broadcasts")
+            .select("*,race_days!inner(raceId)")
+            .eq("race_days.raceId", value: raceId)
+            .eq("race_days.editorialStatus", value: "published")
+            .order("sortOrder", ascending: true)
+            .execute()
+            .value
+    }
+
     // MARK: - Assets
 
     /// Assets de una jornada.
@@ -288,6 +460,36 @@ final class SupabaseService {
         return try await client.from("assets")
             .select("id,raceDayId,type,url")
             .in("raceDayId", values: ids)
+            .execute()
+            .value
+    }
+
+    /// Assets de las jornadas publicadas de una fecha (campos esenciales).
+    func assets(byPublishedDate dateKey: String) async throws -> [Asset] {
+        try await client.from("assets")
+            .select("id,raceDayId,type,url,race_days!inner(dateKey)")
+            .eq("race_days.dateKey", value: dateKey)
+            .eq("race_days.editorialStatus", value: "published")
+            .execute()
+            .value
+    }
+
+    /// Assets de las jornadas publicadas de una carrera (campos esenciales).
+    func assets(byPublishedRaceId raceId: String) async throws -> [Asset] {
+        try await client.from("assets")
+            .select("id,raceDayId,type,url,race_days!inner(raceId)")
+            .eq("race_days.raceId", value: raceId)
+            .eq("race_days.editorialStatus", value: "published")
+            .execute()
+            .value
+    }
+
+    /// Carreras con alguna jornada publicada en una fecha.
+    private func races(withPublishedDayOn dateKey: String) async throws -> [Race] {
+        try await client.from("races")
+            .select(Self.raceColumns + ",race_days!inner(id)")
+            .eq("race_days.dateKey", value: dateKey)
+            .eq("race_days.editorialStatus", value: "published")
             .execute()
             .value
     }
@@ -435,28 +637,41 @@ final class SupabaseService {
 
     // MARK: - Helpers compuestos
 
-    /// Carga datos completos de un día: jornadas + carreras + emisiones + assets + elevación.
-    /// La elevación se obtiene en paralelo con el resto (no bloquea la carga inicial).
-    func loadDayComplete(dateKey: String) async throws -> DayData {
-        var raceDays = try await raceDays(byDate: dateKey)
+    /// Carga datos completos de un día: jornadas + carreras + emisiones +
+    /// assets + elevación + destacados. Todas las consultas filtran por la
+    /// fecha (las dependientes, mediante la relación con `race_days`), de modo
+    /// que salen en una sola tanda en paralelo. Las llamadas simultáneas para
+    /// la misma fecha (precarga del arranque y primera carga de Hoy) comparten
+    /// la descarga; `forceNetwork` la repite (pull-to-refresh).
+    func loadDayComplete(dateKey: String, forceNetwork: Bool = false) async throws -> DayData {
+        try await sharedRequest("day:\(dateKey)", forceNetwork: forceNetwork) {
+            try await self.fetchDayComplete(dateKey: dateKey)
+        }
+    }
 
-        let raceIds = Array(Set(raceDays.compactMap(\.raceId)))
-        let rdIds = raceDays.map(\.id)
-
-        async let racesResult = races(byIds: raceIds)
-        async let broadcastsResult = broadcasts(byRaceDayIds: rdIds)
-        async let assetsResult = assets(byRaceDayIds: rdIds)
-        async let elevResult = raceDaysElevation(byIds: rdIds)
+    private func fetchDayComplete(dateKey: String) async throws -> DayData {
+        async let daysResult = raceDays(byDate: dateKey)
+        async let racesResult = races(withPublishedDayOn: dateKey)
+        async let broadcastsResult = broadcasts(byPublishedDate: dateKey)
+        async let assetsResult = assets(byPublishedDate: dateKey)
+        async let elevResult = raceDaysElevation(byDate: dateKey)
         async let featuredResult = featuredRaces(for: [dateKey])
 
-        let (fetchedRaces, fetchedBroadcasts, fetchedAssets, fetchedElev, featured) = try await (
-            racesResult, broadcastsResult, assetsResult, elevResult, featuredResult
+        var (raceDays, fetchedRaces, fetchedBroadcasts, fetchedAssets, fetchedElev, featured) = try await (
+            daysResult, racesResult, broadcastsResult, assetsResult, elevResult, featuredResult
         )
 
-        let raceMap = Dictionary(uniqueKeysWithValues: fetchedRaces.map { ($0.id, $0) })
+        // Una jornada publicada entre consultas podría referir una carrera que
+        // no llegó en la tanda: se recupera por ID.
+        let missingRaceIds = RaceLogic.missingRaceIds(raceDays: raceDays, races: fetchedRaces)
+        if !missingRaceIds.isEmpty {
+            fetchedRaces += try await races(byIds: missingRaceIds)
+        }
+
+        let raceMap = Dictionary(fetchedRaces.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let broadcastsByRd = Dictionary(grouping: fetchedBroadcasts, by: \.raceDayId)
         let assetsByRd = Dictionary(grouping: fetchedAssets, by: \.raceDayId)
-        let elevMap = Dictionary(uniqueKeysWithValues: fetchedElev.map { ($0.id, $0) })
+        let elevMap = Dictionary(fetchedElev.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         // Aplicar datos de elevación sobre el resultado slim
         raceDays = raceDays.map { rd in elevMap[rd.id].map { rd.applying(elevation: $0) } ?? rd }
@@ -544,11 +759,38 @@ final class SupabaseService {
         }
     }
 
-    /// Carga datos completos de una carrera: info + etapas + emisiones + assets.
+    /// Carga datos completos de una carrera: info + etapas + emisiones + assets,
+    /// en una sola tanda (emisiones y assets filtran por la relación con
+    /// `race_days`, sin esperar a la lista de jornadas).
     func loadRaceComplete(raceId: String) async throws -> (race: Race, days: [EnrichedRaceDay]) {
-        let race = try await race(byId: raceId)
-        var days = try await raceDays(byRaceId: raceId)
+        async let raceResult = race(byId: raceId)
+        async let daysResult = raceDays(byRaceId: raceId)
+        async let broadcastsResult = broadcasts(byPublishedRaceId: raceId)
+        async let assetsResult = assets(byPublishedRaceId: raceId)
+        let (race, days, fetchedBroadcasts, fetchedAssets) = try await (
+            raceResult, daysResult, broadcastsResult, assetsResult
+        )
+        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets))
+    }
 
+    /// Variante para quien ya tiene la carrera (p. ej. resuelta por slug).
+    func loadRaceComplete(race: Race) async throws -> (race: Race, days: [EnrichedRaceDay]) {
+        async let daysResult = raceDays(byRaceId: race.id)
+        async let broadcastsResult = broadcasts(byPublishedRaceId: race.id)
+        async let assetsResult = assets(byPublishedRaceId: race.id)
+        let (days, fetchedBroadcasts, fetchedAssets) = try await (daysResult, broadcastsResult, assetsResult)
+        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets))
+    }
+
+    /// Ordena las jornadas de una carrera, anota dobles sectores y les asocia
+    /// emisiones y assets.
+    private static func enrichRaceDays(
+        _ raceDays: [RaceDay],
+        race: Race,
+        broadcasts: [Broadcast],
+        assets: [Asset]
+    ) -> [EnrichedRaceDay] {
+        var days = raceDays
         days.sort { a, b in
             if let na = a.stageNumber, let nb = b.stageNumber {
                 if na != nb { return na < nb }
@@ -563,17 +805,10 @@ final class SupabaseService {
         // Detectar dobles sectores
         RaceLogic.annotateDoubleSectors(&days)
 
-        let dayIds = days.map(\.id)
+        let broadcastsByRd = Dictionary(grouping: broadcasts, by: \.raceDayId)
+        let assetsByRd = Dictionary(grouping: assets, by: \.raceDayId)
 
-        async let broadcastsResult = broadcasts(byRaceDayIds: dayIds)
-        async let assetsResult = assets(byRaceDayIds: dayIds)
-
-        let (fetchedBroadcasts, fetchedAssets) = try await (broadcastsResult, assetsResult)
-
-        let broadcastsByRd = Dictionary(grouping: fetchedBroadcasts, by: \.raceDayId)
-        let assetsByRd = Dictionary(grouping: fetchedAssets, by: \.raceDayId)
-
-        let enriched = days.map { rd in
+        return days.map { rd in
             EnrichedRaceDay(
                 raceDay: rd,
                 race: race,
@@ -581,7 +816,5 @@ final class SupabaseService {
                 assets: assetsByRd[rd.id] ?? []
             )
         }
-
-        return (race, enriched)
     }
 }

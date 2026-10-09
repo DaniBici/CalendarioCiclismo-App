@@ -64,15 +64,16 @@ fun RaceCardChevron() {
 
 @Composable
 fun RaceCompetitionIdentity(name: String, logoUrl: String?, countryCode: String?, hideFlag: Boolean = false, showFemale: Boolean = false, onBack: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Todo arriba aunque el nombre ocupe varias líneas, como en Hoy de Ciclocross.
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.action_back), Modifier.size(18.dp))
         }
         RaceLogo(url = logoUrl, size = 44.dp)
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!hideFlag) CountryFlag(countryCode)
-                Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, maxLines = 2,
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!hideFlag) CountryFlag(countryCode, modifier = Modifier.padding(top = 7.dp))
+                Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (showFemale) {
                     val femaleDescription = androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.season_female_indicator_cd)

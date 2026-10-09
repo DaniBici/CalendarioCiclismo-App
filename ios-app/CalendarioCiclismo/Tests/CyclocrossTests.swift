@@ -270,7 +270,7 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertEqual(row.bib, "A12")
         XCTAssertNil(row.bonusSeconds)
         XCTAssertEqual(CyclocrossLogic.duration(row.timeSeconds), "25:01:01")
-        XCTAssertEqual(CyclocrossLogic.duration(nil), "—")
+        XCTAssertEqual(CyclocrossLogic.duration(nil), "-")
         let encoded = try JSONEncoder().encode(row)
         XCTAssertNil(try JSONDecoder().decode(CxResult.self, from: encoded).bonusSeconds)
     }
@@ -328,8 +328,6 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertEqual(cachedDetail?.data.race.id, race.id)
         let id = try await repo.raceId(forSlug: "test")
         XCTAssertEqual(id, race.id)
-        let next = try await repo.nextDate(season: "2026-27", date: "2027-01-29")
-        XCTAssertEqual(next, "2027-01-30")
         XCTAssertEqual(remote.monthCalls, [month, month])
         remote.failure = nil
         remote.rows = []
@@ -340,19 +338,61 @@ final class CyclocrossTests: XCTestCase {
         catch is CancellationError { }
     }
     @MainActor
-    func testAgendaJumpsWithOnlyOpeningAndTargetMonthsThenStopsInFebruary() async throws {
+    func testDayAgendaLoadsSevenMonthsOncePerSeasonAndOpensOnNextRaceDay() async throws {
         let remote = MemoryRemote(race: try race())
-        remote.next = "2027-02-07"
         let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2026-09-12")
+        model.selectFilter(.all)
         await model.open("2026-27")
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2027-02"])
-        XCTAssertEqual(model.months.map(\.key), ["2027-02"])
-        XCTAssertEqual(model.jumpDate, "2027-02-07")
-        XCTAssertFalse(model.canNext)
-        await model.selectMonth(CxMonth(year: 2027, month: 3))
-        XCTAssertEqual(remote.monthCalls.count, 2)
-        await model.refresh()
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2027-02", "2027-02"])
+        XCTAssertEqual(Set(remote.monthCalls.map(\.key)), Set(model.allowed.map(\.key)))
+        XCTAssertEqual(remote.monthCalls.count, 7)
+        // Una prueba que cruza de mes llega en varias consultas: una sola carrera.
+        XCTAssertEqual(model.seasonRaces.map(\.id), ["cx-1"])
+        XCTAssertEqual(model.raceDays, ["2027-01-30", "2027-01-31"])
+        XCTAssertEqual(model.dateKey, "2027-01-30")
+        XCTAssertFalse(model.isShowingCurrentDay)
+        await model.open("2026-27")
+        XCTAssertEqual(remote.monthCalls.count, 7)
+        model.navigate(to: "2027-01-31")
+        await model.refresh(forceArtwork: false, visibleMonthOnly: true)
+        XCTAssertEqual(remote.monthCalls.count, 8)
+        XCTAssertEqual(remote.monthCalls.last?.key, "2027-01")
+        XCTAssertEqual(model.dateKey, "2027-01-31")
+    }
+
+    @MainActor
+    func testDayAgendaFilterNavigationAndAutoAdvanceWithAll() async throws {
+        let spanish = try JSONDecoder().decode(CxRace.self, from: Data("""
+        {"id":"es","name":"Ciclocross local","slug":"local","seasonKey":"2026-27","dateKey":"2027-01-27","class":"C2","countryCode":"ES","isCancelled":false,"cx_race_categories":[]}
+        """.utf8))
+        let remote = MemoryRemote(race: try race())
+        remote.rows = [try race(), spanish]
+        let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2027-01-26")
+        model.selectFilter(.all)
+        await model.open("2026-27")
+        XCTAssertEqual(model.dateKey, "2027-01-27")
+        // Otro filtro conserva el día aunque quede vacío y ofrece el siguiente.
+        model.selectFilter(.big)
+        XCTAssertEqual(model.dateKey, "2027-01-27")
+        XCTAssertTrue(model.dayRaces.isEmpty)
+        XCTAssertEqual(model.nextDayWithRaces, "2027-01-30")
+        model.goToNextDay()
+        XCTAssertEqual(model.dateKey, "2027-01-30")
+        // Sin día anterior con carreras Big: el día contiguo.
+        model.goToPreviousDay()
+        XCTAssertEqual(model.dateKey, "2027-01-29")
+        // Con Todas, un día vacío avanza al siguiente con carreras.
+        model.selectFilter(.all)
+        XCTAssertEqual(model.dateKey, "2027-01-30")
+        model.navigate(to: "2027-01-28")
+        XCTAssertEqual(model.dateKey, "2027-01-30")
+        model.goToToday()
+        XCTAssertEqual(model.dateKey, "2027-01-27")
+        model.goToPreviousDay()
+        XCTAssertEqual(model.dateKey, "2027-01-27")
+        model.navigate(to: "2027-03-15")
+        XCTAssertEqual(model.dateKey, "2027-02-28")
+        XCTAssertFalse(model.canGoToNextDay)
+        XCTAssertTrue(model.canGoToPreviousDay)
     }
 
     @MainActor
@@ -375,52 +415,23 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertNil(absent)
         await model.refresh()
         XCTAssertEqual(model.months.map(\.key), model.allowed.map(\.key))
-        XCTAssertNil(model.activeMonth)
         XCTAssertEqual(model.jumpDate, "2027-01-30")
     }
 
     @MainActor
-    func testMonthSelectorLoadsOnlyTargetRestoresFailureAndReusesLoadedMonth() async throws {
+    func testDayAgendaOutsideSeasonOpensAugustFirstAndKeepsOfflineData() async throws {
         let remote = MemoryRemote(race: try race())
-        remote.rows = []; remote.next = nil
-        let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2026-09-12")
-        await model.open("2026-27")
-        await model.selectMonth(CxMonth(year: 2027, month: 2))
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2027-02"])
-        XCTAssertEqual(model.months.map(\.key), ["2027-02"])
-        XCTAssertEqual(model.activeMonth?.key, "2027-02")
-        XCTAssertEqual(model.jumpDate, "2027-02-01")
-        await model.selectMonth(CxMonth(year: 2027, month: 1))
-        XCTAssertEqual(model.months.map(\.key), ["2027-01"])
-        await model.selectMonth(CxMonth(year: 2026, month: 9))
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2027-02", "2027-01"])
-        XCTAssertEqual(model.months.map(\.key), ["2026-09"])
-        await model.selectMonth(CxMonth(year: 2027, month: 3))
-        XCTAssertEqual(remote.monthCalls.count, 3)
-        remote.failure = CxRepositoryError.invalidMonth
-        await model.selectMonth(CxMonth(year: 2026, month: 10))
-        XCTAssertEqual(model.months.map(\.key), ["2026-09"])
-        XCTAssertEqual(model.activeMonth?.key, "2026-09")
-        XCTAssertNotNil(model.error)
-        remote.failure = nil
-        await model.retry()
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2027-02", "2027-01", "2026-10", "2026-10"])
-        XCTAssertEqual(model.activeMonth?.key, "2026-10")
-        XCTAssertNil(model.error)
-    }
-
-    @MainActor
-    func testAgendaOutsideSeasonOpensAugustAndContainsExactlySevenMonths() async throws {
-        let remote = MemoryRemote(race: try race())
-        remote.rows = []; remote.next = nil
+        remote.rows = []
         let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2027-05-12")
+        model.selectFilter(.all)
         await model.open("2027-28")
         XCTAssertEqual(model.allowed.map(\.key), ["2027-08", "2027-09", "2027-10", "2027-11", "2027-12", "2028-01", "2028-02"])
-        XCTAssertEqual(model.months.map(\.key), ["2027-08"])
-        XCTAssertFalse(model.canPrevious)
-        XCTAssertEqual(model.rows.map(\.id), ["empty:2027-08"])
-        await model.selectMonth(CxMonth(year: 2027, month: 9))
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2027-08", "2027-09"])
+        XCTAssertEqual(model.agendaToday, "2027-08-01")
+        XCTAssertEqual(model.dateKey, "2027-08-01")
+        XCTAssertTrue(model.isShowingCurrentDay)
+        XCTAssertFalse(model.canGoToPreviousDay)
+        XCTAssertNil(model.nextDayWithRaces)
+        XCTAssertEqual(model.lastDay, "2028-02-29")
         remote.failure = CxRepositoryError.invalidMonth
         await model.refresh()
         XCTAssertTrue(model.offline)
@@ -428,30 +439,40 @@ final class CyclocrossTests: XCTestCase {
     }
 
     @MainActor
-    func testRefreshAndReopeningKeepSelectedMonthWithoutRequestingScroll() async throws {
-        let remote = MemoryRemote(race: try race())
-        remote.rows = []; remote.next = nil
-        let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2026-09-12")
-        await model.open("2026-27")
-        await model.selectMonth(CxMonth(year: 2026, month: 10))
-        XCTAssertEqual(model.months.map(\.key), ["2026-10"])
-        model.jumpDate = nil
-        await model.refresh()
-        XCTAssertEqual(remote.monthCalls.map(\.key), ["2026-09", "2026-10", "2026-10"])
-        XCTAssertEqual(model.activeMonth?.key, "2026-10")
-        XCTAssertNil(model.jumpDate)
-        await model.open("2026-27")
-        await model.selectMonth(CxMonth(year: 2026, month: 10))
-        XCTAssertEqual(remote.monthCalls.count, 3)
-        XCTAssertEqual(model.rows.map(\.id), ["empty:2026-10"])
-        XCTAssertNil(model.jumpDate)
+    func testSeasonBoundsClampAndStepDay() {
+        XCTAssertEqual(CyclocrossLogic.seasonBounds("2026-27")?.first, "2026-08-01")
+        XCTAssertEqual(CyclocrossLogic.seasonBounds("2026-27")?.last, "2027-02-28")
+        XCTAssertNil(CyclocrossLogic.seasonBounds("2026-28"))
+        XCTAssertEqual(CyclocrossLogic.clamp("2027-05-12", season: "2027-28"), "2027-08-01")
+        XCTAssertEqual(CyclocrossLogic.clamp("2027-03-01", season: "2026-27"), "2027-02-28")
+        XCTAssertEqual(CyclocrossLogic.clamp("2026-10-03", season: "2026-27"), "2026-10-03")
+        let days = ["2026-10-04", "2026-10-11"]
+        XCTAssertEqual(CyclocrossLogic.openingDay(today: "2026-10-04", raceDays: days), "2026-10-04")
+        XCTAssertEqual(CyclocrossLogic.openingDay(today: "2026-10-05", raceDays: days), "2026-10-11")
+        XCTAssertEqual(CyclocrossLogic.openingDay(today: "2026-10-12", raceDays: days), "2026-10-12")
+        XCTAssertEqual(CyclocrossLogic.stepDay(from: "2026-10-06", forward: true, raceDays: days, season: "2026-27"), "2026-10-11")
+        XCTAssertEqual(CyclocrossLogic.stepDay(from: "2026-10-06", forward: false, raceDays: days, season: "2026-27"), "2026-10-04")
+        XCTAssertEqual(CyclocrossLogic.stepDay(from: "2026-10-11", forward: true, raceDays: days, season: "2026-27"), "2026-10-12")
+        XCTAssertEqual(CyclocrossLogic.stepDay(from: "2026-10-04", forward: false, raceDays: days, season: "2026-27"), "2026-10-03")
+        XCTAssertNil(CyclocrossLogic.stepDay(from: "2027-02-28", forward: true, raceDays: days, season: "2026-27"))
+        XCTAssertNil(CyclocrossLogic.stepDay(from: "2026-08-01", forward: false, raceDays: days, season: "2026-27"))
+    }
+
+    func testDateBarFixedStripAtSeasonEdges() {
+        let first = "2026-08-01", last = "2027-02-28"
+        XCTAssertEqual(DateBarWindow.fixedStrip(selected: "2026-08-03", firstDate: first, lastDate: last, count: 7),
+                       ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"])
+        XCTAssertNil(DateBarWindow.fixedStrip(selected: "2026-08-04", firstDate: first, lastDate: last, count: 7))
+        XCTAssertNil(DateBarWindow.fixedStrip(selected: "2027-02-25", firstDate: first, lastDate: last, count: 7))
+        XCTAssertEqual(DateBarWindow.fixedStrip(selected: "2027-02-26", firstDate: first, lastDate: last, count: 7),
+                       ["2027-02-22", "2027-02-23", "2027-02-24", "2027-02-25", "2027-02-26", "2027-02-27", "2027-02-28"])
+        XCTAssertNil(DateBarWindow.fixedStrip(selected: "2026-08-01", firstDate: nil, lastDate: nil, count: 7))
     }
 
     @MainActor
     func testRefreshReplacesRaceLogoAndScheduleAndRenewsRounds() async throws {
         let original = try race()
         let remote = MemoryRemote(race: original)
-        remote.next = nil
         let repo = CyclocrossRepository(remote: remote, store: MemoryStore())
         let model = CyclocrossAgendaModel(repo: repo, today: "2027-01-29")
         await model.open("2026-27")
@@ -467,31 +488,33 @@ final class CyclocrossTests: XCTestCase {
         let updated = try XCTUnwrap(model.cache[CxMonth(year: 2027, month: 1)]?.data.first)
         XCTAssertEqual(updated.logoUrl, "https://example.org/new-logo.webp")
         XCTAssertEqual(updated.categories[0].startTimeUtc, "2027-01-31T16:00:00Z")
+        XCTAssertEqual(model.seasonRaces.first?.logoUrl, "https://example.org/new-logo.webp")
         XCTAssertEqual(model.rounds[original.id]?.n, 2)
         XCTAssertEqual(remote.roundsCalls, 2)
     }
 
     @MainActor
-    func testChangingSeasonPreventsOldNextDateFromReplacingVisibleMonths() async throws {
+    func testChangingSeasonDiscardsOldSeasonResponses() async throws {
         let remote = MemoryRemote(race: try race())
-        remote.rows = []
-        let entered = expectation(description: "Consulta puntual anterior iniciada")
-        var resumeOld: CheckedContinuation<String?, Never>?
-        remote.nextOverride = { season in
-            if season == "2026-27" {
-                return await withCheckedContinuation { continuation in resumeOld = continuation; entered.fulfill() }
-            }
-            return nil
+        let entered = expectation(description: "Consultas de la temporada anterior iniciadas")
+        entered.expectedFulfillmentCount = 7
+        var held: [CheckedContinuation<Void, Never>] = []
+        remote.monthGate = { season in
+            guard season == "2026-27" else { return }
+            await withCheckedContinuation { continuation in held.append(continuation); entered.fulfill() }
         }
         let model = CyclocrossAgendaModel(repo: CyclocrossRepository(remote: remote, store: MemoryStore()), today: "2026-09-12")
+        model.selectFilter(.all)
         let old = Task { await model.open("2026-27") }
         await fulfillment(of: [entered], timeout: 2)
+        remote.rows = []
         await model.open("2027-28")
-        resumeOld?.resume(returning: "2027-02-07")
+        held.forEach { $0.resume() }
         await old.value
         XCTAssertEqual(model.season, "2027-28")
-        XCTAssertEqual(model.months.map(\.key), ["2027-08"])
-        XCTAssertEqual(model.jumpDate, "2027-08-01")
+        XCTAssertEqual(Set(model.cache.keys.map(\.season)), ["2027-28"])
+        XCTAssertTrue(model.seasonRaces.isEmpty)
+        XCTAssertEqual(model.dateKey, "2027-08-01")
         XCTAssertNil(model.error)
         XCTAssertFalse(model.busy)
     }
@@ -617,7 +640,7 @@ final class CyclocrossTests: XCTestCase {
         """#.utf8))
         let values = CyclocrossPresentation.standingValues(rows, mode: "time", isEn: false)
         XCTAssertEqual(values.map(\.row.id), ["a", "b", "c", "d", "e", "f"])
-        XCTAssertEqual(values.map(\.value.text), ["1:23:20", "m.t.", "+45\"", "+1'45\"", "+1:02:03", "—"])
+        XCTAssertEqual(values.map(\.value.text), ["1:23:20", "m.t.", "+45\"", "+1'45\"", "+1:02:03", "-"])
         XCTAssertEqual(values.map(\.value.kind), [.winnerTime, .sameTime, .gap, .gap, .gap, .gap])
         XCTAssertEqual(CyclocrossPresentation.standingValues(rows, mode: "time", isEn: true)[1].value.text, "s.t.")
         XCTAssertEqual(CyclocrossPresentation.standingMode(scheme: nil, category: "ME", rows: rows), "time")
@@ -704,6 +727,18 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: byCode["WE"]), instant("2027-01-31T06:00:00Z"))
         // Carrera sin categorías: último día de la carrera.
         XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: nil), instant("2027-02-01T06:00:00Z"))
+    }
+
+    @MainActor
+    func testLiveTvShowAllKeepsRegionalRowsFirstAndMarksOthers() throws {
+        let detail = try mediaDetail(categories: mediaCategory("ME", date: "2027-01-31", start: "2027-01-31T14:00:00Z", minutes: 60),
+            broadcasts: [
+                mediaRow("me-be", category: "ME", country: "BE", url: "https://example.org/be"),
+                mediaRow("me-es", category: "ME", url: "https://example.org/es", order: 1),
+            ].joined(separator: ","))
+        let all = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], showAll: true, at: instant("2027-01-29T12:00:00Z"))
+        XCTAssertEqual(all.tvRows.map(\.id), ["me-es", "me-be"])
+        XCTAssertEqual(all.regionalIds, ["me-es"])
     }
 
     @MainActor
@@ -920,16 +955,21 @@ private final class MemoryRemote: CxRemote {
     let race: CxRace
     var rows: [CxRace]
     var failure: Error?
-    var next: String? = "2027-01-30"
-    var nextOverride: ((String) async -> String?)?
+    /// Retiene la consulta de un mes hasta que la prueba la libere.
+    var monthGate: ((String) async -> Void)?
     var monthCalls: [CxMonth] = []
     var seasonRounds: [String: CxRound] = [:]
     var roundsFailure: Error?
     var roundsCalls = 0
     var tournament: CxTournament?
     init(race: CxRace) { self.race = race; rows = [race] }
-    func cxMonth(season: String, month: CxMonth) async throws -> [CxRace] { monthCalls.append(month); if let failure { throw failure }; return rows }
-    func cxNextDate(season: String, date: String) async throws -> String? { if let failure { throw failure }; if let nextOverride { return await nextOverride(season) }; return next }
+    func cxMonth(season: String, month: CxMonth) async throws -> [CxRace] {
+        monthCalls.append(month)
+        let snapshot = rows
+        if let monthGate { await monthGate(season) }
+        if let failure { throw failure }
+        return snapshot
+    }
     func cxDetail(id: String) async throws -> CxDetail? { if let failure { throw failure }; return CxDetail(race: race, startlist: [], results: [], broadcasts: [], videos: [], teams: [], standings: []) }
     func cxRaceForSlug(_ slug: String) async throws -> CxRace? { if let failure { throw failure }; return race }
     func cxTournamentForSlug(_ slug: String) async throws -> CxTournament? { if let failure { throw failure }; return tournament }

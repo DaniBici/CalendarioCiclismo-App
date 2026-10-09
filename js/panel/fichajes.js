@@ -17,6 +17,7 @@ import { showToast } from './helpers.js';
 import { _slRiderFlagPreview } from './startlist-picker.js';
 import { fetchTeams, fetchTeamSeasonsForYear, openTeamEditor } from './teams.js';
 import { openRiderEditor } from './riders.js';
+import { riderMatchesSearch, riderSearchTokens, withRiderSearch } from '../results/panel-logic.js';
 import {
   _affYear, _clearOtherTransfersForRider, _deleteAffiliation2027,
   _syncMarketSituationAffiliation, _syncSigningAffiliation, openTeamSituationEditor,
@@ -97,7 +98,7 @@ export function renderMarketTeams() {
   btns.innerHTML = MARKET_DIVISIONS.map(d => {
     const active = d === _marketDiv;
     const n = panelState._marketSeasons.filter(s => s.category === d).length;
-    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost'}" data-mdiv="${d}">${d}${n ? ` <span class="u-o65">${n}</span>` : ''}</button>`;
+    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost btn--tonal'}" data-mdiv="${d}">${d}${n ? ` <span class="u-o65">${n}</span>` : ''}</button>`;
   }).join('');
   btns.querySelectorAll('[data-mdiv]').forEach(b =>
     b.addEventListener('click', () => { _marketDiv = b.dataset.mdiv; renderMarketTeams(); })
@@ -277,7 +278,7 @@ export function renderTransfersList() {
   if (!container) return;
 
   const statusFilter = document.getElementById('transfersStatusFilter')?.value || 'all';
-  const q = (document.getElementById('transfersSearch')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('transfersSearch')?.value || '').trim();
 
   const filtered = (panelState._transfersCache || []).filter(t => {
     // Las filas del volcado inicial sin edición manual no aportan una novedad
@@ -290,12 +291,11 @@ export function renderTransfersList() {
       return false;
     }
     if (!q) return true;
-    const hay = [
+    return riderMatchesSearch({ name: [
       _trRiderLabel(t),
       _trTeamLabel(t.fromTeamId, t.fromTeamName, 'from'),
       _trTeamLabel(t.toTeamId, t.toTeamName),
-    ].join(' ').toLowerCase();
-    return hay.includes(q);
+    ].join(' ') }, q);
   });
 
   if (countEl) countEl.textContent = filtered.length ? `${filtered.length} movimiento${filtered.length === 1 ? '' : 's'}` : '';
@@ -349,8 +349,8 @@ export function renderTransfersList() {
         <span class="u-grow u-minw-1200 u-fs-2">${movement} ${contractBit}</span>
         ${statusChip}
         ${midSeasonChip}
-        ${isRumor || isDoubt ? `<button class="btn btn--ghost transfer-confirm u-btn-xs u-c-accent">Confirmar</button>` : ''}
-        <button class="btn btn--ghost transfer-edit u-btn-xs">Editar</button>
+        ${isRumor || isDoubt ? `<button class="btn btn--ghost btn--tonal transfer-confirm u-btn-xs u-c-accent">Confirmar</button>` : ''}
+        <button class="btn btn--ghost btn--tonal transfer-edit u-btn-xs">Editar</button>
       </div>`;
   }).join('');
 
@@ -414,7 +414,7 @@ function transferEditorBodyHtml() {
           <span id="tr-rider-selected-flag" class="u-w-150em u-center"></span>
           <span id="tr-rider-selected-name" class="u-grow u-fs-3 u-fw-600"></span>
           <span id="tr-rider-selected-team" class="u-fs-1 u-c-dim"></span>
-          <button class="btn btn--ghost u-py-025 u-px-055 u-fs-1" id="tr-rider-clear">Cambiar</button>
+          <button class="btn btn--ghost btn--tonal u-py-025 u-px-055 u-fs-1" id="tr-rider-clear">Cambiar</button>
         </div>
       </div>
 
@@ -477,7 +477,7 @@ function transferEditorBodyHtml() {
     </div>
     <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveTransferBtn">Guardar</button>
-      <button class="btn btn--ghost u-c-red" id="deleteTransferBtn" style="display:none">Eliminar</button>
+      <button class="btn btn--ghost btn--tonal u-c-red" id="deleteTransferBtn" style="display:none">Eliminar</button>
       <span class="u-fs-2 u-c-dim" id="transferSaveStatus"></span>
     </div>
   `;
@@ -580,17 +580,18 @@ async function _trSearchRiders(q) {
   const results = document.getElementById('tr-rider-results');
   if (!results) return;
   const term = (q || '').trim();
-  if (term.length < 3) { results.style.display = 'none'; results.innerHTML = ''; return; }
-  const safe = term.replace(/[%,()]/g, '');
+  const tokens = riderSearchTokens(term);
+  if (term.length < 3 || !tokens.length) { results.style.display = 'none'; results.innerHTML = ''; return; }
   results.style.display = 'flex';
   results.innerHTML = '<div class="u-c-dim u-fs-2 u-py-030 u-px-0">Buscando…</div>';
   try {
     const cols = 'id, firstName, lastName, nationality, birthDate, currentTeamId, contractUntil';
-    const filter = `lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
-    const [men, women] = await Promise.all([
-      supabase.from('riders_men').select(cols).or(filter).order('lastName').limit(12).then(r => r.data || []),
-      supabase.from('riders_women').select(cols).or(filter).order('lastName').limit(12).then(r => r.data || []),
-    ]);
+    const search = async table => {
+      const { data, error } = await withRiderSearch(supabase.from(table).select(cols), tokens).order('lastName').limit(12);
+      if (error) throw error;
+      return data || [];
+    };
+    const [men, women] = await Promise.all([search('riders_men'), search('riders_women')]);
     const rows = [
       ...men.map(r => ({ ...r, gender: 'male' })),
       ...women.map(r => ({ ...r, gender: 'female' })),
@@ -630,7 +631,7 @@ async function _trSearchRiders(q) {
  * júniors que suben, fichajes desde fuera del catálogo).
  */
 function _trCreateRiderBtnHtml(term) {
-  return `<button type="button" class="btn btn--ghost tr-create-rider-btn" id="tr-create-rider">
+  return `<button type="button" class="btn btn--ghost btn--tonal tr-create-rider-btn" id="tr-create-rider">
     + Crear ficha de «${esc(term)}»
   </button>`;
 }

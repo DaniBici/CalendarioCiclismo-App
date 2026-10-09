@@ -5,7 +5,7 @@ import { teamHeaderColors } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
-         buildTeamBadgeSvg, raceName as getRaceName, enBase,
+         raceName as getRaceName, enBase,
          seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          isNoTeamPlaceholderTeam, setRaceRobots, setHreflangPair } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
@@ -43,7 +43,8 @@ function buildFechaParentesis(race, lang) {
 }
 
 async function init() {
-  await initI18n();
+  // El diccionario EN se carga a la vez que los datos; se espera antes de pintar.
+  const i18nReady = initI18n();
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
   const params  = new URLSearchParams(window.location.search);
   const content = document.getElementById('inscritosContent') || document.getElementById('startlistContent');
@@ -60,6 +61,7 @@ async function init() {
   // Resolve slug → raceId (en EN busca primero por slugEn)
   const race = await resolveStartlistRace({ raceId, slug, isEn: _isEn });
   if (race) raceId = race.id;
+  await i18nReady;
 
   if (!race) {
     content.innerHTML = `<div class="startlist-empty">${t('startlist.notFound')}</div>`;
@@ -82,30 +84,26 @@ async function init() {
 
   // Equipos, corredores, colores de temporada y abandonos (startlist/data.js,
   // compartido con la página que generan las apps).
-  const data = await loadStartlistData(race);
+  // ── Jornada única + assets (solo pruebas de UN DÍA) ──
+  // En one_day el panel de botones muestra el recorrido (rutómetro/perfil/…),
+  // que vive en la jornada y sus assets. En vueltas por etapas NO se cargan:
+  // el panel solo lleva web oficial + "Ir a la carrera" (la startlist es de la
+  // carrera entera, no de una etapa). Se piden junto con la startlist.
+  const oneDayRequest = race.raceFormat === 'one_day'
+    ? supabase.from('race_days')
+      .select('*,assets(*)').eq('raceId', raceId).eq('editorialStatus', 'published')
+      .order('dateKey', { ascending: true }).limit(1).maybeSingle()
+    : Promise.resolve({ data: null });
+  const [data, { data: oneDayRow }] = await Promise.all([loadStartlistData(race), oneDayRequest]);
   if (!data) {
     content.innerHTML = `<div class="startlist-empty">${t('startlist.empty')}</div>`;
     return;
   }
   const { raceDays, teams, ridersByTeam, globalTeamById, riderOutMap, totalTeams, totalRiders } = data;
 
-  // ── Jornada única + assets (solo pruebas de UN DÍA) ──
-  // En one_day el panel de botones muestra el recorrido (rutómetro/perfil/…),
-  // que vive en la jornada y sus assets. En vueltas por etapas NO se cargan:
-  // el panel solo lleva web oficial + "Ir a la carrera" (la startlist es de la
-  // carrera entera, no de una etapa).
-  let oneDayRd = null;
-  let oneDayAssets = [];
-  if (race.raceFormat === 'one_day') {
-    const { data: rdRow } = await supabase.from('race_days')
-      .select('*').eq('raceId', raceId).eq('editorialStatus', 'published')
-      .order('dateKey', { ascending: true }).limit(1).maybeSingle();
-    if (rdRow) {
-      oneDayRd = rdRow;
-      const { data: aRows } = await supabase.from('assets').select('*').eq('raceDayId', rdRow.id);
-      oneDayAssets = aRows || [];
-    }
-  }
+  const { assets: oneDayAssetRows, ...oneDayFields } = oneDayRow || {};
+  const oneDayRd = oneDayRow ? oneDayFields : null;
+  const oneDayAssets = oneDayAssetRows || [];
 
   // Update page title & SEO
   const raceName = getRaceName(race) || t('race.unknown');
@@ -122,7 +120,7 @@ async function init() {
     ? t('startlist.provisional')
     : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
   const siteName = t('seo.siteName');
-  const title = `${inscritosLabel} — ${raceName} ${fechaParentesis} — ${siteName}`;
+  const title = `${inscritosLabel} - ${raceName} ${fechaParentesis} - ${siteName}`;
   const provisionalNote = race.startlistProvisional ? t('startlist.provisionalNote') : '';
   const isFemale = race.gender === 'female';
   let description;
@@ -158,7 +156,7 @@ async function init() {
   const DEFAULT_OG_IMAGE = 'https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png';
   const OG_WORKER = 'https://og.calendariociclismo.app';
   const ogImage = (race.logoUrl && race.logoUrl.startsWith('https://assets.calendariociclismo.app/'))
-    ? `${OG_WORKER}/?logo=${encodeURIComponent(race.logoUrl)}&title=${encodeURIComponent(inscritosLabel + ' — ' + raceName + ' ' + year)}`
+    ? `${OG_WORKER}/?logo=${encodeURIComponent(race.logoUrl)}&title=${encodeURIComponent(inscritosLabel + ' - ' + raceName + ' ' + year)}`
     : DEFAULT_OG_IMAGE;
 
   document.title = title;
@@ -170,14 +168,14 @@ async function init() {
   setMetaProperty('og:image', ogImage);
   setMetaProperty('og:image:width',  '1200');
   setMetaProperty('og:image:height', '630');
-  setMetaProperty('og:image:alt', `${inscritosLabel} — ${raceName} ${year}`);
+  setMetaProperty('og:image:alt', `${inscritosLabel} - ${raceName} ${year}`);
 
   // Twitter Card
   setMeta('twitter:card', 'summary_large_image');
   setMeta('twitter:title', title);
   setMeta('twitter:description', description);
   setMeta('twitter:image', ogImage);
-  setMeta('twitter:image:alt', `${inscritosLabel} — ${raceName} ${year}`);
+  setMeta('twitter:image:alt', `${inscritosLabel} - ${raceName} ${year}`);
 
   // Canonical + og:url
   const origin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : location.origin;
@@ -250,7 +248,7 @@ async function init() {
     view: 'inscritos',
     assets: withRaceTechnicalGuide(oneDayAssets, await loadRaceTechnicalGuide(race.id)),
     hasStartlist: false,
-    style: 'margin:0.85rem auto', standalone: true,
+    style: 'margin:0 auto 0.85rem', standalone: true,
   });
 
   const pdfAction = `<button class="btn-ical" id="btnDescargarPdf">

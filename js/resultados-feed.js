@@ -27,7 +27,11 @@ import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          setMeta, setMetaProperty, resolveTypeBadges,
          categoryRank, genderRank, grandTourRank, tsSeconds,
          nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
-import { getLang } from './i18n.js';
+import { getLang, t } from './i18n.js';
+import { cyclocrossHome } from './services/today-season.js';
+import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
+import { cxSeason, cxRaceName, cxRacePageUrl, cxRoundBadge } from './cx/presentation.js';
+import { cxResultEntries } from './cx/results-feed.js';
 import { isNonWinnerIrm } from './results/uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
 import { resultFeedEntryKey, sectorSuffixMap } from './services/races.js';
@@ -147,7 +151,7 @@ function cmpEntries(a, b) {
 
 // ── Datos: entradas de resultados de un rango de fechas, ya ordenadas ──
 async function fetchEntries(fromKey, toKey, isEn) {
-  const stageColumns = 'id, raceId, raceDayId, stageNumber, classKind, stageDate, winnerName, isFinalClassification';
+  const stageColumns = 'id, raceId, raceDayId, stageNumber, classKind, stageDate, winnerName, isFinalClassification, updatedAt';
   const raceColumns = 'id, name, nameEn, slug, slugEn, year, countryCode, gender, raceFormat, uciCategory, colorHex, isGrandTour, startDate, endDate, logoUrl';
   // Consultar primero la ventana fechada, sus jornadas y las carreras que se
   // solapan. Los PDF sin stageDate se acotan después a esos IDs de carrera.
@@ -156,7 +160,8 @@ async function fetchEntries(fromKey, toKey, isEn) {
       .eq('keepForWeb', true).gt('rowCount', 0).in('classKind', ['stage', 'gc'])
       .gte('stageDate', fromKey).lte('stageDate', toKey).order('id')),
     fetchAllRows(() => supabase.from('race_days')
-      .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, realStartTimeUtc, distanceKm, elevationProfile, primaryType, secondaryType, countryCode, raceStatus, profileSummits, profileWaypoints, profileNotViewable')
+      // Del perfil solo se pinta el desnivel: se pide el campo, no la serie.
+      .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, realStartTimeUtc, distanceKm, elevationGain:elevationProfile->elevationGain, primaryType, secondaryType, countryCode, raceStatus, profileNotViewable')
       .eq('editorialStatus', 'published')
       .gte('dateKey', fromKey).lte('dateKey', toKey).order('id')),
     fetchAllRows(() => supabase.from('races').select(raceColumns)
@@ -360,23 +365,36 @@ async function fetchEntries(fromKey, toKey, isEn) {
       const creEntries = entries.filter(e => e.kind === 'inhouse' && e._stageRef
         && !e.isGcFinal
         && (e.rd?.primaryType === 'ttt' || (byRef.get(e._stageRef)?.size || 0) > 1));
-      for (const e of creEntries) {
-        const ids = [...(byRef.get(e._stageRef) || [])].slice(0, 3);
-        if (!ids.length) continue;
+      const creIds = new Map(creEntries.map(e => [e, [...(byRef.get(e._stageRef) || [])].slice(0, 3)]));
+      const creRiderIds = [...new Set([...creIds.values()].flat())];
+      const creRaceIds = [...new Set(creEntries.map(e => e.race.id))];
+      if (creRiderIds.length) {
         try {
           const { data: slr } = await supabase.from('startlist_riders_resolved')
-            .select('teamId').eq('raceId', e.race.id).in('globalRiderId', ids).limit(3);
-          const slPks = [...new Set((slr || []).map(r => r.teamId).filter(Boolean))];
-          if (slPks.length !== 1) continue;
-          const { data: slt } = await supabase.from('startlist_teams')
-            .select('teamId, teamName').eq('id', slPks[0]).maybeSingle();
-          if (!slt) continue;
-          let teamWinner = slt.teamName || '';
-          if (slt.teamId) {
-            const { data: tm } = await supabase.from('teams').select('name').eq('id', slt.teamId).maybeSingle();
-            if (tm?.name) teamWinner = tm.name;
+            .select('raceId, globalRiderId, teamId').in('raceId', creRaceIds).in('globalRiderId', creRiderIds);
+          const pksFor = e => {
+            const ids = new Set(creIds.get(e));
+            return [...new Set((slr || []).filter(r => r.raceId === e.race.id && ids.has(r.globalRiderId))
+              .map(r => r.teamId).filter(Boolean))];
+          };
+          const slPks = [...new Set(creEntries.map(pksFor).filter(pks => pks.length === 1).flat())];
+          const { data: slts } = slPks.length
+            ? await supabase.from('startlist_teams').select('id, teamId, teamName').in('id', slPks)
+            : { data: [] };
+          const sltById = new Map((slts || []).map(row => [row.id, row]));
+          const teamIds = [...new Set((slts || []).map(row => row.teamId).filter(Boolean))];
+          const { data: tms } = teamIds.length
+            ? await supabase.from('teams').select('id, name').in('id', teamIds)
+            : { data: [] };
+          const teamName = new Map((tms || []).map(row => [row.id, row.name]));
+          for (const e of creEntries) {
+            const pks = pksFor(e);
+            if (pks.length !== 1) continue;
+            const slt = sltById.get(pks[0]);
+            if (!slt) continue;
+            const teamWinner = (slt.teamId && teamName.get(slt.teamId)) || slt.teamName || '';
+            if (teamWinner) e.winner = localizedNationName(teamWinner);
           }
-          if (teamWinner) e.winner = localizedNationName(teamWinner);
         } catch (_) { /* se queda el ganador que hubiera */ }
       }
     }
@@ -399,10 +417,24 @@ async function fetchEntries(fromKey, toKey, isEn) {
   // Cronología inversa; dentro del día, orden canónico de carreras (las
   // generales finales pegadas a su carrera y por delante).
   await enrichResultFeed(supabase,entries);
-  // Las destacadas con clasificaciones complementarias abren su día.
-  const featuredRank = e => Number(!!(e._featured && e.leaders?.length));
+  // Como en Hoy, las carreras destacadas del día abren ese día, con todas sus
+  // entradas (etapa y general final) juntas.
+  const featuredDays = new Set(entries.filter(e => e._featured).map(e => `${e.date}#${e.race.id}`));
+  const featuredRank = e => Number(featuredDays.has(`${e.date}#${e.race.id}`));
   entries.sort((a, b) => (b.date || '').localeCompare(a.date || '') || featuredRank(b)-featuredRank(a) || cmpEntries(a, b));
-  return entries;
+  // Marca de agua del sondeo: la última modificación de clasificación leída.
+  const watermark = stages.reduce((max, stage) => (stage.updatedAt && stage.updatedAt > max ? stage.updatedAt : max), '');
+  return { entries, watermark };
+}
+
+// Última modificación de una clasificación del feed posterior a la marca de
+// agua, o null. Una fila basta para decidir si se recarga el feed completo.
+async function latestResultChange(watermark) {
+  const { data, error } = await supabase.from('race_uci_stages').select('updatedAt')
+    .eq('keepForWeb', true).gt('rowCount', 0).in('classKind', ['stage', 'gc'])
+    .gt('updatedAt', watermark).order('updatedAt', { ascending: false }).limit(1);
+  if (error) throw error;
+  return data?.[0]?.updatedAt || null;
 }
 
 // ── Render de una fila ─────────────────────────────────────────────
@@ -432,7 +464,7 @@ function entryRowHtml(e, isEn, locale) {
     const rd = e.rd;
     const km = rd?.distanceKm
       ? `${Number(rd.distanceKm).toLocaleString(locale)} km` : '';
-    const gain = rd?.elevationProfile?.elevationGain;
+    const gain = rd?.elevationGain;
     const elevation = gain != null
       // Separador de millares también con cuatro cifras («+1.810 m»), como en Hoy:
       // es-ES no agrupa por defecto por debajo de 10.000.
@@ -475,6 +507,30 @@ function entryRowHtml(e, isEn, locale) {
       </a>`;
 }
 
+// ── Fila de ciclocross ─────────────────────────────────────────────
+// Prueba CX con la estructura de la destacada de carretera: en lugar de las
+// clasificaciones complementarias, una línea por categoría con su código y
+// el ganador o la ganadora. La línea secundaria identifica torneo, manga y
+// sede, como la tarjeta de Hoy de Ciclocross.
+function cxEntryRowHtml(e, isEn, rounds) {
+  const lang = isEn ? 'en' : 'es';
+  const race = e.race, tournament = race.cx_tournaments;
+  const logoUrl = race.logoUrl || tournament?.logoUrl;
+  const logo = logoUrl ? `<img class="race-logo-img" src="${esc(logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+  const flag = race.countryCode ? `<span class="feed-row__flag">${countryFlag(race.countryCode)}</span>` : '';
+  const name = cxRaceName(race, lang);
+  const sub = [tournament ? esc(cxRaceName(tournament, lang)) : '', cxRoundBadge(rounds?.get(race.id)), race.venue && race.venue !== name ? esc(race.venue) : ''].filter(Boolean).join(' · ');
+  const leaders = e.categories.map(c => `<span class="feed-row__leader"><span class="feed-row__leader-label" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name">${esc(c.winnerName)}</span></span>`).join('');
+  return `
+      <a class="feed-row feed-row--featured feed-row--cx" href="${esc(cxRacePageUrl(race, lang, 'results', e.categories[0].category))}">
+        <span class="feed-row__logo">${logo}${flag}</span>
+        <span class="feed-row__main"><span class="feed-row__race">${esc(name)}</span>
+          ${sub ? `<span class="feed-row__sub">${sub}</span>` : ''}
+          <span class="feed-row__leaders">${leaders}</span></span>
+        <span class="feed-row__chevron" aria-hidden="true">›</span>
+      </a>`;
+}
+
 // ── Rejilla de escritorio ──────────────────────────────────────────
 // Con ancho suficiente cada día es una rejilla de dos columnas (css/app.css,
 // mismo breakpoint). Cada destacada ocupa en su columna las filas que exige
@@ -507,21 +563,45 @@ function packFeaturedEntries(root) {
   });
 }
 
+// Ciclocross en dos columnas: la altura de la tarjeta depende del número de
+// categorías. Cada columna apila sus tarjetas sin huecos (mampostería): la
+// rejilla usa filas de 1 px y cada tarjeta abarca su altura más la separación;
+// el flujo denso la coloca en la columna que queda más arriba.
+const CX_CARD_GAP = 10;
+function packCxDays(root) {
+  root.querySelectorAll('.feed-day__cx-grid').forEach((grid) => {
+    const cards = [...grid.children];
+    cards.forEach((el) => { el.style.gridRow = ''; });
+    if (!FEED_TWO_COLUMNS.matches) return;
+    const heights = cards.map(el => el.getBoundingClientRect().height);
+    cards.forEach((el, i) => { el.style.gridRow = `span ${Math.ceil(heights[i]) + CX_CARD_GAP}`; });
+  });
+}
+
 // ── Índice /resultados/ · /en/results/ ─────────────────────────────
 export function renderResultsFeed(content) {
   const _isEn = getLang() === 'en';
   const locale = _isEn ? 'en-GB' : 'es-ES';
   const todayKey = toDateKey(new Date());
   let fromKey = initialResultsFromKey(todayKey);
-  let activeView = 'latest';
+  // Pestaña Ciclocross, primera, mientras la home es Ciclocross (del cierre de
+  // la temporada de carretera al 31 de diciembre; services/today-season.js).
+  const cxTab = cyclocrossHome(todayKey);
+  const views = cxTab ? ['cx', 'latest', 'ranking'] : ['latest', 'ranking'];
+  const viewLabels = {
+    cx: _isEn ? 'Cyclocross' : 'Ciclocross',
+    latest: cxTab ? (_isEn ? 'Road' : 'Carretera') : (_isEn ? 'Latest Results' : 'Últimos resultados'),
+    ranking: _isEn ? 'UCI Ranking' : 'Ránking UCI',
+  };
+  let activeView = views[0];
   let rankingGender = 'male';
   let feedEntries = null;
   let rankingRows = null;
 
   // ── SEO (la home del feed es evergreen) ───────────────────────────
   const title = _isEn
-    ? 'Latest results — Calendario Ciclismo'
-    : 'Últimos resultados — Calendario Ciclismo App';
+    ? 'Latest results - Calendario Ciclismo'
+    : 'Últimos resultados - Calendario Ciclismo App';
   const description = _isEn
     ? 'Latest professional cycling results: stages and one-day classics in reverse chronological order, with winners and full classifications.'
     : 'Últimos resultados del ciclismo profesional: etapas y clásicas en orden cronológico inverso, con ganador y clasificaciones completas.';
@@ -549,14 +629,10 @@ export function renderResultsFeed(content) {
       <div class="feed-hero">
         <h1 class="sr-only">${_isEn ? 'Results' : 'Resultados'}</h1>
         <div class="feed-view-tabs" role="tablist" aria-label="${_isEn ? 'Results view' : 'Vista de resultados'}">
-          <button class="feed-view-tab${activeView === 'latest' ? ' feed-view-tab--active' : ''}"
-                  type="button" role="tab" aria-selected="${activeView === 'latest'}" data-results-view="latest">
-            ${_isEn ? 'Latest Results' : 'Últimos resultados'}
-          </button>
-          <button class="feed-view-tab${activeView === 'ranking' ? ' feed-view-tab--active' : ''}"
-                  type="button" role="tab" aria-selected="${activeView === 'ranking'}" data-results-view="ranking">
-            ${_isEn ? 'UCI Ranking' : 'Ránking UCI'}
-          </button>
+          ${views.map(view => `<button class="feed-view-tab${activeView === view ? ' feed-view-tab--active' : ''}"
+                  type="button" role="tab" aria-selected="${activeView === view}" data-results-view="${view}">
+            ${viewLabels[view]}
+          </button>`).join('')}
         </div>
       </div>
       <div id="resultsFeedPanel">${body}</div>`;
@@ -570,6 +646,8 @@ export function renderResultsFeed(content) {
         activeView = next;
         if (activeView === 'ranking') {
           renderRankingOrLoad();
+        } else if (activeView === 'cx') {
+          if (cxEntries) renderCx(cxEntries); else loadCx();
         } else if (feedEntries) {
           renderFeed(feedEntries);
         } else {
@@ -610,7 +688,7 @@ export function renderResultsFeed(content) {
     }
   }
 
-  let feedRequest=0, feedLoading=false, moreLoading=false;
+  let feedRequest=0, feedLoading=false, moreLoading=false, feedWatermark=null, pendingWatermark=null, feedProbing=false;
 
   function setMoreButtonLoading(loading) {
     const button = content.querySelector('#feedMoreBtn');
@@ -634,7 +712,7 @@ export function renderResultsFeed(content) {
     setMoreButtonLoading(true);
 
     try {
-      const olderEntries = await fetchEntries(range.fromKey, range.toKey, _isEn);
+      const { entries: olderEntries } = await fetchEntries(range.fromKey, range.toKey, _isEn);
       if (request !== feedRequest) return;
       fromKey = range.fromKey;
       feedEntries = [...(feedEntries || []), ...olderEntries];
@@ -673,8 +751,13 @@ export function renderResultsFeed(content) {
       bindViewTabs();
     }
     try {
-      const next=await fetchEntries(fromKey,toDateKey(new Date()),_isEn);
+      const { entries: next, watermark } = await fetchEntries(fromKey,toDateKey(new Date()),_isEn);
       if (request!==feedRequest) return;
+      // La marca de agua solo avanza: incluye el cambio que disparó la recarga
+      // aunque quede fuera de la ventana del feed.
+      feedWatermark = [watermark, pendingWatermark, feedWatermark].filter(Boolean).sort().at(-1)
+        || new Date(Date.now() - 5 * 60_000).toISOString();
+      pendingWatermark = null;
       const changed = !feedEntries || JSON.stringify(next) !== JSON.stringify(feedEntries);
       feedEntries=next;
       if (activeView==='latest' && changed) {
@@ -696,11 +779,26 @@ export function renderResultsFeed(content) {
   let packFrame=0;
   const repackFeed=()=> {
     cancelAnimationFrame(packFrame);
-    packFrame=requestAnimationFrame(()=> { if(activeView==='latest') packFeaturedEntries(content); });
+    packFrame=requestAnimationFrame(()=> {
+      if(activeView==='latest') packFeaturedEntries(content);
+      else if(activeView==='cx') packCxDays(content);
+    });
   };
   window.addEventListener('resize',repackFeed);
   document.fonts?.ready.then(repackFeed);
-  const refreshFeed=()=> { if(!document.hidden && activeView==='latest' && !feedLoading && content.isConnected) loadFeed({refresh:true}); };
+  // Sondeo ligero: solo se recarga el feed si alguna clasificación cambió
+  // desde la última lectura.
+  const refreshFeed=async()=> {
+    if(document.hidden || activeView!=='latest' || feedLoading || feedProbing || !content.isConnected) return;
+    if(!feedWatermark) { loadFeed({refresh:true}); return; }
+    feedProbing=true;
+    try {
+      const newest=await latestResultChange(feedWatermark);
+      if(newest && !feedLoading) { pendingWatermark=newest; loadFeed({refresh:true}); }
+    }
+    catch { /* Sin red: se conserva el feed visible hasta la siguiente lectura. */ }
+    finally { feedProbing=false; }
+  };
   const feedTimer=setInterval(refreshFeed,60000);
   document.addEventListener('visibilitychange',refreshFeed);
   window.addEventListener('pagehide',()=> {clearInterval(feedTimer);document.removeEventListener('visibilitychange',refreshFeed);window.removeEventListener('resize',repackFeed);},{once:true});
@@ -852,5 +950,81 @@ export function renderResultsFeed(content) {
     }
   }
 
-  loadFeed();
+  // ── Ciclocross ──────────────────────────────────────────────────
+  // La temporada CX en curso se lee de una vez; «Cargar más» amplía en
+  // memoria la ventana de días mostrados, como el feed de carretera.
+  const CX_WINDOW_DAYS = 14;
+  const addDays = (key, days) => { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
+  let cxRounds = null, cxEntries = null, cxFromKey = addDays(todayKey, -(CX_WINDOW_DAYS - 1)), cxRequest = 0, cxLoading = false;
+
+  function renderCx(entries) {
+    const visible = entries.filter(e => e.date >= cxFromKey);
+    let html = '';
+    if (!visible.length) {
+      html += `<div class="startlist-empty">${entries.length
+        ? (_isEn ? 'No cyclocross results in this period.' : 'No hay resultados de ciclocross en este periodo.')
+        : (_isEn ? 'No cyclocross results this season.' : 'No hay resultados de ciclocross en esta temporada.')}</div>`;
+    } else {
+      let curDate = null;
+      for (const e of visible) {
+        if (e.date !== curDate) {
+          if (curDate !== null) html += '</div></div>';
+          curDate = e.date;
+          html += `<div class="feed-day feed-day--cx"><div class="feed-day__hdr">${esc(dayHeader(e.date))}</div><div class="feed-day__cx-grid">`;
+        }
+        html += cxEntryRowHtml(e, _isEn, cxRounds);
+      }
+      html += '</div></div>';
+    }
+    if (entries.some(e => e.date < cxFromKey)) {
+      html += `<div class="feed-more-wrap"><button class="feed-more" id="cxMoreBtn">${_isEn ? 'Load more results' : 'Cargar más resultados'}</button></div>`;
+    }
+    content.innerHTML = shell(html);
+    bindViewTabs();
+    packCxDays(content);
+    content.querySelector('#cxMoreBtn')?.addEventListener('click', () => {
+      const y = window.scrollY;
+      cxFromKey = addDays(cxFromKey, -CX_WINDOW_DAYS);
+      renderCx(cxEntries);
+      window.scrollTo(0, y);
+    });
+  }
+
+  async function loadCx({ refresh = false } = {}) {
+    const request = ++cxRequest;
+    cxLoading = true;
+    if (!refresh && !cxEntries) {
+      content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
+      bindViewTabs();
+    }
+    try {
+      const season = cxSeason();
+      const [allRows, rounds] = await Promise.all([cxSeasonRows(supabase, season), cxSeasonRounds(supabase, season).catch(() => null)]);
+      const rows = allRows.filter(race => cxListedInAgenda(race, _isEn ? 'en' : 'es'));
+      if (request !== cxRequest) return;
+      cxRounds = rounds;
+      const next = cxResultEntries(rows);
+      const changed = !cxEntries || JSON.stringify(next) !== JSON.stringify(cxEntries);
+      cxEntries = next;
+      if (activeView === 'cx' && changed) renderCx(cxEntries);
+    } catch (error) {
+      if (request !== cxRequest || activeView !== 'cx') return;
+      console.error('[resultados-feed] ciclocross', error);
+      if (cxEntries) renderCx(cxEntries);
+      else { content.innerHTML = shell(''); bindViewTabs(); }
+      const note = document.createElement('div'); note.className = 'res-update-note'; note.setAttribute('role', 'status');
+      note.innerHTML = `${cxEntries ? (_isEn ? 'Unable to update · Saved results' : 'No se pudo actualizar · Datos conservados') : (_isEn ? 'Unable to load results' : 'No se pudieron cargar los resultados')} <button type="button">${_isEn ? 'Retry' : 'Reintentar'}</button>`;
+      content.append(note);
+      note.querySelector('button').onclick = () => loadCx({ refresh: true });
+    } finally { if (request === cxRequest) cxLoading = false; }
+  }
+  if (views.includes('cx')) {
+    const refreshCx = () => { if (!document.hidden && activeView === 'cx' && !cxLoading && content.isConnected) loadCx({ refresh: true }); };
+    const cxTimer = setInterval(refreshCx, 60000);
+    document.addEventListener('visibilitychange', refreshCx);
+    window.addEventListener('pagehide', () => { clearInterval(cxTimer); document.removeEventListener('visibilitychange', refreshCx); }, { once: true });
+  }
+
+  if (activeView === 'cx') loadCx();
+  else loadFeed();
 }

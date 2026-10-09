@@ -218,8 +218,7 @@ private fun ResultsContextMetric(label: String, value: String) {
 
 /**
  * Selector de etapa: P · 1 · 2 · … · F, con `FilterChip` con el aspecto de los
- * filtros de Hoy (`.res-stage-btn`). Compartido con Ciclocross (categorías y
- * meses).
+ * filtros de Hoy (`.res-stage-btn`). Compartido con Ciclocross (categorías).
  */
 @Composable
 internal fun ResultsStageSelector(
@@ -227,12 +226,7 @@ internal fun ResultsStageSelector(
     activeKey: String?,
     isEn: Boolean,
     labelForKey: ((String) -> String)? = null,
-    subtitleForKey: ((String) -> String)? = null,
     accessibilityLabelForKey: (@Composable (String) -> String)? = null,
-    enabled: Boolean = true,
-    dateNavigationStyle: Boolean = false,
-    centerWhenFits: Boolean = false,
-    onFitsChange: ((Boolean) -> Unit)? = null,
     onSelect: (String?) -> Unit,
 ) {
     val finalLbl = stringResource(R.string.results_stage_final_short)
@@ -257,22 +251,12 @@ internal fun ResultsStageSelector(
             listState.scrollToItem(index = activeIndex, scrollOffset = offset)
         }
     }
-    // La tira «cabe» cuando tras medir no puede desplazarse en ningún sentido;
-    // el selector de meses CX retira entonces sus flechas laterales.
-    val fits by remember(listState) {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            info.viewportSize.width > 0 && !listState.canScrollForward && !listState.canScrollBackward
-        }
-    }
-    LaunchedEffect(fits) { onFitsChange?.invoke(fits) }
     LazyRow(
         state = listState,
         modifier = Modifier.fillMaxWidth(),
         // Cada elemento ya reserva 48 dp de objetivo táctil. No añadimos otro
         // hueco entre ellos para que el carril de etapas mantenga la densidad
         // visual de la web sin reducir su superficie accesible.
-        horizontalArrangement = if (centerWhenFits && fits) Arrangement.Center else Arrangement.Start,
     ) {
         items(stageKeys, key = { it }) { key ->
             // 'final'→F · '0'→P · '3'/'3A' → el número con su sufijo de sector.
@@ -289,9 +273,6 @@ internal fun ResultsStageSelector(
             }
             ResultsPill(
                 label = lbl,
-                subtitle = subtitleForKey?.invoke(key),
-                enabled = enabled,
-                dateNavigationStyle = dateNavigationStyle,
                 selected = key == activeKey,
                 accessibilityLabel = accessibilityLabel,
                 onClick = { onSelect(key) },
@@ -633,52 +614,32 @@ internal fun ResultsClassificationTab(
 private fun ResultsPill(
     label: String,
     selected: Boolean,
-    subtitle: String? = null,
-    enabled: Boolean = true,
     tint: Color? = null,
-    dateNavigationStyle: Boolean = false,
     accessibilityLabel: String = label,
     onClick: () -> Unit,
 ) {
     val selectedColor = tint ?: MaterialTheme.colorScheme.primary
-    val idleContainer = if (dateNavigationStyle) Color.Transparent else MaterialTheme.colorScheme.surface
-    val idleLabel = if (subtitle != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     FilterChip(
         selected = selected,
         onClick = onClick,
-        enabled = enabled,
         modifier = Modifier
             .padding(horizontal = 2.dp)
-            .heightIn(min = if (subtitle != null) 44.dp else 32.dp)
+            .heightIn(min = 32.dp)
             .semantics { contentDescription = accessibilityLabel },
         shape = RoundedCornerShape(CCRadius.Control),
         border = null,
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = idleContainer,
-            labelColor = idleLabel,
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedContainerColor = selectedColor.copy(alpha = 0.15f),
             selectedLabelColor = selectedColor,
         ),
         label = {
-            // Con subtítulo (selector de meses CX) el mando es el mes: línea
-            // grande en color de texto; el año queda pequeño y atenuado.
-            Column(
-                modifier = Modifier.widthIn(min = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+            Box(modifier = Modifier.widthIn(min = 16.dp), contentAlignment = Alignment.Center) {
                 Text(
                     label,
                     style = CCText.S14,
-                    fontWeight = when {
-                        selected -> FontWeight.Bold
-                        subtitle != null -> FontWeight.Medium
-                        else -> FontWeight.SemiBold
-                    },
-                )
-                if (subtitle != null) Text(
-                    subtitle,
-                    style = CCText.S12,
-                    color = if (selected) selectedColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                 )
             }
         },
@@ -1150,7 +1111,7 @@ private fun ResultsRow(
                     }
                 }
                 Text(
-                    vm.riderName.ifEmpty { "—" },
+                    vm.riderName.ifEmpty { "-" },
                     style = CCText.S14,
                     fontWeight = FontWeight.SemiBold,
                     color = if (vm.riderName.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -1274,7 +1235,7 @@ private fun ResultsTttTable(
                         if (teamModel.hasVisibleBadge) TeamColorBands(teamModel)
                     }
                     Text(
-                        team.teamName.ifEmpty { "—" },
+                        team.teamName.ifEmpty { "-" },
                         style = CCText.S14,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -1319,7 +1280,7 @@ private fun ResultsTttTable(
                     ) {
                         if (rider.countryCode.isNotEmpty()) CountryFlag(countryCode = rider.countryCode, height = 13.dp)
                         Text(
-                            rider.name.ifEmpty { "—" },
+                            rider.name.ifEmpty { "-" },
                             modifier = Modifier.weight(1f),
                             style = CCText.S14,
                             color = MaterialTheme.colorScheme.onSurface,

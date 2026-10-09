@@ -103,16 +103,17 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
     }
 
     // Numeración n/total por temporada, en memoria; sin cachear el fallo para
-    // que un reintento vuelva a consultar. Fallo → mapa vacío (insignia ausente).
+    // que un reintento vuelva a consultar. Fallo → mapa vacío (insignia ausente),
+    // o el mapa ya guardado si [force] pedía renovarlo.
     private val roundsCache = mutableMapOf<String, Map<String, CxRound>>()
 
-    suspend fun rounds(season: String): Map<String, CxRound> {
-        roundsCache[season]?.let { return it }
+    suspend fun rounds(season: String, force: Boolean = false): Map<String, CxRound> {
+        if (!force) roundsCache[season]?.let { return it }
         return try {
             remote.cxSeasonRounds(season).also { roundsCache[season] = it }
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            emptyMap()
+            roundsCache[season] ?: emptyMap()
         }
     }
 

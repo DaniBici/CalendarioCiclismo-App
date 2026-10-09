@@ -270,6 +270,19 @@ object ResultsFeedLogic {
     }
 
     /**
+     * Como en Hoy, las carreras destacadas del día (`featured_races_for_dates`,
+     * claves `fecha#raceId`) abren ese día con todas sus entradas juntas; el
+     * resto conserva el orden canónico. Espejo de `featuredRank` en
+     * resultados-feed.js. `sortedWith` es estable.
+     */
+    fun featuredFirst(entries: List<FeedEntry>, selected: Set<String>): List<FeedEntry> {
+        if (selected.isEmpty()) return entries
+        return entries.sortedWith(
+            compareByDescending<FeedEntry> { it.date }.thenBy { if ("${it.date}#${it.race.id}" in selected) 0 else 1 }
+        )
+    }
+
+    /**
      * Orden canónico de carreras dentro del día — espejo de `cmpEntries` en
      * resultados-feed.js: Campeonatos Nacionales → gran vuelta → categoryRank →
      * sexo → hora → nombre. PRIMERO:

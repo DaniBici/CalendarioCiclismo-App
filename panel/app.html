@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Panel de administración — Calendario Ciclismo</title>
+  <title>Panel de Administración — Calendario Ciclismo</title>
   <script src="../js/theme.js"></script>
   <link rel="stylesheet" href="../css/panel.css">
   <link rel="stylesheet" href="../css/panel-cx.css">
@@ -123,12 +123,6 @@
           <div class="races-header__row2" id="racesFiltersRow">
             <div class="races-filters">
               <select id="racesYearSelect" class="races-select">
-                <option value="2020">2020</option>
-                <option value="2021">2021</option>
-                <option value="2022">2022</option>
-                <option value="2023">2023</option>
-                <option value="2024">2024</option>
-                <option value="2025">2025</option>
                 <option value="2026">2026</option>
                 <option value="2027">2027</option>
                 <option value="2028">2028</option>
@@ -344,7 +338,6 @@
           </label>
           <input type="search" id="teamsSearch" placeholder="Buscar equipo…" class="panel-search panel-search--fixed">
           <div class="panel-view-actions panel-view-actions--teams">
-            <button class="btn btn--ghost btn--view btn--nowrap" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión">🔍 Duplicados</button>
             <button class="btn btn--primary btn--view" id="addTeamPanelBtn">+ Nuevo equipo</button>
           </div>
         </div>
@@ -399,7 +392,7 @@
             Fichajes <span id="fichajesSeason" class="u-dim u-fs-2"></span>
           </div>
           <div class="panel-view-actions panel-view-actions--transfers">
-            <button class="btn btn--ghost" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto">Ver todos los movimientos</button>
+            <button class="btn btn--ghost btn--tonal" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto">Ver todos los movimientos</button>
             <button class="btn btn--primary" id="addTransferDirectBtn" title="Registrar directamente un movimiento de un corredor">+ Nuevo movimiento</button>
             <button class="btn btn--primary" id="newTeam27Btn" title="Crear un equipo nuevo del catálogo y darle temporada 2027 (equipos que nacen para el año que viene)">+ Equipo 2027</button>
           </div>
@@ -415,11 +408,6 @@
         </div>
       </div>
     </div><!-- /fichajesView -->
-
-    <!-- Modal "Posibles duplicados" (oculto por defecto; se abre desde Equipos) -->
-    <!-- El escáner de duplicados ("Posibles duplicados") vive ahora en el
-         drawer ancho. Lo monta openDuplicateScanner() → dupScanBodyHtml();
-         se dispara desde el botón "🔍 Duplicados" de la cabecera de Equipos. -->
 
     <!-- Vista notificaciones push (oculta por defecto) -->
     <div id="notificationsView" class="panel-view" style="display:none">
@@ -507,7 +495,7 @@
               <option value="startlist">Dorsales</option>
               <option value="perfil">Perfil de etapa</option>
               <option value="startOrder">Orden de salida</option>
-              <option value="transfers">Mercado de fichajes</option>
+              <option value="transfers">Mercado de Fichajes</option>
               <option value="team">Equipo (Mercado de Fichajes)</option>
             </select>
           </div>

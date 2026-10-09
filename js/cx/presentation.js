@@ -200,14 +200,22 @@ export function cxAgendaFilterMatches(race, filter) {
   }
   return true;
 }
+// Fechas en que una prueba figura en la agenda: las de sus categorías dentro
+// de temporada; las pruebas aún sin programa, en su primera fecha oficial.
+export function cxRaceDates(race) {
+  const dates=[...new Set(cxCategories(race).map(c=>cxCategoryDate(race,c)))];
+  if(!dates.length)dates.push(race.dateKey);
+  return dates;
+}
+// Pruebas de un día, en el orden de la agenda.
+export function cxDayRaces(races,dateKey) {
+  return races.filter(race=>cxRaceDates(race).includes(dateKey)).sort((a,b)=>cxCompareRaces(a,b,dateKey));
+}
 export function cxMonthDays(races,monthKey) {
   if(!CX_ACTIVE_MONTHS.includes(Number(monthKey.slice(5))))return [];
   const days=new Map();
   for(const race of races) {
-    const dates=[...new Set(cxCategories(race).map(c=>cxCategoryDate(race,c)))];
-    // Las pruebas aún sin programa se muestran en su primera fecha oficial.
-    if(!dates.length)dates.push(race.dateKey);
-    for(const date of dates.filter(d=>d.startsWith(monthKey))) {
+    for(const date of cxRaceDates(race).filter(d=>d.startsWith(monthKey))) {
       if(!days.has(date))days.set(date,[]);
       days.get(date).push(race);
     }
@@ -235,9 +243,9 @@ export function cxRoundBadge(round) {
   return label?`<span class="cx-round-badge"><span aria-hidden="true">${cxEscape(String(label.text))}</span><span class="sr-only">${cxEscape(label.aria)}</span></span>`:'';
 }
 export function cxStandingTotal(row,mode,locale='es-ES') {
-  if(mode==='time')return row.timeSeconds==null?'—':cxDuration(row.timeSeconds);
+  if(mode==='time')return row.timeSeconds==null?'-':cxDuration(row.timeSeconds);
   if(mode==='points')return cxPoints(row.points,locale);
-  return '—';
+  return '-';
 }
 export const cxRankSort=(a,b)=>(a.rank??Infinity)-(b.rank??Infinity)||(a.sortOrder??0)-(b.sortOrder??0);
 // Vueltas perdidas (CIC): número de vueltas que separan al corredor del

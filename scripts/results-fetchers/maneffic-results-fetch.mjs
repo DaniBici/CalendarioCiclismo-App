@@ -6,7 +6,8 @@
  * result_young.json y result_teams.json. Las generales viven en
  * classifications/. El cron pasa la fecha esperada de la jornada: es un guard
  * obligatorio en producción porque el cronometrador puede dejar datos de prueba
- * en esas URLs antes de la carrera.
+ * en esas URLs antes de la carrera. El prólogo (etapa 0) se publica en
+ * `prologue/`; las etapas, en `stageN/`.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -66,7 +67,10 @@ export function generatedDate(document) {
   return match ? match[1] : null;
 }
 
+export const stageSlot = (stageNumber) => (Number(stageNumber) === 0 ? 'prologue' : `stage${Number(stageNumber)}`);
+
 export function stageNumberFromName(value) {
+  if (/\bprologue\b/i.test(clean(value))) return 0;
   const match = clean(value).match(/\bstage\s+(\d+)\b/i);
   return match ? Number(match[1]) : null;
 }
@@ -97,7 +101,7 @@ export function startlistPublication(document, resultDocument, code, stageNumber
   return {
     provider: RESULTS_SOURCE, format: 'progressive',
     expectedVerified: true, expectedKind: 'bib', expectedIds: ids,
-    expectedBasis: endpoint(code, `stage${stageNumber}/startlist.json`),
+    expectedBasis: endpoint(code, `${stageSlot(stageNumber)}/startlist.json`),
   };
 }
 
@@ -156,6 +160,8 @@ function classification(code, slot, document, spec, { final = false } = {}) {
 const STAGE_SPECS = [
   ['result.json', { classKind: 'stage', scope: 'stage', eventName: 'Stage Classification', timed: true }],
   ['result_young.json', { classKind: 'youth', scope: 'stage', eventName: 'Stage Youth Classification', timed: true }],
+  // El Eneco Tour alterna ambas grafías entre prólogo y etapas; vale la primera publicada.
+  ['result_youth.json', { classKind: 'youth', scope: 'stage', eventName: 'Stage Youth Classification', timed: true }],
   ['result_teams.json', { classKind: 'teams', scope: 'stage', eventName: 'Stage Teams Classification', timed: true, teamRows: true }],
 ];
 
@@ -163,25 +169,36 @@ const OVERALL_SPECS = [
   ['classifications/classification_general.json', { classKind: 'gc', scope: 'stage', eventName: 'Stage General Classification', timed: true }],
   ['classifications/classification_points.json', { classKind: 'points', scope: 'overall', eventName: 'Overall Points Classification', points: true }],
   ['classifications/classification_youth.json', { classKind: 'youth', scope: 'overall', eventName: 'Overall Youth Classification', timed: true }],
+  ['classifications/classification_young.json', { classKind: 'youth', scope: 'overall', eventName: 'Overall Youth Classification', timed: true }],
   ['classifications/classification_team.json', { classKind: 'teams', scope: 'overall', eventName: 'Overall Teams Classification', timed: true, teamRows: true }],
 ];
+
+// El prólogo (etapa 0) vive en `prologue/` y solo se consulta si la carrera lo
+// tiene: --stage 0 o una jornada 0 en --stage-dates.
+export function plannedStageNumbers({ onlyStage = null, totalStages, stageDates = null } = {}) {
+  if (onlyStage != null) return [Number(onlyStage)];
+  const first = stageDates && stageDates['0'] != null ? 0 : 1;
+  return Array.from({ length: Number(totalStages) - first + 1 }, (_, index) => index + first);
+}
 
 export function stagesFromDocuments(documents, { code, onlyStage = null, totalStages, expectedDate = null, stageDates = null } = {}) {
   const eventCode = parseCode(code);
   const count = Number(totalStages);
   if (!Number.isInteger(count) || count < 1) throw new Error('--total-stages debe ser un entero positivo');
   const stages = [];
-  const stageNumbers = onlyStage == null ? Array.from({ length: count }, (_, index) => index + 1) : [Number(onlyStage)];
+  const stageNumbers = plannedStageNumbers({ onlyStage, totalStages: count, stageDates });
 
   for (const stageNumber of stageNumbers) {
-    if (!Number.isInteger(stageNumber) || stageNumber < 1 || stageNumber > count) continue;
+    if (!Number.isInteger(stageNumber) || stageNumber < 0 || stageNumber > count) continue;
+    const slot = stageSlot(stageNumber);
     const expectedStageDate = expectedDate || stageDates?.[String(stageNumber)] || null;
-    const mainDocument = documents[`stage${stageNumber}/result.json`];
+    const mainDocument = documents[`${slot}/result.json`];
     if (!documentMatchesStage(mainDocument, stageNumber, expectedStageDate)) continue;
-    const publication = startlistPublication(documents[`stage${stageNumber}/startlist.json`], mainDocument, eventCode, stageNumber);
+    const publication = startlistPublication(documents[`${slot}/startlist.json`], mainDocument, eventCode, stageNumber);
     const classifications = [];
     for (const [suffix, spec] of STAGE_SPECS) {
-      const document = documents[`stage${stageNumber}/${suffix}`];
+      if (classifications.some((item) => item.classKind === spec.classKind)) continue;
+      const document = documents[`${slot}/${suffix}`];
       if (!documentMatchesStage(document, stageNumber, expectedStageDate)) continue;
       const built = classification(eventCode, stageNumber, document, spec);
       if (built && publication && spec.classKind === 'stage') built.publication = publication;
@@ -191,6 +208,7 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
 
     const cumulative = [];
     for (const [path, spec] of OVERALL_SPECS) {
+      if (cumulative.some((item) => item.spec.classKind === spec.classKind)) continue;
       const document = documents[path];
       if (!documentMatchesStage(document, stageNumber, expectedStageDate)) continue;
       const built = classification(eventCode, stageNumber, document, spec);
@@ -206,7 +224,7 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
       stageName: clean(mainDocument.raceName) || `Stage ${stageNumber}`,
       isFinalClassification: false,
       dateKey,
-      raceType: /\b(time trial|itt|tijdrit)\b/i.test(clean(mainDocument.raceName)) ? 'ITT' : null,
+      raceType: /\b(time trial|itt|tijdrit|prologue)\b/i.test(clean(mainDocument.raceName)) ? 'ITT' : null,
       startLocation: null,
       classificationCount: classifications.length,
       classifications,
@@ -249,8 +267,8 @@ async function fetchJsonOptional(url) {
 async function loadDocuments(code, stageNumbers) {
   const paths = new Set();
   for (const stageNumber of stageNumbers) {
-    paths.add(`stage${stageNumber}/startlist.json`);
-    for (const [suffix] of STAGE_SPECS) paths.add(`stage${stageNumber}/${suffix}`);
+    paths.add(`${stageSlot(stageNumber)}/startlist.json`);
+    for (const [suffix] of STAGE_SPECS) paths.add(`${stageSlot(stageNumber)}/${suffix}`);
   }
   for (const [path] of OVERALL_SPECS) paths.add(path);
   const documents = {};
@@ -269,7 +287,7 @@ async function main() {
   if (has('--suggest-id')) { process.stdout.write(`${suggestCompetitionId(code)}\n`); return; }
   if (!Number.isInteger(COMPETITION_ID) || COMPETITION_ID >= 0) throw new Error('Falta --competition-id negativo (o usa --suggest-id)');
   if (!Number.isInteger(TOTAL_STAGES) || TOTAL_STAGES < 1) throw new Error('Falta --total-stages');
-  if (ONLY_STAGE != null && (!Number.isInteger(ONLY_STAGE) || ONLY_STAGE < 1 || ONLY_STAGE > TOTAL_STAGES)) throw new Error('--stage fuera de rango');
+  if (ONLY_STAGE != null && (!Number.isInteger(ONLY_STAGE) || ONLY_STAGE < 0 || ONLY_STAGE > TOTAL_STAGES)) throw new Error('--stage fuera de rango');
   if (EXPECTED_DATE && !/^20\d{2}-\d{2}-\d{2}$/.test(EXPECTED_DATE)) throw new Error('--expected-date debe ser YYYY-MM-DD');
   let stageDates = null;
   if (STAGE_DATES_JSON) {
@@ -279,7 +297,7 @@ async function main() {
     }
   }
   if (!EXPECTED_DATE && !stageDates) throw new Error('Falta --expected-date o --stage-dates para bloquear datos de prueba');
-  const stageNumbers = ONLY_STAGE == null ? Array.from({ length: TOTAL_STAGES }, (_, index) => index + 1) : [ONLY_STAGE];
+  const stageNumbers = plannedStageNumbers({ onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES, stageDates });
   const documents = await loadDocuments(code, stageNumbers);
   const stages = stagesFromDocuments(documents, {
     code, onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES,

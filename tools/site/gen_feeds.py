@@ -276,9 +276,9 @@ def build_vevent_en(race, dtstamp, day=None):
     sn = day.get("stageNumber") if day else None
     if race.get("raceFormat") == "stage_race" and day:
         if sn == 0:
-            stage_str = " — Prologue"
+            stage_str = " - Prologue"
         elif sn is not None:
-            stage_str = f" — Stage {sn}"
+            stage_str = f" - Stage {sn}"
         else:
             stage_str = ""
     else:
@@ -461,7 +461,7 @@ def write_individual_feeds(race, race_days, lang, base, stamp, year, prune=False
             name = f'{race.get("nameEn") or race.get("name", "")} {year}'
             stage = day.get("stageNumber")
             if race.get("raceFormat") == "stage_race":
-                name += " — Prologue" if stage == 0 else f" — Stage {stage}" if stage is not None else ""
+                name += " - Prologue" if stage == 0 else f" - Stage {stage}" if stage is not None else ""
             content = calendar_en(event, name)
         else:
             stage = day.get("stageNumber")

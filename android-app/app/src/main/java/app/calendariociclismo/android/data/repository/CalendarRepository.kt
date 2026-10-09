@@ -27,7 +27,9 @@ import app.calendariociclismo.android.data.model.UciRank1Row
 import app.calendariociclismo.android.data.model.applySeason
 import app.calendariociclismo.android.data.model.asTeam
 import app.calendariociclismo.android.data.remote.SupabaseService
+import app.calendariociclismo.android.util.CachedRacePolicy
 import app.calendariociclismo.android.util.ChampionshipsConfig
+import app.calendariociclismo.android.util.InhouseStageMap
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.LocaleHolder
@@ -64,6 +66,7 @@ class CalendarRepository(
     private val raceDaysDao = db.raceDaysDao()
     private val broadcastsDao = db.broadcastsDao()
     private val assetsDao = db.assetsDao()
+    private val ledger = RefreshLedger(clock)
 
     // ─────────── Observables (Room → UI) ───────────
 
@@ -82,7 +85,7 @@ class CalendarRepository(
     suspend fun cachedRace(id: String): Race? = racesDao.getById(id)?.toModel()
 
     suspend fun cachedRacesForYear(year: Int): List<Race> =
-        racesDao.getAll().filter { it.year == year }.map { it.toModel() }
+        racesDao.getByYear(year).map { it.toModel() }
 
     /**
      * Devuelve el ID de la única jornada de una carrera de un día.
@@ -91,7 +94,7 @@ class CalendarRepository(
     suspend fun oneDayRaceStageId(raceId: String): String? {
         val cached = raceDaysDao.getByRace(raceId).firstOrNull()
         if (cached != null) return cached.id
-        return api.raceDaysByRace(raceId).firstOrNull()?.id
+        return api.raceDayIdsByRace(raceId).firstOrNull()
     }
 
     suspend fun cachedRaceDaysByDate(dateKey: String): List<RaceDay> =
@@ -116,9 +119,6 @@ class CalendarRepository(
 
     suspend fun nextRaceDateAfter(dateKey: String): String? =
         raceDaysDao.nextRaceDateAfter(dateKey)
-
-    suspend fun featuredRaceIds(dateKeys: List<String>): Set<String> =
-        api.featuredRaces(dateKeys).map { it.raceId }.toSet()
 
     /**
      * Ensambla `DayData` (jornadas + emisiones + assets + mapa de carreras)
@@ -154,25 +154,43 @@ class CalendarRepository(
 
     // ─────────── Refresh (remoto → Room) ───────────
 
-    /** Descarga y cachea todas las carreras de un año. */
-    suspend fun refreshRacesYear(year: Int) {
+    /**
+     * Descarga y cachea todas las carreras de un año. Sin [force] se omite si
+     * la última descarga COMPLETA del año en este proceso tiene menos de una
+     * hora (misma ventana que iOS). Tras un arranque en frío vuelve a la red:
+     * Room no distingue el año completo de los subconjuntos que guardan Mes,
+     * Hoy o Carrera.
+     */
+    suspend fun refreshRacesYear(year: Int, force: Boolean = false) {
+        val key = RefreshLedger.racesYearKey(year)
+        if (!force && ledger.isFresh(key, RACES_YEAR_TTL_SECONDS)) return
         val now = clock()
         val fetched = api.racesByYear(year)
         racesDao.upsertAll(fetched.map { RaceEntity.from(it, now) })
+        ledger.mark(key)
     }
 
-    /** Descarga y cachea únicamente las jornadas y carreras de un mes. */
-    suspend fun refreshMonth(from: String, to: String) {
+    /**
+     * Descarga y cachea únicamente las jornadas y carreras de un mes. Sin
+     * [force] se omite si el mes se descargó hace menos de diez minutos.
+     */
+    suspend fun refreshMonth(from: String, to: String, force: Boolean = false) {
+        val key = RefreshLedger.monthKey(from, to)
+        if (!force && ledger.isFresh(key, MONTH_TTL_SECONDS)) return
         val now = clock()
         val (days, races) = api.calendarMonthData(from, to)
         val previous = raceDaysDao.getByDateRange(from, to).associateBy { it.id }
         raceDaysDao.upsertAll(days.map { RaceDayEntity.fromSlim(it, now, previous[it.id]) })
         raceDaysDao.deleteByDateRangeNotIn(from, to, days.map { it.id })
         racesDao.upsertAll(races.map { RaceEntity.from(it, now) })
+        ledger.mark(key)
     }
 
-    /** Descarga y cachea jornadas de una fecha + sus broadcasts + assets. */
-    suspend fun refreshDay(dateKey: String) {
+    /**
+     * Descarga y cachea jornadas de una fecha + sus broadcasts + assets.
+     * Devuelve la descarga, que incluye la selección destacada del día.
+     */
+    suspend fun refreshDay(dateKey: String): DayData {
         val now = clock()
         val data = api.loadDayComplete(dateKey)
         raceDaysDao.upsertAll(data.raceDays.map { RaceDayEntity.from(it.raceDay, now) })
@@ -192,6 +210,18 @@ class CalendarRepository(
             .distinctBy { Pair(it.raceDayId, it.type) }
         broadcastsDao.upsertAll(allBroadcasts.map { BroadcastEntity.from(it, now) })
         assetsDao.upsertAll(allAssets.map { AssetEntity.from(it, now) })
+        ledger.mark(RefreshLedger.dayKey(dateKey))
+        return data
+    }
+
+    /**
+     * Como [refreshDay], pero omite la red si el día se descargó completo hace
+     * menos de [ttlSeconds] en este proceso. Devuelve `true` si descargó.
+     */
+    suspend fun refreshDayIfStale(dateKey: String, ttlSeconds: Long): Boolean {
+        if (ledger.isFresh(RefreshLedger.dayKey(dateKey), ttlSeconds)) return false
+        refreshDay(dateKey)
+        return true
     }
 
     /** Descarga y cachea todas las jornadas de un rango. */
@@ -208,22 +238,33 @@ class CalendarRepository(
      * Descarga y sustituye la instantánea completa de una carrera. Es el camino
      * de pull-to-refresh en Jornada: vuelve a leer todos los campos de etapas,
      * carrera, emisiones y assets, y propaga inclusiones y eliminaciones.
+     *
+     * Con [profileDayIds] solo esas jornadas descargan el perfil de elevación;
+     * las demás conservan en Room el perfil guardado de una descarga anterior.
      */
-    suspend fun refreshRaceComplete(raceId: String): Pair<Race, List<EnrichedRaceDay>> {
+    suspend fun refreshRaceComplete(
+        raceId: String,
+        profileDayIds: Set<String>? = null,
+    ): Pair<Race, List<EnrichedRaceDay>> {
         val now = clock()
         // Capturamos el conjunto previo antes de consultar para borrar también
         // los hijos de una jornada eliminada en el backend.
-        val previousDayIds = raceDaysDao.getByRace(raceId).map { it.id }
-        val (race, days) = api.loadRaceComplete(raceId)
+        val previousDays = raceDaysDao.getByRace(raceId).associateBy { it.id }
+        val snapshot = api.loadRaceComplete(raceId, profileDayIds)
+        val race = snapshot.race
+        val days = snapshot.days
         val dayIds = days.map { it.raceDay.id }
 
+        val entities = days.map { day ->
+            RaceDayEntity.fromSnapshot(day.raceDay, now, previousDays[day.raceDay.id], snapshot.profileDayIds)
+        }
         racesDao.upsertAll(listOf(RaceEntity.from(race, now)))
-        raceDaysDao.upsertAll(days.map { RaceDayEntity.from(it.raceDay, now) })
+        raceDaysDao.upsertAll(entities)
         raceDaysDao.deleteByRaceNotIn(raceId, dayIds)
 
         // Reemplazar las colecciones hijas, no solo actualizarlas: una emisión
         // o un asset eliminado también desaparece de Room y de la UI.
-        val affectedDayIds = (previousDayIds + dayIds).distinct()
+        val affectedDayIds = (previousDays.keys + dayIds).distinct()
         broadcastsDao.deleteByRaceDayIds(affectedDayIds)
         assetsDao.deleteByRaceDayIds(affectedDayIds)
 
@@ -232,7 +273,48 @@ class CalendarRepository(
             .distinctBy { Pair(it.raceDayId, it.type) }
         broadcastsDao.upsertAll(allBroadcasts.map { BroadcastEntity.from(it, now) })
         assetsDao.upsertAll(allAssets.map { AssetEntity.from(it, now) })
-        return race to days
+        // Solo una instantánea con todos los perfiles cuenta como completa para
+        // la apertura inmediata de Carrera.
+        if (snapshot.profileDayIds == null) ledger.mark(RefreshLedger.raceKey(raceId))
+        // Las jornadas sin perfil descargado devuelven el que conserva Room.
+        return race to days.mapIndexed { index, day ->
+            if (snapshot.profileDayIds == null || day.raceDay.id in snapshot.profileDayIds) day
+            else day.copy(raceDay = entities[index].toModel().also { it.stageSuffix = day.raceDay.stageSuffix })
+        }
+    }
+
+    /** `true` si la instantánea completa de la carrera se descargó hace menos de [ttlSeconds]. */
+    fun raceSnapshotIsFresh(raceId: String, ttlSeconds: Long = RACE_SNAPSHOT_TTL_SECONDS): Boolean =
+        ledger.isFresh(RefreshLedger.raceKey(raceId), ttlSeconds)
+
+    /**
+     * Instantánea de una carrera desde Room, en el mismo orden que
+     * [refreshRaceComplete]. Devuelve null si la caché no basta para pintar la
+     * pantalla de Carrera sin saltos: falta la carrera, alguna fecha de su
+     * calendario o el perfil de alguna etapa.
+     */
+    suspend fun cachedRaceComplete(raceId: String): Pair<Race, List<EnrichedRaceDay>>? {
+        val race = racesDao.getById(raceId)?.toModel() ?: return null
+        val days = raceDaysDao.getByRace(raceId).map { it.toModel() }
+            .filter { it.isPublished }
+            .toMutableList()
+        val fullSnapshotThisSession = ledger.isFresh(RefreshLedger.raceKey(raceId), RACE_SESSION_TTL_SECONDS)
+        if (!fullSnapshotThisSession && !CachedRacePolicy.isPresentable(race, days)) return null
+        days.sortWith(RaceLogic.raceProgramOrder)
+        RaceLogic.annotateDoubleSectors(days)
+        val dayIds = days.map { it.id }
+        val broadcastsByRd = broadcastsDao.getByRaceDayIds(dayIds).map { it.toModel() }
+            .sortedBy { it.sortOrder }
+            .groupBy { it.raceDayId }
+        val assetsByRd = assetsDao.getByRaceDayIds(dayIds).map { it.toModel() }.groupBy { it.raceDayId }
+        return race to days.map { rd ->
+            EnrichedRaceDay(
+                raceDay = rd,
+                race = race,
+                broadcasts = broadcastsByRd[rd.id].orEmpty(),
+                assets = assetsByRd[rd.id].orEmpty(),
+            )
+        }
     }
 
     // ─────────── Acceso directo al backend ───────────
@@ -296,9 +378,7 @@ class CalendarRepository(
             .distinct()
             .filterNot { names.containsKey(it) || namesPrev.containsKey(it) }
         if (missing.isNotEmpty()) {
-            val missingSet = missing.toSet()
-            runCatching { api.teams() }.getOrNull().orEmpty()
-                .filter { it.id in missingSet }
+            runCatching { api.teamsByIds(missing) }.getOrNull().orEmpty()
                 .forEach {
                     names.putIfAbsent(it.id, it.name)
                     namesPrev.putIfAbsent(it.id, it.name)
@@ -326,12 +406,15 @@ class CalendarRepository(
         if (races.isEmpty()) return emptyList()
 
         val raceById = races.associateBy { it.id }
-        val days = api.raceDaysByRaceIds(races.map { it.id })
+        val days = api.raceDaysByRaceIdsSlim(races.map { it.id })
         if (days.isEmpty()) return emptyList()
 
         val dayIds = days.map { it.id }
-        val broadcastsByRd = api.broadcastsByRaceDays(dayIds).groupBy { it.raceDayId }
-        val assetsByRd = api.assetsByRaceDays(dayIds).groupBy { it.raceDayId }
+        val (broadcastsByRd, assetsByRd) = coroutineScope {
+            val broadcasts = async { api.broadcastsByRaceDays(dayIds).groupBy { it.raceDayId } }
+            val assets = async { api.assetsByRaceDays(dayIds).groupBy { it.raceDayId } }
+            broadcasts.await() to assets.await()
+        }
 
         // Primera jornada publicada por carrera (menor dateKey).
         val firstDayByRace = mutableMapOf<String, RaceDay>()
@@ -378,37 +461,45 @@ class CalendarRepository(
     suspend fun startlistTeams(raceId: String) = api.startlistTeams(raceId)
     suspend fun startlistRiders(raceId: String) = api.startlistRiders(raceId)
 
-    suspend fun loadStartlistData(raceId: String): StartlistData {
-        val race = api.raceById(raceId)
+    suspend fun loadStartlistData(raceId: String): StartlistData = coroutineScope {
+        val raceDeferred = async { api.raceById(raceId) }
+        val ridersDeferred = async { api.startlistRiders(raceId) }
+        val slTeamsDeferred = async { api.startlistTeams(raceId) }
+        // Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
+        // los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
+        // js/inscritos.js. Cualquier fallo de red → comportamiento clásico.
+        val ridersOutDeferred = async {
+            try {
+                loadRiderOuts(raceId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        }
+        val race = raceDeferred.await()
         // Orden de equipos por el dorsal del primer corredor (no por el
         // sortOrder de BD, que es el orden de inserción del panel) — espejo
         // de js/inscritos.js e iOS.
-        val riders = api.startlistRiders(raceId)
-        val teams = StartlistLogic.teamsByFirstDorsal(api.startlistTeams(raceId), riders)
+        val riders = ridersDeferred.await()
+        val teams = StartlistLogic.teamsByFirstDorsal(slTeamsDeferred.await(), riders)
         // Render temporal: globalTeams con los atributos visuales del año de la carrera
         // (team_seasons). Fallback a `teams` por equipo sin season → nunca pierde chapa.
         // 2026 == teams. La UI no cambia: recibe globalTeams ya fusionados.
         val teamIds = teams.mapNotNull { it.teamId }.distinct()
-        val globalTeams = coroutineScope {
-            val base = async { api.teamsByIds(teamIds) }
-            val year = race.year
-            val seasonByTeamId = if (year != null) {
-                api.teamSeasonsByIds(year, teamIds).associateBy { it.teamId }
-            } else emptyMap()
-            val baseById = base.await().associateBy { it.id }
-            teamIds.mapNotNull { id ->
-                baseById[id]?.applySeason(seasonByTeamId[id]) ?: seasonByTeamId[id]?.asTeam()
-            }
+        val base = async { api.teamsByIds(teamIds) }
+        val year = race.year
+        val seasons = async {
+            if (year != null) api.teamSeasonsByIds(year, teamIds).associateBy { it.teamId } else emptyMap()
+        }
+        val baseById = base.await().associateBy { it.id }
+        val seasonByTeamId = seasons.await()
+        val globalTeams = teamIds.mapNotNull { id ->
+            baseById[id]?.applySeason(seasonByTeamId[id]) ?: seasonByTeamId[id]?.asTeam()
         }
 
-        // Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
-        // los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
-        // js/inscritos.js. Cualquier fallo de red → comportamiento clásico.
-        val ridersOut = runCatching { loadRiderOuts(raceId) }
-            .getOrDefault(emptyMap())
-
-        return StartlistData(
-            race, teams, riders, globalTeams, ridersOut,
+        StartlistData(
+            race, teams, riders, globalTeams, ridersOutDeferred.await(),
         )
     }
 
@@ -421,7 +512,7 @@ class CalendarRepository(
      * ganadora (ver UciResultsLogic). Port de inscritos.js L228–256.
      */
     private suspend fun loadRiderOuts(raceId: String): Map<String, RiderOut> {
-        val stages = api.raceUciStages(raceId)
+        val stages = api.inhouseStagesByRaceIds(listOf(raceId))
             .filter { it.classKind == "stage" && it.rowCount > 0 }
         if (stages.isEmpty()) return emptyMap()
 
@@ -446,26 +537,51 @@ class CalendarRepository(
 
     // ─────────── Start Order ───────────
 
-    suspend fun loadStartOrderData(raceDayId: String): StartOrderData? {
-        val rd = api.startOrderRaceDay(raceDayId) ?: return null
-        val race = rd.raceId?.let { runCatching { api.raceById(it) }.getOrNull() }
-        // RaceDay canónico para reusar StageInfoHeaderCard (paridad con perfil).
-        val fullRaceDay = runCatching { api.raceDaysByIds(listOf(raceDayId)).firstOrNull() }.getOrNull()
-        val entries = api.startOrderEntries(raceDayId)
+    suspend fun loadStartOrderData(raceDayId: String): StartOrderData? = coroutineScope {
+        val entriesDeferred = async { api.startOrderEntries(raceDayId) }
+        // Una sola lectura de la jornada: DTO del orden de salida + RaceDay
+        // canónico para reusar StageInfoHeaderCard (paridad con perfil).
+        val (rd, fullRaceDay) = api.startOrderRaceDayWithFull(raceDayId) ?: run {
+            entriesDeferred.cancel()
+            return@coroutineScope null
+        }
+        val raceId = rd.raceId
+        val raceDeferred = async { raceId?.let { runCatching { api.raceById(it) }.getOrNull() } }
+        // Los equipos que pueden aparecer son los de la startlist de la carrera.
+        // Sin startlist, o con algún equipo de la startlist sin ficha canónica
+        // (teamId null), se recurre al catálogo completo para casar por nombre.
+        // null = usar el catálogo.
+        val canonIdsDeferred = async {
+            val slTeams = raceId?.let { id ->
+                runCatching { api.startlistTeams(id) }.getOrDefault(emptyList())
+            }.orEmpty()
+            if (slTeams.isEmpty() || slTeams.any { it.teamId == null }) null
+            else slTeams.mapNotNull { it.teamId }.distinct()
+        }
+        val race = raceDeferred.await()
         val teams = race?.year?.let { year ->
-            val base = runCatching { api.teams() }.getOrDefault(emptyList())
-            val seasons = runCatching { api.teamSeasons(year) }.getOrDefault(emptyList())
-                .associateBy { it.teamId }
-            val baseById = base.associateBy { it.id }
-            (baseById.keys + seasons.keys).mapNotNull { id ->
-                baseById[id]?.applySeason(seasons[id]) ?: seasons[id]?.asTeam()
+            val canonIds = canonIdsDeferred.await()
+            val base = async {
+                runCatching { if (canonIds == null) api.teamsCatalog() else api.teamsByIds(canonIds) }
+                    .getOrDefault(emptyList())
+            }
+            val seasons = async {
+                runCatching {
+                    if (canonIds == null) api.teamSeasons(year) else api.teamSeasonsByIds(year, canonIds)
+                }.getOrDefault(emptyList()).associateBy { it.teamId }
+            }
+            val baseById = base.await().associateBy { it.id }
+            val seasonById = seasons.await()
+            (baseById.keys + seasonById.keys).mapNotNull { id ->
+                baseById[id]?.applySeason(seasonById[id]) ?: seasonById[id]?.asTeam()
             }
         }.orEmpty()
-        return StartOrderData(
+        canonIdsDeferred.cancel()
+        StartOrderData(
             raceDay = rd,
             fullRaceDay = fullRaceDay,
             race = race,
-            entries = entries,
+            entries = entriesDeferred.await(),
             teams = teams,
         )
     }
@@ -483,14 +599,22 @@ class CalendarRepository(
      * de ese teamId canónico.
      */
     private suspend fun buildByDorsal(raceId: String, year: Int?): Pair<Map<Int, ResolvedRider>, List<Team>> {
-        val slRiders = api.startlistRidersResolvedFull(raceId)
-        val slTeams = api.startlistTeams(raceId)
+        val (slRiders, slTeams) = coroutineScope {
+            val riders = async { api.startlistRidersResolvedFull(raceId) }
+            val teams = async { api.startlistTeams(raceId) }
+            riders.await() to teams.await()
+        }
         val slTeamByPk = slTeams.associateBy { it.id }                 // PK → fila
         val canonIds = slTeams.mapNotNull { it.teamId }.toSet()
-        val allTeams = if (canonIds.isNotEmpty()) api.teams() else emptyList()
-        val seasons = year?.let { runCatching { api.teamSeasonsByIds(it, canonIds.toList()) }.getOrNull() }.orEmpty()
+        val (baseTeams, seasons) = coroutineScope {
+            val base = async { api.teamsByIds(canonIds.toList()) }
+            val seasons = async {
+                year?.let { runCatching { api.teamSeasonsByIds(it, canonIds.toList()) }.getOrNull() }.orEmpty()
+            }
+            base.await() to seasons.await()
+        }
         val seasonByTeam = seasons.associateBy { it.teamId }
-        val baseById = allTeams.filter { it.id in canonIds }.associateBy { it.id }
+        val baseById = baseTeams.associateBy { it.id }
         val teamById = canonIds.mapNotNull { id ->
             (baseById[id]?.applySeason(seasonByTeam[id]) ?: seasonByTeam[id]?.asTeam())
                 ?.let { id to it }
@@ -531,8 +655,7 @@ class CalendarRepository(
 
         val currentIds = if (includeCurrentTeam) riders.mapNotNull { it.currentTeamId }.distinct() else emptyList()
         val teamById = if (currentIds.isNotEmpty()) {
-            runCatching { api.teams() }.getOrNull().orEmpty()
-                .filter { it.id in currentIds }.associateBy { it.id }
+            runCatching { api.teamsByIds(currentIds) }.getOrNull().orEmpty().associateBy { it.id }
         } else emptyMap()
         return riders.associate { r ->
             val team = if (includeCurrentTeam) r.currentTeamId?.let { teamById[it] } else null
@@ -566,13 +689,35 @@ class CalendarRepository(
 
     /** Carga inicial de la pantalla de resultados. null si la carrera no tiene
      *  clasificaciones keepForWeb (→ estado Empty). */
-    suspend fun loadResultsData(raceId: String): UciResultsData? {
-        val rawStages = api.raceUciStages(raceId)
+    suspend fun loadResultsData(raceId: String): UciResultsData? = coroutineScope {
+        // Primera tanda en paralelo: clasificaciones, jornadas y carrera.
+        val rawStagesDeferred = async { api.raceUciStages(raceId) }
         // Las jornadas se cargan SIEMPRE: una etapa CANCELADA no tiene
         // clasificaciones propias y su pantalla se sintetiza a partir de ellas
         // (aviso + generales de la etapa anterior). La señal `isCancelledDay`
         // vive en race_days, no en race_uci_stages. Espejo de js/resultados.js.
-        val allDays = runCatching { api.raceDaysByRace(raceId) }.getOrNull().orEmpty()
+        // Llevan perfil: la cabecera muestra el de la etapa activa.
+        val allDaysDeferred = async {
+            try {
+                api.raceDaysByRace(raceId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+        // Envuelta: un fallo solo importa si hay clasificaciones que mostrar.
+        val raceDeferred = async {
+            try {
+                Result.success(api.raceById(raceId))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+        }
+        val rawStages = rawStagesDeferred.await()
+        val allDays = allDaysDeferred.await()
         val stageDays = allDays.map {
             UciResultsLogic.StageDay(
                 id = it.id,
@@ -587,11 +732,32 @@ class CalendarRepository(
         val (sectorSuffixByRaceDayId, sectoredStageNumbers) = UciResultsLogic.sectorSuffixMap(stageDays)
         val stages = UciResultsLogic.applyCancelledStages(rawStages, stageDays, raceId = raceId)
         // Sin clasificaciones NI etapa cancelada que sintetizar → estado Empty.
-        if (stages.isEmpty()) return null
-        val race = api.raceById(raceId)
+        if (stages.isEmpty()) {
+            raceDeferred.cancel()
+            return@coroutineScope null
+        }
+        val classificationDeferred = async {
+            try {
+                api.raceClassifications(raceId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+        val assetsDeferred = async {
+            try {
+                api.assetsByRaceDays(allDays.map { it.id })
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+        val race = raceDeferred.await().getOrThrow()
         val (byDorsal, raceTeams) = buildByDorsal(raceId, race.year)
-        val classificationConfig = runCatching { api.raceClassifications(raceId) }.getOrDefault(emptyList())
-        val assets = runCatching { api.assetsByRaceDays(allDays.map { it.id }) }.getOrDefault(emptyList())
+        val classificationConfig = classificationDeferred.await()
+        val assets = assetsDeferred.await()
 
         // Índices de jornadas (de `allDays`, que YA traen countryCode/ruta/…) para
         // resolver el header sin más red: por raceDayId y —si el volcado no lo
@@ -609,7 +775,7 @@ class CalendarRepository(
         // raceDayId ni stageNumber. Si la carrera tiene UNA sola jornada, la
         // usamos para el header (ruta + distancia + tipo), igual que la web.
         if (raceDay == null && allDays.size == 1) raceDay = allDays.first()
-        return UciResultsData(
+        UciResultsData(
             race = race, stages = stages, byDorsal = byDorsal,
             raceTeams = raceTeams, raceDay = raceDay, raceDays = allDays,
             sectorSuffixByRaceDayId = sectorSuffixByRaceDayId,
@@ -624,6 +790,21 @@ class CalendarRepository(
         api.raceUciResults(stageRef)
 
     /**
+     * Clasificaciones in-house publicables (keepForWeb y con filas) de una
+     * carrera, reducidas a lo que necesitan los accesos a resultados.
+     * Devuelve null si la consulta falla, para distinguir el fallo de una
+     * carrera sin clasificaciones.
+     */
+    suspend fun inhouseStages(raceId: String): List<RaceUciStage>? =
+        try {
+            api.inhouseStagesByRaceIds(listOf(raceId))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+
+    /**
      * ¿Tiene esta jornada resultados in-house? Devuelve un `Pair(true, stageNumber)`
      * con el `stageNumber` al que navegar, o `Pair(false, null)` si no hay.
      * Consulta de red ligera y NO bloqueante (el CTA de la jornada aparece de
@@ -635,8 +816,7 @@ class CalendarRepository(
      * keepForWeb con filas que corresponde a esta jornada".
      */
     suspend fun resultsStageNumberForDay(raceId: String, raceDayId: String, stageNumber: Int?): Pair<Boolean, Int?> {
-        val stages = (runCatching { api.raceUciStages(raceId) }.getOrNull() ?: emptyList())
-            .filter { it.rowCount > 0 }
+        val stages = inhouseStages(raceId).orEmpty().filter { it.rowCount > 0 }
         // Correspondencia con la jornada: por raceDayId directo, o —si la stage no
         // lo trae (un día / final)— por igualdad de stageNumber (null==null en un día).
         val match = stages.firstOrNull { it.raceDayId == raceDayId }
@@ -668,18 +848,30 @@ class CalendarRepository(
         cancelledDayIds: Set<String> = emptySet(),
     ): Map<String, Int?> {
         if (days.isEmpty()) return emptyMap()
-        val stages = (runCatching { api.raceUciStages(raceId) }.getOrNull() ?: emptyList())
-            .filter { it.rowCount > 0 }
-        if (stages.isEmpty()) return emptyMap()
-        val byDayId = stages.filter { it.raceDayId != null }.associate { it.raceDayId!! to it.stageNumber }
-        val orphans = stages.filter { it.raceDayId == null }   // un día / final
+        return InhouseStageMap.forDays(inhouseStages(raceId).orEmpty(), days, cancelledDayIds)
+    }
+
+    /**
+     * Como [inhouseStagesForDays] para varias carreras en UNA consulta (trofeos
+     * de Hoy). [daysByRace] = raceId → (raceDayId, stageNumber) de sus jornadas.
+     * Fail-silent: sin red → mapa vacío.
+     */
+    suspend fun inhouseStagesForRaces(
+        daysByRace: Map<String, List<Pair<String, Int?>>>,
+        cancelledDayIds: Set<String> = emptySet(),
+    ): Map<String, Int?> {
+        val raceIds = daysByRace.filterValues { it.isNotEmpty() }.keys.toList()
+        if (raceIds.isEmpty()) return emptyMap()
+        val stagesByRace = try {
+            api.inhouseStagesByRaceIds(raceIds)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return emptyMap()
+        }.groupBy { it.raceId }
         val out = HashMap<String, Int?>()
-        for ((dayId, stageNumber) in days) {
-            if (dayId in cancelledDayIds) continue
-            when {
-                byDayId.containsKey(dayId) -> out[dayId] = byDayId[dayId]
-                else -> orphans.firstOrNull { it.stageNumber == stageNumber }?.let { out[dayId] = it.stageNumber }
-            }
+        for ((raceId, days) in daysByRace) {
+            out.putAll(InhouseStageMap.forDays(stagesByRace[raceId].orEmpty(), days, cancelledDayIds))
         }
         return out
     }
@@ -694,7 +886,7 @@ class CalendarRepository(
     suspend fun inhouseStageKeys(raceIds: List<String>): Set<String> {
         val ids = raceIds.filter { it.isNotEmpty() }.distinct()
         if (ids.isEmpty()) return emptySet()
-        val stages = runCatching { api.raceUciStagesByRaceIds(ids) }.getOrNull().orEmpty()
+        val stages = runCatching { api.inhouseStagesByRaceIds(ids) }.getOrNull().orEmpty()
             .filter { it.rowCount > 0 }
         return stages.map { "${it.raceId}#${it.stageNumber?.toString() ?: "final"}" }.toSet()
     }
@@ -722,19 +914,10 @@ class CalendarRepository(
             val stagesDeferred = async { api.raceUciStagesFeed(fromKey, toKey) }
             val daysDeferred = async { api.raceDaysFeedWindow(fromKey, toKey) }
             val stages = stagesDeferred.await()
-            val raceDays = daysDeferred.await()
             val raceIds = stages.map { it.raceId }.distinct()
-            val races = if (raceIds.isEmpty()) emptyList() else api.racesByIds(raceIds)
-            val entries = ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey)
-            val featuredDeferred = async {
-                try {
-                    api.featuredRaces(entries.map { it.date }.distinct())
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    emptyList()
-                }
-            }
+            // Lo que solo depende de las carreras sale ya, en paralelo con las
+            // jornadas de la ventana y las fichas de carrera.
+            val racesDeferred = async { if (raceIds.isEmpty()) emptyList() else api.racesByIds(raceIds) }
             val allStagesDeferred = async {
                 try {
                     api.raceUciStagesByRaceIds(raceIds)
@@ -755,19 +938,35 @@ class CalendarRepository(
             }
             val programDeferred = async {
                 try {
-                    api.raceDaysByRaceIds(raceIds)
+                    api.raceDaysProgramByRaceIds(raceIds)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    raceDays
+                    daysDeferred.await()
                 }
             }
-            val decorated = decorateFeedEntries(
-                entries,
-                featuredDeferred.await().map { "${it.dateKey}#${it.raceId}" }.toSet(),
-                allStagesDeferred.await(),
-                configsDeferred.await(),
-                programDeferred.await(),
+            val raceDays = daysDeferred.await()
+            val races = racesDeferred.await()
+            val entries = ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey)
+            val featuredDeferred = async {
+                try {
+                    api.featuredRaces(entries.map { it.date }.distinct())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            val featuredKeys = featuredDeferred.await().map { "${it.dateKey}#${it.raceId}" }.toSet()
+            val decorated = ResultsFeedLogic.featuredFirst(
+                decorateFeedEntries(
+                    entries,
+                    featuredKeys,
+                    allStagesDeferred.await(),
+                    configsDeferred.await(),
+                    programDeferred.await(),
+                ),
+                featuredKeys,
             )
             currentCoroutineContext().ensureActive()
             // Contrato único del repositorio: la UI recibe solo el modelo final,
@@ -866,17 +1065,32 @@ class CalendarRepository(
         // también debe cubrir filas cuya ficha existe pero no resuelve nombre
         // (oculta por el aislamiento del catálogo histórico o sin nombre
         // público), no solo las que llegan sin globalRiderId.
-        var nameById: Map<String, String> = emptyMap()
+        // Los nombres canónicos de equipo solo dependen de las filas rank 1:
+        // viajan en paralelo con los nombres de corredor.
         val directIds = rank1Rows.mapNotNull { it.globalRiderId }.distinct()
-        if (directIds.isNotEmpty()) {
-            nameById = try {
-                api.riderNamesByIds(directIds)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                emptyMap()
+        val (directNames, canonicalTeamNames) = coroutineScope {
+            val riders = async<Map<String, String>> {
+                if (directIds.isEmpty()) emptyMap()
+                else try {
+                    api.riderNamesByIds(directIds)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyMap()
+                }
             }
+            val teams = async<Map<String, String>> {
+                try {
+                    api.teamNamesByIds(rank1Rows.mapNotNull { it.teamId }.distinct())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+            }
+            riders.await() to teams.await()
         }
+        var nameById: Map<String, String> = directNames
         val unresolvedRaceIds = rank1Rows
             .filter { row ->
                 row.bib?.toIntOrNull() != null
@@ -918,13 +1132,6 @@ class CalendarRepository(
                 ?: listOfNotNull(fallback?.firstName, fallback?.lastName).joinToString(" ").ifBlank { null }
                 ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
         }
-        val canonicalTeamNames = try {
-            api.teamNamesByIds(rank1Rows.mapNotNull { it.teamId }.distinct())
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            emptyMap()
-        }
         val rowsByRef = rank1Rows.groupBy { it.stageRef }
 
         // 1) Nombre canónico cuando hay UN único rank 1 con ficha.
@@ -953,27 +1160,50 @@ class CalendarRepository(
             updated
         }.toMutableList()
 
-        // 2) CRE: el ganador es el EQUIPO, no un corredor.
-        for (i in resolved.indices) {
+        // 2) CRE: el ganador es el EQUIPO, no un corredor. Tres consultas por
+        // lotes para todas las entradas: inscritos → startlist_teams → teams.
+        val creEntries = resolved.indices.mapNotNull { i ->
             val e = resolved[i]
-            if (e.kind != ResultsFeedLogic.Kind.INHOUSE || e.stageRefId == null) continue
+            if (e.kind != ResultsFeedLogic.Kind.INHOUSE || e.stageRefId == null) return@mapNotNull null
             val ids = byRef[e.stageRefId].orEmpty()
-            if (!ResultsFeedLogic.isCreEntry(e, ids) || ids.isEmpty()) continue
+            if (!ResultsFeedLogic.isCreEntry(e, ids) || ids.isEmpty()) return@mapNotNull null
+            i to ids.take(3)
+        }
+        if (creEntries.isNotEmpty()) {
             try {
-                val pks = api.startlistRiderTeamPks(e.race.id, ids.take(3)).distinct()
-                if (pks.size != 1) continue
-                val slTeam = api.startlistTeamByPk(pks.first()) ?: continue
-                var teamWinner = slTeam.teamName
-                slTeam.teamId?.let { canonId ->
-                    api.teamNameById(canonId)?.let { teamWinner = it }
+                val riderRows = api.startlistRiderTeamRows(
+                    creEntries.map { (i, _) -> resolved[i].race.id },
+                    creEntries.flatMap { it.second },
+                )
+                val pksByEntry = creEntries.associate { (i, ids) ->
+                    val raceId = resolved[i].race.id
+                    i to riderRows
+                        .filter { it.raceId == raceId && it.globalRiderId in ids }
+                        .mapNotNull { it.teamId }
+                        .distinct()
                 }
-                if (teamWinner.isNotEmpty()) {
-                    resolved[i] = e.copy(
-                        winner = ResultsFeedLogic.localizedNationName(
-                            teamWinner,
-                            LocaleHolder.shouldShowEnglishContent,
-                        ),
-                    )
+                val slTeamByPk = api.startlistTeamsByPks(
+                    pksByEntry.values.filter { it.size == 1 }.map { it.first() },
+                ).associateBy { it.id }
+                val canonNames = try {
+                    api.teamNamesByIds(slTeamByPk.values.mapNotNull { it.teamId })
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+                for ((i, pks) in pksByEntry) {
+                    if (pks.size != 1) continue
+                    val slTeam = slTeamByPk[pks.first()] ?: continue
+                    val teamWinner = slTeam.teamId?.let { canonNames[it] } ?: slTeam.teamName
+                    if (teamWinner.isNotEmpty()) {
+                        resolved[i] = resolved[i].copy(
+                            winner = ResultsFeedLogic.localizedNationName(
+                                teamWinner,
+                                LocaleHolder.shouldShowEnglishContent,
+                            ),
+                        )
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -988,13 +1218,9 @@ class CalendarRepository(
     // ─────────── Today Highlights ───────────
 
     suspend fun todayHighlights(scope: String = "road") = api.todayHighlights(scope)
-    suspend fun raceDaysByIds(ids: List<String>) = api.raceDaysByIds(ids)
-    suspend fun racesByIds(ids: List<String>): List<Race> {
-        if (ids.isEmpty()) return emptyList()
-        return ids.mapNotNull { id ->
-            runCatching { api.raceById(id) }.getOrNull()
-        }
-    }
+    /** Jornadas del cintillo reducidas a identidad y fecha. */
+    suspend fun raceDaysByIds(ids: List<String>) = api.raceDaySummariesByIds(ids)
+    suspend fun racesByIds(ids: List<String>): List<Race> = api.racesByIds(ids)
 
     // ─────────── Purga ───────────
 
@@ -1008,6 +1234,7 @@ class CalendarRepository(
 
     /** Borra todo (opción "borrar datos" en ajustes). */
     suspend fun clearAll() {
+        ledger.clear()
         assetsDao.clear()
         broadcastsDao.clear()
         raceDaysDao.clear()
@@ -1016,5 +1243,20 @@ class CalendarRepository(
 
     companion object {
         private const val TAG = "CalendarRepository"
+
+        /** Vigencia de las carreras del año (Hoy, Temporada, offline); iOS usa la misma. */
+        const val RACES_YEAR_TTL_SECONDS = 3600L
+
+        /** Vigencia de un mes ya cargado en Mes. */
+        const val MONTH_TTL_SECONDS = 10 * 60L
+
+        /** Instantánea de carrera recién descargada (Temporada → Carrera). */
+        const val RACE_SNAPSHOT_TTL_SECONDS = 60L
+
+        /** Una instantánea completa de la sesión permite abrir Carrera desde Room. */
+        private const val RACE_SESSION_TTL_SECONDS = 6 * 3600L
+
+        /** Vigencia de un día en la sincronización offline (iOS: 12 h). */
+        const val OFFLINE_DAY_TTL_SECONDS = 12 * 3600L
     }
 }

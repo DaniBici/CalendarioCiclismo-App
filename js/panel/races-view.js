@@ -95,15 +95,9 @@ function raceEditorBodyHtml() {
   return `
     <div id="editRaceError" class="alert alert--error" style="display:none"></div>
     <input type="hidden" id="er-id">
-    <div class="field-row field-row--2">
-      <div class="field">
-        <label>Nombre</label>
-        <input type="text" id="er-name">
-      </div>
-      <div class="field">
-        <label>Abreviatura <span class="u-hint">(máx. 6)</span></label>
-        <input type="text" id="er-abbrev" placeholder="VUELTA" maxlength="6">
-      </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="er-name">
     </div>
     <div class="field">
       <label>Nombre original <span class="u-hint">(para SEO, no visible en la web)</span></label>
@@ -297,7 +291,6 @@ function populateRaceEditor(race) {
   document.getElementById('er-nameEn').value = race.nameEn || '';
   document.getElementById('er-slugEn').value = race.slugEn || '';
   document.getElementById('er-slugEn-error').style.display = 'none';
-  document.getElementById('er-abbrev').value  = race.abbrev || '';
   document.getElementById('er-slug').value    = race.slug  || '';
   document.getElementById('er-slug-error').style.display = 'none';
   document.getElementById('er-uci').value     = race.uciCategory || '1.UWT';
@@ -424,7 +417,6 @@ async function saveEditRace() {
       nameEn:      document.getElementById('er-nameEn').value.trim() || null,
       slugEn:      slugEnVal || null,
       slug:        slugVal || null,
-      abbrev:      document.getElementById('er-abbrev').value.trim().toUpperCase() || null,
       uciCategory: document.getElementById('er-uci').value,
       gender:      document.getElementById('er-gender').value,
       raceFormat:  document.getElementById('er-format').value,
@@ -517,7 +509,6 @@ async function duplicateRace() {
       name: raceData.name,
       originalName: raceData.originalName || null,
       nameEn: raceData.nameEn || null,
-      abbrev: raceData.abbrev || null,
       uciCategory: raceData.uciCategory || null,
       gender: raceData.gender || null,
       raceFormat: raceData.raceFormat || null,
@@ -555,7 +546,7 @@ export function setupRacesView() {
   document.querySelector('#racesView .races-header').innerHTML=panelCatalogHeaderHtml({
     tabsId:'racesSubviewToggle',tabs:[{key:'races',label:'Carreras'},{key:'challenges',label:'Challenges'}],filterRowId:'racesFiltersRow',searchId:'racesSearch',
     controls:[
-      {key:'period',id:'racesYearSelect',label:'Temporada',options:Array.from({length:11},(_,i)=>[2020+i,2020+i]),value:_racesYear},
+      {key:'period',id:'racesYearSelect',label:'Temporada',options:Array.from({length:5},(_,i)=>[2026+i,2026+i]),value:_racesYear},
       {key:'class',id:'racesCatFilter',label:'Categoría',options:[['','Todas'],...RACES_CAT_ORDER.map(cat=>[cat,cat])]},
       {key:'country',id:'racesCountryFilter',label:'País',options:[['','Todos los países']]},
       {key:'sort',id:'racesSortOrder',label:'Orden',options:[['cat','Por categoría'],['recent','Última actualización']],value:'cat'},

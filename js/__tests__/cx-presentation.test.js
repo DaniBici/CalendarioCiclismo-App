@@ -197,9 +197,9 @@ describe('agenda y clasificación pública CX',()=>{
     const rows=[{rank:2,timeSeconds:90001,points:null},{rank:1,timeSeconds:89900,points:null}];
     expect(rows.sort(cxRankSort).map(r=>r.rank)).toEqual([1,2]);
     expect(cxStandingTotal(rows[1],'time')).toBe('25:00:01');
-    expect(cxStandingTotal({timeSeconds:null,points:0},'time')).toBe('—');
+    expect(cxStandingTotal({timeSeconds:null,points:0},'time')).toBe('-');
     expect(cxStandingTotal({timeSeconds:0,points:null},'time')).toBe('0:00:00');
-    expect(cxStandingTotal({timeSeconds:0,points:null},'points')).toBe('—');
+    expect(cxStandingTotal({timeSeconds:0,points:null},'points')).toBe('-');
     expect(cxStandingTotal({points:0},'points')).toBe('0');
     expect(cxStandingTotal({points:12.5},'points','en-GB')).toBe('12.5');
     expect(cxStandingTotal({points:'12.123456789012'},'points','en-GB')).toBe('12.123456789012');

@@ -97,35 +97,39 @@ struct RaceDayHeading: View {
     let logoUrl: String?
     let countryCode: String?
     var showFlag = true
-    /// Clase de ciclocross, como etiqueta.
-    var category: String? = nil
-    /// Categoría UCI escrita completa («UCI 2.2», «Campeonato continental»).
+    /// Categoría UCI o clase de ciclocross escrita completa («UCI 2.2»,
+    /// «Campeonato continental», «Nacional»), como texto.
     var categoryName: String? = nil
     var stageLabel = ""
     let dateLabel: String
+    /// Líneas máximas del nombre (3 en carretera, 1 en ciclocross).
+    var nameLineLimit = 3
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Carrera
             if let name {
-                HStack(spacing: 8) {
+                // Logo y bandera arriba aunque el nombre ocupe varias líneas,
+                // como en las tarjetas de Hoy de Ciclocross.
+                HStack(alignment: .top, spacing: 8) {
                     RaceLogo(logoUrl, size: 32)
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                        HStack(alignment: .top, spacing: 4) {
                             // Override puramente cosmético: si la jornada
                             // tiene un país propio (etapas en el extranjero),
                             // se usa para la bandera y vence a hideFlag.
                             if showFlag {
                                 CountryFlag(countryCode: countryCode)
+                                    .padding(.top, 3)
                             }
                             Text(name)
                                 .ccFont(.s16, weight: .semibold)
+                                .lineLimit(nameLineLimit)
+                                .truncationMode(.tail)
                         }
                         if let categoryName, !categoryName.isEmpty {
                             Text(categoryName)
                                 .ccFont(.s13)
                                 .foregroundStyle(.secondary)
-                        } else if let category {
-                            CategoryBadge(category: category)
                         }
                     }
                     Spacer()
@@ -322,6 +326,12 @@ extension View {
 /// Vista de detalle de etapa/jornada — equivalente a `jornada.html` + `jornada.js`.
 struct StageDetailView: View {
     let raceDayId: String
+    /// Carrera de la jornada si el llamador la conoce: permite lanzar todas
+    /// las consultas de la ficha a la vez.
+    var raceIdHint: String? = nil
+    /// Carrera y etapa («Nombre · Etapa 3») si el llamador los conoce: rotulan
+    /// la pantalla de carga mientras la ficha no está en caché.
+    var titleHint: String? = nil
 
     @State private var viewModel = StageDetailViewModel()
     @State private var localeService = LocaleService.shared
@@ -347,13 +357,27 @@ struct StageDetailView: View {
     private let raceFollow = RaceFollowService.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// Carrera y etapa de la jornada que se abre: de la caché si ya hay datos,
+    /// si no de la pista del llamador y, en último caso, «Jornada».
+    private var loadingTitle: String {
+        Self.title(raceName: viewModel.race?.localizedName, raceDay: viewModel.raceDay)
+            ?? titleHint
+            ?? LocaleService.t("Jornada", "Stage")
+    }
+
+    /// «Nombre de la carrera · Etapa 3»; sin etapa, solo el nombre.
+    static func title(raceName: String?, raceDay: RaceDay?) -> String? {
+        let parts = [raceName, raceDay?.stageLabel].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
         Group {
             if viewModel.isLoading || (viewModel.raceDay == nil && viewModel.error == nil) {
-                LoadingView(branded: true, title: LocaleService.t("Jornada", "Stage"))
+                LoadingView(branded: true, title: loadingTitle)
             } else if let error = viewModel.error {
                 ErrorView(message: error) {
-                    Task { await viewModel.load(raceDayId: raceDayId) }
+                    Task { await viewModel.load(raceDayId: raceDayId, raceIdHint: raceIdHint) }
                 }
             } else if let rd = viewModel.raceDay {
                 GeometryReader { proxy in
@@ -422,7 +446,7 @@ struct StageDetailView: View {
         .quickLookSheet(url: $quickLookURL)
         .offlineAccessAlert($offlineAlert)
 
-        .task { await viewModel.load(raceDayId: raceDayId) }
+        .task { await viewModel.load(raceDayId: raceDayId, raceIdHint: raceIdHint) }
         .onChange(of: viewModel.raceDay) { _, newRaceDay in
             guard let raceDay = newRaceDay, let race = viewModel.race else { return }
             AnalyticsService.shared.logScreenView("stage_detail", parameters: [

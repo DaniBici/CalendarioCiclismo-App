@@ -5,7 +5,6 @@ struct Race: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let nameEn: String?
-    let abbrev: String?
     let uciCategory: String?
     let gender: String?
     let raceFormat: String?

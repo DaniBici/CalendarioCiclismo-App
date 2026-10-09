@@ -63,7 +63,7 @@ data class StartlistRider(
     val globalRiderId: String? = null,
 ) {
     val fullName: String
-        get() = listOfNotNull(firstName, lastName).joinToString(" ").ifEmpty { "—" }
+        get() = listOfNotNull(firstName, lastName).joinToString(" ").ifEmpty { "-" }
 }
 
 /** Estado "fuera de carrera" de un corredor (abandono/no-salida/fuera de control/

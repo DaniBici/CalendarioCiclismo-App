@@ -4,10 +4,7 @@ Motor de volcado de resultados. **Código en producción**: el watcher actual de
 invoca `results-vps-runner.mjs`, que atiende la cola manual, ejecuta
 `dataride-live-linker.mjs` cada cinco minutos para enlazar las carreras reales del día
 que todavía no tienen ninguna fuente y ejecuta `results-cron.mjs --configured`.
-El proceso histórico separado invoca
-`results-historical-vps-runner.mjs`, que ejecuta
-`results-cron.mjs --scope backlog --historical --limit 1` y solo atiende carreras
-2020–2025. Ambos procesos retiran las carreras verificadas sin ninguna clasificación principal publicable;
+El proceso retira las carreras verificadas sin ninguna clasificación principal publicable;
 `results-today.yml` queda como fallback manual y `results-backlog.yml`
 mantiene el circuito manual de recuperación. Las carreras
 marcadas `races.resultsOnly=true` no siembran inscritos desde DataRide. En estas carreras el
@@ -294,6 +291,12 @@ no exista PDF, comprobando carrera, etapa y fecha. Conserva el enlace
 manual previa. La CRI conserva las diferencias publicadas antes de truncar las
 centésimas; los PDF requieren `pdftotext`, ya instalado en el VPS.
 
+`kyushu-results-fetch.mjs` lee el comunicado oficial de cada etapa del Tour de
+Kyushu, enlazado desde el aviso de resultados de las noticias del organizador:
+llegada, general, puntos, montaña, jóvenes y equipos. Sin comunicado emite la
+llegada provisional de LAPCLIP (`lapclipCode`) con las mismas claves. El cron
+usa `source='kyushu'`.
+
 `southbohemia-results-fetch.mjs` descubre los dossiers publicados por etapa en la
 página oficial del Tour of South Bohemia. El cron usa `source='southbohemia'`, el
 año de la carrera y las fechas de sus jornadas. Comprueba edición, fecha, etapa,
@@ -334,3 +337,5 @@ el primero completa las vueltas, con regla de grupo de un segundo, y los DNF y
 DNS pasado el margen de cierre. Valida la fecha del título de la categoría
 contra la jornada. El cron lo activa con `race_uci_links.source='lapclip'` y
 `lapclipCode=<evento>/<categoría>/<vueltas>`, y lo relee dentro de la ventana.
+En una vuelta por etapas, `lapclipCode=<evento>` (`tdk2026`): lee la categoría
+`STAGE <n>` de la etapa pedida y emite solo su llegada `FINISH`.

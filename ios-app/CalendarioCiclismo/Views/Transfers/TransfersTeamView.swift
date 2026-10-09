@@ -23,7 +23,7 @@ struct TransfersTeamView: View {
 
     private var title: String {
         localeService.t(
-            "Mercado de fichajes \(String(TransfersLogic.marketSeason))",
+            "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
             "\(String(TransfersLogic.marketSeason)) Transfer Market"
         )
     }

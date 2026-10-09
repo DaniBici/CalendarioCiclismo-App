@@ -73,6 +73,43 @@ final class RaceLogicTests: XCTestCase {
         )
     }
 
+    // MARK: - needsLiveRefresh (refresco periódico de Hoy)
+
+    func test_needsLiveRefresh_onlyWithRaceRunningSoonOrAwaitingResults() {
+        let now = iso("2026-01-01T12:00:00Z")
+        func item(_ rd: RaceDay, placeholder: Bool = false) -> EnrichedRaceDay {
+            var enriched = EnrichedRaceDay(raceDay: rd, race: nil, broadcasts: [], assets: [])
+            enriched.isPlaceholder = placeholder
+            return enriched
+        }
+        let farAway = makeRaceDay(neutralStartTimeUtc: "2026-01-01T16:00:00Z")
+        let soon = makeRaceDay(neutralStartTimeUtc: "2026-01-01T12:30:00Z")
+        let running = makeRaceDay(raceStatus: "running")
+        let awaiting = makeRaceDay(id: "rd-w", estimatedFinishTimeUtc: "2026-01-01T10:00:00Z")
+        let stale = makeRaceDay(estimatedFinishTimeUtc: "2026-01-01T05:00:00Z")
+
+        XCTAssertFalse(RaceLogic.needsLiveRefresh([item(farAway)], inhouseDayIds: [], now: now))
+        XCTAssertTrue(RaceLogic.needsLiveRefresh([item(soon)], inhouseDayIds: [], now: now))
+        XCTAssertTrue(RaceLogic.needsLiveRefresh([item(running)], inhouseDayIds: [], now: now))
+        XCTAssertTrue(RaceLogic.needsLiveRefresh([item(awaiting)], inhouseDayIds: [], now: now))
+        XCTAssertFalse(RaceLogic.needsLiveRefresh([item(awaiting)], inhouseDayIds: ["rd-w"], now: now))
+        XCTAssertFalse(RaceLogic.needsLiveRefresh([item(stale)], inhouseDayIds: [], now: now))
+        XCTAssertFalse(RaceLogic.needsLiveRefresh([item(running, placeholder: true)], inhouseDayIds: [], now: now))
+        XCTAssertFalse(RaceLogic.needsLiveRefresh([item(makeRaceDay(isCancelledDay: true, raceStatus: "running"))], inhouseDayIds: [], now: now))
+    }
+
+    // MARK: - Decodificación ligera de RaceDay
+
+    func test_raceDay_decodesElevationGainAliasAsProfileWithoutPoints() throws {
+        let json = #"{"id":"rd","dateKey":"2026-01-01","isRestDay":false,"isCancelledDay":false,"editorialStatus":"published","hasAssets":false,"elevationGain":2480}"#
+        let rd = try JSONDecoder().decode(RaceDay.self, from: Data(json.utf8))
+        XCTAssertEqual(rd.elevationProfile?.elevationGain, 2480)
+        XCTAssertFalse(rd.hasElevationProfile)
+
+        let withoutGain = #"{"id":"rd","dateKey":"2026-01-01","isRestDay":false,"isCancelledDay":false,"editorialStatus":"published","hasAssets":false,"elevationGain":null}"#
+        XCTAssertNil(try JSONDecoder().decode(RaceDay.self, from: Data(withoutGain.utf8)).elevationProfile)
+    }
+
     // MARK: - profileProgress (espejo de js/services/race-presentation.js)
 
     private func iso(_ value: String) -> Date { ISO8601DateFormatter().date(from: value)! }
@@ -387,7 +424,6 @@ final class RaceLogicTests: XCTestCase {
             id: id,
             name: name,
             nameEn: nil,
-            abbrev: nil,
             uciCategory: uciCategory,
             gender: gender,
             raceFormat: nil,

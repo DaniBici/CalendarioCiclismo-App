@@ -116,7 +116,11 @@ struct ResultsView: View {
             await load(resetSelection: activeStageKey == nil)
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
-                await load(resetSelection: false)
+                // Solo mientras la carrera está en curso (o al día siguiente
+                // de su final, cuando aún se cierran clasificaciones). El
+                // refresco reutiliza ficha, inscritos y perfiles ya cargados.
+                guard isPollingWindow else { continue }
+                await load(resetSelection: false, periodic: true)
             }
         }
         .safariSheet(url: $safariURL)
@@ -142,12 +146,28 @@ struct ResultsView: View {
 
     // MARK: - Carga
 
-    private func load(resetSelection: Bool) async {
+    /// ¿Procede el refresco periódico? Sin datos cargados se mantiene el
+    /// sondeo; con la carrera cargada, desde el día anterior al primero hasta
+    /// el siguiente al último. El margen de un día a cada lado cubre la
+    /// diferencia entre la fecha local del dispositivo y la de la carrera
+    /// (p. ej. un usuario en América con una carrera en Asia u Oceanía).
+    private var isPollingWindow: Bool {
+        guard case .ready(let data) = state else { return true }
+        guard let start = data.race.startDate, let end = data.race.endDate else { return true }
+        let today = DateFormatting.todayKey()
+        let firstDay = DateFormatting.dayOffset(from: start, by: -1) ?? start
+        let lastDay = DateFormatting.dayOffset(from: end, by: 1) ?? end
+        return today >= firstDay && today <= lastDay
+    }
+
+    private func load(resetSelection: Bool, periodic: Bool = false) async {
         guard !isLoadingResults else { return }
         isLoadingResults = true
         defer { isLoadingResults = false }
+        var previous: UciResultsData?
+        if periodic, case .ready(let data) = state { previous = data }
         do {
-            guard let data = try await SupabaseService.shared.loadResultsData(raceId: raceId) else {
+            guard let data = try await SupabaseService.shared.loadResultsData(raceId: raceId, reusing: previous) else {
                 state = .empty
                 return
             }
@@ -516,7 +536,7 @@ struct ResultsView: View {
                 .buttonStyle(.plain)
             }
 
-            NavigationLink(destination: StageDetailView(raceDayId: raceDay.id)) {
+            NavigationLink(destination: StageDetailView(raceDayId: raceDay.id, raceIdHint: raceDay.raceId, titleHint: StageDetailView.title(raceName: data.race.localizedName, raceDay: raceDay))) {
                 ActionStripTile(
                     icon: "cc.cursor",
                     label: data.race.isOneDay

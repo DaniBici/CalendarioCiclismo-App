@@ -268,8 +268,8 @@ final class OfflineManager {
             let seasonKey = CacheManager.seasonKey(currentYear)
             do {
                 let races = try await SupabaseService.shared.racesByYear(currentYear)
+                // `seasonKey` y `yearRacesKey` comparten fichero (Temporada y Hoy).
                 await cache.save(races, forKey: seasonKey)
-                await cache.save(races, forKey: CacheManager.yearRacesKey(currentYear))
                 for race in races {
                     Self.collectArtwork(from: race, logos: &retainedLogoURLs)
                 }
@@ -307,6 +307,7 @@ final class OfflineManager {
             //    carreras que ya no están en la ventana.
             syncStatusText = "Limpiando datos antiguos…"
             await cache.purgeExpiredOfflineData(currentDateKey: today)
+            await cache.purgeNavigationCache()
             await cache.purgeAssetFiles(keeping: retainedAssetIds)
             await cache.purgeImages(keepingLogoURLs: retainedLogoURLs)
             completedSteps += 1

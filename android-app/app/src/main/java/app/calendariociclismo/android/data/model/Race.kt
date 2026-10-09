@@ -16,7 +16,6 @@ data class Race(
     val id: String,
     val name: String,
     val nameEn: String? = null,
-    val abbrev: String? = null,
     val uciCategory: String? = null,
     val gender: String? = null,
     val raceFormat: String? = null,

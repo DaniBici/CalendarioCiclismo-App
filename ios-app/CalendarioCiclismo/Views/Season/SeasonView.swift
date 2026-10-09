@@ -305,7 +305,11 @@ struct SeasonView: View {
     @ViewBuilder
     private func monthPageView(month: Int, races: [Race]) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            // VStack y no LazyVStack: cada elemento es una tarjeta mensual
+            // completa, de alturas muy distintas, y la pila perezosa estimaba
+            // mal las aún no pintadas; en «Todos» el desplazamiento podía
+            // quedarse sin llegar al principio hasta regenerar la lista.
+            VStack(alignment: .leading, spacing: 0) {
                 if month == 0 {
                     // Página "Todos": todas las carreras filtradas agrupadas por
                     // mes con su propia cabecera. Respeta el mismo orden que
@@ -567,9 +571,9 @@ struct SeasonView: View {
         }
         loadingOneDayRaceId = race.id
         do {
-            let days = try await SupabaseService.shared.raceDays(byRaceId: race.id)
-            if let first = days.first {
-                onOpenStage?(first.id)
+            let dayIds = try await SupabaseService.shared.raceDayIds(byRaceId: race.id)
+            if let first = dayIds.first {
+                onOpenStage?(first)
             } else {
                 placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
             }
@@ -586,8 +590,8 @@ struct SeasonView: View {
         }
         loadingStageRaceId = race.id
         do {
-            let days = try await SupabaseService.shared.raceDays(byRaceId: race.id)
-            if days.isEmpty {
+            let dayIds = try await SupabaseService.shared.raceDayIds(byRaceId: race.id)
+            if dayIds.isEmpty {
                 placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
             } else {
                 onOpenRace?(race)
@@ -642,7 +646,11 @@ private struct SeasonRowLayout<Logo: View, Name: View, Trailing: View>: View {
                 CountryFlag(countryCode: countryCode)
             }
 
-            logo()
+            // Hueco fijo del logo aunque la carrera no tenga: misma altura y
+            // mismo arranque del nombre en todas las filas.
+            Color.clear
+                .frame(width: 28, height: 28)
+                .overlay { logo() }
 
             // Una sola línea por fila: el nombre se recorta antes que partir la
             // fila en dos.

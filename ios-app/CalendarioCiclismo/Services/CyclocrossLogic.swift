@@ -56,6 +56,47 @@ enum CyclocrossLogic {
         return value.isActive && value.season == season
     }
 
+    // MARK: - Agenda del día (pestaña Ciclocross)
+
+    /// Primer y último día navegables de la temporada: del 1 de agosto al
+    /// último día de febrero. Nil si la clave de temporada no es válida.
+    static func seasonBounds(_ season: String) -> (first: String, last: String)? {
+        guard let year = Int(season.prefix(4)), CxMonth(year: year, month: 8).season == season else { return nil }
+        return (CxMonth(year: year, month: 8).firstDate, CxMonth(year: year + 1, month: 2).lastDate)
+    }
+
+    /// Fecha acotada al rango navegable de la temporada.
+    static func clamp(_ date: String, season: String) -> String {
+        guard let bounds = seasonBounds(season) else { return date }
+        return min(max(date, bounds.first), bounds.last)
+    }
+
+    /// Días con alguna carrera de `races`, ordenados y sin repetir.
+    static func raceDays(_ races: [CxRace]) -> [String] {
+        Set(races.flatMap { dates($0) }).sorted()
+    }
+
+    /// Día con el que abre la agenda: `today` si tiene carreras; si no, el
+    /// siguiente día con carreras o, sin ninguno, `today`.
+    static func openingDay(today: String, raceDays: [String]) -> String {
+        if raceDays.contains(today) { return today }
+        return raceDays.first { $0 > today } ?? today
+    }
+
+    /// Destino de las flechas: el día con carreras más próximo en la dirección
+    /// pedida o, sin ninguno, el día contiguo. Nil en el extremo de la temporada.
+    static func stepDay(from date: String, forward: Bool, raceDays: [String], season: String) -> String? {
+        guard let bounds = seasonBounds(season) else { return nil }
+        if forward {
+            guard date < bounds.last else { return nil }
+            if let next = raceDays.first(where: { $0 > date && $0 <= bounds.last }) { return next }
+            return DateFormatting.nextDay(date).map { min($0, bounds.last) }
+        }
+        guard date > bounds.first else { return nil }
+        if let previous = raceDays.last(where: { $0 < date && $0 >= bounds.first }) { return previous }
+        return DateFormatting.previousDay(date).map { max($0, bounds.first) }
+    }
+
     static func raceInSeason(_ race: CxRace) -> Bool {
         dateInSeason(race.dateKey, season: race.seasonKey) && (race.endDateKey.map { dateInSeason($0, season: race.seasonKey) } ?? true)
     }
@@ -80,7 +121,7 @@ enum CyclocrossLogic {
         race.categories.contains { publishedResultsStatuses.contains($0.resultsStatus) }
     }
 
-    private static let publishedResultsStatuses: Set<String> = ["official", "provisional"]
+    static let publishedResultsStatuses: Set<String> = ["official", "provisional"]
 
     static func races(on date: String, races: [CxRace]) -> [CxRace] {
         races.filter { dates($0).contains(date) }.sorted { lhs, rhs in
@@ -141,7 +182,7 @@ enum CyclocrossLogic {
     }
 
     static func duration(_ seconds: Int64?) -> String {
-        guard let seconds, seconds >= 0 else { return "—" }
+        guard let seconds, seconds >= 0 else { return "-" }
         return String(format: "%lld:%02lld:%02lld", seconds / 3600, seconds / 60 % 60, seconds % 60)
     }
 

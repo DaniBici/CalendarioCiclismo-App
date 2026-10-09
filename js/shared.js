@@ -4,7 +4,9 @@ import { flagIconUrl } from './flag-url.js';
 //  SHARED — funciones y constantes compartidas entre módulos
 // ─────────────────────────────────────────────────────────────────
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Versión fija: coincide con el <link rel="modulepreload"> de los HTML y de
+// tools/site/gen_og_pages.py (SUPABASE_JS_ESM). Cambiarla en los tres sitios.
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
@@ -32,22 +34,47 @@ export function bulkCacheRaces(raceMap) {
 
 // La guía técnica pertenece a toda la competición. `assets` conserva la FK a
 // una jornada por compatibilidad, pero se reutiliza en cada etapa sin duplicar
-// filas ni ficheros.
+// filas ni ficheros. Una sola consulta: la jornada embebida aporta la carrera
+// y la fecha que ordena las guías.
 export async function loadRaceTechnicalGuide(raceId) {
   if (!raceId) return null;
   if (_technicalGuideCache.has(raceId)) return _technicalGuideCache.get(raceId);
   const pending = (async () => {
-    const { data: days, error: daysError } = await supabase
-      .from('race_days').select('id,dateKey').eq('raceId', raceId).order('dateKey');
-    if (daysError || !days?.length) return null;
-    const order = new Map(days.map((day, index) => [day.id, index]));
     const { data: guides, error } = await supabase
-      .from('assets').select('*').in('raceDayId', days.map(day => day.id)).eq('type', 'technicalGuide');
+      .from('assets').select('*,race_days!inner(dateKey)')
+      .eq('race_days.raceId', raceId).eq('type', 'technicalGuide');
     if (error || !guides?.length) return null;
-    return [...guides].sort((a, b) => (order.get(a.raceDayId) ?? Infinity) - (order.get(b.raceDayId) ?? Infinity))[0];
+    const [first] = [...guides].sort((a, b) => (a.race_days?.dateKey || '').localeCompare(b.race_days?.dateKey || ''));
+    const { race_days: _day, ...guide } = first;
+    return guide;
   })();
   _technicalGuideCache.set(raceId, pending);
   return pending;
+}
+
+// ── Resolución de identificadores ────────────────────────────────
+// Filtro `.or()` de PostgREST que busca un mismo valor en varias columnas.
+// El valor va entre comillas dobles para que comas, puntos o paréntesis no
+// alteren la sintaxis del filtro.
+export function orEqFilter(columns, value) {
+  const quoted = `"${String(value).replace(/["\\]/g, '\\$&')}"`;
+  return columns.map(column => `${column}.eq.${quoted}`).join(',');
+}
+
+// Primera fila que coincide con `value`, por orden de preferencia de columnas.
+export function pickByPreference(rows, columns, value) {
+  for (const column of columns) {
+    const row = (rows || []).find(candidate => candidate?.[column] === value);
+    if (row) return row;
+  }
+  return null;
+}
+
+// Identificador incrustado por el build en las páginas pre-renderizadas
+// (`<meta name="cc:race-day-id">`, `cc:race-id`, `cc:cx-race-id`).
+export function embeddedId(name) {
+  if (typeof document === 'undefined') return null;
+  return document.querySelector(`meta[name="cc:${name}"]`)?.content || null;
 }
 
 export function withRaceTechnicalGuide(assets = [], technicalGuide = null) {
@@ -987,8 +1014,8 @@ export function buildStageNav(navSiblings, currentRdId, urlBuilder, raceHref) {
     const label = (s.stageNumber != null) ? stageLabel(s.stageNumber, s._stageSuffix) : (s.dateKey || s.id);
     const city = s.startLocation
       ? (!s.finishLocation || s.startLocation === s.finishLocation
-          ? ` — ${rdLocation(s, 'startLocation')}`
-          : ` — ${rdLocation(s, 'startLocation')} › ${rdLocation(s, 'finishLocation')}`)
+          ? ` - ${rdLocation(s, 'startLocation')}`
+          : ` - ${rdLocation(s, 'startLocation')} › ${rdLocation(s, 'finishLocation')}`)
       : '';
     const url = urlBuilder(s);
     return `<option value="${s.id}" data-url="${esc(url)}"${s.id === currentRdId ? ' selected' : ''}>${label}${city}</option>`;
@@ -1362,9 +1389,11 @@ export function cleanFeminineName(name, activeCat) {
 // ── Hero de carrera (logo, bandera, nombre, categoría, fecha) ────
 // Wrapper sobre buildRaceHeader para la vista de jornada: detalle = etapa ·
 // categoría, más la fecha larga y, si procede, el banner de jornada anulada.
-export function buildRaceHero(rd, race, { showCancelledBanner = false } = {}) {
+// `stage` sustituye al texto de etapa calculado desde la jornada (resultados,
+// donde la etapa activa puede ser la clasificación final).
+export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: stageText } = {}) {
   const showFlag = !(race?.hideFlag && !rd.countryCode);
-  const stage = stageLabel(rd.stageNumber, rd._stageSuffix);
+  const stage = stageText !== undefined ? stageText : stageLabel(rd.stageNumber, rd._stageSuffix);
   const uci = race?.uciCategory || '';
 
   const cancelledHtml = showCancelledBanner && rd.isCancelledDay

@@ -32,18 +32,16 @@ import { teamStripes } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag } from './shared.js';
+import { fetchAllRows, fetchAllRowsParallel, fetchByIds } from './services/paged-query.js';
+import { staleWhileRevalidate } from './services/local-cache.js';
 import { t, getLang, initI18n } from './i18n.js';
 
 const SEASON = 2027;
 const PREV_SEASON = SEASON - 1;
 const DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
-// Corte del feed "Últimas confirmaciones": 5 fechas distintas U 8 fichajes, lo
-// que se alcance antes.
-const FEED_MAX_DAYS = 5;
-const FEED_MAX_ITEMS = 8;
-// Escritorio: lista de altura fija con desplazamiento; admite más historial.
-const FEED_SCROLL_MAX_DAYS = 30;
-const FEED_SCROLL_MAX_ITEMS = 60;
+// Feed "Últimas confirmaciones": lista de altura fija con desplazamiento.
+const FEED_MAX_DAYS = 30;
+const FEED_MAX_ITEMS = 60;
 // Orden editorial diario del equipo de destino. La categoría femenina se
 // guarda como PRW en la base de datos; PTW se admite como alias del rótulo
 // solicitado para Women's ProTeams.
@@ -131,24 +129,49 @@ function dayHeading(dateKey) {
 }
 
 // ── Carga inicial ─────────────────────────────────────────────────
-async function loadData() {
-  const [seasonsRes, prevSeasonsRes, transfersRes] = await Promise.all([
-    supabase.from('team_seasons')
+// Lectura del mercado: temporadas 2027 y 2026, movimientos con su ficha y
+// nombres de equipos fuera de ambas temporadas. Temporadas y movimientos se
+// paginan con orden estable: la respuesta de PostgREST tiene un tope de filas.
+// El resultado se guarda en la copia local (stale-while-revalidate).
+async function fetchMarket() {
+  const [seasons, prevSeasons, transfers] = await Promise.all([
+    fetchAllRows(() => supabase.from('team_seasons')
       .select('teamId, name, category, gender, badgeVisible, continuityDoubt, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
-      .eq('year', SEASON),
-    supabase.from('team_seasons')
+      .eq('year', SEASON).order('teamId'), 1000),
+    fetchAllRowsParallel(() => supabase.from('team_seasons')
       .select('teamId, name, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
-      .eq('year', PREV_SEASON),
-    supabase.from('rider_transfers')
+      .eq('year', PREV_SEASON).order('teamId')),
+    fetchAllRows(() => supabase.from('rider_transfers')
       .select('*')
       .eq('season', SEASON)
       .order('announcedAt', { ascending: false })
-      .order('createdAt', { ascending: false }),
+      .order('createdAt', { ascending: false })
+      .order('id'), 1000),
   ]);
-  if (seasonsRes.error) throw seasonsRes.error;
-  if (prevSeasonsRes.error) throw prevSeasonsRes.error;
-  if (transfersRes.error) throw transfersRes.error;
 
+  // Fichas (nombre + bandera) en bulk por género, en trozos paralelos.
+  const cols = 'id, firstName, lastName, nationality, contractUntil';
+  const menIds   = [...new Set(transfers.filter(x => x.riderGender === 'male').map(x => x.riderId))];
+  const womenIds = [...new Set(transfers.filter(x => x.riderGender === 'female').map(x => x.riderId))];
+  // Último recurso para equipos sin fila en NINGUNA de las dos temporadas
+  // (destinos fuera de las 4 divisiones sembradas, altas sin catalogar…).
+  const knownIds = new Set([...seasons, ...prevSeasons].map(s => s.teamId));
+  const refIds = [...new Set(transfers.flatMap(x => [x.fromTeamId, x.toTeamId]).filter(id => id && !knownIds.has(id)))];
+  const [men, women, extraTeams] = await Promise.all([
+    menIds.length ? fetchByIds(supabase, 'riders_men', cols, 'id', menIds) : [],
+    womenIds.length ? fetchByIds(supabase, 'riders_women', cols, 'id', womenIds) : [],
+    refIds.length ? fetchByIds(supabase, 'teams', 'id, name', 'id', refIds) : [],
+  ]);
+  const byKey = new Map();
+  men.forEach(r => byKey.set(`male:${r.id}`, r));
+  women.forEach(r => byKey.set(`female:${r.id}`, r));
+  transfers.forEach(x => { x.rider = byKey.get(`${x.riderGender}:${x.riderId}`) || null; });
+  return { seasons, prevSeasons, transfers, extraTeams };
+}
+
+function applyMarket({ seasons: seasonRows, prevSeasons, transfers, extraTeams }) {
+  const seasonsRes = { data: seasonRows };
+  const prevSeasonsRes = { data: prevSeasons };
   _seasonsByTeamId = new Map((seasonsRes.data || []).map(s => [s.teamId, s]));
   // Slug legible del nombre 2027 para la URL (?equipo=visma-lease-a-bike).
   // Varias marcas tienen equipo masculino Y femenino con el MISMO nombre
@@ -184,36 +207,11 @@ async function loadData() {
   _teamNameById = new Map((seasonsRes.data || []).map(s => [s.teamId, s.name]));
   _teamNamePrev = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s.name]));
   _prevColorsByTeamId = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s]));
-  _transfers = transfersRes.data || [];
-
-  // Hidratar fichas (nombre + bandera) en bulk por género.
-  const cols = 'id, firstName, lastName, nationality, contractUntil';
-  const menIds   = [...new Set(_transfers.filter(x => x.riderGender === 'male').map(x => x.riderId))];
-  const womenIds = [...new Set(_transfers.filter(x => x.riderGender === 'female').map(x => x.riderId))];
-  const [men, women] = await Promise.all([
-    menIds.length   ? supabase.from('riders_men').select(cols).in('id', menIds).then(r => r.data || [])     : Promise.resolve([]),
-    womenIds.length ? supabase.from('riders_women').select(cols).in('id', womenIds).then(r => r.data || []) : Promise.resolve([]),
-  ]);
-  const byKey = new Map();
-  men.forEach(r => byKey.set(`male:${r.id}`, r));
-  women.forEach(r => byKey.set(`female:${r.id}`, r));
-  _transfers.forEach(x => { x.rider = byKey.get(`${x.riderGender}:${x.riderId}`) || null; });
-
-  // Último recurso para equipos sin fila en NINGUNA de las dos temporadas
-  // (destinos fuera de las 4 divisiones sembradas, altas sin catalogar…).
-  const refIds = new Set();
-  const known = (id) => _teamNameById.has(id) || _teamNamePrev.has(id);
-  _transfers.forEach(x => {
-    if (x.fromTeamId && !known(x.fromTeamId)) refIds.add(x.fromTeamId);
-    if (x.toTeamId && !known(x.toTeamId)) refIds.add(x.toTeamId);
+  _transfers = transfers;
+  (extraTeams || []).forEach(tm => {
+    if (!_teamNameById.has(tm.id)) _teamNameById.set(tm.id, tm.name);
+    if (!_teamNamePrev.has(tm.id)) _teamNamePrev.set(tm.id, tm.name);
   });
-  if (refIds.size) {
-    const { data: extra } = await supabase.from('teams').select('id, name').in('id', [...refIds]);
-    (extra || []).forEach(tm => {
-      if (!_teamNameById.has(tm.id)) _teamNameById.set(tm.id, tm.name);
-      if (!_teamNamePrev.has(tm.id)) _teamNamePrev.set(tm.id, tm.name);
-    });
-  }
 }
 
 // ── Feed de confirmaciones ────────────────────────────────────────
@@ -301,25 +299,22 @@ function feedHtml(feed) {
   }
   // Corte del feed: hasta FEED_MAX_DAYS fechas distintas O FEED_MAX_ITEMS
   // fichajes, lo que se alcance antes (el feed viene en orden cronológico
-  // inverso). En escritorio la lista tiene altura fija con desplazamiento y
-  // llega a FEED_SCROLL_MAX_*; lo que excede el corte corto se marca para
-  // ocultarlo en móvil. No hay "cargar más": el mercado completo se ve por equipo.
+  // inverso). La lista tiene altura fija con desplazamiento en todos los
+  // anchos. No hay "cargar más": el mercado completo se ve por equipo.
   let html = '';
   let lastDay = null;
   let daysShown = 0;
   let itemsShown = 0;
   for (const x of feed) {
     const newDay = x.announcedAt !== lastDay;
-    if (newDay && daysShown >= FEED_SCROLL_MAX_DAYS) break;
-    if (itemsShown >= FEED_SCROLL_MAX_ITEMS) break;
-    const extra = (newDay ? daysShown >= FEED_MAX_DAYS : daysShown > FEED_MAX_DAYS) || itemsShown >= FEED_MAX_ITEMS;
+    if (newDay && daysShown >= FEED_MAX_DAYS) break;
+    if (itemsShown >= FEED_MAX_ITEMS) break;
     if (newDay) {
       lastDay = x.announcedAt;
       daysShown++;
-      html += `<div class="tr-feed-day${extra ? ' tr-feed-extra' : ''}">${esc(dayHeading(x.announcedAt))}</div>`;
+      html += `<div class="tr-feed-day">${esc(dayHeading(x.announcedAt))}</div>`;
     }
-    const row = feedRowHtml(x);
-    html += extra ? row.replace(/^<(a|div) class="tr-row/, '<$1 class="tr-feed-extra tr-row') : row;
+    html += feedRowHtml(x);
     itemsShown++;
   }
   return `<div class="tr-feed-list">${html}</div>`;
@@ -764,21 +759,55 @@ window.addEventListener('popstate', (e) => {
 
 // ── Bootstrap ─────────────────────────────────────────────────────
 async function init() {
-  await initI18n();
+  // El diccionario EN se carga a la vez que el mercado.
+  const i18nReady = initI18n();
 
   const content = $('transfersContent');
   const main = $('fichajesMain');
 
+  // Se pinta desde la copia local, si existe, y se revalida contra la red. La
+  // revalidación solo repinta si los datos cambian.
+  let mounted = false, mounting = null;
   try {
-    await loadData();
+    await staleWhileRevalidate(`fichajes:${SEASON}`, fetchMarket, market => {
+      applyMarket(market);
+      if (!mounted) {
+        mounted = true;
+        mounting = i18nReady.then(mountMarket);
+        return;
+      }
+      mounting.then(refreshMarketViews);
+    });
   } catch (err) {
     console.error('[fichajes] load', err);
+    await i18nReady;
     content.innerHTML = `<div class="tr-empty" style="padding:2rem 0">${esc(t('transfers.loadError'))}</div>`;
     content.hidden = false;
     main.querySelector('#trStaticLoading')?.remove();
     main.querySelector('.static-prerender')?.remove();
     return;
   }
+  await mounting;
+}
+
+// Repinta feed y lista con los datos revalidados; si hay un equipo abierto,
+// se reconstruye su vista sin mover el scroll.
+function refreshMarketViews() {
+  renderFeed();
+  renderTeams();
+  const view = $('trTeamView');
+  if (!view || view.hidden) return;
+  const qs = new URLSearchParams(location.search);
+  const teamId = resolveTeamParam(qs.get('team') || qs.get('equipo'));
+  if (!teamId) return;
+  const y = window.scrollY;
+  openTeam(teamId, { push: false }).then(() => window.scrollTo(0, y));
+}
+
+// Monta la home del mercado y, con ?team=, la vista de equipo.
+async function mountMarket() {
+  const content = $('transfersContent');
+  const main = $('fichajesMain');
 
   const qs = new URLSearchParams(location.search);
   if (DIVISIONS.includes((qs.get('div') || '').toUpperCase())) {

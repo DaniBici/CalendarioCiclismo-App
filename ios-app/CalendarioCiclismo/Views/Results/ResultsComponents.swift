@@ -955,7 +955,7 @@ private struct ResultsRowView: View {
                     if !showTeam, let team = vm.team, team.hasVisibleBadge {
                         TeamColorBands(team: team)
                     }
-                    Text(vm.riderName.isEmpty ? "—" : vm.riderName)
+                    Text(vm.riderName.isEmpty ? "-" : vm.riderName)
                         .ccFont(.s14, weight: .semibold)
                         .foregroundStyle(vm.riderName.isEmpty ? Color.secondary : Color.primary)
                         .lineLimit(1)
@@ -1076,7 +1076,7 @@ private struct ResultsTttTable: View {
                             if let t = team.team, t.hasVisibleBadge {
                                 TeamColorBands(team: t)
                             }
-                            Text(team.teamName.isEmpty ? "—" : team.teamName)
+                            Text(team.teamName.isEmpty ? "-" : team.teamName)
                                 .ccFont(.s14, weight: .semibold)
                                 .foregroundStyle(.primary)
                                 .lineLimit(1)
@@ -1129,7 +1129,7 @@ private struct ResultsTttTable: View {
             if !rider.countryCode.isEmpty {
                 CountryFlag(countryCode: rider.countryCode, width: 17.33)
             }
-            Text(rider.name.isEmpty ? "—" : rider.name)
+            Text(rider.name.isEmpty ? "-" : rider.name)
                 .ccFont(.s14)
                 .foregroundStyle(.primary)
                 .lineLimit(1)

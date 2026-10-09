@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.resultsfeed
 
+import app.calendariociclismo.android.ui.cyclocross.cxTitle
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import app.calendariociclismo.android.ui.components.ccSegmentedColors
@@ -42,6 +43,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -100,6 +103,14 @@ import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.ResultsFeedLogic
+import app.calendariociclismo.android.util.ResultsSection
+import app.calendariociclismo.android.util.ResultsSections
+import app.calendariociclismo.android.util.ResultsSectionsLayout
+import app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import app.calendariociclismo.android.util.UciTeamRankingLogic
 import app.calendariociclismo.android.util.UciTeamRankingPresentation
 import app.calendariociclismo.android.util.rememberHaptics
@@ -118,7 +129,6 @@ private sealed class FeedState {
     data class Error(val message: String) : FeedState()
 }
 
-private enum class ResultsSection { Latest, Ranking }
 private enum class RankingGender(val value: String) { Male("male"), Female("female") }
 
 private sealed class RankingState {
@@ -156,13 +166,23 @@ fun ResultsFeedScreen(navController: NavController) {
     var state by remember { mutableStateOf<FeedState>(FeedState.Loading) }
     var loadingMore by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
-    var activeSection by rememberSaveable { mutableStateOf(ResultsSection.Latest) }
+    // Pestañas según la fecha ([ResultsSections]); se reevalúan al volver a
+    // primer plano, como la disponibilidad de Hoy en la barra.
+    var sectionsLayout by remember { mutableStateOf(ResultsSections.layout()) }
+    var chosenSection by rememberSaveable { mutableStateOf<ResultsSection?>(null) }
+    val activeSection = chosenSection?.takeIf { it in sectionsLayout.sections } ?: sectionsLayout.initial
+    // Pestaña Ciclocross: meses de la temporada en curso con la caché de
+    // CyclocrossRepository.
+    val cxState = remember { CyclocrossAgendaState(app.cxRepository) }
+    val cxPullRefreshState = rememberPullToRefreshState()
+    var cxOpened by remember { mutableStateOf(false) }
     var rankingGender by rememberSaveable { mutableStateOf(RankingGender.Male) }
     var rankingState by remember { mutableStateOf<RankingState>(RankingState.Loading) }
     var rankingLoaded by remember { mutableStateOf(false) }
     var rankingRefreshing by remember { mutableStateOf(false) }
     var rankingExplanation by remember { mutableStateOf<RankingExplanation?>(null) }
     val pullRefreshState = rememberPullToRefreshState()
+    val scope = rememberCoroutineScope()
     val rankingPullRefreshState = rememberPullToRefreshState()
 
     LaunchedEffect(Unit) { app.analytics.logScreenView("results_feed") }
@@ -214,9 +234,24 @@ fun ResultsFeedScreen(navController: NavController) {
         }
     }
     LaunchedEffect(activeSection) {
-        if (activeSection == ResultsSection.Ranking && !rankingLoaded) {
+        if (activeSection == ResultsSection.RANKING && !rankingLoaded) {
             app.analytics.logScreenView("uci_team_ranking")
             reloadRanking()
+        }
+        if (activeSection == ResultsSection.CYCLOCROSS && !cxOpened) {
+            cxOpened = true
+            app.analytics.logScreenView("results_feed_cx")
+            cxState.open(cxState.season)
+            // Manga n/total de la línea secundaria (misma fuente que la agenda CX).
+            cxState.loadRounds()
+        }
+    }
+    // Primer plano: reevalúa las pestañas. Ciclocross se refresca como el feed
+    // de carretera, con el gesto de recarga.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            sectionsLayout = ResultsSections.layout()
         }
     }
     LaunchedEffect(rankingRefreshing) {
@@ -245,14 +280,33 @@ fun ResultsFeedScreen(navController: NavController) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             ResultsSectionSelector(
+                layout = sectionsLayout,
                 active = activeSection,
                 onSelect = {
                     haptic(Haptics.Event.Selection)
-                    activeSection = it
+                    chosenSection = it
                 },
             )
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                if (activeSection == ResultsSection.Latest) {
+                if (activeSection == ResultsSection.CYCLOCROSS) {
+                    PullToRefreshBox(
+                        isRefreshing = cxState.isRefreshing,
+                        onRefresh = { scope.launch { cxState.refresh() } },
+                        state = cxPullRefreshState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        CxResultsContent(
+                            state = cxState,
+                            adaptiveInfo = adaptiveInfo,
+                            onRetry = { scope.launch { cxState.retry() } },
+                            onEntryTap = { entry ->
+                                haptic(Haptics.Event.Navigation)
+                                val first = entry.categories.firstOrNull()?.category
+                                navController.navigate(Routes.cxRace(entry.race.id, first?.let { "resultados-$it" }, cxTitle(entry.race)))
+                            },
+                        )
+                    }
+                } else if (activeSection == ResultsSection.ROAD) {
                     PullToRefreshBox(
                         isRefreshing = isRefreshing,
                         onRefresh = { isRefreshing = true },
@@ -349,13 +403,19 @@ fun ResultsFeedScreen(navController: NavController) {
  */
 @Composable
 private fun ResultsSectionSelector(
+    layout: ResultsSectionsLayout,
     active: ResultsSection,
     onSelect: (ResultsSection) -> Unit,
 ) {
-    val options = listOf(
-        ResultsSection.Latest to stringResource(R.string.results_feed_latest),
-        ResultsSection.Ranking to stringResource(R.string.uci_ranking_tab),
-    )
+    val options = layout.sections.map { section ->
+        section to stringResource(
+            when (section) {
+                ResultsSection.CYCLOCROSS -> R.string.tab_cyclocross
+                ResultsSection.ROAD -> if (layout.roadLabelShort) R.string.results_tab_road else R.string.results_feed_latest
+                ResultsSection.RANKING -> R.string.uci_ranking_tab
+            }
+        )
+    }
     SingleChoiceSegmentedButtonRow(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
     ) {
@@ -682,17 +742,7 @@ private fun FeedList(
         ) {
             grouped.forEach { (date, dayEntries) ->
                 item(key = "hdr-$date") {
-                    // Cabecera de día en el idioma de CONTENIDO (no el locale del
-                    // dispositivo) — mismo criterio que las fechas de cabecera de etapa.
-                    Text(
-                        text = DateFormatting.formatDateLongContent(date),
-                        style = CCText.S13,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(top = if (date == grouped.keys.first()) 0.dp else 8.dp, start = 4.dp)
-                            .semantics { heading() },
-                    )
+                    FeedDayHeader(date = date, isFirst = date == grouped.keys.first())
                 }
                 // Ninguna fila ocupa las dos columnas, como la web
                 // (`.feed-day>.feed-row { grid-column: auto }`).
@@ -772,6 +822,150 @@ private fun FeedEntryRow(
     modifier: Modifier = Modifier,
 ) {
     val race = entry.race
+    // País efectivo: la jornada puede transcurrir en otro país que la
+    // carrera (etapa que sale del extranjero) → gana el de la jornada,
+    // que además vence al hideFlag de la carrera.
+    val flagCc = if (!race.hideFlag || entry.rd?.countryCode != null) entry.rd?.countryCode ?: race.countryCode else null
+    FeedRowFrame(
+        logoUrl = race.logoUrl,
+        flagCountryCode = flagCc,
+        alignTop = entry.isFeatured,
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        // Nombre completo con el peso de los títulos de Hoy (16
+        // seminegrita): pasa a una segunda línea en lugar de cortarse.
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = race.localizedName,
+                modifier = Modifier.weight(1f, fill = false),
+                style = CCText.S16,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (RaceLogic.shouldShowFemaleIndicator(race)) {
+                Text(
+                    text = "♀",
+                    style = CCText.S12,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (entry.isGcFinal) {
+            // Las generales finales solo llevan su etiqueta (sin datos de etapa).
+            Text(
+                text = stringResource(R.string.results_feed_gc_final),
+                style = CCText.S13,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            val subtitle = feedSubtitle(entry)
+            val rd = entry.rd
+            val showType = rd?.primaryType == "itt" || rd?.primaryType == "ttt"
+            // Como en web e iOS: datos condensados y badge comparten línea.
+            if (subtitle.isNotEmpty() || showType) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            text = subtitle,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = CCText.S13,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (showType) {
+                        StageTypeBadge(
+                            primaryType = rd?.primaryType,
+                            secondaryType = if (
+                                rd?.primaryType == "itt" &&
+                                (rd.secondaryType == "chrono_climb" || rd.secondaryType == "summit_finish")
+                            ) rd.secondaryType else null,
+                            countryCode = race.countryCode,
+                            compact = true,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Ganador (solo in-house con ganador resuelto/crudo).
+        if (entry.kind == ResultsFeedLogic.Kind.INHOUSE && entry.winner.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.EmojiEvents,
+                    contentDescription = stringResource(R.string.results_feed_winner_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = entry.winner,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (entry.isFeatured && entry.complementary.isNotEmpty()) {
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            entry.complementary.forEach { item ->
+                FeedComplementaryLine(
+                    label = if (LocaleHolder.shouldShowEnglishContent) item.labelEn else item.labelEs,
+                    value = item.winner,
+                    colorHex = item.colorHex,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Cabecera de día del feed, en el idioma de CONTENIDO (no el locale del
+ * dispositivo) — mismo criterio que las fechas de cabecera de etapa.
+ */
+@Composable
+internal fun FeedDayHeader(date: String, isFirst: Boolean) {
+    Text(
+        text = DateFormatting.formatDateLongContent(date),
+        style = CCText.S13,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = if (isFirst) 0.dp else 8.dp, start = 4.dp)
+            .semantics { heading() },
+    )
+}
+
+/**
+ * Armazón de la fila del feed: card neutra, logo 36dp con la bandera debajo,
+ * columna de texto y chevron. Con [alignTop] (variante destacada) el logo se
+ * alinea arriba.
+ */
+@Composable
+internal fun FeedRowFrame(
+    logoUrl: String?,
+    flagCountryCode: String?,
+    alignTop: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
     CCCard(
         modifier = modifier.fillMaxWidth(),
     ) {
@@ -786,140 +980,43 @@ private fun FeedEntryRow(
         ) {
             // Columna izquierda: logo de carrera + bandera debajo (como la web).
             Column(
-                modifier = Modifier.align(
-                    if (entry.isFeatured) Alignment.Top else Alignment.CenterVertically
-                ),
+                modifier = Modifier.align(if (alignTop) Alignment.Top else Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                RaceLogo(url = race.logoUrl, size = 36.dp)
-                // País efectivo: la jornada puede transcurrir en otro país que la
-                // carrera (etapa que sale del extranjero) → gana el de la jornada,
-                // que además vence al hideFlag de la carrera.
-                val flagCc = entry.rd?.countryCode ?: race.countryCode
-                if (!race.hideFlag || entry.rd?.countryCode != null) {
-                    CountryFlag(countryCode = flagCc)
-                }
+                RaceLogo(url = logoUrl, size = 36.dp)
+                if (flagCountryCode != null) CountryFlag(countryCode = flagCountryCode)
             }
 
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                // Nombre completo con el peso de los títulos de Hoy (16
-                // seminegrita): pasa a una segunda línea en lugar de cortarse.
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = race.localizedName,
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = CCText.S16,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    if (RaceLogic.shouldShowFemaleIndicator(race)) {
-                        Text(
-                            text = "♀",
-                            style = CCText.S12,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                if (entry.isGcFinal) {
-                    // Las generales finales solo llevan su etiqueta (sin datos de etapa).
-                    Text(
-                        text = stringResource(R.string.results_feed_gc_final),
-                        style = CCText.S13,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    val subtitle = feedSubtitle(entry)
-                    val rd = entry.rd
-                    val showType = rd?.primaryType == "itt" || rd?.primaryType == "ttt"
-                    // Como en web e iOS: datos condensados y badge comparten línea.
-                    if (subtitle.isNotEmpty() || showType) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            if (subtitle.isNotEmpty()) {
-                                Text(
-                                    text = subtitle,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                    style = CCText.S13,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (showType) {
-                                StageTypeBadge(
-                                    primaryType = rd?.primaryType,
-                                    secondaryType = if (
-                                        rd?.primaryType == "itt" &&
-                                        (rd.secondaryType == "chrono_climb" || rd.secondaryType == "summit_finish")
-                                    ) rd.secondaryType else null,
-                                    countryCode = race.countryCode,
-                                    compact = true,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Ganador (solo in-house con ganador resuelto/crudo).
-                if (entry.kind == ResultsFeedLogic.Kind.INHOUSE && entry.winner.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.EmojiEvents,
-                            contentDescription = stringResource(R.string.results_feed_winner_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            text = entry.winner,
-                            style = CCText.S13,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                if (entry.isFeatured && entry.complementary.isNotEmpty()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 2.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                    )
-                    entry.complementary.forEach { item ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            item.colorHex?.let {
-                                Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(colorFromHex(it)))
-                            }
-                            Text(
-                                if (LocaleHolder.shouldShowEnglishContent) item.labelEn else item.labelEs,
-                                style = CCText.S12,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (item.winner.isNotEmpty()) {
-                                Text(item.winner, style = CCText.S12, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-            }
+                content = content,
+            )
 
             app.calendariociclismo.android.ui.components.RaceCardChevron()
+        }
+    }
+}
+
+/** Línea de clasificación complementaria: etiqueta y ganador. */
+@Composable
+internal fun FeedComplementaryLine(label: String, value: String, colorHex: String? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        colorHex?.let {
+            Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(colorFromHex(it)))
+        }
+        Text(
+            label,
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (value.isNotEmpty()) {
+            Text(value, style = CCText.S12, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -962,7 +1059,7 @@ private fun feedSubtitle(entry: ResultsFeedLogic.FeedEntry): AnnotatedString {
 }
 
 @Composable
-private fun FeedEmptyState() {
+internal fun FeedEmptyState(message: String = stringResource(R.string.results_feed_empty)) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -976,7 +1073,9 @@ private fun FeedEmptyState() {
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = stringResource(R.string.results_feed_empty),
+            text = message,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

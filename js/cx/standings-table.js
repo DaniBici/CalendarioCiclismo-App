@@ -4,13 +4,14 @@ import {t} from '../i18n.js';
 import {cxEsc as esc,cxRankSort,cxStandingValueCells,cxStandingsBreakdown} from './presentation.js';
 
 // Tabla de una general CX, común a la ficha de carrera y a la página de torneo.
-// Con desglose por ronda (general por puntos calculada) el equipo pasa a
-// subtítulo del corredor y la tabla se desplaza en horizontal si no cabe;
-// `roundHeader(raceId,index)` devuelve {label,title,href} de cada columna.
+// El equipo va en su propia columna desde 601 px y como subtítulo del corredor
+// por debajo. Con desglose por ronda (general por puntos calculada) la tabla se
+// desplaza en horizontal si no cabe; `roundHeader(raceId,index)` devuelve
+// {label,title,href} de cada columna.
 export function cxStandingsTableHtml({rows,state,mode,lang='es',locale='es-ES',teamList=[],roundHeader=()=>null}) {
   const sorted=[...rows].sort(cxRankSort),values=cxStandingValueCells(sorted,mode,locale,lang);
   const breakdown=cxStandingsBreakdown(state,mode,locale);
-  const hasTeam=!breakdown&&sorted.some(row=>String(row.teamName||'').trim());
+  const hasTeam=sorted.some(row=>String(row.teamName||'').trim());
   const rounds=breakdown?breakdown.roundIds.map((id,index)=>({label:`#${index+1}`,...roundHeader(id,index)})):[];
   const roundTh=round=>{
     const label=esc(round.label),title=round.title?` title="${esc(round.title)}" aria-label="${esc(round.title)}"`:'';
@@ -34,7 +35,19 @@ export function cxWireStandingsScroll(root) {
     box.dataset.cxWired='';
     // ResizeObserver vuelve a medir cuando una sección oculta pasa a mostrarse.
     const scroller=box.querySelector('[data-cx-standings-scroll]'),next=box.querySelector('[data-cx-scroll-next]');
+    const table=scroller.querySelector('table');
+    // El equipo solo ocupa columna mientras la tabla entera cabe sin desplazamiento:
+    // se mide el ancho natural con la columna (rango, corredor, equipo, puntos y
+    // 41,6 px por ronda) y, si supera el contenedor, el equipo pasa a subtítulo.
+    // En un torneo de 8 rondas cabe desde 900 px; de 12 a 14, desde 1100 px.
+    const fitTeam=()=>{
+      box.classList.remove('cx-standings-compact');
+      const min=table.style.minWidth;table.style.minWidth='0';
+      const needed=table.offsetWidth;table.style.minWidth=min;
+      box.classList.toggle('cx-standings-compact',needed>scroller.clientWidth);
+    };
     const sync=()=>{
+      if(scroller.clientWidth)fitTeam();
       const more=scroller.scrollLeft+scroller.clientWidth<scroller.scrollWidth-1;
       next.hidden=!more;box.classList.toggle('cx-standings-rounds--more',more);
     };

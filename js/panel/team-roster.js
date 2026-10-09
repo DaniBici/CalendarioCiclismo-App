@@ -16,6 +16,7 @@ import {
   populateTeamsYearSelect, renderTeamsList,
 } from './teams.js';
 import { openRiderEditor } from './riders.js';
+import { riderSearchTokens, withRiderSearch } from '../results/panel-logic.js';
 import { renderMarketTeams, renderTransfersList } from './fichajes.js';
 
 // ═════════════════════════════════════════════════════════════════
@@ -310,17 +311,16 @@ async function _rosterSearchRiders(q) {
   const results = document.getElementById('rosterAddResults');
   if (!results) return;
   const term = (q || '').trim();
-  if (term.length < 3) { results.style.display = 'none'; results.innerHTML = ''; return; }
+  const tokens = riderSearchTokens(term);
+  if (term.length < 3 || !tokens.length) { results.style.display = 'none'; results.innerHTML = ''; return; }
 
   const table = _rosterAddGender === 'male' ? 'riders_men' : 'riders_women';
-  const safe = term.replace(/[%,()]/g, '');
   results.style.display = 'flex';
   results.innerHTML = '<div class="u-c-dim u-fs-2 u-py-030 u-px-0">Buscando…</div>';
   try {
-    const { data, error } = await supabase
+    const { data, error } = await withRiderSearch(supabase
       .from(table)
-      .select('id, firstName, lastName, nationality, birthDate, currentTeamId, verified')
-      .or(`lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
+      .select('id, firstName, lastName, nationality, birthDate, currentTeamId, verified'), tokens)
       .order('lastName')
       .limit(20);
     if (error) throw error;

@@ -1,14 +1,11 @@
 {
   "cx": {
     "title": "Cyclocross",
-    "metaTitle": "Cyclocross — Calendario Ciclismo",
+    "metaTitle": "Cyclocross - Calendario Ciclismo",
     "metaDescription": "UCI cyclocross calendar 2026-27: category schedules, startlists, results and standings for the World Cup, Superprestige, X2O and Spanish Cup.",
     "season": "Season",
-    "previousMonth": "Previous month",
-    "nextMonth": "Next month",
     "filter": { "all": "All", "big": "Big", "pro": "Pro", "spain": "Spain" },
-    "noRaces": "No races scheduled for this month",
-    "noRacesFilter": "No races matching this filter for the selected month",
+    "noRaces": "No races scheduled",
     "categories": "Categories",
     "programme": "Programme",
     "result": "Result",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { automaticTeamHeaderText, teamHeaderColors, teamsForSeason } from '../team-appearance.js';
+import { automaticTeamHeaderText, splitStartlistTeams, teamHeaderColors, teamsForSeason } from '../team-appearance.js';
 
 describe('apariencia de equipo', () => {
   it('sin pareja completa usa la superficie neutra', () => {
@@ -20,5 +20,22 @@ describe('apariencia de equipo', () => {
     expect(rows).toEqual([expect.objectContaining({
       id:'hist', name:'Equipo 2021', category:'CT', badgeTorsoCenter:'#123456', badgeShorts:'#000000',
     })]);
+  });
+});
+
+describe('splitStartlistTeams', () => {
+  it('separa la startlist y aplica la temporada embebida como teamsForSeason', () => {
+    const rows = [
+      { id: 's1', teamId: 'uae', teamName: 'UAE', team: { id: 'uae', name: 'UAE Team Emirates', badgeShorts: '#000', team_seasons: [{ teamId: 'uae', name: 'UAE Team Emirates XRG', badgeShorts: null }] } },
+      { id: 's2', teamId: 'uae', teamName: 'UAE B', team: { id: 'uae', name: 'UAE Team Emirates', badgeShorts: '#000', team_seasons: [] } },
+      { id: 's3', teamId: null, teamName: 'Selección', team: null },
+    ];
+    const { startlistTeams, teams } = splitStartlistTeams(rows, 2026);
+    expect(startlistTeams).toEqual([
+      { id: 's1', teamId: 'uae', teamName: 'UAE' },
+      { id: 's2', teamId: 'uae', teamName: 'UAE B' },
+      { id: 's3', teamId: null, teamName: 'Selección' },
+    ]);
+    expect(teams).toEqual([{ id: 'uae', name: 'UAE Team Emirates XRG', badgeShorts: '#000' }]);
   });
 });

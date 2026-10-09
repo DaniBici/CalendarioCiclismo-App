@@ -17,6 +17,7 @@ export const CATEGORIES_BY_YEAR = Object.freeze({
   2024: Object.freeze(['WTT', 'PRT', 'CTM', 'WTW', 'CTW']),
   2025: Object.freeze(['WTT', 'PRT', 'CTM', 'WTW', 'PRW', 'CTW']),
   2026: Object.freeze(['WTT', 'PRT', 'CTM', 'WTW', 'PRW', 'CTW']),
+  2027: Object.freeze(['WTT', 'PRT', 'CTM', 'WTW', 'PRW', 'CTW']),
 });
 const canonical = value => Array.isArray(value) ? value.map(canonical)
   : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;

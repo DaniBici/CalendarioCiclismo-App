@@ -71,20 +71,22 @@ export async function initCintillo(scope = 'road') {
   if (!el) return;
   if (scope !== 'cx') scope = 'road';
 
-  await initI18n();
-
   const _isEn = getLang() === 'en';
 
   // Cintillo manual desde panel admin (tabla today_highlights), filtrado por
   // sección. Cada entrada apunta a una jornada, startlist, orden de salida o,
-  // en Ciclocross, a una prueba o un torneo.
-  const { data: highlights, error: hlErr } = await supabase
-    .from('today_highlights')
-    .select('*')
-    .eq('scope', scope)
-    .or(`visibleFrom.is.null,visibleFrom.lte.${new Date().toISOString()}`)
-    .or(`visibleUntil.is.null,visibleUntil.gte.${new Date().toISOString()}`)
-    .order('position', { ascending: true });
+  // en Ciclocross, a una prueba o un torneo. Se pide a la vez que el
+  // diccionario EN.
+  const [{ data: highlights, error: hlErr }] = await Promise.all([
+    supabase
+      .from('today_highlights')
+      .select('*')
+      .eq('scope', scope)
+      .or(`visibleFrom.is.null,visibleFrom.lte.${new Date().toISOString()}`)
+      .or(`visibleUntil.is.null,visibleUntil.gte.${new Date().toISOString()}`)
+      .order('position', { ascending: true }),
+    initI18n(),
+  ]);
 
   if (hlErr || !highlights || highlights.length === 0) return;
 
@@ -105,39 +107,36 @@ export async function initCintillo(scope = 'road') {
 
   const cxIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxRace').map(h=>h.cxRaceId).filter(Boolean))];
   const cxTournamentIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxTournament').map(h=>h.cxTournamentId).filter(Boolean))];
-  const [racesRes, rdsRes, cxRes, cxTournamentsRes] = await Promise.all([
+  // En inglés se descartan las carreras nacionales y los torneos solo nacionales.
+  const cxLang=_isEn?'en':'es',hiddenClasses=cxHiddenClasses(cxLang);
+  let visibleQuery=null;
+  if(hiddenClasses.length&&cxTournamentIds.length){
+    visibleQuery=supabase.from('cx_races').select('tournamentId').eq('editorialStatus','published').in('tournamentId',cxTournamentIds);
+    for(const raceClass of hiddenClasses)visibleQuery=visibleQuery.neq('class',raceClass);
+  }
+  // La jornada lleva su carrera embebida (nombre/logo si solo viene raceDayId):
+  // todas las lecturas salen en un único round-trip.
+  const RACE_COLUMNS = 'id, name, nameEn, logoUrl, colorHex, slug, slugEn, hideFlag, countryCode, startlistImportedAt';
+  const [racesRes, rdsRes, cxRes, cxTournamentsRes, visibleRes] = await Promise.all([
     raceIds.size
-      ? supabase.from('races').select('id, name, nameEn, logoUrl, colorHex, slug, slugEn, hideFlag, countryCode, startlistImportedAt').in('id', [...raceIds])
+      ? supabase.from('races').select(RACE_COLUMNS).in('id', [...raceIds])
       : Promise.resolve({ data: [] }),
     raceDayIds.size
-      ? supabase.from('race_days').select('id, raceId, slug, slugEn, date, stageNumber, startLocation, finishLocation').in('id', [...raceDayIds])
+      ? supabase.from('race_days').select(`id, raceId, slug, slugEn, date, stageNumber, startLocation, finishLocation, race:races(${RACE_COLUMNS})`).in('id', [...raceDayIds])
       : Promise.resolve({ data: [] }),
     cxIds.length?Promise.resolve(supabase.from('cx_races').select(CX_AGENDA_SELECT).eq('editorialStatus','published').in('id',cxIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
     cxTournamentIds.length?Promise.resolve(supabase.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,colorHex,logoUrl').in('id',cxTournamentIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
+    visibleQuery?Promise.resolve(visibleQuery).catch(()=>({data:null})):Promise.resolve({data:null}),
   ]);
-  // En inglés se descartan las carreras nacionales y los torneos solo nacionales.
-  const cxLang=_isEn?'en':'es',hiddenClasses=cxHiddenClasses(cxLang);
-  let visibleTournamentIds=null;
-  if(hiddenClasses.length&&cxTournamentIds.length){
-    let query=supabase.from('cx_races').select('tournamentId').eq('editorialStatus','published').in('tournamentId',cxTournamentIds);
-    for(const raceClass of hiddenClasses)query=query.neq('class',raceClass);
-    const {data}=await Promise.resolve(query).catch(()=>({data:null}));
-    visibleTournamentIds=data?new Set(data.map(row=>row.tournamentId)):null;
-  }
+  const visibleTournamentIds=visibleRes.data?new Set(visibleRes.data.map(row=>row.tournamentId)):null;
   const cxById=Object.fromEntries((cxRes.data||[]).filter(r=>!cxIsHidden(r,cxLang)).map(r=>[r.id,r]));
   const cxTournamentsById=Object.fromEntries((cxTournamentsRes.data||[]).filter(t=>!visibleTournamentIds||visibleTournamentIds.has(t.id)).map(t=>[t.id,t]));
   const racesById = Object.fromEntries((racesRes.data || []).map(r => [r.id, r]));
-  const rdsById   = Object.fromEntries((rdsRes.data  || []).map(r => [r.id, r]));
-
-  // Cargar también la raza padre de cada raceDay (para nombre/logo si solo viene raceDayId)
-  const parentRaceIds = new Set([...raceIds, ...(rdsRes.data || []).map(rd => rd.raceId)].filter(Boolean));
-  if (parentRaceIds.size > raceIds.size) {
-    const missing = [...parentRaceIds].filter(id => !racesById[id]);
-    if (missing.length) {
-      const { data: extra } = await supabase.from('races').select('id, name, nameEn, logoUrl, colorHex, slug, slugEn, hideFlag, countryCode, startlistImportedAt').in('id', missing);
-      (extra || []).forEach(r => { racesById[r.id] = r; });
-    }
-  }
+  const rdsById = {};
+  (rdsRes.data || []).forEach(({ race, ...rd }) => {
+    rdsById[rd.id] = rd;
+    if (race && !racesById[race.id]) racesById[race.id] = race;
+  });
 
   const slides = [];
   webHighlights.forEach(h => {
@@ -157,8 +156,8 @@ export async function initCintillo(scope = 'road') {
     if (h.targetType === 'transfers') {
       const href = _isEn ? '/en/transfers/' : '/fichajes/';
       const name = _isEn
-        ? (h.customTitleEn || h.customTitle || 'Transfer market')
-        : (h.customTitle || 'Mercado de fichajes');
+        ? (h.customTitleEn || h.customTitle || 'Transfer Market')
+        : (h.customTitle || 'Mercado de Fichajes');
       const detail = _isEn ? (h.customDetailEn || h.customDetail || '') : (h.customDetail || '');
       const iconSvg = h.customLogo
         ? null

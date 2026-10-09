@@ -25,9 +25,12 @@ import {
 // final sin volcar y SIN avisar. En Kahramanmaraş se perdieron las cuatro (general,
 // puntos, montaña, jóvenes) hasta que se volcó a mano.
 describe('stageFetchArgs — etapas que lee el fetcher', () => {
-  it('la última etapa se lee completa salvo en ASO y AT Results', () => {
+  it('la última etapa se lee completa salvo en ASO, LAPCLIP, Kyushu y AT Results', () => {
     expect(stageFetchArgs('uci', 8, true, 8)).toEqual([]);
     expect(stageFetchArgs('ASO', 21, true, 21)).toEqual(['--stage', '21']);
+    expect(stageFetchArgs('lapclip', 3, true, 3)).toEqual(['--stage', '3']);
+    expect(stageFetchArgs('lapclip', null, false, null)).toEqual([]);
+    expect(stageFetchArgs('kyushu', 3, true, 3)).toEqual(['--stage', '3']);
     expect(stageFetchArgs('uci', 3, false, 8)).toEqual(['--stage', '3']);
   });
 
@@ -149,6 +152,16 @@ describe('integración automática de manual_timing', () => {
       '--out', '/tmp/manual_timing-test',
       '--require-arrivi',
     ]);
+  });
+
+  it('invoca una carrera de un día sin número de etapa', () => {
+    const args = manual_timingFetchArgs({
+      code: 'granpiemonte2026', stage: null, date: '2026-10-08',
+      competitionId: -147072, outDir: '/tmp/manual_timing-test', oneDay: true,
+    });
+    expect(args).toContain('--one-day');
+    expect(args).not.toContain('--stage');
+    expect(args).toContain('--require-arrivi');
   });
 
   it('emite las clasificaciones finales en la última jornada', () => {

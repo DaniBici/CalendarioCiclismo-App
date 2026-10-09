@@ -94,8 +94,6 @@
  *               si la carga exigiría borrar (dos gemelas, gemela bloqueada o filas
  *               guardadas que el contrato no trae).
  *   --status    syncStatus a fijar en el link (default 'ok').
- *   --identity-pending-log  Registro JSONL persistente de carreras históricas abortadas
- *               por identidades pendientes. Obligatorio desde el cron histórico.
  *   --skip-existing  (solo --apply) NO re-vuelca las clasificaciones ya presentes
  *               (mismo eventId, rowCount>0): se omiten ENTERAS del plan. La UCI publica
  *               resultados completos y definitivos → re-volcarlos cada 30 min re-procesa
@@ -128,11 +126,6 @@ import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import { prepareResultsImport } from '../data-preflight/results-preflight.mjs';
-import {
-  appendHistoricalIdentityLog,
-  pendingHistoricalRaceIds,
-  pendingIdentityDetails,
-} from './historical-identity-log.mjs';
 import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
@@ -176,14 +169,12 @@ const LINK_CODE_SOURCES = [
   { source: 'domtel', column: 'domtelCode', flag: 'domtel-code' },
   { source: 'livetiming', column: 'livetimingCode', flag: 'livetiming-code' },
 ].map((entry) => ({ ...entry, flagValue: getArg(entry.flag) }));
-if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults', 'mikatiming', 'ficr', 'lapclip'].includes(SOURCE)) {
-  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults|mikatiming|ficr|lapclip (recibido "${SOURCE}")`); process.exit(1);
+if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults', 'mikatiming', 'ficr', 'lapclip', 'kyushu'].includes(SOURCE)) {
+  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults|mikatiming|ficr|lapclip|kyushu (recibido "${SOURCE}")`); process.exit(1);
 }
 const GENDER = getArg('gender'); // 'male'|'female': habilita el enlace por NOMBRE (Fase 6) para carreras sin startlist
 const SEED_STARTLIST = hasFlag('seed-startlist'); // Fase 6: sembrar startlist_teams/riders desde el volcado UCI (solo carreras sin startlist curada)
 const RESOLVE_BIBS_BY_NAME = hasFlag('resolve-bibs-by-name'); // Fase 6: results-only, enlazar dorsales por nombre sin crear startlist
-const REQUIRE_RESOLVED_IDENTITIES = hasFlag('require-resolved-identities');
-const IDENTITY_PENDING_LOG = getArg('identity-pending-log');
 // --fill-dnf-from-startlist: para cada clasificación de ETAPA volcada, marca como
 // DNF (por diferencia) los dorsales de la startlist curada que NO aparezcan en la
 // orden de llegada. OPT-IN, pensado para fuentes que NO publican los abandonos
@@ -955,9 +946,7 @@ export function nameResolveWithStartlistAuthoritySql(raceId, gender, ridersJson,
   const unresolvedGuard = includeBib
     ? ''
     : "\n    AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')";
-  return `SELECT public.resolve_historical_result_participations(${lit(raceId)},${lit(gender)});
-
-SELECT public.resolve_uci_results_by_name(${lit(raceId)},${lit(gender)},${lit(ridersJson)}::jsonb)
+  return `SELECT public.resolve_uci_results_by_name(${lit(raceId)},${lit(gender)},${lit(ridersJson)}::jsonb)
 WHERE EXISTS (
   SELECT 1 FROM public.race_uci_results r
   JOIN public.race_uci_stages s ON s.id=r."stageRef"
@@ -966,10 +955,7 @@ WHERE EXISTS (
 );
 
 -- la startlist oficial prevalece siempre sobre el fallback por nombre
-SELECT public.resolve_uci_results(${lit(raceId)});
-
--- tras resolver la identidad nominal, aplicar solo decisiones históricas verificadas
-SELECT public.resolve_historical_result_participations(${lit(raceId)},${lit(gender)});`;
+SELECT public.resolve_uci_results(${lit(raceId)});`;
 }
 function toSQL({ text, params }) {
   // Reemplaza $N por el literal correspondiente. $N de 2 dígitos primero para no romper $1 vs $11.
@@ -1389,7 +1375,6 @@ async function main() {
     log(`✅ sin cambios: ${reasons.join('; ') || 'ninguna clasificación válida'}${SKIP_EXISTING ? ' (--skip-existing)' : ''}`);
     process.exit(2);
   }
-  let pendingIdentityIncident = null;
   try {
     await client.query('BEGIN');
     for (const st of plan) {
@@ -1475,15 +1460,8 @@ async function main() {
       data, acceptedEventIds, { includeBib: includeUciBibRows },
     ));
     if (GENDER && unresolved > 0) {
-      await client.query(
-        'SELECT * FROM public.resolve_historical_result_participations($1,$2)',
-        [RACE_ID, GENDER],
-      );
-      const identityResolver = REQUIRE_RESOLVED_IDENTITIES
-        ? 'public.resolve_historical_uci_results_by_name'
-        : 'public.resolve_uci_results_by_name';
       const rn = await client.query(
-        `SELECT matched, created, unresolved FROM ${identityResolver}($1,$2,$3::jsonb)`,
+        'SELECT matched, created, unresolved FROM public.resolve_uci_results_by_name($1,$2,$3::jsonb)',
         [RACE_ID, GENDER, ridersJson],
       );
       ({ matched = matched, created = 0, unresolved = unresolved } = rn.rows[0] || {});
@@ -1495,10 +1473,6 @@ async function main() {
         [RACE_ID],
       );
       ({ matched = matched, unresolved = unresolved } = authoritative.rows[0] || {});
-      await client.query(
-        'SELECT * FROM public.resolve_historical_result_participations($1,$2)',
-        [RACE_ID, GENDER],
-      );
       const finalResolution = await client.query(
         `SELECT count(*) FILTER (WHERE r."globalRiderId" IS NOT NULL)::int AS matched,
                 count(*) FILTER (WHERE r."globalRiderId" IS NULL)::int AS unresolved
@@ -1508,37 +1482,6 @@ async function main() {
         [RACE_ID],
       );
       ({ matched = matched, unresolved = unresolved } = finalResolution.rows[0] || {});
-      if (REQUIRE_RESOLVED_IDENTITIES && unresolved > 0) {
-        const unresolvedRows = await client.query(
-          `SELECT DISTINCT r."eventId", r.bib, r."riderDisplay", r."sourceTeamName",
-                  r."sourceUciProfileId", r."sourceUciLicense"
-             FROM public.race_uci_results r
-             JOIN public.race_uci_stages s ON s.id=r."stageRef"
-            WHERE r."raceId"=$1 AND s."isTeamEvent"=false
-              AND r."globalRiderId" IS NULL
-            ORDER BY r."eventId", r.bib NULLS LAST, r."riderDisplay"`,
-          [RACE_ID],
-        );
-        const raceMeta = await client.query(
-          `SELECT name, year, gender, "uciCategory" FROM public.races WHERE id=$1`,
-          [RACE_ID],
-        );
-        pendingIdentityIncident = {
-          type: 'identity_pending',
-          recordedAt: new Date().toISOString(),
-          raceId: RACE_ID,
-          race: raceMeta.rows[0] || null,
-          source: data.source || SOURCE || null,
-          competitionId,
-          uciRaceId: UCI_RACE_ID || null,
-          unresolvedCount: unresolved,
-          identities: pendingIdentityDetails(unresolvedRows.rows, JSON.parse(ridersJson)),
-          nextAction: 'manual_identity_review',
-        };
-        const error = new Error(`Identidades históricas ambiguas o incompletas: ${unresolved}`);
-        error.code = 'HISTORICAL_IDENTITIES_PENDING';
-        throw error;
-      }
     }
     // Fase 6: sembrar la startlist desde el volcado UCI (solo si --seed-startlist y --gender).
     // El cron lo activa SOLO para carreras sin startlist curada (no pisa la del panel).
@@ -1563,20 +1506,6 @@ async function main() {
       if (st.deferUntilCommit) await client.query(st.text, st.params);
     }
     await client.query('COMMIT');
-    if (REQUIRE_RESOLVED_IDENTITIES && IDENTITY_PENDING_LOG
-      && pendingHistoricalRaceIds(IDENTITY_PENDING_LOG).has(RACE_ID)) {
-      try {
-        appendHistoricalIdentityLog(IDENTITY_PENDING_LOG, {
-          type: 'identity_resolved',
-          recordedAt: new Date().toISOString(),
-          raceId: RACE_ID,
-          competitionId,
-          uciRaceId: UCI_RACE_ID || null,
-        });
-      } catch (logError) {
-        log(`   ⚠ resultados aplicados, pero no se pudo cerrar el expediente de identidad: ${logError.message}`);
-      }
-    }
     log(`✅ aplicado: ${nStages} clasificaciones, ${nResults} filas (competition ${competitionId} → ${RACE_ID})` +
         (nSkipped ? `; ${nSkipped} ya volcadas, omitidas (--skip-existing)` : ''));
     if (nRejected) log(`   ↳ ${nRejected} omitidas sin rank=1 válido sin IRM`);
@@ -1592,14 +1521,6 @@ async function main() {
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     await client.end().catch(() => {});
-    if (e.code === 'HISTORICAL_IDENTITIES_PENDING') {
-      try {
-        appendHistoricalIdentityLog(IDENTITY_PENDING_LOG, pendingIdentityIncident);
-        log(`   ↳ expediente de identidad: ${IDENTITY_PENDING_LOG}`);
-      } catch (logError) {
-        log(`FATAL: no se pudo persistir el expediente de identidad: ${logError.message}`);
-      }
-    }
     log('FATAL en apply (rollback hecho): ' + (e.message || e));
     process.exit(1);
   }

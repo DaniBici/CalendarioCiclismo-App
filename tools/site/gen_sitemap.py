@@ -506,7 +506,7 @@ def road_feed_entries(racedays, race_map, window_start, window_end):
         route = start_loc if same_or_one else f"{start_loc} › {finish_loc}"
 
         if is_rest:
-            title = f"{race_name} {year} — Descanso"
+            title = f"{race_name} {year} - Descanso"
             summary = f"Jornada de descanso el {fecha_larga_es(d)}."
         elif sl:
             title = f"{race_name} {year} · {sl}" + (f": {route}" if route else "")
@@ -601,7 +601,7 @@ def write_atom(racedays, races, cx_races):
     atom = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="es">\n'
-        f'  <title>Calendario Ciclismo App — Próximas jornadas</title>\n'
+        f'  <title>Calendario Ciclismo App - Próximas jornadas</title>\n'
         f'  <subtitle>Carreras de carretera y ciclocross: horarios, TV, resultados y clasificaciones.</subtitle>\n'
         f'  <link href="{BASE_URL}/atom.xml" rel="self" type="application/atom+xml"/>\n'
         f'  <link href="{BASE_URL}/" rel="alternate" type="text/html"/>\n'

@@ -1,6 +1,6 @@
 # Calendario Ciclismo
 
-Guía editorial del ciclismo profesional en ruta, masculino y femenino. Reúne el calendario internacional, horarios, recorridos, perfiles, televisión y streaming, inscritos, resultados y mercado de fichajes.
+Guía editorial del ciclismo profesional en ruta, masculino y femenino, y del ciclocross internacional. Reúne el calendario, horarios, recorridos, perfiles, televisión y streaming, inscritos, resultados y mercado de fichajes.
 
 - **Web:** [calendariociclismo.app](https://calendariociclismo.app)
 - **iOS:** [App Store](https://apps.apple.com/app/id6761902611)
@@ -8,7 +8,7 @@ Guía editorial del ciclismo profesional en ruta, masculino y femenino. Reúne e
 
 ## Plataformas
 
-El proyecto tiene tres clientes sobre el mismo backend. La web es un sitio estático enriquecido con JavaScript; las apps móviles son nativas y comparten la mayor parte de la experiencia, además de funciones propias como notificaciones y modo sin conexión.
+El proyecto tiene tres clientes sobre el mismo backend. La web es un sitio estático enriquecido con JavaScript; las apps móviles son nativas y comparten la mayor parte de la experiencia, además de funciones propias como notificaciones, widgets y modo sin conexión.
 
 | Plataforma | Stack | Directorio |
 |---|---|---|
@@ -23,11 +23,12 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 - **Hoy** — carreras de cada día con horas de salida y meta, estado de TV y accesos a resultados o repeticiones al terminar
 - **Calendario** — vistas mensual y de temporada, con filtros por categoría, género y país
 - **Competición y jornada** — recorrido, perfil interactivo y oficial, puertos y puntos clave, mapas, rutómetro, libro de ruta y canales de TV/streaming
-- **Resultados** — clasificaciones de etapa, general, puntos, montaña, jóvenes y equipos, importadas desde UCI DataRide y nueve cronometradores; incluye el ránking UCI de equipos masculino y femenino
+- **Resultados** — clasificaciones de etapa, general, puntos, montaña, jóvenes y equipos, importadas desde UCI DataRide y desde una treintena de fuentes de cronometraje; incluye el ránking UCI de equipos masculino y femenino
+- **Ciclocross** — calendario UCI de la temporada (agosto a febrero) por torneo y manga, con las seis categorías individuales (Elite, Sub-23 y Júnior, masculino y femenino), emisiones, inscritos, resultados oficiales y generales de torneo
 - **Mercado de fichajes** — confirmaciones, rumores, renovaciones, contratos y movimientos por equipo y temporada
 - **Dorsales y orden de salida** — listas curadas, abandonos y horarios de CRI/CRE
 - **Calendarios iCal** — feeds de temporada por categoría y género, además de eventos individuales
-- **Apps móviles** — notificaciones personalizables vía APNs/FCM y descarga automática para consulta sin conexión
+- **Apps móviles** — notificaciones personalizables vía APNs/FCM, widgets y descarga automática para consulta sin conexión
 - **Experiencia** — castellano e inglés, tema claro/oscuro/automático y soporte de las opciones de accesibilidad del sistema
 
 ## Stack
@@ -35,11 +36,12 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 | Capa | Tecnología |
 |---|---|
 | Web | HTML5, CSS3, JavaScript (ES6 modules, sin framework) |
-| iOS | Swift 6, SwiftUI, MapKit, Swift Concurrency, StoreKit 2 |
-| Android | Kotlin 2.2, Jetpack Compose, Room, WorkManager, Coil 3, MapLibre |
+| iOS | Swift 6, SwiftUI, MapKit, WidgetKit, Swift Concurrency, StoreKit 2 |
+| Android | Kotlin 2.2, Jetpack Compose, Room, WorkManager, Glance, Coil 3, MapLibre |
 | Datos y API | [Supabase](https://supabase.com) (PostgreSQL, PostgREST, Auth y Edge Functions en Deno) |
 | Hosting web | [GitHub Pages](https://pages.github.com) por artefacto + CDN de Cloudflare |
 | Assets | [Cloudflare R2](https://developers.cloudflare.com/r2/) |
+| Automatización | Scripts Node.js en un VPS para resultados, ránking UCI y emisiones; GitHub Actions para CI y generación del sitio |
 | Cartografía | MapKit en iOS; [OpenFreeMap](https://openfreemap.org) + MapLibre en web y Android |
 | Push | APNs HTTP/2 + FCM HTTP v1 (edge function `send-push`) |
 | Apoyo voluntario | StoreKit 2 / Google Play Billing para Amigo y aportaciones puntuales, sin funciones exclusivas |
@@ -48,21 +50,26 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 ## Estructura
 
 ```
-├── index.html, calendario.html, …  # Fuentes de la web
-├── js/                             # Módulos JavaScript y lógica compartida
-├── css/                            # Hojas de estilo
-├── ios-app/                        # App iOS (SwiftUI)
-├── android-app/                    # App Android (Kotlin + Compose)
+├── *.html, en/, calendario/, …     # Fuentes de la web (castellano e inglés)
+├── js/, css/, i18n/                # Módulos JavaScript, hojas de estilo y textos
+├── ios-app/                        # App iOS (SwiftUI), widgets y extensión de notificaciones
+├── android-app/                    # App Android (Kotlin + Compose) y widgets
 ├── panel/                          # Panel editorial y de administración
 ├── supabase/
 │   ├── migrations/                 # Migraciones SQL
-│   └── functions/                  # Edge Functions
+│   ├── functions/                  # Edge Functions (Deno)
+│   └── tests/                      # Pruebas SQL
 ├── scripts/
-│   ├── results-fetchers/           # Resultados (UCI + 9 cronometradores)
+│   ├── results-fetchers/           # Motor de resultados (UCI DataRide y cronometradores)
+│   ├── cx/                         # Utilidades de ciclocross
+│   ├── uci-calendar/, uci-catalog/ # Calendario y catálogo UCI
+│   ├── broadcasts-sync/            # Emisiones de TV y streaming
+│   ├── db/                         # Acceso SQL y aplicación de migraciones
 │   └── fetch-logos.mjs             # Descarga de logos (ver más abajo)
-├── tools/site/                      # Generadores de páginas, sitemap y feeds
-├── workers/                         # OpenGraph y redirección del dominio legado
-└── docs/                            # Arquitectura y memorias técnicas
+├── tools/site/                     # Generadores de páginas, sitemap y feeds
+├── workers/                        # OpenGraph y redirección del dominio legado
+├── deploy/                         # Unidades systemd del VPS
+└── docs/                           # Arquitectura y memorias técnicas
 ```
 
 Las páginas generadas por competición y jornada —incluidos sus resultados—, el sitemap y los feeds iCal no se versionan. En producción, un workflow privado los regenera desde Supabase, compone el sitio completo y publica un único artefacto de GitHub Pages. Los workflows operativos se excluyen del espejo público para evitar que sus procesos se ejecuten por duplicado.
@@ -70,12 +77,15 @@ Las páginas generadas por competición y jornada —incluidos sus resultados—
 ## Desarrollo y comprobaciones
 
 ```bash
-npm ci && npm test                              # web
+npm ci && npm test && npm run knip              # web y scripts (Vitest + código sin uso)
+python3 -m unittest discover -s tools/site -p 'test_*.py'  # generadores del sitio
 open ios-app/CalendarioCiclismo.xcodeproj       # iOS
 cd android-app && ./gradlew testDebugUnitTest assembleDebug  # Android
 ```
 
 Las apps necesitan archivos de configuración que no se versionan: `Supabase.xcconfig` y `GoogleService-Info.plist` en iOS; `google-services.json` y `secrets.properties` en Android. Hay plantillas `.template` para un entorno de desarrollo. Consulta [`android-app/README.md`](android-app/README.md) para el entorno Android; `ios-app/setup.sh` permite regenerar el proyecto Xcode con XcodeGen cuando sea necesario.
+
+La arquitectura del sistema y los flujos de datos están en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ### Logos de carreras
 

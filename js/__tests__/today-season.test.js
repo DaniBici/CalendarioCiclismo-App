@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { clampToTodaySeason, isWithinTodaySeason, todaySeasonLastDay } from '../services/today-season.js';
+import { cyclocrossHome, seasonCalendarYear } from '../services/today-season.js';
 
 // Las fechas se derivan de la configuración vigente para no fallar al cambiar
 // de temporada.
 const years = Array.from({ length: 100 }, (_, index) => 2000 + index);
-const configuredYear = years.find(year => todaySeasonLastDay(`${year}-01-01`));
-const openYear = years.find(year => !todaySeasonLastDay(`${year}-01-01`));
+const configuredYear = years.find(year => cyclocrossHome(`${year}-12-31`));
+const openYear = years.find(year => !cyclocrossHome(`${year}-12-31`));
 
-describe('límite de temporada de Hoy', () => {
-  it.skipIf(!configuredYear)('lleva al último día del año cualquier fecha posterior y la marca como no navegable', () => {
-    const today = `${configuredYear}-01-02`;
-    const lastDay = todaySeasonLastDay(today);
-    expect(lastDay.startsWith(`${configuredYear}-`)).toBe(true);
-    expect(todaySeasonLastDay(`${configuredYear}-12-31`)).toBe(lastDay);
-    expect(clampToTodaySeason(`${configuredYear}-12-31`, today)).toBe(lastDay);
-    expect(clampToTodaySeason(lastDay, today)).toBe(lastDay);
-    expect(clampToTodaySeason(`${configuredYear}-01-03`, today)).toBe(`${configuredYear}-01-03`);
-    expect(isWithinTodaySeason(lastDay, today)).toBe(true);
-    expect(isWithinTodaySeason(`${configuredYear}-12-31`, today)).toBe(false);
+describe('home de Ciclocross tras el cierre de la temporada de carretera', () => {
+  it.skipIf(!configuredYear)('cede la home desde el día siguiente al cierre hasta el 31 de diciembre', () => {
+    const days = Array.from({ length: 365 }, (_, index) => new Date(Date.UTC(configuredYear, 0, 1 + index)).toISOString().slice(0, 10))
+      .filter(day => day.startsWith(`${configuredYear}-`));
+    const first = days.find(cyclocrossHome);
+    expect(first > `${configuredYear}-01-01`).toBe(true);
+    expect(days.filter(day => day >= first).every(cyclocrossHome)).toBe(true);
+    expect(days.filter(day => day < first).some(cyclocrossHome)).toBe(false);
+    expect(cyclocrossHome(`${configuredYear + 1}-01-01`)).toBe(false);
   });
 
-  it('no limita un año sin cierre configurado', () => {
-    const today = `${openYear}-01-02`;
-    expect(todaySeasonLastDay(today)).toBeNull();
-    expect(clampToTodaySeason(`${openYear}-12-30`, today)).toBe(`${openYear}-12-30`);
-    expect(isWithinTodaySeason(`${openYear}-12-30`, today)).toBe(true);
+  it.skipIf(!configuredYear)('abre Temporada en el año siguiente mientras la home es Ciclocross', () => {
+    expect(seasonCalendarYear(`${configuredYear}-01-02`)).toBe(configuredYear);
+    expect(seasonCalendarYear(`${configuredYear}-12-31`)).toBe(configuredYear + 1);
+  });
+
+  it('no cede la home en un año sin cierre configurado', () => {
+    expect(cyclocrossHome(`${openYear}-12-31`)).toBe(false);
   });
 });

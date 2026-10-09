@@ -157,6 +157,12 @@ struct TodayView: View {
                     statusNow = Date()
                     viewModel.advanceIfNewLocalDay()
                     guard viewModel.isToday, !viewModel.isNetworkLoading else { continue }
+                    // Sin nada en curso, en espera de resultados o a punto de
+                    // salir no hay datos que cambien: se omite la recarga.
+                    guard RaceLogic.needsLiveRefresh(
+                        viewModel.items,
+                        inhouseDayIds: Set(inhouseByDay.keys)
+                    ) else { continue }
                     await viewModel.refreshDay()
                 }
             }
@@ -174,8 +180,8 @@ struct TodayView: View {
         return raceIds + "|" + dayIds + "|\(viewModel.refreshToken)"
     }
 
-    /// Carga el mapa raceDayId → stageNumber de las carreras visibles. Agrupa por
-    /// carrera y pasa sus jornadas para resolver el caso de un día/general (la
+    /// Carga el mapa raceDayId → stageNumber de las carreras visibles. Pasa las
+    /// jornadas de cada carrera para resolver el caso de un día/general (la
     /// stage 'gc' no trae raceDayId).
     private func loadInhouseMap() async {
         let items = viewModel.displayItems.filter { $0.race != nil }
@@ -183,16 +189,16 @@ struct TodayView: View {
             inhouseByDay = [:]
             return
         }
-        var merged: [String: Int?] = [:]
-        let byRace = Dictionary(grouping: items) { $0.race!.id }
-        for (raceId, days) in byRace {
-            let pairs = days.map { ($0.raceDay.id, $0.raceDay.stageNumber) }
-            let cancelled = Set(days.filter { $0.raceDay.isCancelledDay }.map { $0.raceDay.id })
-            let map = await SupabaseService.shared.inhouseStagesForDays(
-                raceId: raceId, days: pairs, cancelledDayIds: cancelled
+        // Una sola consulta para todas las carreras visibles.
+        let requests = items.map {
+            SupabaseService.InhouseDayRequest(
+                raceId: $0.race!.id,
+                raceDayId: $0.raceDay.id,
+                stageNumber: $0.raceDay.stageNumber,
+                isCancelled: $0.raceDay.isCancelledDay
             )
-            merged.merge(map) { _, new in new }
         }
+        let merged = await SupabaseService.shared.inhouseStagesForDays(requests)
         guard !Task.isCancelled else { return }
         inhouseByDay = merged
     }
@@ -206,7 +212,7 @@ struct TodayView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
             .navigationDestination(for: EnrichedRaceDay.self) { item in
-                StageDetailView(raceDayId: item.raceDay.id)
+                StageDetailView(raceDayId: item.raceDay.id, raceIdHint: item.raceDay.raceId, titleHint: StageDetailView.title(raceName: item.race?.localizedName, raceDay: item.raceDay))
             }
             // Push a Campeonatos (lo dispara el cintillo vía `onTapChampionships`).
             // NO se ancla en `TodayHighlightsBanner` (se recrea cada 5 s por el

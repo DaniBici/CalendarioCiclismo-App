@@ -117,16 +117,31 @@ data class RaceDayEntity(
     companion object {
         private val entityJson = Json { ignoreUnknownKeys = true }
 
-        /** Las consultas amplias no incluyen elevación ni salida real. Conservar
-         * esos campos de una descarga completa al actualizar la fila slim. */
+        /** Las consultas amplias no incluyen elevación. Conservar esos campos de
+         * una descarga completa al actualizar la fila slim; la salida real llega
+         * en la consulta slim y solo se conserva la anterior si viene vacía. */
         fun fromSlim(rd: RaceDay, cachedAt: Long, previous: RaceDayEntity?): RaceDayEntity =
             from(rd, cachedAt).copy(
-                realStartTimeUtc = previous?.realStartTimeUtc,
+                realStartTimeUtc = rd.realStartTimeUtc ?: previous?.realStartTimeUtc,
                 elevationProfileJson = previous?.elevationProfileJson,
                 profileSummitsJson = previous?.profileSummitsJson,
                 profileWaypointsJson = previous?.profileWaypointsJson,
                 profileNotViewable = previous?.profileNotViewable ?: false,
             )
+
+        /**
+         * Fila de una instantánea de carrera: completa si la jornada trae perfil
+         * ([profileDayIds] null o la contiene); si no, fusionada con [previous]
+         * como en [fromSlim] para no perder el perfil guardado.
+         */
+        fun fromSnapshot(
+            rd: RaceDay,
+            cachedAt: Long,
+            previous: RaceDayEntity?,
+            profileDayIds: Set<String>?,
+        ): RaceDayEntity =
+            if (profileDayIds == null || rd.id in profileDayIds) from(rd, cachedAt)
+            else fromSlim(rd, cachedAt, previous)
 
         fun from(rd: RaceDay, cachedAt: Long): RaceDayEntity = RaceDayEntity(
             id = rd.id,

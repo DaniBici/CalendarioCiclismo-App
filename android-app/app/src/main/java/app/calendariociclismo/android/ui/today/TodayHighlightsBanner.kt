@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.today
 
+import app.calendariociclismo.android.ui.cyclocross.cxTitle
 import app.calendariociclismo.android.util.CxPresentation
 import android.content.Context
 import android.view.accessibility.AccessibilityManager
@@ -82,7 +83,7 @@ fun TodayHighlightsBanner(navController: NavController, scope: String = "road") 
                 val race = item.race
                 val tournament = item.cxTournament
                 when {
-                    item.highlight.targetType == "cxRace" && item.cxRace != null -> navController.navigate(Routes.cxRace(item.cxRace.id))
+                    item.highlight.targetType == "cxRace" && item.cxRace != null -> navController.navigate(Routes.cxRace(item.cxRace.id, title = cxTitle(item.cxRace)))
                     item.highlight.targetType == "cxTournament" && tournament != null ->
                         navController.navigate(Routes.cxTournament(
                             tournament.id,
@@ -93,7 +94,7 @@ fun TodayHighlightsBanner(navController: NavController, scope: String = "road") 
                     item.highlight.targetType == "raceDay" && item.raceDay != null && race != null ->
                         // raceId pasado para que StageScreen pueda hidratar Room
                         // si la jornada no está cacheada localmente.
-                        navController.navigate(Routes.stage(item.raceDay.id, race.id))
+                        navController.navigate(Routes.stage(item.raceDay.id, race.id, Routes.jornadaTitle(race.localizedName, item.raceDay)))
                     item.highlight.targetType == "race" && race != null ->
                         navController.navigate(Routes.race(race.id))
                     item.highlight.targetType == "startlist" && race != null ->
@@ -148,7 +149,7 @@ internal data class HighlightItem(
         cxRace?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         cxTournament?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         if (isChampionships) return LocaleHolder.t("Campeonatos Nacionales", "National Championships")
-        if (isTransfers) return LocaleHolder.t("Mercado de fichajes", "Transfer market")
+        if (isTransfers) return LocaleHolder.t("Mercado de Fichajes", "Transfer Market")
         if (isSeason) highlight.seasonYear?.let { return LocaleHolder.t("Calendario $it", "$it calendar") }
         return ""
     }

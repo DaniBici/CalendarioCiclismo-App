@@ -127,7 +127,7 @@ actor CacheManager {
     func clearOfflineData() {
         let dir = cacheDirectory
         guard let files = try? fileManager.contentsOfDirectory(atPath: dir.path) else { return }
-        let offlinePrefixes = ["day_", "month_", "monthdays_", "monthview_", "season_", "races_", "cx_"]
+        let offlinePrefixes = ["day_", "month_", "monthdays_", "monthview_", "season_", "races_", "cx_", "race_detail_"]
         for file in files {
             if offlinePrefixes.contains(where: { file.hasPrefix($0) }) {
                 try? fileManager.removeItem(at: dir.appendingPathComponent(file))
@@ -168,6 +168,37 @@ actor CacheManager {
                 }
             }
         }
+    }
+
+    /// Antigüedad máxima de una ficha de carrera cacheada sin volver a abrirse.
+    static let raceDetailMaxAge: TimeInterval = 30 * 24 * 3600
+
+    /// Purga de la caché de navegación, independiente del modo sin conexión:
+    /// - fichas de carrera (`race_detail_*`) no guardadas en `raceDetailMaxAge`;
+    /// - ficheros `season_<año>` anteriores a que Temporada compartiera el
+    ///   fichero `races_<año>` con Hoy (ya no los lee nadie).
+    func purgeNavigationCache(now: Date = Date()) {
+        let dir = cacheDirectory
+        guard let files = try? fileManager.contentsOfDirectory(atPath: dir.path) else { return }
+        for file in files {
+            let url = dir.appendingPathComponent(file)
+            if Self.isLegacySeasonFile(file) {
+                try? fileManager.removeItem(at: url)
+            } else if file.hasPrefix("race_detail_") {
+                let modified = (try? fileManager.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date
+                if let modified, now.timeIntervalSince(modified) > Self.raceDetailMaxAge {
+                    try? fileManager.removeItem(at: url)
+                }
+            }
+        }
+    }
+
+    /// `season_<año>.json` (formato antiguo de la temporada). No incluye
+    /// `season_challenges_<año>.json`, que sigue vigente.
+    static func isLegacySeasonFile(_ file: String) -> Bool {
+        guard file.hasPrefix("season_"), file.hasSuffix(".json") else { return false }
+        let year = file.dropFirst("season_".count).dropLast(".json".count)
+        return year.count == 4 && year.allSatisfy(\.isNumber)
     }
 
     /// Tamaño total de la caché en bytes (incluye JSON + ficheros de assets R2
@@ -218,6 +249,8 @@ actor CacheManager {
     static func dayKey(_ dateKey: String) -> String { "day_\(dateKey)" }
     /// Clave para las carreras del año (usadas para placeholders en Today).
     static func yearRacesKey(_ year: Int) -> String { "races_\(year)" }
+    /// Clave para la ficha de carrera (carrera + etapas enriquecidas).
+    static func raceDetailKey(_ raceId: String) -> String { "race_detail_\(raceId)" }
     /// Clave para los siblings (todas las etapas) de una carrera.
     static func siblingsKey(_ raceId: String) -> String { "siblings_\(raceId)" }
     /// Clave para las cabeceras de clasificaciones de una carrera. Una lista
@@ -231,8 +264,9 @@ actor CacheManager {
     static func monthKey(year: Int, month: Int) -> String { "month_\(year)-\(String(format: "%02d", month))" }
     /// Clave para las jornadas del mes.
     static func monthDaysKey(year: Int, month: Int) -> String { "monthdays_\(year)-\(String(format: "%02d", month))" }
-    /// Clave para la temporada completa.
-    static func seasonKey(_ year: Int) -> String { "season_\(year)" }
+    /// Clave para la temporada completa. Es la misma lista que las carreras
+    /// del año de Hoy (`racesByYear`): ambas pantallas comparten el fichero.
+    static func seasonKey(_ year: Int) -> String { yearRacesKey(year) }
     static func seasonChallengesKey(_ year: Int) -> String { "season_challenges_\(year)" }
 
     // MARK: - Interno

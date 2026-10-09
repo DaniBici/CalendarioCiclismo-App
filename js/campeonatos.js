@@ -10,7 +10,8 @@ import { supabase, countryFlag, rdLocation, filterBroadcastsByRegion,
          formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
-import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js';
+import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded } from './race-data-modal.js';
+import { buildInhouseResultsMatcher } from './services/races.js';
 import { tvBadge, buildAssetButtons } from './race-assets.js';
 import { initCintillo } from './cintillo.js';
 import { CAMP, championshipSlot, slotLabels, campTitle,
@@ -46,7 +47,6 @@ function dayShort(dateKey) {
 }
 
 async function init() {
-  await initI18n();
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
   const content = document.getElementById('campeonatosContent');
   const isEn = getLang() === 'en';
@@ -55,12 +55,29 @@ async function init() {
   initCintillo(); // cintillo (today_highlights), igual que la portada "Hoy"
 
   try {
-    // 1. Carreras CN del año dentro del rango de fechas.
-    const { data: racesData, error: racesErr } = await supabase.from('races').select('*')
-      .eq('uciCategory', 'CN').eq('year', CAMP.YEAR)
-      .gte('startDate', CAMP.QUERY_START).lte('startDate', CAMP.QUERY_END);
+    // Carreras CN del año dentro del rango de fechas con sus jornadas
+    // publicadas, emisiones, assets y clasificaciones in-house embebidas: una
+    // sola consulta, a la vez que el diccionario EN.
+    const [{ data: racesData, error: racesErr }] = await Promise.all([
+      supabase.from('races')
+        .select('*,race_days(*,broadcasts(*),assets(*)),race_uci_stages(raceId,raceDayId,stageNumber)')
+        .eq('uciCategory', 'CN').eq('year', CAMP.YEAR)
+        .gte('startDate', CAMP.QUERY_START).lte('startDate', CAMP.QUERY_END)
+        .eq('race_days.editorialStatus', 'published')
+        .eq('race_uci_stages.keepForWeb', true).gt('race_uci_stages.rowCount', 0),
+      initI18n(),
+    ]);
     if (racesErr) throw racesErr;
-    const races = racesData || [];
+    const days = [], allBroadcasts = [], allAssets = [], stageRows = [];
+    const races = (racesData || []).map(({ race_days: dayRows, race_uci_stages: stages, ...race }) => {
+      (dayRows || []).forEach(({ broadcasts, assets, ...rd }) => {
+        days.push(rd);
+        allBroadcasts.push(...(broadcasts || []));
+        allAssets.push(...(assets || []));
+      });
+      stageRows.push(...(stages || []));
+      return race;
+    });
 
     if (!races.length) {
       content.innerHTML = emptyState(isEn);
@@ -69,24 +86,14 @@ async function init() {
     }
 
     races.forEach(r => { _raceById[r.id] = r; });
-    const raceIds = races.map(r => r.id);
 
-    // 2. Jornadas publicadas de esas carreras + assets + broadcasts (en paralelo).
-    const { data: rdData } = await supabase.from('race_days').select('*')
-      .in('raceId', raceIds).eq('editorialStatus', 'published');
-    const days = rdData || [];
-    const dayIds = days.map(d => d.id);
-
-    const [bResult, aResult, inhouseSet] = dayIds.length
-      ? await Promise.all([
-          supabase.from('broadcasts').select('*').in('raceDayId', dayIds),
-          supabase.from('assets').select('*').in('raceDayId', dayIds),
-          loadInhouseStageSet(raceIds),
-        ])
-      : [{ data: [] }, { data: [] }, { has: () => false }];
+    // Jornadas con sus emisiones, assets y resultados in-house (mismo criterio
+    // que loadInhouseStageSet: una jornada cancelada no tiene trofeo).
+    const inhouseMatcher = buildInhouseResultsMatcher(stageRows);
+    const inhouseSet = { has: rd => !rd?.isCancelledDay && inhouseMatcher.has(rd) };
     const bByRd = {}, aByRd = {};
-    (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] ??= []).push(b); });
-    (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] ??= []).push(a); });
+    allBroadcasts.forEach(b => { (bByRd[b.raceDayId] ??= []).push(b); });
+    allAssets.forEach(a => { (aByRd[a.raceDayId] ??= []).push(a); });
     days.forEach(rd => {
       const _allB = bByRd[rd.id] || [];
       rd._broadcasts = filterBroadcastsByRegion(_allB);
@@ -319,7 +326,7 @@ function emptyState(isEn) {
 
 function updateSeo() {
   const isEn = getLang() === 'en';
-  const title = `${isEn ? CAMP.TITLE_EN : CAMP.TITLE_ES} ${CAMP.YEAR} — Calendario Ciclismo`;
+  const title = `${isEn ? CAMP.TITLE_EN : CAMP.TITLE_ES} ${CAMP.YEAR} - Calendario Ciclismo`;
   const desc  = isEn ? CAMP.DESC_EN : CAMP.DESC_ES;
   const url   = isEn
     ? `https://calendariociclismo.app/en/${CAMP.SLUG_EN}/`

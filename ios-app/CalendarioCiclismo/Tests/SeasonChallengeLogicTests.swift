@@ -32,7 +32,7 @@ final class SeasonChallengeLogicTests: XCTestCase {
 
     private func race(_ id: String, _ startDate: String) -> Race {
         Race(
-            id: id, name: id, nameEn: nil, abbrev: nil, uciCategory: "1.1", gender: nil,
+            id: id, name: id, nameEn: nil, uciCategory: "1.1", gender: nil,
             raceFormat: "one_day", countryCode: "ES", colorHex: nil, logoUrl: nil, websiteUrl: nil,
             hideFlag: false, isGrandTour: false, isCancelled: false, startDate: startDate,
             endDate: nil, year: 2027, slug: nil, originalName: nil, startlistImportedAt: nil,

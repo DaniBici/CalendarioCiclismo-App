@@ -250,6 +250,9 @@ struct UciResultsData {
     var sectoredStageNumbers: Set<Int> = []
     var classificationConfig: [RaceClassificationConfig] = []
     var assets: [Asset] = []
+    /// Momento en que se descargaron la ficha, la startlist y el inventario.
+    /// El refresco periódico solo los reutiliza durante un tiempo acotado.
+    var staticFetchedAt: Date = .distantPast
 }
 
 /// Inventario editorial de clasificaciones de una carrera.

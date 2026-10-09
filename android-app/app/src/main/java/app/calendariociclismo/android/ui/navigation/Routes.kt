@@ -17,9 +17,15 @@ object Routes {
     const val CX_TOURNAMENT = "cx_tournament/{tournamentId}?season={season}&name={name}&logo={logo}"
     fun cxTournament(tournamentId: String, season: String, name: String, logo: String? = null): String =
         "cx_tournament/${android.net.Uri.encode(tournamentId)}?season=${android.net.Uri.encode(season)}&name=${android.net.Uri.encode(name)}${logo?.let { "&logo=${android.net.Uri.encode(it)}" } ?: ""}"
-    const val CX_RACE = "cx_race/{raceId}?category={category}"
-    fun cxRace(raceId: String, category: String? = null): String =
-        if (category == null) "cx_race/$raceId" else "cx_race/$raceId?category=$category"
+    // title: nombre de la prueba para rotular la pantalla de carga.
+    const val CX_RACE = "cx_race/{raceId}?category={category}&title={title}"
+    fun cxRace(raceId: String, category: String? = null, title: String? = null): String {
+        val params = buildList {
+            category?.let { add("category=$it") }
+            title?.takeIf { it.isNotBlank() }?.let { add("title=${android.net.Uri.encode(it)}") }
+        }
+        return if (params.isEmpty()) "cx_race/$raceId" else "cx_race/$raceId?${params.joinToString("&")}"
+    }
     // Mercado de fichajes 2027 (apps 4.0) — 3ª pestaña; sustituye a Buscar
     // (archivado en archive/buscador-apps-2026/).
     const val TRANSFERS = "transfers"
@@ -29,7 +35,8 @@ object Routes {
 
     const val RACE = "race/{raceId}"
     // raceId es opcional — se usa como hint para prefetchear si la jornada no está en caché local
-    const val STAGE = "stage/{stageId}?raceId={raceId}"
+    // title: «Carrera · Etapa 3» para rotular la pantalla de carga.
+    const val STAGE = "stage/{stageId}?raceId={raceId}&title={title}"
     // La ruta registrada en AppNavHost es "elevation_profile/{rdId}"; mantener
     // sincronizados constante, helper y el `composable` de AppNavHost.
     const val ELEVATION_PROFILE = "elevation_profile/{rdId}"
@@ -49,9 +56,17 @@ object Routes {
     const val TRANSFERS_TEAM = "transfers_team/{teamId}"
 
     fun race(raceId: String) = "race/$raceId"
-    fun stage(stageId: String, raceId: String? = null): String =
-        if (raceId != null) "stage/$stageId?raceId=$raceId"
-        else "stage/$stageId"
+    fun stage(stageId: String, raceId: String? = null, title: String? = null): String {
+        val params = buildList {
+            raceId?.let { add("raceId=$it") }
+            title?.takeIf { it.isNotBlank() }?.let { add("title=${android.net.Uri.encode(it)}") }
+        }
+        return if (params.isEmpty()) "stage/$stageId" else "stage/$stageId?${params.joinToString("&")}"
+    }
+
+    /** «Nombre de la carrera · Etapa 3»; sin etapa, solo el nombre. */
+    fun jornadaTitle(raceName: String?, raceDay: app.calendariociclismo.android.data.model.RaceDay?): String? =
+        listOfNotNull(raceName, raceDay?.stageLabel).filter { it.isNotBlank() }.joinToString(" · ").ifEmpty { null }
     fun elevationProfile(rdId: String) = "elevation_profile/$rdId"
     fun routeMap(rdId: String) = "route_map/$rdId"
     fun startlist(raceId: String) = "startlist/$raceId"

@@ -82,8 +82,8 @@ export function cxSeconds(value) {
   return cxSeconds(parts.reduce((n,p)=>n*60n+BigInt(p),0n).toString());
 }
 export function cxDuration(seconds) {
-  if(seconds===null || seconds===undefined || String(seconds).trim()==='') return '—';
-  try {const n=BigInt(cxSeconds(seconds));return `${n/3600n}:${String(n%3600n/60n).padStart(2,'0')}:${String(n%60n).padStart(2,'0')}`;}catch{return '—';}
+  if(seconds===null || seconds===undefined || String(seconds).trim()==='') return '-';
+  try {const n=BigInt(cxSeconds(seconds));return `${n/3600n}:${String(n%3600n/60n).padStart(2,'0')}:${String(n%60n).padStart(2,'0')}`;}catch{return '-';}
 }
 export function cxPointValue(value) {
   if(typeof value==='number'&&(!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER))throw new Error('Puntos no representables sin pérdida.');
@@ -94,13 +94,13 @@ export function cxPointValue(value) {
   return (negative?'-':'')+integer.replace(/^-/,'')+(digits?'.'+digits:'');
 }
 export function cxPoints(value,locale='es-ES') {
-  if(value==null)return '—';
+  if(value==null)return '-';
   try {const text=cxPointValue(value),[whole,fraction]=text.split('.');
     const formatter=new Intl.NumberFormat(locale),integer=formatter.format(BigInt(whole));
     const prefix=whole==='-0'?formatter.formatToParts(-1).find(p=>p.type==='minusSign').value:'';
     const separator=formatter.formatToParts(1.1).find(p=>p.type==='decimal').value;
     return prefix+integer+(fraction?separator+fraction:'');
-  }catch{return '—';}
+  }catch{return '-';}
 }
 export function compareCxStandings(official,stored,mode) {
   if(!['points','time'].includes(mode))throw new Error('Categoría sin modalidad verificada.');

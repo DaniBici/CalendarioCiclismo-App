@@ -32,13 +32,10 @@ final class StartlistViewModel {
         error = nil
 
         do {
-            let service = SupabaseService.shared
-
-            let race = try await service.race(byId: raceId)
-            self.race = race
-
-            teamsList = try await fetchTeams(raceId: raceId, race: race, service: service)
-            await loadRiderOuts(raceId: raceId)
+            let loaded = try await fetchAll(raceId: raceId)
+            race = loaded.race
+            teamsList = loaded.teams
+            ridersOut = loaded.ridersOut
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -49,46 +46,67 @@ final class StartlistViewModel {
 
     func refresh(raceId: String) async {
         do {
-            let service = SupabaseService.shared
-            let race = try await service.race(byId: raceId)
-            self.race = race
-            teamsList = try await fetchTeams(raceId: raceId, race: race, service: service)
-            await loadRiderOuts(raceId: raceId)
+            let loaded = try await fetchAll(raceId: raceId)
+            race = loaded.race
+            teamsList = loaded.teams
+            ridersOut = loaded.ridersOut
             error = nil
         } catch {
             // Mantenemos datos anteriores en caso de fallo
         }
     }
 
-    /// Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
-    /// los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
-    /// js/inscritos.js vía Android (loadStartlistData). Cualquier fallo de red →
-    /// comportamiento clásico (sin tachados).
-    private func loadRiderOuts(raceId: String) async {
-        ridersOut = (try? await SupabaseService.shared.loadRiderOuts(raceId: raceId)) ?? [:]
+    /// Carrera, equipos, corredores y abandonos no dependen entre sí: salen en
+    /// una tanda. Solo los equipos canónicos esperan a la lista de equipos.
+    private func fetchAll(raceId: String) async throws -> (race: Race, teams: [StartlistTeamWithRiders], ridersOut: [String: RiderOut]) {
+        let service = SupabaseService.shared
+        async let raceReq = service.race(byId: raceId)
+        async let teamsReq = Self.startlistTeams(raceId: raceId)
+        async let ridersReq = Self.startlistRiders(raceId: raceId)
+        // Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
+        // los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
+        // js/inscritos.js vía Android (loadStartlistData). Cualquier fallo de red →
+        // comportamiento clásico (sin tachados).
+        async let outsReq: [String: RiderOut] = (try? await service.loadRiderOuts(raceId: raceId)) ?? [:]
+
+        let race = try await raceReq
+        let teamsData = try await teamsReq
+        let ridersData = try await ridersReq
+        let teams = try await buildTeams(teamsData: teamsData, ridersData: ridersData, race: race, service: service)
+        return (race, teams, await outsReq)
     }
 
-    private func fetchTeams(raceId: String, race: Race, service: SupabaseService) async throws -> [StartlistTeamWithRiders] {
-        // Query 1: equipos
-        let teamsData = try await service.client.from("startlist_teams")
-            .select("*")
+    /// Equipos de la startlist.
+    private static func startlistTeams(raceId: String) async throws -> [StartlistTeamDTO] {
+        try await SupabaseService.shared.client.from("startlist_teams")
+            .select("id,raceId,teamName,sortOrder,teamId,isConfirmed")
             .eq("raceId", value: raceId)
             .order("sortOrder", ascending: true)
             .execute()
-            .value as [StartlistTeamDTO]
+            .value
+    }
 
-        guard !teamsData.isEmpty else { return [] }
-
-        // Query 2: corredores de esos equipos.
-        // Vista resuelta: nombre/country canónicos desde riders_men/women cuando
-        // hay globalRiderId; fallback al snapshot del propio startlist_riders.
-        let teamIds = teamsData.map { $0.id }
-        let ridersData = try await service.client.from("startlist_riders_resolved")
-            .select("*")
-            .in("teamId", values: teamIds)
+    /// Corredores de la carrera. Vista resuelta: nombre/country canónicos
+    /// desde riders_men/women cuando hay globalRiderId; fallback al snapshot
+    /// del propio startlist_riders. Se filtra por carrera (no por los equipos)
+    /// para no esperar a la consulta de equipos.
+    private static func startlistRiders(raceId: String) async throws -> [StartlistRiderDTO] {
+        try await SupabaseService.shared.client.from("startlist_riders_resolved")
+            .select("id,teamId,dorsal,firstName,lastName,countryCode,globalRiderId")
+            .eq("raceId", value: raceId)
+            .not("teamId", operator: .is, value: "null")
             .order("dorsal", ascending: true)
             .execute()
-            .value as [StartlistRiderDTO]
+            .value
+    }
+
+    private func buildTeams(
+        teamsData: [StartlistTeamDTO],
+        ridersData: [StartlistRiderDTO],
+        race: Race,
+        service: SupabaseService
+    ) async throws -> [StartlistTeamWithRiders] {
+        guard !teamsData.isEmpty else { return [] }
 
         // Agrupar riders por teamId
         let ridersByTeam = Dictionary(grouping: ridersData, by: { $0.teamId })
@@ -98,24 +116,18 @@ final class StartlistViewModel {
         var seasonMap: [String: TeamSeason] = [:]
         let globalTeamIds = Array(Set(teamsData.compactMap { $0.teamId }))
         if !globalTeamIds.isEmpty {
-            let globalTeams = try await service.client.from("teams")
+            async let globalTeamsReq: [Team] = service.client.from("teams")
                 .select()
                 .in("id", values: globalTeamIds)
                 .execute()
-                .value as [Team]
-            globalTeamMap = Dictionary(uniqueKeysWithValues: globalTeams.map { ($0.id, $0) })
-
+                .value
             // Render temporal: versión del equipo en el año de la carrera.
             // `teams` queda como fallback (ver Team.applyingSeason). 2026 == teams.
-            if let year = race.year {
-                let seasons = try await service.client.from("team_seasons")
-                    .select()
-                    .eq("year", value: year)
-                    .in("teamId", values: globalTeamIds)
-                    .execute()
-                    .value as [TeamSeason]
-                seasonMap = Dictionary(seasons.map { ($0.teamId, $0) }, uniquingKeysWith: { a, _ in a })
-            }
+            async let seasonsReq: [TeamSeason] = Self.teamSeasons(year: race.year, teamIds: globalTeamIds)
+            let globalTeams = try await globalTeamsReq
+            globalTeamMap = Dictionary(uniqueKeysWithValues: globalTeams.map { ($0.id, $0) })
+            let seasons = try await seasonsReq
+            seasonMap = Dictionary(seasons.map { ($0.teamId, $0) }, uniquingKeysWith: { a, _ in a })
             for id in globalTeamIds where globalTeamMap[id] == nil {
                 globalTeamMap[id] = seasonMap[id]?.asTeam()
             }
@@ -176,6 +188,18 @@ final class StartlistViewModel {
             if da != db { return da < db }
             return a.sortOrder < b.sortOrder
         }
+    }
+}
+
+extension StartlistViewModel {
+    fileprivate static func teamSeasons(year: Int?, teamIds: [String]) async throws -> [TeamSeason] {
+        guard let year else { return [] }
+        return try await SupabaseService.shared.client.from("team_seasons")
+            .select()
+            .eq("year", value: year)
+            .in("teamId", values: teamIds)
+            .execute()
+            .value
     }
 }
 

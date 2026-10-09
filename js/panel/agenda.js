@@ -198,7 +198,7 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
 
       const cc    = effectiveCountryCode(rd, rd._race);
       const flag  = countryFlag(cc);
-      const name  = rd._race.name || rd._race.abbrev || 'Sin carrera';
+      const name  = rd._race.name || 'Sin carrera';
       const stage = hideStageLabel ? '' : stageLabel(rd.stageNumber, rd._stageSuffix);
       const catBadge  = categoryBadge(rd._race.uciCategory, rd._race.gender === 'female' && !nameImpliesFemale(rd._race.name || ''));
       const statusBadge = rd.isRestDay

@@ -47,42 +47,44 @@ final class StartOrderViewModel {
         do {
             let service = SupabaseService.shared
 
-            let raceDays: [StartOrderRaceDay] = try await service.client
+            // Fila de la jornada, RaceDay canónico y entradas solo dependen de
+            // la jornada: salen a la vez.
+            async let raceDaysReq: [StartOrderRaceDay] = service.client
                 .from("race_days")
                 .select("id, raceId, date, dateKey, slug, slugEn, stageNumber, primaryType, startLocation, finishLocation, startLocationEn, finishLocationEn, distanceKm, timezone, startOrderTtDorsals, startOrderGcDorsals")
                 .eq("id", value: raceDayId)
                 .limit(1)
                 .execute()
                 .value
-            self.raceDay = raceDays.first
-
             // RaceDay canónico para reusar StageInfoHeader (mismo que perfil)
-            self.fullRaceDay = try? await service.raceDays(byIds: [raceDayId]).first
-
-            if let rId = raceDays.first?.raceId {
-                self.race = try? await service.race(byId: rId)
-            }
-
-            if let year = self.race?.year {
-                let base: [Team] = (try? await service.client.from("teams").select().execute().value) ?? []
-                let seasons = (try? await service.teamSeasons(year: year)) ?? []
-                let seasonByTeam = Dictionary(uniqueKeysWithValues: seasons.map { ($0.teamId, $0) })
-                let baseById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
-                self.teams = Set(baseById.keys).union(seasonByTeam.keys).compactMap { id in
-                    baseById[id]?.applyingSeason(seasonByTeam[id]) ?? seasonByTeam[id]?.asTeam()
-                }
-            } else {
-                self.teams = []
-            }
-
-            let entries: [StartOrderEntry] = try await service.client
+            async let fullRaceDayReq: RaceDay? = try? await service.raceDays(byIds: [raceDayId]).first
+            async let entriesReq: [StartOrderEntry] = service.client
                 .from("start_order_entries_resolved")
                 .select()
                 .eq("raceDayId", value: raceDayId)
                 .order("sortOrder", ascending: true)
                 .execute()
                 .value
-            self.entries = entries
+
+            let raceDays = try await raceDaysReq
+            self.raceDay = raceDays.first
+            self.fullRaceDay = await fullRaceDayReq
+
+            if let rId = raceDays.first?.raceId {
+                async let raceReq: Race? = try? await service.race(byId: rId)
+                async let startlistTeamIdsReq: [String]? = Self.startlistTeamIds(raceId: rId)
+                self.race = await raceReq
+                if let year = self.race?.year {
+                    self.teams = await Self.teams(year: year, startlistTeamIds: await startlistTeamIdsReq)
+                } else {
+                    self.teams = []
+                }
+            } else {
+                self.race = nil
+                self.teams = []
+            }
+
+            self.entries = try await entriesReq
 
             error = nil
         } catch {
@@ -90,6 +92,76 @@ final class StartOrderViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Fila mínima de startlist_teams (referencia al equipo canónico).
+    private struct StartlistTeamRef: Codable, Sendable {
+        let teamId: String?
+    }
+
+    /// Equipos canónicos de la startlist de la carrera. nil si no hay
+    /// startlist, falla la consulta o algún equipo no está enlazado al
+    /// catálogo: entonces se casa por nombre contra el catálogo completo.
+    private static func startlistTeamIds(raceId: String) async -> [String]? {
+        guard let rows: [StartlistTeamRef] = try? await SupabaseService.shared.client.from("startlist_teams")
+            .select("teamId")
+            .eq("raceId", value: raceId)
+            .execute()
+            .value,
+            !rows.isEmpty,
+            rows.allSatisfy({ $0.teamId != nil }) else { return nil }
+        return Array(Set(rows.compactMap(\.teamId)))
+    }
+
+    /// Equipos con la paleta del año para casar por nombre las bandas. Con una
+    /// startlist enlazada se piden solo sus equipos; si no, el catálogo completo
+    /// (paginado, para no depender del tope de filas por respuesta).
+    private static func teams(year: Int, startlistTeamIds: [String]?) async -> [Team] {
+        let service = SupabaseService.shared
+        let base: [Team]
+        let seasons: [TeamSeason]
+        if let startlistTeamIds, !startlistTeamIds.isEmpty {
+            async let baseReq: [Team] = (try? await service.inChunks(startlistTeamIds) { chunk in
+                try await service.client.from("teams").select().in("id", values: chunk).execute().value
+            }) ?? []
+            async let seasonsReq: [TeamSeason] = (try? await service.inChunks(startlistTeamIds) { chunk in
+                try await service.client.from("team_seasons")
+                    .select()
+                    .eq("year", value: year)
+                    .in("teamId", values: chunk)
+                    .execute()
+                    .value
+            }) ?? []
+            base = await baseReq
+            seasons = await seasonsReq
+        } else {
+            async let baseReq = Self.allTeams()
+            async let seasonsReq: [TeamSeason] = (try? await service.teamSeasons(year: year)) ?? []
+            base = await baseReq
+            seasons = await seasonsReq
+        }
+        let seasonByTeam = Dictionary(seasons.map { ($0.teamId, $0) }, uniquingKeysWith: { first, _ in first })
+        let baseById = Dictionary(base.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return Set(baseById.keys).union(seasonByTeam.keys).compactMap { id in
+            baseById[id]?.applyingSeason(seasonByTeam[id]) ?? seasonByTeam[id]?.asTeam()
+        }
+    }
+
+    /// Catálogo completo de equipos, paginado por `id`.
+    private static func allTeams() async -> [Team] {
+        var all: [Team] = []
+        var offset = 0
+        while true {
+            guard let page: [Team] = try? await SupabaseService.shared.client.from("teams")
+                .select()
+                .order("id")
+                .range(from: offset, to: offset + 999)
+                .execute()
+                .value else { return all }
+            all.append(contentsOf: page)
+            if page.count < 1000 { return all }
+            offset += 1000
+        }
     }
 
     func refresh(raceDayId: String) async {

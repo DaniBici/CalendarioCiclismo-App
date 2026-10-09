@@ -35,7 +35,7 @@ conservan «Salida / Meta» y «Start / Finish».
 | Android | `ui/today/TodayViewModel.kt` | `ui/today/TodayScreen.kt` |
 | Web | `js/app.js` | `index.html` |
 
-En Android, la cabecera de Hoy contiene los accesos directos de tema y Ajustes.
+En Android, la cabecera de Hoy contiene el acceso directo a Ajustes (en la de Ciclocross mientras Hoy está oculta).
 Ajustes no forma parte de `Routes.MAIN_TABS` ni de la barra inferior y presenta
 navegación de regreso explícita.
 
@@ -59,6 +59,57 @@ Persistencia: iOS `UserDefaults.defaultFilter` / Android DataStore `default_filt
 - **iOS:** `.onChange(of: network.isOnline)` → `loadDay(refresh: true)` si `isFromCache || isUncachedOffline || error != nil`.
 - **Android:** `LaunchedEffect` colecta `NetworkMonitor.online(context)`; flag `wasOffline`; `vm.refresh()` si `error != null || data == null`.
 - **Pull-to-refresh en todos los estados.** iOS: `ScrollView.refreshable` con `minHeight: 320` en estados vacíos.
+
+## Vista Hoy de Ciclocross
+
+Desde 2026-10-08 (apps 5.0.15) la agenda general de Ciclocross es una vista
+Hoy con la navegación de carretera; la agenda mensual se retiró. Filtros CX:
+Todas, Big, Pro y España, con chincheta propia (web `cc_cx_default_filter`,
+iOS `cx_default_filter`). Rango: temporada CX del día civil (1 de agosto – fin
+de febrero); hoy fuera de rango se acota al extremo. Tira de siete días
+desplazada en los extremos; flechas y deslizamiento al día con carreras del
+filtro o al contiguo, deshabilitados en los extremos. Apertura en el próximo
+día con carreras del filtro; después, avance automático desde un día vacío
+solo con Todas. Pruebas de la temporada cargadas una vez; filtro y día en
+memoria. La página de torneo conserva la lista de temporada.
+
+Web: cada cambio de día muestra la carga y relee el mes del día de destino.
+
+### Ciclocross en lugar de Hoy fuera de la temporada de carretera
+
+- **Web:** desde el día siguiente al último de la temporada de carretera
+  (`js/services/today-season.js`, por año) hasta el 31 de diciembre, el menú
+  pone Ciclocross primero y oculta Hoy, y `/` y `/en/` sin `?date=` pintan
+  Ciclocross en la misma URL sin tocar título, canonical ni texto estático
+  (`js/home.js`). `?date=` abre siempre Hoy de carretera, sin límite de
+  navegación; en ese periodo conserva `?date=` también en el día actual.
+- **Apps (5.0.15):** `RoadTodayAvailability` oculta Hoy hasta el 1 de enero de
+  2027. Pestañas Ciclocross, Resultados, Fichajes y Calendario, con
+  Ciclocross inicial; los enlaces a Hoy van a la pestaña inicial vigente, los
+  destinos de carretera siguen accesibles por deep link y Ajustes pasa a la
+  cabecera de Ciclocross.
+- **Resultados:** en esos mismos periodos, pestañas Ciclocross, Carretera y
+  Ránking UCI, con Ciclocross por defecto (web `cyclocrossHome`, iOS
+  `ResultsFeedTabs`, Android `ResultsSections`).
+- **Desde el 1 de enero de 2027**, web y apps vuelven exactamente a la
+  configuración del 17-18 de octubre de 2026 (Hoy, menú, home, Temporada y
+  Resultados). El cambio automático se limita a este otoño-invierno.
+- **Actualización de enero de 2027 (apps):** Dani la publicará al cruzar el
+  1 de enero para que cada app quede exactamente como antes del 18 de octubre:
+  icono Original de nuevo y Ciclocross en su posición anterior. Lo único
+  permanente es la vista por días de Ciclocross, que sustituye a la agenda
+  mensual.
+
+Tarjeta CX de altura única en Hoy y Torneos: la fila de estado reserva el alto
+de la copa, la variante sin horarios reserva caja y estado, y nombre y línea
+secundaria ocupan una línea con puntos suspensivos (la sede se recorta antes
+que el torneo).
+
+| Plataforma | Lógica | Vista |
+|---|---|---|
+| Web | `js/cx/today.js`, `js/components/day-swipe.js` | `js/ciclocross.js` |
+| iOS | `CyclocrossLogic`, `CyclocrossAgendaModel` | `Views/Cyclocross/CyclocrossView.swift` |
+| Android | `util/CyclocrossLogic.kt`, `CyclocrossAgendaState.kt` | `ui/cyclocross/CyclocrossScreen.kt` |
 
 ## Pull-to-refresh en jornadas
 

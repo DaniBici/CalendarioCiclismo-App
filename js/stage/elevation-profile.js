@@ -408,14 +408,19 @@ export function buildElevationProfileSVG({
   const densePointLabels = !compact
     && labelledPointCount > Math.max(12, Math.floor(Math.max(0, width - 98) / 72));
   const compactAnnotations = compact || densePointLabels;
-  const ML = 68, MR = 30, MT = 34, MB = compact ? 56 : 92;
+  const ML = 68, MR = 30, MT = 34, MB = compact || labelledPointCount === 0 ? 56 : 92;
   const PW = width - ML - MR;
   const PH = height - MT - MB;
   const BL = MT + PH;
 
   // ── Y domain ─────────────────────────────────────────────────────
   const yMin   = Math.max(0, profile.minElevation - 150);
-  const yMax   = Math.max(1100, profile.maxElevation + 200);
+  // Suelo de la escala: 1100 m para comparar etapas de montaña entre sí. Un
+  // recorrido de poco relieve lo reduce (cuatro veces su altitud máxima, entre
+  // 100 y 1100 m); con el suelo fijo el trazo quedaba pegado a la base y el
+  // panel casi vacío.
+  const yFloor = Math.min(1100, Math.max(100, Math.ceil(profile.maxElevation * 4 / 100) * 100));
+  const yMax   = Math.max(yFloor, profile.maxElevation + Math.min(200, yFloor * 0.2));
   const yRange = yMax - yMin;
   const xMax   = profile.distance;
 
@@ -488,7 +493,7 @@ export function buildElevationProfileSVG({
   }
 
   // ── Y grid & labels ───────────────────────────────────────────────
-  const yStep  = yRange < 600 ? 100 : yRange > 2500 ? 500 : 200;
+  const yStep  = yRange <= 120 ? 25 : yRange <= 250 ? 50 : yRange < 600 ? 100 : yRange > 2500 ? 500 : 200;
   const yFirst = Math.ceil(yMin / yStep) * yStep;
   let yGrid = '', yTicks = '';
   for (let alt = yFirst; alt <= yMax; alt += yStep) {

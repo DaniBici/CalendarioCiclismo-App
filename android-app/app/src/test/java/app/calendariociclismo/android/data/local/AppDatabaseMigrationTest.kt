@@ -27,7 +27,7 @@ class AppDatabaseMigrationTest {
 
     private companion object {
         /** Versión de esquema de `@Database` en [AppDatabase]; subirla con cada migración. */
-        const val CURRENT_VERSION = 18
+        const val CURRENT_VERSION = 19
     }
 
     @After

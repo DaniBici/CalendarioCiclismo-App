@@ -1,7 +1,8 @@
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, perfilUrl, enBase,
-         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
+         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots,
+         embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
 
@@ -16,16 +17,20 @@ function slugFromPath() {
 }
 const idOrSlug = slugFromPath() || params.get('slug') || params.get('id');
 
+// Columnas de la carrera embebida en la jornada.
+const RACE_COLUMNS = 'id,slug,slugEn,name,nameEn,year,logoUrl,hideFlag,gender,uciCategory,raceFormat,colorHex,countryCode,websiteUrl,startlistImportedAt,startlistProvisional';
+
 window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
 
 if (!idOrSlug) {
   content.innerHTML = `<p class="pfe-loading">${t('profile.notFound')}</p>`;
 } else {
-  initI18n().then(() => loadProfile(idOrSlug));
+  // El diccionario EN se carga a la vez que los datos; se espera antes de pintar.
+  loadProfile(idOrSlug, initI18n());
 }
 
 // ── Load ──────────────────────────────────────────────────────────
-async function loadProfile(idOrSlug) {
+async function loadProfile(idOrSlug, i18nReady = Promise.resolve()) {
   const isEn = getLang() === 'en';
   const cols = [
     'id','slug','slugEn','raceId','dateKey','stageNumber','isRestDay','isCancelledDay',
@@ -35,13 +40,23 @@ async function loadProfile(idOrSlug) {
     'elevationProfile','profileSummits','profileWaypoints','routeGpxUrl',
   ].join(',');
 
-  let { data: rd, error } = await supabase.from('race_days').select(cols).eq('slug', idOrSlug).maybeSingle();
-  if (!rd && !error)
-    ({ data: rd, error } = await supabase.from('race_days').select(cols).eq('slugEn', idOrSlug).maybeSingle());
-  if (!rd && !error)
-    ({ data: rd, error } = await supabase.from('race_days').select(cols).eq('id', idOrSlug).maybeSingle());
+  // Página pre-renderizada: el build incrusta el id de la jornada. Si no,
+  // una sola consulta por slug, slugEn o id (en ese orden de preferencia),
+  // con la carrera embebida.
+  const select = `${cols},race:races(${RACE_COLUMNS})`;
+  const pageId = embeddedId('race-day-id');
+  let row = null, error = null;
+  if (pageId) ({ data: row, error } = await supabase.from('race_days').select(select).eq('id', pageId).maybeSingle());
+  if (!row && !error) {
+    const columns = ['slug', 'slugEn', 'id'];
+    const response = await supabase.from('race_days').select(select).or(orEqFilter(columns, idOrSlug)).limit(3);
+    error = response.error;
+    row = pickByPreference(response.data, columns, idOrSlug);
+  }
+  const { race: raceRow = null, ...rd } = row || {};
+  await i18nReady;
 
-  if (error || !rd) {
+  if (error || !row) {
     content.innerHTML = `<p class="pfe-loading">${t('profile.notFound')}</p>`;
     return;
   }
@@ -51,31 +66,27 @@ async function loadProfile(idOrSlug) {
     return;
   }
 
-  let race = null;
-  if (rd.raceId) {
-    const { data: r } = await supabase.from('races')
-      .select('id,slug,slugEn,name,nameEn,year,logoUrl,hideFlag,gender,uciCategory,raceFormat,colorHex,countryCode,websiteUrl,startlistImportedAt,startlistProvisional')
-      .eq('id', rd.raceId).maybeSingle();
-    race = r;
-  }
-  const technicalGuide = race?.id ? await loadRaceTechnicalGuide(race.id) : null;
+  const race = raceRow;
+  // Guía técnica, assets de la jornada (panel de botones) y etapas hermanas
+  // (navegación, solo en carreras por etapas) dependen solo de la jornada.
+  const [technicalGuide, { data: pfAssets }, siblingsResult] = await Promise.all([
+    race?.id ? loadRaceTechnicalGuide(race.id) : Promise.resolve(null),
+    supabase.from('assets').select('*').eq('raceDayId', rd.id),
+    rd.raceId && race?.raceFormat !== 'one_day'
+      ? supabase.from('race_days')
+        .select('id,slug,slugEn,stageNumber,dateKey,startLocation,finishLocation,startLocationEn,finishLocationEn,isRestDay,neutralStartTimeUtc')
+        .eq('raceId', rd.raceId).eq('editorialStatus', 'published')
+      : Promise.resolve({ data: null }),
+  ]);
 
-  // Assets de la jornada (rutómetro/puertos/mapa/live texto) para el panel.
-  const { data: pfAssets } = await supabase.from('assets').select('*').eq('raceDayId', rd.id);
-
-  // Siblings for stage nav (only for multi-stage races)
   let siblings = [];
-  if (rd.raceId && race?.raceFormat !== 'one_day') {
-    const { data: sData } = await supabase.from('race_days')
-      .select('id,slug,slugEn,stageNumber,dateKey,startLocation,finishLocation,startLocationEn,finishLocationEn,isRestDay,neutralStartTimeUtc')
-      .eq('raceId', rd.raceId).eq('editorialStatus', 'published');
-    if (sData) {
-      siblings = sData.sort((a, b) => {
-        if (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
-          return a.stageNumber - b.stageNumber;
-        return (a.dateKey || '').localeCompare(b.dateKey || '');
-      });
-    }
+  const sData = siblingsResult.data;
+  if (sData) {
+    siblings = sData.sort((a, b) => {
+      if (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
+        return a.stageNumber - b.stageNumber;
+      return (a.dateKey || '').localeCompare(b.dateKey || '');
+    });
   }
 
   const stageSlug = isEn && rd.slugEn ? rd.slugEn : rd.slug;
@@ -108,7 +119,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const stagePart = (!rd.isRestDay && rd.stageNumber != null) ? stage : '';
   const fullTitle = [racePart, stagePart].filter(Boolean).join(' · ');
   const siteName  = t('seo.siteName');
-  const pageTitle = `${t('profile.pageTitle')} — ${fullTitle} — ${siteName}`;
+  const pageTitle = `${t('profile.pageTitle')} - ${fullTitle} - ${siteName}`;
 
   // «Perfil y recorrido de [la Nª etapa del] X 2026: NNN km con salida en A
   // y meta en B. D de mes de YYYY.» — espejo en og-pages.yml (perfiles ES/EN).
@@ -209,7 +220,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   if (startName) {
     recorridoHtml = sameLocation
       ? `<div class="route-block__place route-block__place--solo">${startName}</div><div class="route-block__note">${t('search.startAndFinish')}</div>`
-      : `<div class="route-block__place">${startName}</div>${arrowSvg}<div class="route-block__place">${finishName || '—'}</div>`;
+      : `<div class="route-block__place">${startName}</div>${arrowSvg}<div class="route-block__place">${finishName || '-'}</div>`;
   } else {
     recorridoHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`;
   }
@@ -219,7 +230,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const kmFormatted = rd.distanceKm ? Number(rd.distanceKm).toLocaleString(kmLocale) : null;
   const kmHtml = kmFormatted
     ? `<div class="route-block__km">${kmFormatted}${kmUnit}</div>`
-    : `<div class="route-block__km route-block__km--empty">—</div>`;
+    : `<div class="route-block__km route-block__km--empty">-</div>`;
   const _elevGain = rd.elevationProfile?.elevationGain;
   const elevHtml = _elevGain != null
     ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, isEn ? ',' : '.')} m</div>`

@@ -156,7 +156,7 @@ class PushNotificationManager(
         val pushEnabled = prefs.pushEnabled.firstOrNull() ?: return
         if (!pushEnabled) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            Log.i(TAG, "Permiso revocado en SO — sincronizando baja con el servidor")
+            Log.i(TAG, "Permiso revocado en SO - sincronizando baja con el servidor")
             unsubscribe()
         }
     }

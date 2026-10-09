@@ -74,6 +74,11 @@ struct RaceDay: Codable, Identifiable, Hashable {
         case raceTimeSeconds, averageSpeedKmh, timeLimitSeconds, timeLimitBasis, metricsUpdatedAt
     }
 
+    /// Alias de columnas calculadas que no son propiedades del modelo.
+    private enum LightProfileKeys: String, CodingKey {
+        case elevationGain
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
@@ -103,7 +108,19 @@ struct RaceDay: Codable, Identifiable, Hashable {
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
         countryCode = try c.decodeIfPresent(String.self, forKey: .countryCode)
         stageSuffix = try c.decodeIfPresent(String.self, forKey: .stageSuffix)
-        elevationProfile = try c.decodeIfPresent(ElevationProfile.self, forKey: .elevationProfile)
+        if let profile = try c.decodeIfPresent(ElevationProfile.self, forKey: .elevationProfile) {
+            elevationProfile = profile
+        } else {
+            // Consultas ligeras (`raceDayFeedColumns`) piden solo el desnivel
+            // como `elevationGain:elevationProfile->elevationGain`: se conserva
+            // como un perfil sin puntos, que no se dibuja (`hasElevationProfile`).
+            let extra = try decoder.container(keyedBy: LightProfileKeys.self)
+            let gain = (try? extra.decodeIfPresent(Int.self, forKey: .elevationGain))
+                ?? (try? extra.decodeIfPresent(Double.self, forKey: .elevationGain)).map { Int($0.rounded()) }
+            elevationProfile = gain.map {
+                ElevationProfile(distance: 0, elevationGain: $0, elevationLoss: nil, minElevation: nil, maxElevation: nil, points: [])
+            }
+        }
         profileSummits = try c.decodeIfPresent([ProfileSummit].self, forKey: .profileSummits)
         profileWaypoints = try c.decodeIfPresent([ProfileWaypoint].self, forKey: .profileWaypoints)
         profileNotViewable = try c.decodeIfPresent(Bool.self, forKey: .profileNotViewable) ?? false

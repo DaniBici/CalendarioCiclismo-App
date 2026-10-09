@@ -1,3 +1,4 @@
+import { teamStripes } from '../team-appearance.js';
 const count=value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'});
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -16,7 +17,7 @@ export function panelClassificationRowHtml({label,title='',rowCount=0,leader='',
 }
 
 export function panelTeamRowHtml(team,{meta=[]}={}) {
-  return `<div class="panel-team-row" data-team-id="${esc(team.id)}"><span class="panel-team-row__name"><strong>${esc(team.name)}</strong></span><span class="panel-team-row__meta">${esc(meta.filter(Boolean).join(' · '))}</span><button type="button" class="btn btn--ghost" data-edit-team-id="${esc(team.id)}">Editar</button></div>`;
+  return `<div class="panel-team-row" data-team-id="${esc(team.id)}"><span class="panel-team-row__name">${teamStripes(team)}<strong>${esc(team.name)}</strong></span>${meta.some(Boolean)?`<span class="panel-team-row__meta">${esc(meta.filter(Boolean).join(' · '))}</span>`:''}<button type="button" class="btn btn--ghost" data-edit-team-id="${esc(team.id)}">Editar</button></div>`;
 }
 
 export function panelTeamCatalogHtml({sections,selectedCategory=null,search='',total,rowHtml,filteredRows=null,emptyMessage='Sin resultados.'}) {

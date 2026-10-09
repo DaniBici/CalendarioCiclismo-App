@@ -26,12 +26,13 @@ export function teamHeaderColors(team) {
   return background && text ? { background, text } : { background: 'var(--bg-card)', text: 'var(--text)' };
 }
 
-export async function teamsForSeason(client, teams, year, requestedIds = teams.map(team => team.id)) {
-  const ids = [...new Set(requestedIds.filter(Boolean))];
-  if (!ids.length || !year) return teams;
-  const {data,error}=await client.from('team_seasons').select('teamId,name,category,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts').in('teamId',ids).eq('year',year);
-  if (error) throw error;
-  const seasons=new Map((data || []).map(row=>[row.teamId,row]));
+const TEAM_COLUMNS = 'id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle';
+const TEAM_SEASON_COLUMNS = 'teamId,name,category,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts';
+
+// Superpone a cada equipo los valores no nulos de su temporada, en el orden de
+// `ids`. Un equipo sin ficha base solo aparece si la temporada trae nombre.
+function mergeTeamSeasons(teams, seasonRows, ids) {
+  const seasons=new Map((seasonRows || []).map(row=>[row.teamId,row]));
   const baseById = new Map(teams.map(team => [team.id, team]));
   return ids.map(id => {
     const base = baseById.get(id), season = seasons.get(id);
@@ -50,6 +51,38 @@ export async function teamsForSeason(client, teams, year, requestedIds = teams.m
     };
     return {...fallback,...Object.fromEntries(Object.entries(season || {}).filter(([key,value])=>key!=='teamId' && value!=null))};
   }).filter(Boolean);
+}
+
+export async function teamsForSeason(client, teams, year, requestedIds = teams.map(team => team.id)) {
+  const ids = [...new Set(requestedIds.filter(Boolean))];
+  if (!ids.length || !year) return teams;
+  const {data,error}=await client.from('team_seasons').select(TEAM_SEASON_COLUMNS).in('teamId',ids).eq('year',year);
+  if (error) throw error;
+  return mergeTeamSeasons(teams, data, ids);
+}
+
+// startlist_teams de una carrera con el equipo canónico y su temporada
+// embebidos: una consulta en lugar de tres en serie.
+export function startlistTeamsQuery(client, raceId, year, columns = 'id,teamId,teamName') {
+  const seasons = year ? `,team_seasons(${TEAM_SEASON_COLUMNS})` : '';
+  const query = client.from('startlist_teams').select(`${columns},team:teams(${TEAM_COLUMNS}${seasons})`).eq('raceId', raceId);
+  return year ? query.eq('team.team_seasons.year', year) : query;
+}
+
+// Separa la respuesta de startlistTeamsQuery: filas de startlist sin el
+// embebido y equipos de la temporada (mismo resultado que teamsForSeason).
+export function splitStartlistTeams(rows, year) {
+  const startlistTeams = [], teams = [], seasons = [], seen = new Set();
+  for (const { team, ...row } of rows || []) {
+    startlistTeams.push(row);
+    if (!team || seen.has(team.id)) continue;
+    seen.add(team.id);
+    const { team_seasons: teamSeasons, ...base } = team;
+    teams.push(base);
+    seasons.push(...(teamSeasons || []));
+  }
+  const ids = [...new Set(startlistTeams.map(row => row.teamId).filter(Boolean))];
+  return { startlistTeams, teams: year && ids.length ? mergeTeamSeasons(teams, seasons, ids) : teams };
 }
 
 export function teamStripes(team) {

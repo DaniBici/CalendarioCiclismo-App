@@ -198,7 +198,7 @@ function _tseRenderEditor(body, { teamName, teamCat }) {
           <div class="u-fs-4 u-fw-700">${esc(teamName)}</div>
           <div class="u-fs-1 u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
         </div>
-        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-1" id="tse-edit-identity" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
+        <button class="btn btn--ghost btn--tonal u-py-030 u-px-070 u-fs-1" id="tse-edit-identity" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
       </div>
 
       <div class="u-stack u-stack--xs">
@@ -213,7 +213,7 @@ function _tseRenderEditor(body, { teamName, teamCat }) {
       <div class="u-stack u-stack--xs">
         <div class="u-flex u-items-center u-gap-075">
           <div class="u-micro u-nowrap">Incorporaciones ${MARKET_SEASON}</div>
-          <button class="btn btn--ghost u-py-020 u-px-060 u-fs-1 u-c-accent" id="tse-new-signing">+ Nueva incorporación</button>
+          <button class="btn btn--ghost btn--tonal u-py-020 u-px-060 u-fs-1 u-c-accent" id="tse-new-signing">+ Nueva incorporación</button>
         </div>
         <div id="tse-incoming" class="panel-list"></div>
       </div>
@@ -380,7 +380,7 @@ function _tseRenderIncoming() {
         <span class="u-c-dim u-fs-1">· ${esc(from)}</span></span>
       ${t.contractUntil ? `<span class="u-fs-1 u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
       ${isRumor ? `<span class="tse-rumor-chip">Rumor</span>` : ''}
-      <button class="btn btn--ghost tse-incoming-edit u-py-015 u-px-045 u-fs-1" data-id="${esc(t.id)}">Editar</button>
+      <button class="btn btn--ghost btn--tonal tse-incoming-edit u-py-015 u-px-045 u-fs-1" data-id="${esc(t.id)}">Editar</button>
     </div>`;
   }).join('');
   box.querySelectorAll('.tse-incoming-edit').forEach(btn => {

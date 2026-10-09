@@ -415,9 +415,8 @@ struct StartlistTeamCard: View {
     var isOneDay: Bool = false
 
     var body: some View {
-        // Tarjeta de equipo sobre la superficie neutra: cabecera gris con las
-        // franjas de maillot del equipo (las de Resultados) y la lista de
-        // corredores.
+        // Tarjeta de equipo: cabecera con los colores editoriales del equipo y
+        // la lista de corredores sobre la superficie neutra.
         VStack(spacing: 0) {
             // Los estados sin equipo van SIN cabecera (ocultación cosmética,
             // espejo de la web/Android): solo se listan sus corredores.
@@ -447,15 +446,21 @@ struct StartlistTeamHeaderView: View {
     let team: StartlistTeamWithRiders
     let isProvisional: Bool
 
+    /// Fondo y texto editoriales del equipo (`teamHeaderColors` de la web);
+    /// nil si falta o no es válido alguno de los dos.
+    private var headerColors: (background: Color, text: Color)? {
+        guard let team = team.team,
+              let background = Color.fromHex(team.headerBg.trimmingCharacters(in: .whitespaces)),
+              let text = Color.fromHex(team.headerText.trimmingCharacters(in: .whitespaces)) else { return nil }
+        return (background, text)
+    }
+
     var body: some View {
         HStack(spacing: 8) {
-            if let colors = team.team, colors.hasVisibleBadge {
-                TeamColorBands(team: colors)
-            }
             Text(team.displayName)
                 .ccFont(.s14, weight: .bold)
                 .lineLimit(1)
-                .foregroundStyle(.primary)
+                .foregroundStyle(headerColors?.text ?? .primary)
 
             Spacer()
 
@@ -472,7 +477,7 @@ struct StartlistTeamHeaderView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 38)
-        .background(AppTheme.cardBackgroundHover)
+        .background(headerColors?.background ?? AppTheme.cardBackgroundHover)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }

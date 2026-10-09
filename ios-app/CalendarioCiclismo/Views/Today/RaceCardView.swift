@@ -300,14 +300,7 @@ struct RaceCardView: View {
     }
 
     private var raceInputLabels: [String] {
-        var labels: [String] = []
-        if let name = race?.localizedName {
-            labels.append(name)
-            if let abbrev = race?.abbrev {
-                labels.append(abbrev)
-            }
-        }
-        return labels
+        race.map { [$0.localizedName] } ?? []
     }
 
     // MARK: - Identidad (logotipo y bandera)
@@ -332,21 +325,23 @@ struct RaceCardView: View {
         }
     }
 
-    /// Nombre de la carrera: pasa a dos líneas si hace falta, nunca se corta.
+    /// Nombre de la carrera en una línea; se recorta con puntos suspensivos.
     private var nameRow: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(displayRaceName)
                 .ccFont(.s16, weight: .medium)
                 .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
             competitionButton
+                .layoutPriority(1)
 
             if showFemaleIndicator {
                 Text("♀")
                     .ccFont(.s13)
                     .foregroundStyle(.secondary)
+                    .layoutPriority(1)
                     .accessibilityLabel(LocaleService.t("Carrera femenina", "Women's race"))
             }
         }
@@ -568,12 +563,14 @@ struct RaceCompetitionIdentity: View {
     var originalName: String? = nil
     var showFemale = false
     var body: some View {
-        HStack(spacing: 12) {
+        // Logo y bandera arriba aunque el nombre ocupe varias líneas, como en
+        // las tarjetas de Hoy de Ciclocross.
+        HStack(alignment: .top, spacing: 12) {
             RaceLogo(logoUrl, size: 48)
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    if !hideFlag { CountryFlag(countryCode: countryCode) }
-                    Text(name).font(.title3).fontWeight(.bold)
+                HStack(alignment: .top, spacing: 6) {
+                    if !hideFlag { CountryFlag(countryCode: countryCode).padding(.top, 5) }
+                    Text(name).font(.title3).fontWeight(.bold).lineLimit(3).truncationMode(.tail)
                     if showFemale { Text("♀").foregroundStyle(AppTheme.green).accessibilityLabel("Carrera femenina") }
                 }
                 if let originalName { Text(originalName).font(.subheadline).foregroundStyle(.secondary) }

@@ -15,7 +15,7 @@ import {
   isValidRiderSlug, homonymIdentityKey, planRenameIdentityKeyClash,
 } from '../rider-rename-logic.js';
 import { riderTeamOptionLabel } from '../services/transfer-rider.js';
-import { riderMatchesSearch, riderSearchLookupToken } from '../results/panel-logic.js';
+import { riderMatchesSearch, riderSearchTokens, withRiderSearch } from '../results/panel-logic.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
 import { _slRiderFlagPreview } from './startlist-picker.js';
@@ -58,20 +58,20 @@ async function searchRidersForEditing(query) {
     return;
   }
 
-  const safe = riderSearchLookupToken(term).replace(/[%,()]/g, '');
-  if (safe.length < 2) {
+  const tokens = riderSearchTokens(term);
+  if (!tokens.length) {
     results.innerHTML = '';
     return;
   }
 
   results.innerHTML = '<div class="u-fs-3 u-c-dim">Buscando…</div>';
   const cols = 'id, firstName, lastName, otherNames, nationality, birthDate, currentTeamId, contractUntil, verified, source, identityKey';
-  const filter = `identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
+  const ridersQuery = table => withRiderSearch(supabase.from(table).select(cols), tokens);
 
   try {
     const [menRes, womenRes] = await Promise.all([
-      supabase.from('riders_men').select(cols).or(filter).order('lastName').limit(12),
-      supabase.from('riders_women').select(cols).or(filter).order('lastName').limit(12),
+      ridersQuery('riders_men').order('lastName').limit(12),
+      ridersQuery('riders_women').order('lastName').limit(12),
     ]);
     if (requestId !== _ridersSearchRequest) return;
     if (menRes.error) throw menRes.error;

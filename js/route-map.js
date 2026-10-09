@@ -210,7 +210,7 @@ const BASE_STYLE = {
 };
 const SAT_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
-const SAT_ATTRIB = 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+const SAT_ATTRIB = 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> - Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
 
 const htmlIsDark = () => !document.documentElement.classList.contains('light');
 

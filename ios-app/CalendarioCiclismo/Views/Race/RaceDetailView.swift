@@ -146,7 +146,7 @@ struct RaceDetailView: View {
         if day.raceDay.isRestDay {
             row
         } else {
-            NavigationLink(destination: StageDetailView(raceDayId: day.raceDay.id)) {
+            NavigationLink(destination: StageDetailView(raceDayId: day.raceDay.id, raceIdHint: race.id, titleHint: StageDetailView.title(raceName: race.localizedName, raceDay: day.raceDay))) {
                 row
             }
             .buttonStyle(.plain)

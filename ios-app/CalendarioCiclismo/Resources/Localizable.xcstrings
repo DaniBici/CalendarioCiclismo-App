@@ -948,13 +948,13 @@
     "English" : {
 
     },
-    "English — Try free for 7 days" : {
+    "English - Try free for 7 days" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "English — Try free for 7 days"
+            "value" : "English - Try free for 7 days"
           }
         }
       }
@@ -2056,13 +2056,13 @@
         }
       }
     },
-    "Usar mi región — Probar 7 días gratis" : {
+    "Usar mi región - Probar 7 días gratis" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use my region — Try free for 7 days"
+            "value" : "Use my region - Try free for 7 days"
           }
         }
       }

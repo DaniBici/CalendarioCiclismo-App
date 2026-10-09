@@ -38,9 +38,20 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
   // Lista resumida sin pies de puerto: solo aparecen con «Ver todos».
   const initial = onlyTowns ? keyRows.filter(row => row.type !== 'climb_foot') : relevant.length > 6 ? relevant.slice(-6) : relevant;
   const hasPoints = points && !day.isCancelledDay && hasStageKeyPoints(day);
+  // Sin puntos clave, la columna lateral muestra las cifras del perfil para que
+  // la jornada conserve la misma estructura de dos columnas.
+  const profileData = day.elevationProfile;
+  const summaryRows = points && !hasPoints && !day.isCancelledDay && interactive ? [
+    [en ? 'Elevation gain' : 'Desnivel positivo', profileData.elevationGain, '+'],
+    [en ? 'Highest point' : 'Punto más alto', profileData.maxElevation, ''],
+    [en ? 'Lowest point' : 'Punto más bajo', profileData.minElevation, '']
+  ].filter(([, value]) => Number.isFinite(Number(value)) && value !== null) : [];
+  const summaryHtml = summaryRows.length
+    ? `<div class="stage-side stage-side--summary"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile data' : 'Datos del perfil'}</h2></header><dl class="stage-summary">${summaryRows.map(([label, value, sign]) => `<div class="stage-summary__row"><dt>${label}</dt><dd>${sign}${fmt(Math.max(0, Math.round(Math.abs(value))))} m</dd></div>`).join('')}</dl></section><div class="stage-side__actions"></div></div>`
+    : '';
   host.hidden = false;
-  host.className = `stage-profile-layout${hasPoints ? ' stage-profile-layout--points' : ''}`;
-  host.innerHTML = `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>${hasPoints ? `<div class="stage-side"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}"></div></div></section><div class="stage-side__actions"></div></div>` : ''}`;
+  host.className = `stage-profile-layout${hasPoints || summaryHtml ? ' stage-profile-layout--points' : ''}`;
+  host.innerHTML = `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>${hasPoints ? `<div class="stage-side"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}"></div></div></section><div class="stage-side__actions"></div></div>` : summaryHtml}`;
   const graphic = host.querySelector('.stage-profile-graphic');
   const readout = host.querySelector('output');
   const svgNode = (selector, tag, cls) => {

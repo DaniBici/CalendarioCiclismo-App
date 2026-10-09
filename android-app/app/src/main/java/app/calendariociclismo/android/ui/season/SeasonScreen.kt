@@ -739,7 +739,9 @@ private fun SeasonRowLayout(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (showFlag) CountryFlag(countryCode = countryCode)
-        logo()
+        // Hueco fijo del logo aunque la carrera no tenga: misma altura y mismo
+        // arranque del nombre en todas las filas.
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { logo() }
         Text(
             text = nameText,
             style = CCText.S14,

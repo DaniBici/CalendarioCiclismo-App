@@ -11,16 +11,12 @@ import app.calendariociclismo.android.ui.theme.neutralFill
 import app.calendariociclismo.android.ui.theme.neutralFillPressed
 import app.calendariociclismo.android.ui.month.CalendarFilterChip
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,15 +24,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
 import app.calendariociclismo.android.ui.today.TodayHighlightsBanner
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -55,6 +48,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -96,19 +90,26 @@ import app.calendariociclismo.android.util.CyclocrossLogic
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.NetworkMonitor
+import androidx.compose.ui.platform.LocalContext
 import app.calendariociclismo.android.util.rememberHaptics
 import java.time.Instant
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import kotlin.math.abs
+import java.time.LocalDate
+import androidx.compose.foundation.lazy.LazyListState
+import app.calendariociclismo.android.ui.today.DATE_BAR_RADIUS
+import app.calendariociclismo.android.ui.today.DateBarWithControls
+import app.calendariociclismo.android.ui.today.DayEmptyState
+import app.calendariociclismo.android.ui.today.animateDayNavigation
+import app.calendariociclismo.android.ui.today.daySwipeNavigation
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private sealed class AgendaRow(val key: String) {
     class Day(val date: String) : AgendaRow("day:$date")
     class Race(val race: CxRace, val date: String) : AgendaRow("race:$date:${race.id}")
-    /** Mes sin pruebas. `filtered` = el filtro activo quitó pruebas que sí había. */
-    class Empty(val month: YearMonth, val filtered: Boolean) : AgendaRow("empty:$month:${if (filtered) 1 else 0}")
 }
 
 private fun agendaLayoutRows(rows: List<AgendaRow>, columns: Int): List<List<AgendaRow>> {
@@ -158,24 +159,7 @@ internal fun cxCategoryName(code: String): String = stringResource(when (code) {
 
 internal fun cxColor(value: String?): Color? = value?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
 
-/** Desliza el contenido fuera, ejecuta el cambio de mes y desliza el nuevo,
- *  idéntico a `animateNavigation` de Hoy en Carretera (TodayScreen.kt). */
-private suspend fun animateMonthNavigation(
-    offsetX: Animatable<Float, *>,
-    widthPx: Float,
-    forward: Boolean,
-    setAnimating: (Boolean) -> Unit,
-    action: suspend () -> Unit,
-) {
-    if (widthPx <= 0f) { action(); return }
-    setAnimating(true)
-    val dir = if (forward) -1f else 1f
-    offsetX.animateTo(dir * widthPx, tween(150))
-    action()
-    offsetX.snapTo(-dir * widthPx)
-    offsetX.animateTo(0f, tween(200))
-    setAnimating(false)
-}
+private fun cxFilter(raw: String?): CxAgendaFilter = CxAgendaFilter.entries.firstOrNull { it.name == raw } ?: CxAgendaFilter.ALL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,8 +171,8 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     val haptic = rememberHaptics()
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     val list = rememberLazyListState()
-    // Deslizamiento entre meses con la animación de Hoy en Carretera: la lista
-    // sale deslizada, cambia el mes y entra la nueva desde el lado contrario.
+    // Cambio de día con la animación de Hoy en Carretera: la lista sale
+    // deslizada, cambia el día y entra el nuevo desde el lado contrario.
     val contentOffsetX = remember { Animatable(0f) }
     var isAnimatingNav by remember { mutableStateOf(false) }
     var contentWidthPx by remember { mutableStateOf(0f) }
@@ -203,7 +187,9 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
         }
         return
     }
-    var savedMonth by rememberSaveable { mutableStateOf<String?>(null) }
+    // Día elegido a mano: se recupera al volver a la pestaña. Sin navegación
+    // manual, la apertura recalcula hoy o el siguiente día con carreras.
+    var savedDay by rememberSaveable { mutableStateOf<String?>(null) }
     // Clasificación general del torneo: la sección solo existe con generales
     // publicadas; sin ellas la página queda como calendario sin selector.
     val generalSeason = selectedSeason ?: season
@@ -224,23 +210,15 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     val locale = LocalConfiguration.current.locales[0]
     val clock = cxClock()
     val cxPinnedRaw by app.preferences.cxDefaultFilter.collectAsState(initial = null)
-    val pinnedFilter = CxAgendaFilter.entries.firstOrNull { it.name == cxPinnedRaw } ?: CxAgendaFilter.ALL
-    var filter by rememberSaveable { mutableStateOf(CxAgendaFilter.ALL) }
+    val pinnedFilter = cxFilter(cxPinnedRaw)
+    val filter = state.filter
     var pendingDefault by remember { mutableStateOf<CxAgendaFilter?>(null) }
-    LaunchedEffect(cxPinnedRaw, tournamentId) { filter = if (tournamentId == null) pinnedFilter else CxAgendaFilter.ALL }
-    val rows = buildList {
-        for (month in state.visibleMonths) {
+    // Página de torneo: todas sus pruebas de la temporada, agrupadas por día.
+    val rows = if (tournamentId == null) emptyList() else buildList {
+        for (month in CyclocrossLogic.months(season)) {
             val monthRaces = state.cache[month]?.data ?: continue
-            val allRaces = monthRaces.filter { tournamentId == null || it.tournamentId == tournamentId }
-            val races = if (tournamentId == null) allRaces.filter { CxPresentation.matchesAgendaFilter(it, filter) } else allRaces
+            val races = monthRaces.filter { it.tournamentId == tournamentId }
             val dates = races.flatMap { CyclocrossLogic.dates(it) }.distinct().sorted().filter { it.startsWith(month.toString()) }
-            if (dates.isEmpty()) {
-                if (tournamentId == null) {
-                    val unfiltered = allRaces.flatMap { CyclocrossLogic.dates(it) }.any { it.startsWith(month.toString()) }
-                    add(AgendaRow.Empty(month, unfiltered))
-                }
-                continue
-            }
             for (date in dates) {
                 add(AgendaRow.Day(date))
                 for (race in CyclocrossLogic.racesOn(races, date)) add(AgendaRow.Race(race, date))
@@ -250,18 +228,52 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     val roundTotal = tournamentId?.let { id ->
         CxPresentation.tournamentRoundTotal(id, rows.filterIsInstance<AgendaRow.Race>().map { it.race }, state.rounds)
     } ?: 0
-    LaunchedEffect(season) { state.open(selectedSeason ?: season, savedMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }) }
+    LaunchedEffect(tournamentId) {
+        if (tournamentId != null) state.open(selectedSeason ?: season)
+        // El filtro fijado se lee antes de abrir para elegir el día de apertura.
+        else state.open(season, savedDay, cxFilter(app.preferences.snapshotCxDefaultFilter()))
+    }
+    // Cambios posteriores del filtro fijado (diálogo de predeterminado).
+    LaunchedEffect(tournamentId) {
+        if (tournamentId == null) app.preferences.cxDefaultFilter.map(::cxFilter).distinctUntilChanged().drop(1)
+            .collect { state.selectFilter(it) }
+    }
     LaunchedEffect(season) { state.loadRounds() }
-    LaunchedEffect(state.activeMonth) { state.activeMonth?.let { savedMonth = it.toString() } }
-    // Cambio de mes unificado (swipe, flechas y selector) con la animación de
-    // Hoy en Carretera.
-    suspend fun changeMonth(target: YearMonth?) {
-        val active = state.activeMonth ?: return
-        if (target == null || target == active || target !in CyclocrossLogic.months(season) || isAnimatingNav) return
-        val forward = target > active
-        animateMonthNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
-            if (!state.busy) state.selectMonth(target)
+    LaunchedEffect(state.dateKey) { if (state.navigated) savedDay = state.dateKey }
+    // Latido de Hoy (cada minuto y al volver a primer plano): auto-avance de
+    // medianoche y, si se muestra hoy con mangas sin resultados ni
+    // cancelación, nueva descarga silenciosa de la temporada.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, tournamentId) {
+        if (tournamentId != null) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                state.advanceIfNewLocalDay()
+                state.refreshSilently()
+                delay(60_000)
+            }
         }
+    }
+    // Al recuperar la conectividad, recarga si hubo error o no hay datos,
+    // como Hoy en carretera.
+    val context = LocalContext.current
+    LaunchedEffect(tournamentId) {
+        if (tournamentId != null) return@LaunchedEffect
+        var wasOffline = false
+        NetworkMonitor.online(context).collect { online ->
+            if (!online) {
+                wasOffline = true
+            } else if (wasOffline) {
+                wasOffline = false
+                if ((state.error != null || !state.loaded) && !state.busy) state.refresh()
+            }
+        }
+    }
+    // Cambio de día unificado (tira de fechas, flechas, «Hoy», botón de
+    // siguiente día y deslizamiento) con la animación de Hoy en Carretera.
+    fun changeDay(forward: Boolean, action: suspend () -> Unit) {
+        haptic(Haptics.Event.Navigation)
+        scope.launch { animateDayNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }, action) }
     }
     // La página de torneo usa la estructura de las vueltas por etapas de
     // carretera: cabecera en tarjeta con identidad y retroceso, sin el logo
@@ -308,39 +320,30 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                         labelForKey = { it }, accessibilityLabelForKey = { cxCategoryName(it) }, onSelect = { generalCategory = it })
                 }
             }
-            // La agenda general conserva el selector de meses; la página de torneo
-            // muestra todas sus pruebas juntas y prescinde de él. Las flechas solo
-            // acompañan al selector cuando los siete meses no caben sin desplazarse.
+            // La agenda general es una vista de un día con la barra de fechas de
+            // Hoy, acotada a la temporada (1 de agosto – último día de febrero).
             if (tournamentId == null) {
-                val allowed = CyclocrossLogic.months(season)
-                val active = state.activeMonth ?: allowed.firstOrNull()
-                var monthsFit by remember { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (!monthsFit) {
-                        IconButton(onClick = { haptic(Haptics.Event.Navigation); active?.let { scope.launch { changeMonth(it.minusMonths(1)) } } }, enabled = !state.busy && active != allowed.firstOrNull()) {
-                            Icon(Icons.Default.ChevronLeft, LocaleHolder.t("Mes anterior", "Previous month"))
-                        }
-                    }
-                    Box(Modifier.weight(1f)) {
-                        ResultsStageSelector(allowed.map { it.toString() }, active?.toString(), locale.language != "es",
-                            labelForKey = { YearMonth.parse(it).format(DateTimeFormatter.ofPattern("MMM", locale)).lowercase(locale) },
-                            subtitleForKey = { it.take(4) },
-                            enabled = !state.busy,
-                            dateNavigationStyle = true,
-                            centerWhenFits = true,
-                            accessibilityLabelForKey = { YearMonth.parse(it).format(DateTimeFormatter.ofPattern("MMMM yyyy", locale)) },
-                            onFitsChange = { monthsFit = it },
-                            onSelect = { key -> if (!state.busy && key != null) { haptic(Haptics.Event.Navigation); scope.launch { changeMonth(YearMonth.parse(key)) } } })
-                    }
-                    if (!monthsFit) {
-                        IconButton(onClick = { haptic(Haptics.Event.Navigation); active?.let { scope.launch { changeMonth(it.plusMonths(1)) } } }, enabled = !state.busy && active != allowed.lastOrNull()) {
-                            Icon(Icons.Default.ChevronRight, LocaleHolder.t("Mes siguiente", "Next month"))
-                        }
-                    }
+                val dateKey = state.dateKey
+                val firstDay = state.firstDay
+                val lastDay = state.lastDay
+                val dateKeys = remember(dateKey, firstDay, lastDay) {
+                    CyclocrossLogic.dayStrip(LocalDate.parse(dateKey), LocalDate.parse(firstDay), LocalDate.parse(lastDay), 2 * DATE_BAR_RADIUS + 1)
+                        .map(LocalDate::toString)
                 }
+                DateBarWithControls(
+                    selectedDateKey = dateKey,
+                    isToday = dateKey == state.todayKey(),
+                    dateKeys = dateKeys,
+                    canGoPrevious = state.canGoPrevious,
+                    canGoNext = state.canGoNext,
+                    onSelect = { target -> changeDay(target > state.dateKey) { state.navigateTo(target) } },
+                    onPrevious = { changeDay(false) { state.navigateToPreviousDay() } },
+                    onToday = { changeDay(state.todayKey() >= state.dateKey) { state.navigateToToday() } },
+                    onNext = { changeDay(true) { state.navigateToNextDay() } },
+                )
             }
             // Filtro de la agenda, con la misma presentación y posición que Hoy
-            // en Carretera: franja fija de chips bajo la cabecera/meses.
+            // en Carretera: franja fija de chips bajo la barra de fechas.
             if (tournamentId == null) Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -365,7 +368,7 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                                 pendingDefault = option
                             } else {
                                 haptic(Haptics.Event.Selection)
-                                filter = option
+                                state.selectFilter(option)
                             }
                         },
                     )
@@ -385,99 +388,63 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                         rounds = state.rounds,
                         swipeState = generalSwipe,
                         onCategory = { generalCategory = it },
-                        onOpenRace = { nav.navigate(Routes.cxRace(it.id)) },
+                        onOpenRace = { nav.navigate(Routes.cxRace(it.id, title = cxTitle(it))) },
                     )
                 }
                 return@Column
             }
-            if (state.busy && !state.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.busy && !state.isRefreshing && (tournamentId != null || state.loaded)) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.error?.let { error ->
                 Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(error, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { scope.launch { state.retry() } }) { Text(stringResource(R.string.cx_retry)) }
                 }
             }
+            if (tournamentId == null) {
+                CxDayAgenda(
+                    state = state,
+                    clock = clock,
+                    contentOffsetX = { contentOffsetX.value },
+                    onWidth = { contentWidthPx = it },
+                    canNavigate = { forward -> !isAnimatingNav && (if (forward) state.canGoNext else state.canGoPrevious) },
+                    onSwipe = { forward -> changeDay(forward) { if (forward) state.navigateToNextDay() else state.navigateToPreviousDay() } },
+                    onNextRaceDay = { changeDay(true) { state.navigateToNextRaceDay() } },
+                    openTournament = { race ->
+                        race.tournament?.let { nav.navigate(Routes.cxTournament(it.id, race.seasonKey, if (locale.language != "es") it.nameEn ?: it.name else it.name, it.logoUrl)) }
+                    },
+                    openRace = { race, category -> nav.navigate(Routes.cxRace(race.id, category, cxTitle(race))) },
+                    modifier = Modifier.weight(1f),
+                )
+                return@Column
+            }
             // Torneo: pantalla de carga completa (sin perfil inferior) mientras
             // llega la primera tanda de carreras.
-            if (tournamentId != null && state.busy && !state.isRefreshing && rows.isEmpty()) {
+            if (state.busy && !state.isRefreshing && rows.isEmpty()) {
                 RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, modifier = Modifier.weight(1f), title = LocaleHolder.t("Ciclocross", "Cyclocross"))
             } else PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
                 onRefresh = { scope.launch { state.refresh() } },
                 modifier = Modifier.weight(1f),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onSizeChanged { contentWidthPx = it.width.toFloat() }
-                        .graphicsLayer { translationX = contentOffsetX.value }
-                        .clipToBounds()
-                        .then(if (tournamentId == null) Modifier.pointerInput(season) {
-                            // Misma receta que Hoy: decidir la dirección tras 30 px
-                            // con margen 1,5× sobre la vertical y exigir 80 px
-                            // reales; así una deriva horizontal durante un scroll
-                            // vertical no cambia de mes.
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                    var totalX = 0f
-                                    var totalY = 0f
-                                    var decided = false
-                                    var isHorizontal = false
-
-                                    drag(down.id) { change ->
-                                        totalX += change.positionChange().x
-                                        totalY += change.positionChange().y
-                                        if (!decided && (abs(totalX) > 30f || abs(totalY) > 30f)) {
-                                            decided = true
-                                            isHorizontal = abs(totalX) > abs(totalY) * 1.5f
-                                        }
-                                        if (isHorizontal) change.consume()
-                                    }
-
-                                    if (isHorizontal && abs(totalX) > 80f && !isAnimatingNav) {
-                                        haptic(Haptics.Event.Navigation)
-                                        val active = state.activeMonth
-                                        val target = active?.let { if (totalX < 0) it.plusMonths(1) else it.minusMonths(1) }
-                                        scope.launch { changeMonth(target) }
-                                    }
-                                }
-                            }
-                        } else Modifier),
-                ) {
-                    BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
-                        val layoutRows = remember(rows, columns) { agendaLayoutRows(rows, columns) }
-                        LaunchedEffect(state.jumpDate, layoutRows) {
-                            state.jumpDate?.let { date ->
-                                val index = layoutRows.indexOfFirst { group ->
-                                    group.any { it.key == "day:$date" }
-                                }.takeIf { it >= 0 } ?: 0
-                                list.scrollToItem(index)
-                                state.consumeJump()
-                            }
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
+                    val layoutRows = remember(rows, columns) { agendaLayoutRows(rows, columns) }
+                    LaunchedEffect(state.jumpDate, layoutRows) {
+                        state.jumpDate?.let { date ->
+                            val index = layoutRows.indexOfFirst { group ->
+                                group.any { it.key == "day:$date" }
+                            }.takeIf { it >= 0 } ?: 0
+                            list.scrollToItem(index)
+                            state.consumeJump()
                         }
-                        LazyColumn(modifier = Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
-                                when (val first = group.first()) {
-                                    // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
-                                    is AgendaRow.Day -> Text(DateFormatting.formatDateLabel(first.date), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = if (tournamentId != null && first.key != rows.firstOrNull()?.key) 6.dp else 0.dp).semantics { heading() })
-                                    is AgendaRow.Empty -> CxEmptyState(first.filtered)
-                                    is AgendaRow.Race -> Row(
-                                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.Top,
-                                    ) {
-                                        group.filterIsInstance<AgendaRow.Race>().forEach { row ->
-                                            Box(Modifier.weight(1f).fillMaxHeight()) {
-                                                CxRaceCard(row.race, row.date, clock, round = state.rounds[row.race.id], showTournamentLink = tournamentId == null, openTournament = {
-                                                    row.race.tournament?.let { nav.navigate(Routes.cxTournament(it.id, row.race.seasonKey, if (locale.language != "es") it.nameEn ?: it.name else it.name, it.logoUrl)) }
-                                                }) { category -> nav.navigate(Routes.cxRace(row.race.id, category)) }
-                                            }
-                                        }
-                                        repeat(columns - group.size) { Spacer(Modifier.weight(1f)) }
-                                    }
-                                }
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
+                            when (val first = group.first()) {
+                                // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
+                                is AgendaRow.Day -> Text(DateFormatting.formatDateLabel(first.date), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = if (first.key != rows.firstOrNull()?.key) 6.dp else 0.dp).semantics { heading() })
+                                is AgendaRow.Race -> CxRaceRow(group.filterIsInstance<AgendaRow.Race>(), columns, clock, state.rounds, showTournamentLink = false,
+                                    openTournament = {}, openRace = { race, category -> nav.navigate(Routes.cxRace(race.id, category, cxTitle(race))) })
                             }
                         }
                     }
@@ -501,6 +468,105 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             },
             dismissButton = { TextButton(onClick = { pendingDefault = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
+    }
+}
+
+/** Fila de la rejilla: una tarjeta por columna; los huecos conservan su ancho. */
+@Composable
+private fun CxRaceRow(
+    group: List<AgendaRow.Race>,
+    columns: Int,
+    clock: Instant,
+    rounds: Map<String, CxRound>,
+    showTournamentLink: Boolean,
+    openTournament: (CxRace) -> Unit,
+    openRace: (CxRace, String?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        group.forEach { row ->
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                CxRaceCard(row.race, row.date, clock, round = rounds[row.race.id], showTournamentLink = showTournamentLink,
+                    openTournament = { openTournament(row.race) }) { category -> openRace(row.race, category) }
+            }
+        }
+        repeat(columns - group.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/**
+ * Contenido del día de la agenda general: tarjetas CX del día en la rejilla
+ * adaptable, sin cabecera de día (la indica la barra de fechas), con
+ * deslizamiento lateral y pull-to-refresh como Hoy en carretera.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CxDayAgenda(
+    state: CyclocrossAgendaState,
+    clock: Instant,
+    contentOffsetX: () -> Float,
+    onWidth: (Float) -> Unit,
+    canNavigate: (Boolean) -> Boolean,
+    onSwipe: (Boolean) -> Unit,
+    onNextRaceDay: () -> Unit,
+    openTournament: (CxRace) -> Unit,
+    openRace: (CxRace, String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
+    // El gesto se instala una vez; lee siempre las acciones vigentes.
+    val currentCanNavigate by rememberUpdatedState(canNavigate)
+    val currentOnSwipe by rememberUpdatedState(onSwipe)
+    val dateKey = state.dateKey
+    val races = state.races
+    val dayRaces = CyclocrossLogic.racesOn(races, dateKey)
+    val nextRaceDay = CyclocrossLogic.nextRaceDay(CyclocrossLogic.raceDays(races), dateKey)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .onSizeChanged { onWidth(it.width.toFloat()) }
+            .graphicsLayer { translationX = contentOffsetX() }
+            .clipToBounds()
+            .daySwipeNavigation(key = Unit, canNavigate = { currentCanNavigate(it) }, onNavigate = { currentOnSwipe(it) }),
+    ) {
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { scope.launch { state.refresh() } },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            when {
+                !state.loaded && state.busy -> RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                    showProfile = false,
+                    title = LocaleHolder.t("Ciclocross", "Cyclocross"),
+                )
+                dayRaces.isEmpty() -> DayEmptyState(
+                    title = stringResource(R.string.cx_empty_title),
+                    body = stringResource(if (state.filter == CxAgendaFilter.ALL) R.string.cx_empty_body else R.string.cx_empty_filter_body),
+                    nextLabel = stringResource(R.string.cx_empty_next_race),
+                    nextRaceDate = nextRaceDay,
+                    onNextRaceDay = onNextRaceDay,
+                )
+                else -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
+                    val layoutRows = remember(dayRaces, dateKey, columns) {
+                        agendaLayoutRows(dayRaces.map { AgendaRow.Race(it, dateKey) }, columns)
+                    }
+                    // Cada día empieza arriba.
+                    val dayList = remember(dateKey) { LazyListState() }
+                    LazyColumn(modifier = Modifier.fillMaxSize(), state = dayList, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
+                            CxRaceRow(group.filterIsInstance<AgendaRow.Race>(), columns, clock, state.rounds, showTournamentLink = true,
+                                openTournament = openTournament, openRace = openRace)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -559,7 +625,7 @@ internal fun CxCategoryBox(
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
             .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier.widthIn(min = 40.dp))
-            .height(24.dp)
+            .height(CxCategoryBoxHeight)
             .semantics { this.selected = selected },
     ) {
         Box(Modifier.padding(horizontal = if (fillWidth) 5.dp else 8.dp), contentAlignment = Alignment.Center) {
@@ -609,34 +675,27 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
                 RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, title = {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         // Paridad web: nombre, badge de clase y hamburguesa de
-                        // torneo en la primera línea. Nombre completo: pasa a
-                        // otra línea en lugar de cortarse.
+                        // torneo en la primera línea. Una sola línea con puntos
+                        // suspensivos para que todas las tarjetas midan igual.
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(modifier = Modifier.weight(1f, fill = false), text = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name, style = CCText.S16, fontWeight = FontWeight.Medium)
+                            Text(modifier = Modifier.weight(1f, fill = false), text = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name, style = CCText.S16, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
                             // Hamburguesa compartida con Hoy: acceso directo al torneo.
                             if (showTournamentLink && race.tournament != null) RaceCompetitionButton(LocaleHolder.t("Ver torneo", "View series"), openTournament)
                         }
-                        // Orden de metadatos: torneo · ronda · localización.
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            val venue = race.venue?.takeIf { it != race.name }
-                            val tournament = if (showTournamentLink) race.tournament else null
-                            val currentRound = round?.takeIf { it.total > 1 }
-                            if (tournament != null) {
-                                Text(LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name), modifier = Modifier.weight(1f, fill = false), style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (currentRound != null || venue != null) MetaDot()
-                            }
-                            if (currentRound != null) {
-                                Text("${currentRound.n}/${currentRound.total}", style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (venue != null) MetaDot()
-                            }
-                            if (venue != null) Text(venue, modifier = Modifier.weight(1f, fill = false), style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
+                        val tournament = if (showTournamentLink) race.tournament else null
+                        CxMetaLine(
+                            tournament = tournament?.let { LocaleHolder.t(it.name, it.nameEn ?: it.name) },
+                            round = CxPresentation.roundLabel(round),
+                            venue = race.venue?.takeIf { it != race.name },
+                        )
                     }
                 }, details = {
                     val onOpen: (String?) -> Unit = { if (openRace) open(it) else showPlaceholder = true }
+                    // Altura única en todas las tarjetas: la variante sin horarios
+                    // reserva caja de categoría + fila de estado.
                     if (badges) {
-                        FlowRow(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FlowRow(Modifier.padding(top = 3.dp).heightIn(min = CxCategoryBoxHeight + CxStatusRowHeight), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             for (category in categories) CxCategoryActions(race, category, clock,
                                 compact = true, onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
                         }
@@ -655,8 +714,64 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
 }
 
 @Composable
-private fun MetaDot() {
-    Text("·", style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun MetaDot(modifier: Modifier = Modifier, style: TextStyle = CCText.S12) {
+    Text("·", modifier = modifier, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * Línea secundaria de la tarjeta (torneo · ronda · sede) en una sola línea.
+ * La ronda no se recorta; si falta espacio se recorta primero la sede (y se
+ * omite cuando apenas cabe) y después el torneo, con puntos suspensivos.
+ * Compartida con la pestaña Ciclocross de Resultados.
+ */
+@Composable
+internal fun CxMetaLine(tournament: String?, round: String?, venue: String?, style: TextStyle = CCText.S12) {
+    // Sin datos, la línea conserva su altura para no alterar la de la tarjeta.
+    if (tournament == null && round == null && venue == null) { Text("", style = style); return }
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val parts = listOfNotNull(tournament?.let { "t" to it }, round?.let { "r" to it }, venue?.let { "v" to it })
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            parts.forEachIndexed { index, (id, text) ->
+                if (index > 0) MetaDot(Modifier.layoutId("d$id"), style)
+                Text(text, modifier = Modifier.layoutId(id), style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+            }
+        },
+    ) { measurables, constraints ->
+        val gap = 5.dp.roundToPx()
+        val minVenue = 32.dp.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val byId = measurables.associateBy { it.layoutId as String }
+        val dots = parts.drop(1).associate { (id, _) -> id to byId.getValue("d$id").measure(loose) }
+        val roundPlaceable = byId["r"]?.measure(loose)
+        fun extra(id: String): Int = dots[id]?.let { it.width + 2 * gap } ?: 0
+        val fixed = (roundPlaceable?.width ?: 0) + (if (round != null) extra("r") else 0)
+        var available = (constraints.maxWidth - fixed).coerceAtLeast(0)
+        val tournamentPlaceable = byId["t"]?.measure(loose.copy(maxWidth = available))
+        available -= tournamentPlaceable?.width ?: 0
+        val venueSpace = available - (if (venue != null) extra("v") else 0)
+        val venuePlaceable = byId["v"]?.takeIf { venueSpace >= minVenue || (tournament == null && round == null) }
+            ?.measure(loose.copy(maxWidth = venueSpace.coerceAtLeast(0)))
+        val shown = listOfNotNull(
+            tournamentPlaceable?.let { "t" to it },
+            roundPlaceable?.let { "r" to it },
+            venuePlaceable?.let { "v" to it },
+        )
+        val height = (shown.map { it.second.height } + dots.values.map { it.height }).maxOrNull() ?: 0
+        layout(constraints.maxWidth, height) {
+            var x = 0
+            shown.forEachIndexed { index, (id, placeable) ->
+                if (index > 0) dots[id]?.let { dot ->
+                    x += gap
+                    dot.placeRelative(x, (height - dot.height) / 2)
+                    x += dot.width + gap
+                }
+                placeable.placeRelative(x, (height - placeable.height) / 2)
+                x += placeable.width
+            }
+        }
+    }
 }
 
 @Composable
@@ -685,17 +800,26 @@ internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instan
     }
 }
 
+/** Altura de la caja de categoría (`.cx-category-box`). */
+private val CxCategoryBoxHeight = 24.dp
+
+/** Fila de estado bajo la caja: reserva siempre el objetivo táctil de la copa,
+ *  de modo que hora, copa, espera y aspa no cambian la altura de la tarjeta. */
+private val CxStatusRowHeight = 24.dp
+
 /** Hora, copa, espera o cancelación bajo la caja de categoría, fuera de ella. */
 @Composable
 private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory, onResults: () -> Unit) {
+    Box(Modifier.fillMaxWidth().heightIn(min = CxStatusRowHeight), contentAlignment = Alignment.Center) {
     when (phase) {
         // Copa compacta: misma altura contenida que el horario que acompaña,
         // sin el objetivo táctil de 48 dp del IconButton ni colchón extra.
         CxCategoryCardState.RESULTS -> ResultsTrophyAction(onClick = onResults, contentDescription = stringResource(R.string.cx_results))
         CxCategoryCardState.AWAITING -> WaitingResultsIndicator()
         CxCategoryCardState.CANCELLED -> CxCancelledCross()
-        CxCategoryCardState.TIME -> Text(category.startTimeUtc?.let(DateFormatting::formatTimeLocal) ?: "—",
+        CxCategoryCardState.TIME -> Text(category.startTimeUtc?.let(DateFormatting::formatTimeLocal) ?: "-",
             style = CCText.S16, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+    }
     }
 }
 
@@ -714,32 +838,5 @@ private fun CxCancelledCross() {
         val right = size.width - left
         drawLine(color, Offset(left, 0f), Offset(right, size.height), stroke, StrokeCap.Round)
         drawLine(color, Offset(right, 0f), Offset(left, size.height), stroke, StrokeCap.Round)
-    }
-}
-
-/** Estado vacío de mes, con la presentación de Hoy en Carretera. */
-@Composable
-private fun CxEmptyState(filtered: Boolean) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.EventBusy,
-            contentDescription = null,
-            modifier = Modifier.size(52.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-        )
-        Text(
-            text = stringResource(R.string.cx_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = stringResource(if (filtered) R.string.cx_empty_filter_body else R.string.cx_empty_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        )
     }
 }

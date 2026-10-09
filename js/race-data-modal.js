@@ -124,7 +124,7 @@ function _raceTimeCheck(rd, offsetMinutes) {
   }
   return false;
 }
-function _typeLabel(t) { return TYPE_LABELS[t] || t || '—'; }
+function _typeLabel(t) { return TYPE_LABELS[t] || t || '-'; }
 function _typeColor(t) { return STAGE_COLORS[t] || null; }
 
 function _resolveTypeLabel(p, s, countryCode) {
@@ -248,7 +248,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
       .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     gtag('event', 'page_view', {
       page_location: window.location.origin + '/modal/' + slug + '/',
-      page_title: (_raceDisplayName || 'Modal') + ' — Calendario Ciclismo',
+      page_title: (_raceDisplayName || 'Modal') + ' - Calendario Ciclismo',
     });
   }
 
@@ -266,13 +266,21 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     }
     // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
     // propias (race_uci_stages.keepForWeb). Espejo de jornada.js — una sola
-    // consulta por carrera. Va al final del array; su índice se calcula abajo.
+    // consulta por carrera. La startlist y las jornadas hermanas (etapa
+    // anterior) también dependen solo de la carrera: mismo round-trip.
     const _uciRaceId = rdProvided?.raceId || raceObj?.id;
-    fetches.push(_uciRaceId
-      ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', _uciRaceId).eq('keepForWeb', true).gt('rowCount', 0)
-      : Promise.resolve(null));
-
-    const results = await Promise.all(fetches);
+    const [results, inhouseRows, startlistCount, siblingsResult] = await Promise.all([
+      Promise.all(fetches),
+      _uciRaceId
+        ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', _uciRaceId).eq('keepForWeb', true).gt('rowCount', 0)
+        : Promise.resolve(null),
+      _uciRaceId
+        ? supabase.from('startlist_teams').select('id', { count: 'exact', head: true }).eq('raceId', _uciRaceId)
+        : Promise.resolve({ count: 0 }),
+      _uciRaceId
+        ? supabase.from('race_days').select('id,raceId,stageNumber,isRestDay,isCancelledDay').eq('raceId', _uciRaceId).order('stageNumber', { ascending: true })
+        : Promise.resolve({ data: null }),
+    ]);
 
     let rd = rdProvided;
     let bIdx = 0, aIdx = 1;
@@ -284,20 +292,16 @@ export async function openRaceDataModal(rdOrId, raceObj) {
 
     const broadcasts = filterBroadcastsByRegion(results[bIdx]?.data || []);
     const assets     = (results[aIdx]?.data || []).filter(a => a.url);
-    const inhouseStages = buildInhouseResultsMatcher(results[results.length - 1]?.data || []);
+    const inhouseStages = buildInhouseResultsMatcher(inhouseRows?.data || []);
 
     // Check startlist availability
     const raceId = rd?.raceId || raceObj?.id;
-    let hasStartlist = false;
-    if (raceId) {
-      const { count } = await supabase.from('startlist_teams').select('id', { count: 'exact', head: true }).eq('raceId', raceId);
-      hasStartlist = count > 0;
-    }
+    const hasStartlist = raceId ? startlistCount.count > 0 : false;
 
-    // Load sibling race days to find previous stage
+    // Etapa anterior entre las jornadas hermanas
     let prevRd = null;
     if (raceId && rd?.raceId) {
-      const { data: siblings } = await supabase.from('race_days').select('*').eq('raceId', raceId).order('stageNumber', { ascending: true });
+      const siblings = siblingsResult.data;
       if (siblings && siblings.length > 1) {
         const _navSiblings = siblings.filter(s => !s.isRestDay && !s.isCancelledDay);
         const _currentIdx = _navSiblings.findIndex(s => s.id === rd.id);
@@ -421,7 +425,7 @@ export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embedd
       .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     gtag('event', 'page_view', {
       page_location: window.location.origin + '/modal/tv/' + slug + '/',
-      page_title: (_displayName || 'Modal') + ' — TV — Calendario Ciclismo',
+      page_title: (_displayName || 'Modal') + ' - TV - Calendario Ciclismo',
     });
   }
 
@@ -604,9 +608,9 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
     recorridoHtml = sameLocation
       ? `<div class="route-block__place route-block__place--solo">${esc(rdLocation(rd, 'startLocation'))}</div>
          <div class="route-block__note">${t('search.startAndFinish')}</div>`
-      : `<div class="route-block__place">${esc(rdLocation(rd, 'startLocation') || '—')}</div>
+      : `<div class="route-block__place">${esc(rdLocation(rd, 'startLocation') || '-')}</div>
          ${arrowSvg}
-         <div class="route-block__place">${esc(rdLocation(rd, 'finishLocation') || '—')}</div>`;
+         <div class="route-block__place">${esc(rdLocation(rd, 'finishLocation') || '-')}</div>`;
   }
 
   // — Bloque Distancia y tipo —
@@ -618,7 +622,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
     : null;
   const kmHtml = kmFormatted
     ? `<div class="route-block__km">${kmFormatted}${_isEnModal ? 'km' : ' km'}</div>`
-    : `<div class="route-block__km route-block__km--empty">—</div>`;
+    : `<div class="route-block__km route-block__km--empty">-</div>`;
   const _elevGain = rd.elevationProfile?.elevationGain;
   const elevHtml = _elevGain != null
     ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEnModal ? ',' : '.')}m</div>`
@@ -755,7 +759,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
         const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         html += `<div class="tv-entry">
           <div style="flex:1;min-width:0;padding-right:0.75rem">
-            <div class="tv-entry__platform">${esc(b.channel || '—')}</div>
+            <div class="tv-entry__platform">${esc(b.channel || '-')}</div>
             ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<div class="tv-entry__channel" style="font-style:italic">${esc(b.note)}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:0.75rem">

@@ -12,7 +12,9 @@ import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.TodayRefreshPolicy
 import app.calendariociclismo.android.util.TodaySeason
+import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -255,9 +257,20 @@ class TodayViewModel(
         load(force = true)
     }
 
-    fun refreshAutomatically() {
+    /** Última descarga completa de red de la jornada mostrada (fecha + instante). */
+    private var lastNetworkLoad: Pair<String, Instant>? = null
+
+    /**
+     * Latido de Hoy (cada minuto y al volver a primer plano). Solo vuelve a la
+     * red con jornadas en curso o próximas a empezar o a publicar resultados;
+     * sin actividad, cada quince minutos ([TodayRefreshPolicy]).
+     */
+    fun refreshAutomatically(now: Instant = Instant.now()) {
         val current = _state.value
         if (current.dateKey != DateFormatting.todayKey() || current.isLoading) return
+        val last = lastNetworkLoad?.takeIf { it.first == current.dateKey }?.second
+        val days = current.data?.raceDays.orEmpty().filterNot { it.isPlaceholder }.map { it.raceDay }
+        if (!TodayRefreshPolicy.shouldRefresh(now, last, days)) return
         load(force = true, silent = true)
     }
 
@@ -283,9 +296,18 @@ class TodayViewModel(
                         }
                     }
             }
-            // 2. Refresh remoto de jornadas del día
-            runCatching { repo.refreshDay(key) }
-                .onFailure { t ->
+            // 2. Refresh remoto del día y, en paralelo, de las carreras del año
+            //    (placeholders y navegación por filtro). El año respeta su TTL de
+            //    una hora salvo en el refresco manual.
+            val year = key.substring(0, 4).toIntOrNull()
+            // Instante de INICIO de la descarga: el latido mide desde aquí, no
+            // desde el final (la latencia retrasaría el siguiente refresco).
+            val networkLoadStartedAt = Instant.now()
+            val yearJob = year?.let {
+                launch { runCatching { repo.refreshRacesYear(it, force = force && !silent) } }
+            }
+            val refreshed = runCatching { repo.refreshDay(key) }
+                .getOrElse { t ->
                     if (generation != loadGeneration || _state.value.dateKey != key) return@launch
                     // Cadena vacía como sentinel: mantiene la rama de error en la
                     // pantalla activa para que muestre el fallback localizado
@@ -299,17 +321,17 @@ class TodayViewModel(
                     return@launch
                 }
             completeDayDates += key
-            // 3. Refresh de todas las carreras del año (necesario para placeholders)
-            val year = key.substring(0, 4).toIntOrNull()
+            lastNetworkLoad = key to networkLoadStartedAt
+            // 3. Carreras del año cacheadas para la navegación filter-aware
             if (year != null) {
-                runCatching { repo.refreshRacesYear(year) }
-                // Cachear allRaces para navegación filter-aware
+                yearJob?.join()
                 _allRaces = runCatching { repo.cachedRacesForYear(year) }
                     .getOrDefault(emptyList())
             }
-            // 4. Releer caché (ahora completa) y añadir placeholders
+            // 4. Releer caché (ahora completa) y añadir placeholders. La
+            //    selección destacada llega con la descarga del día.
             val fresh = runCatching { repo.cachedDayData(key) }.getOrNull()
-            val featuredRaceIds = runCatching { repo.featuredRaceIds(listOf(key)) }.getOrDefault(emptySet())
+            val featuredRaceIds = refreshed.featuredRaceIds
             if (generation != loadGeneration || _state.value.dateKey != key) return@launch
             val withPlaceholders = if (fresh != null && year != null) {
                 addPlaceholders(fresh, key, year)

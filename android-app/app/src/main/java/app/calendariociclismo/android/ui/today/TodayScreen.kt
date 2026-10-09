@@ -1,10 +1,7 @@
 package app.calendariociclismo.android.ui.today
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
@@ -27,14 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Timer
@@ -44,16 +37,13 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +60,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -78,11 +67,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -138,9 +124,6 @@ import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.TodaySeason
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
-import java.time.format.DateTimeFormatter
-import kotlin.math.abs
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -180,13 +163,11 @@ fun TodayScreen(navController: NavController) {
         "|" + (data?.raceDays?.joinToString(",") { it.id } ?: "")
     LaunchedEffect(visibleKey, state.refreshToken) {
         if (visibleByRace.isEmpty()) { inhouseByDay = emptyMap(); return@LaunchedEffect }
-        val merged = HashMap<String, Int?>()
-        for ((rid, days) in visibleByRace) {
-            val pairs = days.map { it.raceDay.id to it.raceDay.stageNumber }
-            val cancelled = days.filter { it.raceDay.isCancelledDay }.map { it.raceDay.id }.toSet()
-            runCatching { app.repository.inhouseStagesForDays(rid, pairs, cancelled) }.getOrNull()?.let { merged.putAll(it) }
-        }
-        inhouseByDay = merged
+        // Una sola consulta para todas las carreras visibles.
+        val daysByRace = visibleByRace.mapValues { (_, days) -> days.map { it.raceDay.id to it.raceDay.stageNumber } }
+        val cancelled = visibleByRace.values.flatten()
+            .filter { it.raceDay.isCancelledDay }.map { it.raceDay.id }.toSet()
+        inhouseByDay = app.repository.inhouseStagesForRaces(daysByRace, cancelled)
     }
 
     // Al recuperar conectividad, recargar automáticamente si estamos mostrando
@@ -264,7 +245,7 @@ fun TodayScreen(navController: NavController) {
                             val target = vm.currentDayKey()
                             val forward = target >= state.dateKey
                             scope.launch {
-                                animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
+                                animateDayNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
                                     vm.navigateTo(target)
                                 }
                             }
@@ -292,16 +273,23 @@ fun TodayScreen(navController: NavController) {
             // como cualquier otra carrera del día. La rejilla país×prueba sigue
             // accesible aparte, pero no sustituye ni oculta nada en Hoy.
 
+            // Sin días posteriores al último día de temporada (TodaySeason).
+            val lastDateKey = TodaySeason.lastDay()
+            val dateKeys = remember(state.dateKey, lastDateKey) {
+                DateFormatting.dateRangeAround(state.dateKey, offset = DATE_BAR_RADIUS)
+                    .filter { lastDateKey == null || it <= lastDateKey }
+            }
             DateBarWithControls(
                 selectedDateKey = state.dateKey,
                 isToday = state.dateKey == vm.currentDayKey(),
-                lastDateKey = TodaySeason.lastDay(),
+                dateKeys = dateKeys,
+                canGoPrevious = true,
                 canGoNext = vm.canGoToNextDay(state.dateKey),
                 onSelect = { newDate ->
                     haptic(Haptics.Event.Navigation)
                     val forward = newDate > state.dateKey
                     scope.launch {
-                        animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
+                        animateDayNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
                             vm.navigateTo(newDate)
                         }
                     }
@@ -309,7 +297,7 @@ fun TodayScreen(navController: NavController) {
                 onPrevious = {
                     haptic(Haptics.Event.Navigation)
                     scope.launch {
-                        animateNavigation(contentOffsetX, contentWidthPx, false, { isAnimatingNav = it }) {
+                        animateDayNavigation(contentOffsetX, contentWidthPx, false, { isAnimatingNav = it }) {
                             vm.navigateToPreviousDay()
                         }
                     }
@@ -319,7 +307,7 @@ fun TodayScreen(navController: NavController) {
                     val target = vm.currentDayKey()
                     val forward = target >= state.dateKey
                     scope.launch {
-                        animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
+                        animateDayNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
                             vm.navigateTo(target)
                         }
                     }
@@ -327,7 +315,7 @@ fun TodayScreen(navController: NavController) {
                 onNext = {
                     haptic(Haptics.Event.Navigation)
                     scope.launch {
-                        animateNavigation(contentOffsetX, contentWidthPx, true, { isAnimatingNav = it }) {
+                        animateDayNavigation(contentOffsetX, contentWidthPx, true, { isAnimatingNav = it }) {
                             vm.navigateToNextDay()
                         }
                     }
@@ -375,39 +363,18 @@ fun TodayScreen(navController: NavController) {
                     .onSizeChanged { contentWidthPx = it.width.toFloat() }
                     .graphicsLayer { translationX = contentOffsetX.value }
                     .clipToBounds()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                var totalX = 0f
-                                var totalY = 0f
-                                var decided = false
-                                var isHorizontal = false
-
-                                drag(down.id) { change ->
-                                    totalX += change.positionChange().x
-                                    totalY += change.positionChange().y
-                                    if (!decided && (abs(totalX) > 30f || abs(totalY) > 30f)) {
-                                        decided = true
-                                        isHorizontal = abs(totalX) > abs(totalY) * 1.5f
-                                    }
-                                    if (isHorizontal) change.consume()
-                                }
-
-                                // Último día de temporada: el gesto hacia delante no navega.
-                                val blockedForward = totalX < 0 && !vm.canGoToNextDay(vm.state.value.dateKey)
-                                if (isHorizontal && abs(totalX) > 80f && !isAnimatingNav && !blockedForward) {
-                                    haptic(Haptics.Event.Navigation)
-                                    val forward = totalX < 0
-                                    scope.launch {
-                                        animateNavigation(
-                                            contentOffsetX, contentWidthPx, forward,
-                                            { isAnimatingNav = it },
-                                        ) {
-                                            if (forward) vm.navigateToNextDay() else vm.navigateToPreviousDay()
-                                        }
-                                    }
-                                }
+                    // Último día de temporada: el gesto hacia delante no navega.
+                    .daySwipeNavigation(
+                        key = Unit,
+                        canNavigate = { forward -> !isAnimatingNav && (!forward || vm.canGoToNextDay(vm.state.value.dateKey)) },
+                    ) { forward ->
+                        haptic(Haptics.Event.Navigation)
+                        scope.launch {
+                            animateDayNavigation(
+                                contentOffsetX, contentWidthPx, forward,
+                                { isAnimatingNav = it },
+                            ) {
+                                if (forward) vm.navigateToNextDay() else vm.navigateToPreviousDay()
                             }
                         }
                     },
@@ -423,12 +390,15 @@ fun TodayScreen(navController: NavController) {
                             title = LocaleHolder.t("Carreras de hoy", "Today's races"),
                         )
                         state.error != null && data == null -> CenteredText(state.error?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.startlist_error_unknown))
-                        data == null || data.raceDays.isEmpty() -> EmptyState(
+                        data == null || data.raceDays.isEmpty() -> DayEmptyState(
+                            title = stringResource(R.string.today_empty_title),
+                            body = stringResource(R.string.today_empty_body),
+                            nextLabel = stringResource(R.string.today_empty_next_race),
                             nextRaceDate = state.nextRaceDate,
                             onNextRaceDay = {
                                 haptic(Haptics.Event.Navigation)
                                 scope.launch {
-                                    animateNavigation(
+                                    animateDayNavigation(
                                         contentOffsetX, contentWidthPx, true,
                                         { isAnimatingNav = it },
                                     ) { vm.navigateToNextRaceDay() }
@@ -497,7 +467,7 @@ fun TodayScreen(navController: NavController) {
                                                 placeholderItem = PlaceholderItem(race, day.raceDay)
                                             race?.isCancelled == true ->
                                                 placeholderItem = PlaceholderItem(race, day.raceDay)
-                                            else -> navController.navigate(Routes.stage(day.id))
+                                            else -> navController.navigate(Routes.stage(day.id, title = Routes.jornadaTitle(race?.localizedName, day.raceDay)))
                                         }
                                     },
                                 )
@@ -571,172 +541,6 @@ fun TodayScreen(navController: NavController) {
             },
         )
     }
-    }
-}
-
-// ─── Navigation animation ─────────────────────────────────────────
-
-/** Slides content out, performs [action], then slides new content in. */
-private suspend fun animateNavigation(
-    offsetX: Animatable<Float, *>,
-    widthPx: Float,
-    forward: Boolean,
-    setAnimating: (Boolean) -> Unit,
-    action: suspend () -> Unit,
-) {
-    if (widthPx <= 0f) { action(); return }
-    setAnimating(true)
-    val dir = if (forward) -1f else 1f
-    offsetX.animateTo(dir * widthPx, tween(150))
-    action()
-    offsetX.snapTo(-dir * widthPx)
-    offsetX.animateTo(0f, tween(200))
-    setAnimating(false)
-}
-
-// ─── DateBar con controles fusionados ───────────────────────────────
-
-/**
- * Fila única situada bajo el cintillo: flecha anterior, carrusel de fechas y
- * flecha siguiente. Fuera de la fecha actual inserta «Hoy» antes de los siete días.
- */
-@Composable
-private fun DateBarWithControls(
-    selectedDateKey: String,
-    isToday: Boolean,
-    lastDateKey: String?,
-    canGoNext: Boolean,
-    onSelect: (String) -> Unit,
-    onPrevious: () -> Unit,
-    onToday: () -> Unit,
-    onNext: () -> Unit,
-) {
-    // Sin días posteriores al último día de temporada (TodaySeason).
-    val dateKeys = remember(selectedDateKey, lastDateKey) {
-        DateFormatting.dateRangeAround(selectedDateKey, offset = 45)
-            .filter { lastDateKey == null || it <= lastDateKey }
-    }
-    val selectedIndex = remember(selectedDateKey, dateKeys) {
-        dateKeys.indexOf(selectedDateKey).coerceAtLeast(0)
-    }
-    val density = LocalDensity.current
-    val listState = rememberLazyListState()
-    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
-    LaunchedEffect(selectedDateKey) {
-        snapshotFlow { listState.layoutInfo.viewportSize.width }
-            .first { it > 0 }
-        val viewportWidth = listState.layoutInfo.viewportSize.width
-        val itemHalfWidthPx = with(density) { 24.dp.roundToPx() }
-        val offset = -(viewportWidth / 2 - itemHalfWidthPx)
-        if (animationsEnabled) {
-            listState.animateScrollToItem(index = selectedIndex, scrollOffset = offset)
-        } else {
-            listState.scrollToItem(index = selectedIndex, scrollOffset = offset)
-        }
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.Filled.ChevronLeft, contentDescription = stringResource(R.string.today_prev_day_cd))
-        }
-
-        if (!isToday) {
-            FilledTonalButton(
-                onClick = onToday,
-                modifier = Modifier.height(48.dp),
-                shape = RoundedCornerShape(CCRadius.Surface),
-                contentPadding = PaddingValues(horizontal = 10.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.today_button_today),
-                    style = CCText.S14,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-        }
-
-        LazyRow(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(dateKeys, key = { it }) { dateKey ->
-                DateBarItem(
-                    dateKey = dateKey,
-                    isSelected = dateKey == selectedDateKey,
-                    onClick = { onSelect(dateKey) },
-                )
-            }
-        }
-
-        IconButton(onClick = onNext, enabled = canGoNext) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = stringResource(R.string.today_next_day_cd))
-        }
-    }
-}
-
-/**
- * Día de la tira: abreviatura del día (mayúscula inicial, sin punto) sobre el
- * número, un único formato en todos los anchos. Solo el día seleccionado lleva
- * el acento (selección); sin otros adornos. `Surface` seleccionable nativo.
- */
-@Composable
-private fun DateBarItem(
-    dateKey: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    val localDate = remember(dateKey) { DateFormatting.parseLocalDate(dateKey) }
-    val day = localDate?.dayOfMonth?.toString() ?: "?"
-    val weekday = remember(dateKey, LocaleHolder.current) {
-        localDate?.let {
-            val locale = LocaleHolder.current
-            val short = DateTimeFormatter.ofPattern("EEE", locale)
-                .format(it)
-                .replace(".", "")
-                .take(3)
-            short.replaceFirstChar { c -> c.titlecase(locale) }
-        }.orEmpty()
-    }
-
-    val primary = MaterialTheme.colorScheme.primary
-    val foreground = if (isSelected) primary else MaterialTheme.colorScheme.onSurface
-    val weekdayColor = if (isSelected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val cellLabel = "$weekday $day"
-
-    Surface(
-        selected = isSelected,
-        onClick = onClick,
-        modifier = Modifier
-            .width(48.dp)
-            .height(56.dp)
-            .semantics { contentDescription = cellLabel },
-        shape = RoundedCornerShape(CCRadius.Surface),
-        color = if (isSelected) primary.copy(alpha = 0.15f) else Color.Transparent,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = weekday,
-                style = CCText.S12,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                color = weekdayColor,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = day,
-                style = CCText.S16,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                color = foreground,
-            )
-        }
     }
 }
 
@@ -1110,7 +914,7 @@ private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?) {
     }
 }
 
-/** Nombre de la carrera: pasa a dos líneas si hace falta, nunca se corta. */
+/** Nombre de la carrera en una línea; se recorta con puntos suspensivos. */
 @Composable
 private fun RaceNameRow(name: String, onShowCompetition: (() -> Unit)?, showFemale: Boolean) {
     Row(
@@ -1123,6 +927,8 @@ private fun RaceNameRow(name: String, onShowCompetition: (() -> Unit)?, showFema
             style = CCText.S16,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         if (onShowCompetition != null) {
             RaceCompetitionButton(LocaleHolder.t("Ver competición", "View race"), onShowCompetition)
@@ -1275,50 +1081,5 @@ private fun CenteredText(text: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(text = text, color = MaterialTheme.colorScheme.error)
-    }
-}
-
-@Composable
-private fun EmptyState(
-    nextRaceDate: String? = null,
-    onNextRaceDay: () -> Unit = {},
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.EventBusy,
-            contentDescription = null,
-            modifier = Modifier.size(52.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(R.string.today_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.today_empty_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        )
-        if (nextRaceDate != null) {
-            Spacer(Modifier.height(16.dp))
-            TextButton(onClick = onNextRaceDay) {
-                Text(stringResource(R.string.today_empty_next_race))
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
     }
 }

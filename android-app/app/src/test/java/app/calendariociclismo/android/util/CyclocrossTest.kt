@@ -356,7 +356,7 @@ class CyclocrossTest {
         assertNull(row.bonusSeconds)
         assertEquals(0, row.copy(bonusSeconds = 0).bonusSeconds)
         assertEquals("25:01:01", CyclocrossLogic.duration(row.timeSeconds))
-        assertEquals("—", CyclocrossLogic.duration(null))
+        assertEquals("-", CyclocrossLogic.duration(null))
         assertEquals(row, json.decodeFromString<CxResult>(json.encodeToString(row)))
     }
 
@@ -381,7 +381,7 @@ class CyclocrossTest {
         try { repo.month("2026-27", month); fail("No debe ocultar cancelación con datos cacheados") } catch (_: CancellationException) { }
     }
 
-    @Test fun `CX nunca consulta marzo a julio y la ventana mensual termina en febrero`() = runBlocking {
+    @Test fun `CX nunca consulta marzo a julio y la agenda carga los siete meses de la temporada`() = runBlocking {
         val remote = FakeRemote(race)
         val repo = CyclocrossRepository(MemoryDao(), remote)
         assertEquals(7, CyclocrossLogic.months("2026-27").size)
@@ -392,62 +392,132 @@ class CyclocrossTest {
         assertTrue(remote.monthCalls.isEmpty())
         assertEquals(listOf(YearMonth.of(2027, 2)), CyclocrossLogic.offlineMonths(LocalDate.parse("2027-02-28")))
         assertEquals(listOf(YearMonth.of(2027, 8), YearMonth.of(2027, 9)), CyclocrossLogic.offlineMonths(LocalDate.parse("2027-05-12")))
-        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, LocalDate.parse("2026-09-12"))
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
         state.open("2026-27")
-        assertEquals(listOf(YearMonth.of(2026, 9), YearMonth.of(2027, 1)), remote.monthCalls)
-        assertEquals(listOf(YearMonth.of(2027, 1)), state.visibleMonths)
-        state.selectMonth(YearMonth.of(2027, 2))
-        assertEquals(listOf(YearMonth.of(2027, 2)), state.visibleMonths)
-        val count = remote.monthCalls.size
-        state.selectMonth(YearMonth.of(2027, 3))
-        assertEquals(count, remote.monthCalls.size)
+        assertEquals(CyclocrossLogic.months("2026-27").toSet(), remote.monthCalls.toSet())
+        assertEquals(7, remote.monthCalls.size)
+        assertEquals("2027-01-30", state.dateKey)
     }
 
-    @Test fun `selector mensual carga solo destino conserva fallo y reutiliza meses consultados`() = runBlocking {
-        val remote = FakeRemote(race)
-        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), remote), LocalDate.parse("2026-09-12"))
+    @Test fun `temporada de la agenda diaria va del 1 de agosto al ultimo dia de febrero`() {
+        assertEquals(LocalDate.parse("2026-08-01"), CyclocrossLogic.seasonFirstDay("2026-27"))
+        assertEquals(LocalDate.parse("2027-02-28"), CyclocrossLogic.seasonLastDay("2026-27"))
+        assertEquals(LocalDate.parse("2028-02-29"), CyclocrossLogic.seasonLastDay("2027-28"))
+        assertEquals(LocalDate.parse("2026-10-04"), CyclocrossLogic.agendaDay(LocalDate.parse("2026-10-04")))
+        assertEquals(LocalDate.parse("2027-02-28"), CyclocrossLogic.agendaDay(LocalDate.parse("2027-02-28")))
+        assertEquals(LocalDate.parse("2027-08-01"), CyclocrossLogic.agendaDay(LocalDate.parse("2027-03-01")))
+        assertEquals(LocalDate.parse("2026-08-01"), CyclocrossLogic.agendaDay(LocalDate.parse("2026-07-31")))
+    }
+
+    @Test fun `flechas saltan al dia con carreras o al contiguo y se detienen en los extremos`() {
+        val days = listOf("2026-10-04", "2026-10-11")
+        assertEquals("2026-10-11", CyclocrossLogic.stepDay(days, "2026-10-04", forward = true, season = "2026-27"))
+        assertEquals("2026-10-04", CyclocrossLogic.stepDay(days, "2026-10-11", forward = false, season = "2026-27"))
+        assertEquals("2026-10-12", CyclocrossLogic.stepDay(days, "2026-10-11", forward = true, season = "2026-27"))
+        assertEquals("2026-10-03", CyclocrossLogic.stepDay(days, "2026-10-04", forward = false, season = "2026-27"))
+        assertNull(CyclocrossLogic.stepDay(days, "2026-08-01", forward = false, season = "2026-27"))
+        assertNull(CyclocrossLogic.stepDay(days, "2027-02-28", forward = true, season = "2026-27"))
+        assertEquals("2026-10-04", CyclocrossLogic.openingDay(days, "2026-09-12"))
+        assertEquals("2026-10-11", CyclocrossLogic.openingDay(days, "2026-10-11"))
+        assertEquals("2026-10-12", CyclocrossLogic.openingDay(days, "2026-10-12"))
+    }
+
+    @Test fun `tira de siete dias centra el activo y se desplaza en los extremos de la temporada`() {
+        val first = LocalDate.parse("2026-08-01")
+        val last = LocalDate.parse("2027-02-28")
+        fun strip(day: String) = CyclocrossLogic.dayStrip(LocalDate.parse(day), first, last, 7).map(LocalDate::toString)
+        assertEquals((1..7).map { "2026-10-0$it" }, strip("2026-10-04"))
+        assertEquals((1..7).map { "2026-08-0$it" }, strip("2026-08-01"))
+        assertEquals((1..7).map { "2026-08-0$it" }, strip("2026-08-03"))
+        assertEquals((22..28).map { "2027-02-$it" }, strip("2027-02-28"))
+        assertEquals((22..28).map { "2027-02-$it" }, strip("2027-02-26"))
+        assertEquals(3, CyclocrossLogic.dayStrip(first, first, first.plusDays(2), 7).size)
+    }
+
+    @Test fun `agenda diaria abre y navega con el filtro activo y avanza solo con Todas`() = runBlocking {
+        val belgian = CxRace("cm", "Mundial", slug = "cm", slugEn = "cm", seasonKey = "2026-27", dateKey = "2026-10-04", raceClass = "CM", countryCode = "be")
+        val spanish = CxRace("nac", "Nacional", slug = "nac", slugEn = "nac", seasonKey = "2026-27", dateKey = "2026-10-11", raceClass = "NAC", countryCode = "es")
+        val remote = FakeRemote(race).also { it.rows = listOf(belgian, spanish) }
+        val repo = CyclocrossRepository(MemoryDao(), remote)
+        val spain = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
+        spain.open("2026-27", initialFilter = CxAgendaFilter.SPAIN)
+        assertEquals("2026-10-11", spain.dateKey)
+        spain.navigateTo("2026-07-01")
+        assertEquals("2026-08-01", spain.dateKey)
+        assertFalse(spain.canGoPrevious)
+        assertEquals("2026-10-11", spain.nextRaceDay)
+
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
         state.open("2026-27")
-        state.selectMonth(YearMonth.of(2026, 8))
-        state.selectMonth(YearMonth.of(2027, 2))
-        assertEquals(listOf(YearMonth.of(2026, 9), YearMonth.of(2027, 1), YearMonth.of(2026, 8), YearMonth.of(2027, 2)), remote.monthCalls)
-        assertEquals(listOf(YearMonth.of(2027, 2)), state.visibleMonths)
-        assertEquals("2027-02-01", state.jumpDate)
-        state.selectMonth(YearMonth.of(2026, 9))
-        assertEquals(4, remote.monthCalls.size)
-        assertEquals(listOf(YearMonth.of(2026, 9)), state.visibleMonths)
-        state.selectMonth(YearMonth.of(2027, 3))
-        assertEquals(4, remote.monthCalls.size)
-        remote.failure = IllegalStateException("Fallo de destino")
-        state.selectMonth(YearMonth.of(2026, 10))
-        assertEquals(listOf(YearMonth.of(2026, 9)), state.visibleMonths)
-        assertEquals(YearMonth.of(2026, 9), state.activeMonth)
-        assertNotNull(state.error)
-        remote.failure = null
-        state.retry()
-        assertEquals(listOf(YearMonth.of(2026, 10), YearMonth.of(2026, 10)), remote.monthCalls.takeLast(2))
-        assertEquals(YearMonth.of(2026, 10), state.activeMonth)
+        assertEquals("2026-10-04", state.dateKey)
+        state.navigateToNextDay()
+        assertEquals("2026-10-11", state.dateKey)
+        state.navigateToPreviousDay()
+        assertEquals("2026-10-04", state.dateKey)
+        // Con Todas, el día contiguo vacío avanza al siguiente día con carreras.
+        state.navigateToPreviousDay()
+        assertEquals("2026-10-04", state.dateKey)
+        state.navigateTo("2026-09-20")
+        assertEquals("2026-10-04", state.dateKey)
+        state.selectFilter(CxAgendaFilter.PRO)
+        state.navigateToNextDay()
+        assertEquals("2026-10-05", state.dateKey)
+        assertTrue(state.dayRaces.isEmpty())
+        assertNull(state.nextRaceDay)
+        state.selectFilter(CxAgendaFilter.ALL)
+        assertEquals("2026-10-11", state.dateKey)
+        state.navigateTo("2027-03-15")
+        assertEquals("2027-02-28", state.dateKey)
+        assertFalse(state.canGoNext)
+    }
+
+    @Test fun `recarga descarga la temporada y las rondas y conserva el dia`() = runBlocking {
+        val remote = FakeRemote(race)
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), remote), { LocalDate.parse("2026-09-12") })
+        state.open("2026-27")
+        state.loadRounds()
+        state.navigateTo("2027-01-31")
+        remote.seasonRounds = mapOf(race.id to CxRound(2, 5))
+        state.refresh()
+        assertEquals(14, remote.monthCalls.size)
+        assertEquals(2, remote.roundsCalls)
+        assertEquals(CxRound(2, 5), state.rounds[race.id])
+        assertEquals("2027-01-31", state.dateKey)
         assertNull(state.error)
     }
 
-    @Test fun `recarga conserva un unico mes sin salto y restauracion no busca proxima carrera`() = runBlocking {
+    @Test fun `latido recarga la temporada solo en hoy con mangas pendientes`() = runBlocking {
         val remote = FakeRemote(race)
-        val repo = CyclocrossRepository(MemoryDao(), remote)
-        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, LocalDate.parse("2026-09-12"))
-        state.open("2026-27", YearMonth.of(2026, 10))
-        assertEquals(listOf(YearMonth.of(2026, 10)), remote.monthCalls)
-        assertEquals(listOf(YearMonth.of(2026, 10)), state.visibleMonths)
-        assertNull(state.jumpDate)
-        state.selectMonth(YearMonth.of(2026, 11))
-        state.consumeJump()
-        assertEquals(listOf(YearMonth.of(2026, 11)), state.visibleMonths)
-        state.refresh()
-        assertEquals(listOf(YearMonth.of(2026, 10), YearMonth.of(2026, 11), YearMonth.of(2026, 11)), remote.monthCalls)
-        assertEquals(YearMonth.of(2026, 11), state.activeMonth)
-        assertNull(state.jumpDate)
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), remote), { LocalDate.parse("2027-01-31") })
         state.open("2026-27")
-        state.selectMonth(YearMonth.of(2026, 11))
-        assertEquals(3, remote.monthCalls.size)
-        assertNull(state.jumpDate)
+        val at = Instant.parse("2027-01-31T10:00:00Z")
+        assertTrue(state.hasPendingToday(at))
+        state.refreshSilently(at)
+        assertEquals(14, remote.monthCalls.size)
+        remote.rows = listOf(race.copy(categories = race.categories.map { it.copy(resultsStatus = "official") }))
+        state.refreshSilently(at)
+        assertEquals(21, remote.monthCalls.size)
+        assertFalse(state.hasPendingToday(at))
+        state.refreshSilently(at)
+        assertEquals(21, remote.monthCalls.size)
+        remote.rows = listOf(race)
+        state.refresh()
+        state.navigateTo("2027-01-30")
+        assertFalse(state.hasPendingToday(at))
+    }
+
+    @Test fun `medianoche avanza al nuevo dia solo si se mostraba hoy`() = runBlocking {
+        var today = LocalDate.parse("2027-01-30")
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), FakeRemote(race)), { today })
+        state.open("2026-27")
+        assertEquals("2027-01-30", state.dateKey)
+        today = LocalDate.parse("2027-01-31")
+        state.advanceIfNewLocalDay()
+        assertEquals("2027-01-31", state.dateKey)
+        state.navigateTo("2027-01-30")
+        today = LocalDate.parse("2027-02-01")
+        state.advanceIfNewLocalDay()
+        assertEquals("2027-01-30", state.dateKey)
     }
 
     @Test fun `agenda de torneo filtra la cache compartida y recupera la proxima fecha offline`() = runBlocking {
@@ -455,7 +525,7 @@ class CyclocrossTest {
         val remote = FakeRemote(race).also { it.rows = listOf(race, own) }
         val dao = MemoryDao()
         val repo = CyclocrossRepository(dao, remote)
-        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, LocalDate.parse("2027-01-29"), tournamentId = "t")
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2027-01-29") }, tournamentId = "t")
         state.open("2026-27")
         assertEquals(2, dao.months["2026-27:2027-01"]?.let { json.decodeFromString<List<CxRace>>(it.payload).size })
         remote.failure = IllegalStateException("sin conexión")
@@ -465,8 +535,7 @@ class CyclocrossTest {
         assertEquals("2027-01-30", jump)
         state.refresh()
         assertEquals(jump, state.jumpDate)
-        assertEquals(CyclocrossLogic.months("2026-27"), state.visibleMonths)
-        assertNull(state.activeMonth)
+        assertEquals(CyclocrossLogic.months("2026-27").toSet(), state.cache.keys)
     }
 
     private class FakeRemote(private val race: CxRace) : CxRemote {

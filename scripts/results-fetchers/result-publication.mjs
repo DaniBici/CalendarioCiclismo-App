@@ -4,7 +4,9 @@ export const LIVE_RESULT_SOURCES = Object.freeze([
 ]);
 // Fuentes post-meta cuya clasificación se completa a medida que llegan corredores:
 // se releen dentro de la ventana aunque ya publiquen ganador.
-export const COVERED_STAGE_REFRESH_SOURCES = Object.freeze([...LIVE_RESULT_SOURCES, 'domtel', 'mikatiming', 'ficr', 'lapclip']);
+// El Tour de Kyushu publica primero la llegada provisional de LAPCLIP y después
+// el comunicado oficial: se relee hasta que este aparece.
+export const COVERED_STAGE_REFRESH_SOURCES = Object.freeze([...LIVE_RESULT_SOURCES, 'domtel', 'mikatiming', 'ficr', 'lapclip', 'kyushu']);
 // Fuentes de volcado manual: el cron no las selecciona nunca y su upsert del
 // enlace no debe sobrescribir un enlace automático existente.
 export const MANUAL_RESULT_SOURCES = Object.freeze(['pdf', 'sportstiming']);

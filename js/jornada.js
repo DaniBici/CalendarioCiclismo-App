@@ -8,8 +8,10 @@ import { supabase, broadcastRegionBadgeLabel, formatTime, formatTimeUser, getUse
          resolveTypeBadges, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
          raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
-         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots, setHreflangPair }
+         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots, setHreflangPair,
+         embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
+import { isNearToday } from './services/refresh-window.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
@@ -60,7 +62,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const name   = raceName(race) || t('stage.unknownRace') || 'Carrera desconocida';
   const stage  = stageLabel(rd.stageNumber, rd._stageSuffix);
 
-  document.title = `${name}${stage ? ' – ' + stage : ''} — ${t('seo.siteName')}`;
+  document.title = `${name}${stage ? ' – ' + stage : ''} - ${t('seo.siteName')}`;
   updateSeoJornada(rd, race);
 
   // Enlace "volver": sessionStorage tiene prioridad sobre parámetros URL
@@ -161,7 +163,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
       } else {
         recorridoHtml = `<div class="route-block__place">${rdLocation(rd, 'startLocation')}</div>
           ${arrowSvg}
-          <div class="route-block__place">${rdLocation(rd, 'finishLocation') || '—'}</div>`;
+          <div class="route-block__place">${rdLocation(rd, 'finishLocation') || '-'}</div>`;
       }
     } else {
       recorridoHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`;
@@ -173,7 +175,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
       : null;
     const kmHtml = kmFormatted
       ? `<div class="route-block__km">${kmFormatted}${_isEn ? 'km' : ' km'}</div>`
-      : `<div class="route-block__km route-block__km--empty">—</div>`;
+      : `<div class="route-block__km route-block__km--empty">-</div>`;
     const _elevGain = rd.elevationProfile?.elevationGain;
     const elevHtml = _elevGain != null
       ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEn ? ',' : '.')} m</div>`
@@ -301,7 +303,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
         return `<div class="tv-entry${hidden ? ' tv-entry--regional-hidden' : ''}"${hidden ? ' style="display:none"' : ''}>
           <div class="tv-entry__info">
             <div class="tv-entry__platform-row">
-              <div class="tv-entry__platform">${b.channel || '—'}</div>
+              <div class="tv-entry__platform">${b.channel || '-'}</div>
               ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<button type="button" class="tv-entry__note-btn" data-tooltip="${esc(b.note)}" aria-label="${esc(b.note)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>` : ''}
               ${regionLabel ? `<span class="badge badge--uci tv-region-badge">${regionLabel}</span>` : ''}
             </div>
@@ -478,20 +480,20 @@ function updateSeoJornada(rd, race) {
   let title;
   if (_seoIsEn) {
     if (isOneDay) {
-      title = `${raceNameStr}${raceYear ? ' ' + raceYear : ''} — ${t('seo.siteName')}`;
+      title = `${raceNameStr}${raceYear ? ' ' + raceYear : ''} - ${t('seo.siteName')}`;
     } else {
       const stageLabelStr = stageNum !== null && stageNum !== undefined ? stageLabel(stageNum, rd._stageSuffix) : '';
       const route = sameOrOne ? startLoc : `${startLoc} › ${finishLoc}`;
-      title = `${raceNameStr}, ${stageLabelStr}: ${route} — ${t('seo.siteName')}`;
+      title = `${raceNameStr}, ${stageLabelStr}: ${route} - ${t('seo.siteName')}`;
     }
   } else if (isOneDay) {
-    title = `${raceNameStr}${raceYear ? ' ' + raceYear : ''} — ${t('seo.siteName')}`;
+    title = `${raceNameStr}${raceYear ? ' ' + raceYear : ''} - ${t('seo.siteName')}`;
   } else {
     const stageLabelStr = stageNum !== null && stageNum !== undefined ? stageLabel(stageNum, rd._stageSuffix) : '';
     const route = sameOrOne
       ? startLoc
       : `${startLoc} › ${finishLoc}`;
-    title = `${raceNameStr}, ${stageLabelStr}: ${route} — ${t('seo.siteName')}`;
+    title = `${raceNameStr}, ${stageLabelStr}: ${route} - ${t('seo.siteName')}`;
   }
 
   // ── DESCRIPCIÓN ──
@@ -559,7 +561,7 @@ function updateSeoJornada(rd, race) {
   // og:image: imagen OG compuesta con logo de la carrera
   const DEFAULT_OG_IMAGE = 'https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png';
   const OG_WORKER = 'https://og.calendariociclismo.app';
-  const ogTitle = title.replace(` — ${t('seo.siteName')}`, '');
+  const ogTitle = title.replace(` - ${t('seo.siteName')}`, '');
   const ogImage = (race.logoUrl && race.logoUrl.startsWith('https://assets.calendariociclismo.app/'))
     ? `${OG_WORKER}/?logo=${encodeURIComponent(race.logoUrl)}&title=${encodeURIComponent(ogTitle)}`
     : DEFAULT_OG_IMAGE;
@@ -608,7 +610,7 @@ function updateSeoJornada(rd, race) {
   const jsonLd = raceNameStr && rd.dateKey && locationName && locationCountry ? {
     '@context': 'https://schema.org',
     '@type': 'SportsEvent',
-    'name': title.replace(` — ${t('seo.siteName')}`, ''),
+    'name': title.replace(` - ${t('seo.siteName')}`, ''),
     'url': canonicalUrl,
     'description': description,
     'sport': 'Ciclismo en ruta',
@@ -1000,9 +1002,30 @@ window.closeReportModal = function() {
   document.body.style.overflow = '';
 };
 
+// Columnas de las jornadas hermanas: navegación entre etapas
+// (buildStageNav), dobles sectores y resultados de la etapa anterior.
+const SIBLING_COLUMNS = 'id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay,neutralStartTimeUtc,startLocation,startLocationEn,finishLocation,finishLocationEn,slug,slugEn';
+// La jornada lleva la carrera embebida: un viaje menos antes de pintar.
+const DAY_WITH_RACE = '*,race:races(*)';
+
+function splitDayRace(row) {
+  if (!row) return { rd: null, race: null };
+  const { race, ...rd } = row;
+  return { rd, race };
+}
+
+function showNotFound() {
+  document.getElementById('jornadaContent').innerHTML = `
+      <div class="empty-state" style="padding:4rem 1.5rem">
+        <div class="empty-state__icon">⚠️</div>
+        <div class="empty-state__title">Jornada no encontrada</div>
+      </div>`;
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
-  await initI18n();
+  // El diccionario EN se carga a la vez que los datos; se espera antes de pintar.
+  const i18nReady = initI18n();
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
   const params = new URLSearchParams(window.location.search);
   let id = params.get('id');
@@ -1014,37 +1037,63 @@ async function init() {
     const pathMatch = location.pathname.match(/^\/(jornada|en\/stage|stage)\/([^\/]+)\/?$/);
     if (pathMatch) slug = decodeURIComponent(pathMatch[2]);
   }
+  // Página pre-renderizada: el build incrusta los ids y evita resolver el
+  // slug; con ellos, las lecturas dependientes salen a la vez que la jornada.
+  const pageRaceId = !id && !params.get('slug') ? embeddedId('race-id') : null;
+  if (!id && !params.get('slug')) id = embeddedId('race-day-id');
 
-  // Buscar id por slug — en EN intentamos primero por slugEn, luego por slug (compatibilidad)
-  if (!id && slug) {
-    try {
-      if (_initIsEn) {
-        const { data: d1 } = await supabase.from('race_days').select('id').eq('slugEn', slug).limit(1);
-        if (d1 && d1.length) { id = d1[0].id; }
-        else {
-          const { data: d2 } = await supabase.from('race_days').select('id').eq('slug', slug).limit(1);
-          if (d2 && d2.length) id = d2[0].id;
-        }
-      } else {
-        const { data } = await supabase.from('race_days').select('id').eq('slug', slug).limit(1);
-        if (data && data.length) id = data[0].id;
-      }
-    } catch (_) { /* si falla la búsqueda, mostrará el error de abajo */ }
-  }
-
-  if (!id) {
-    document.getElementById('jornadaContent').innerHTML = `
-      <div class="empty-state" style="padding:4rem 1.5rem">
-        <div class="empty-state__icon">⚠️</div>
-        <div class="empty-state__title">Jornada no encontrada</div>
-      </div>`;
+  if (!id && !slug) {
+    await i18nReady;
+    showNotFound();
     return;
   }
 
+  // Lecturas que dependen solo de la jornada o de la carrera. Las hermanas
+  // solo en carreras por etapas (en un día no hay navegación entre etapas);
+  // con el id incrustado se piden siempre y se descartan si no hacen falta.
+  const dayRequests = dayId => [
+    supabase.from('broadcasts').select('*').eq('raceDayId', dayId).order('sortOrder', { ascending: true }),
+    supabase.from('assets').select('*').eq('raceDayId', dayId),
+  ];
+  const raceRequests = (raceId, withSiblings = true) => [
+    // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
+    // propias (race_uci_stages.keepForWeb). Una sola consulta por carrera.
+    raceId
+      ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', raceId).eq('keepForWeb', true).gt('rowCount', 0)
+      : Promise.resolve(null),
+    raceId ? loadRaceTechnicalGuide(raceId) : Promise.resolve(null),
+    raceId && withSiblings
+      ? supabase.from('race_days').select(SIBLING_COLUMNS).eq('raceId', raceId).eq('editorialStatus', 'published')
+      : Promise.resolve(null),
+  ];
+  // Las consultas de supabase-js solo se envían al resolverlas: Promise.resolve
+  // las lanza ya.
+  const earlyDay = id ? dayRequests(id).map(request => Promise.resolve(request)) : null;
+  const earlyRace = pageRaceId ? raceRequests(pageRaceId).map(request => Promise.resolve(request)) : null;
+
   try {
-    const { data: rdData, error: rdErr } = await supabase.from('race_days').select('*').eq('id', id).single();
-    if (rdErr || !rdData) throw new Error('No existe');
-    const rd = rdData;
+    // Jornada por id; si no existe (o solo hay slug), por slug en una sola
+    // consulta: en EN se prefiere slugEn y se admite slug por compatibilidad.
+    let row = null;
+    if (id) {
+      const { data } = await supabase.from('race_days').select(DAY_WITH_RACE).eq('id', id).maybeSingle();
+      row = data;
+    }
+    if (!row && slug) {
+      const columns = _initIsEn ? ['slugEn', 'slug'] : ['slug'];
+      const { data } = await supabase.from('race_days').select(DAY_WITH_RACE).or(orEqFilter(columns, slug)).limit(4);
+      row = pickByPreference(data, columns, slug);
+      if (!row) {
+        await i18nReady;
+        showNotFound();
+        return;
+      }
+    }
+    const { rd, race: raceRow } = splitDayRace(row);
+    if (!rd) throw new Error('No existe');
+    const sameDay = rd.id === id;
+    id = rd.id;
+    const race = raceRow || {};
 
     // Actualizar URL al path limpio correcto según idioma
     if (_initIsEn && (rd.slugEn || rd.slug)) {
@@ -1055,29 +1104,15 @@ async function init() {
       history.replaceState(null, '', `/jornada/${encodeURIComponent(rd.slug)}/`);
     }
 
-    // Carrera + broadcasts + assets + resultados in-house: todo depende SOLO de
-    // la jornada (rd) ya cargada → un único round-trip (antes la carrera iba
-    // antes y bloqueaba a los demás). Las etapas hermanas (siblings) necesitan
-    // el formato de la carrera → van después y SOLO en carreras por etapas
-    // (en un día no hay navegación entre etapas, así que ahí nos ahorramos el RT).
-    const [raceResult, bcastResult, assetsResult, uciResult] = await Promise.all([
-      rd.raceId
-        ? supabase.from('races').select('*').eq('id', rd.raceId).single()
-        : Promise.resolve({ data: null }),
-      supabase.from('broadcasts').select('*').eq('raceDayId', id).order('sortOrder', { ascending: true }),
-      supabase.from('assets').select('*').eq('raceDayId', id),
-      // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
-      // propias (race_uci_stages.keepForWeb). Una sola consulta por carrera.
-      rd.raceId
-        ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', rd.raceId).eq('keepForWeb', true).gt('rowCount', 0)
-        : Promise.resolve(null),
+    // Broadcasts, assets, resultados in-house, guía técnica y etapas hermanas:
+    // las que no salieron ya con los ids incrustados, en un único round-trip.
+    const isStageRace = race.raceFormat !== 'one_day';
+    const [bcastResult, assetsResult, uciResult, technicalGuide, siblingsAll] = await Promise.all([
+      ...(sameDay && earlyDay ? earlyDay : dayRequests(id)),
+      ...(earlyRace && rd.raceId === pageRaceId ? earlyRace : raceRequests(rd.raceId, isStageRace)),
+      i18nReady,
     ]);
-    const race = raceResult.data || {};
-
-    // Etapas hermanas (para navegar entre ellas) — solo en carreras por etapas.
-    const siblingsResult = (rd.raceId && race.raceFormat !== 'one_day')
-      ? await supabase.from('race_days').select('*').eq('raceId', rd.raceId).eq('editorialStatus', 'published')
-      : null;
+    const siblingsResult = isStageRace ? siblingsAll : null;
 
     const allBroadcasts = bcastResult.data || [];
     const broadcasts = filterBroadcastsByRegion(allBroadcasts);
@@ -1086,7 +1121,6 @@ async function init() {
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     const hasStartlist = !!race.startlistImportedAt;
-    const technicalGuide = race.id ? await loadRaceTechnicalGuide(race.id) : null;
 
     // Ordenar etapas hermanas
     let siblings = [];
@@ -1110,31 +1144,40 @@ async function init() {
     render(rd, race, broadcasts, withRaceTechnicalGuide(assets, technicalGuide), siblings, hasStartlist, allBroadcasts, inhouseStages);
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
     setupIcalModal(rd, race);
+    // Sondeo de estado solo alrededor de la fecha de la jornada: una lectura
+    // ligera de las columnas que cambian el pintado; la jornada completa se
+    // vuelve a pedir únicamente si cambian.
+    const STATE_COLUMNS = 'raceStatus,isCancelledDay,isRestDay';
     const stateKey=(day,results)=>JSON.stringify([day.raceStatus,day.isCancelledDay,day.isRestDay,results.map(row=>[row.raceDayId,row.stageNumber]).sort()]);
     let previous=stateKey(rd,uciResult?.data || []), refreshing=false;
     const refreshState=async()=> {
       const content=document.getElementById('jornadaContent');
       if(document.hidden || refreshing || !content?.isConnected || document.querySelector('.tv-embed-block,.rd-modal--open,.report-modal--open')) return;
+      if(!isNearToday(rd.dateKey)) return;
       refreshing=true;
       try {
-        const [nextDay,nextResults]=await Promise.all([
-          supabase.from('race_days').select('*').eq('id',id).single(),
-          supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId',rd.raceId).eq('keepForWeb',true).gt('rowCount',0),
+        const [nextState,nextResults]=await Promise.all([
+          supabase.from('race_days').select(STATE_COLUMNS).eq('id',id).single(),
+          rd.raceId
+            ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId',rd.raceId).eq('keepForWeb',true).gt('rowCount',0)
+            : Promise.resolve({ data: [] }),
         ]);
-        if(nextDay.error || nextResults.error) return;
-        const nextKey=stateKey(nextDay.data,nextResults.data || []);
+        if(nextState.error || nextResults.error) return;
+        const nextKey=stateKey(nextState.data,nextResults.data || []);
         if(previous===nextKey) return;
+        const nextDay=await supabase.from('race_days').select('*').eq('id',id).single();
+        if(nextDay.error) return;
         const all=content.querySelector('[data-tv-filter]')?.dataset.tvFilter==='all';
         const focusHref=document.activeElement?.closest('a')?.getAttribute('href');
         const updated={...nextDay.data,_stageSuffix:rd._stageSuffix};
         render(updated,race,broadcasts,withRaceTechnicalGuide(assets,technicalGuide),siblings,hasStartlist,allBroadcasts,buildInhouseResultsMatcher(nextResults.data || []));
         if(all) content.querySelector('[data-tv-filter=mine]')?.click();
         if(focusHref) [...content.querySelectorAll('a')].find(a=>a.getAttribute('href')===focusHref)?.focus({preventScroll:true});
-        previous=nextKey;
+        previous=stateKey(nextDay.data,nextResults.data || []);
       } catch { /* Conservar la jornada visible hasta la siguiente lectura válida. */ }
       finally { refreshing=false; }
     };
-    const stateTimer=setInterval(refreshState,60000);
+    const stateTimer=isNearToday(rd.dateKey) ? setInterval(refreshState,60000) : null;
     document.addEventListener('visibilitychange',refreshState);
     window.addEventListener('pagehide',()=> {clearInterval(stateTimer);document.removeEventListener('visibilitychange',refreshState);document.querySelector('[data-integrated-profile]')?._profileCleanup?.();},{once:true});
 
@@ -1226,7 +1269,7 @@ function setupIcalModal(rd, race) {
       const stageLabel = sn === 0 ? t('stage.prologue') : sn != null ? (t('stage.stage') + ' ' + sn) : '';
       const raceName = _icalIsEn ? (race.nameEn || race.name || '') : (race.name || '');
       const eventLabel = stageLabel
-        ? (raceName + ' — ' + stageLabel)
+        ? (raceName + ' - ' + stageLabel)
         : (raceName || t('ical.thisStageDefault'));
 
       const FEEDS = [

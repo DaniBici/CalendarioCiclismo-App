@@ -122,7 +122,6 @@ data class CxRace(
     val id: String,
     val name: String,
     val nameEn: String? = null,
-    val abbrev: String? = null,
     val slug: String,
     val slugEn: String? = null,
     val seasonKey: String,

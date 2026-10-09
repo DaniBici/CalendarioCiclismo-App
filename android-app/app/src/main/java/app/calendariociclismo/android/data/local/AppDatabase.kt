@@ -27,7 +27,7 @@ import app.calendariociclismo.android.data.local.dao.CxCacheDao
         CxMonthCacheEntity::class,
         CxDetailCacheEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Se retira la abreviatura de la carrera (abbrev). Misma recreación
+                // que en 17→18.
+                db.execSQL("CREATE TABLE IF NOT EXISTS `races_new` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `nameEn` TEXT, `uciCategory` TEXT, `gender` TEXT, `raceFormat` TEXT, `countryCode` TEXT, `colorHex` TEXT, `logoUrl` TEXT, `websiteUrl` TEXT, `hideFlag` INTEGER NOT NULL, `isGrandTour` INTEGER NOT NULL, `isNoClickable` INTEGER NOT NULL, `isCancelled` INTEGER NOT NULL, `startDate` TEXT, `endDate` TEXT, `year` INTEGER, `slug` TEXT, `originalName` TEXT, `startlistImportedAt` TEXT, `startlistProvisional` INTEGER NOT NULL, `createdAt` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("INSERT INTO `races_new` SELECT `id`,`name`,`nameEn`,`uciCategory`,`gender`,`raceFormat`,`countryCode`,`colorHex`,`logoUrl`,`websiteUrl`,`hideFlag`,`isGrandTour`,`isNoClickable`,`isCancelled`,`startDate`,`endDate`,`year`,`slug`,`originalName`,`startlistImportedAt`,`startlistProvisional`,`createdAt`,`cachedAt` FROM `races`")
+                db.execSQL("DROP TABLE `races`")
+                db.execSQL("ALTER TABLE `races_new` RENAME TO `races`")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -85,7 +96,7 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DB_NAME,
             )
-            .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+            .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
             .fallbackToDestructiveMigration()
             .build()
 

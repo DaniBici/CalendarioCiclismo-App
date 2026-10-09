@@ -202,7 +202,7 @@ private fun CxStandingRider(vm: UciResultsLogic.ResultRowVM, modifier: Modifier)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode, height = 13.dp)
-            Text(vm.riderName.ifEmpty { "—" }, style = CCText.S14, fontWeight = FontWeight.SemiBold,
+            Text(vm.riderName.ifEmpty { "-" }, style = CCText.S14, fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (vm.teamName.isNotEmpty()) {

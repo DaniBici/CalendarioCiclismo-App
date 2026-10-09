@@ -47,7 +47,7 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
     cx_startlist_riders:startlist?['ME','WE'].map(category=>({category,firstName:'Nombre',lastName:category,bib:1,sortOrder:0})):[],
     cx_broadcasts:broadcasts??[{channel:'TV CX',url:'https://tv.example/live',country:'ALL'}],
     cx_videos:Array.isArray(videos)?videos:videos?[{title:'Resumen CX',url:'https://www.youtube.com/watch?v=abcdefghijk'}]:[],
-    cx_standings_state:states,cx_tournament_standings:standings,cx_races:[],assets};
+    cx_standings_state:states,cx_tournament_standings:standings,cx_races:[],cx_teams:[],assets};
   const cxAllRows=vi.fn(async(_client,table)=>data[table]);
   const supabase={from:table=>{
     const query={table,select:()=>query,eq:()=>query,maybeSingle:()=>query};return query;
@@ -130,11 +130,11 @@ describe('jornada CX integrada',()=>{
   it('genera la descripción editorial con fecha, clase, ubicación y torneo, sin inventar campos ausentes',()=>{
     const label=()=> 'domingo, 1 de noviembre de 2026';
     expect(cxRaceSeo(race,'race',label)).toEqual({
-      title:'Carrera CX — Calendario Ciclismo App',
+      title:'Carrera CX - Calendario Ciclismo App',
       description:'Carrera CX (domingo 1 de noviembre de 2026) es una prueba de ciclocross de categoría UCI C1 en Ostende (Bélgica). Pertenece a Circuito CX 2026-27. Consulta el programa, los dorsales y resultados, cómo ver la carrera por TV y online streaming y vídeos de las carreras.'
     });
     const national=cxRaceSeo({...race,class:'NAC',venue:null,countryCode:null,cx_tournaments:null},'startlist',label);
-    expect(national.title).toBe('Dorsales · Carrera CX — Calendario Ciclismo App');
+    expect(national.title).toBe('Dorsales · Carrera CX - Calendario Ciclismo App');
     expect(national.description).toContain('de categoría nacional. Consulta');
     expect(national.description).not.toMatch(/null|undefined|Pertenece|UCI NAC/);
   });
@@ -142,11 +142,11 @@ describe('jornada CX integrada',()=>{
   it('genera en inglés el SEO de la página EN, en paridad con el generador',()=>{
     const label=(date,lang)=>lang==='en'?'Sunday, 1 November 2026':'domingo, 1 de noviembre de 2026';
     expect(cxRaceSeo({...race,nameEn:'CX Race'},'results',label,'en')).toEqual({
-      title:'Results · CX Race — Calendario Ciclismo App',
+      title:'Results · CX Race - Calendario Ciclismo App',
       description:'CX Race (Sunday 1 November 2026) is a UCI C1 cyclocross race in Ostende (Belgium). It is part of the Circuito CX 2026-27. See the programme, startlist and results, how to watch the race on TV and online streaming, and race videos.'
     });
     const national=cxRaceSeo({...race,class:'NAC',venue:null,countryCode:null,cx_tournaments:null},'startlist',label,'en');
-    expect(national.title).toBe('Startlist · CX Race — Calendario Ciclismo App');
+    expect(national.title).toBe('Startlist · CX Race - Calendario Ciclismo App');
     expect(national.description).toContain('is a national cyclocross race. See');
   });
 
@@ -158,7 +158,7 @@ describe('jornada CX integrada',()=>{
 
   it('no añade un segundo año al nombre ni una segunda temporada al torneo',()=>{
     const seo=cxRaceSeo({...race,name:'Carrera CX 2026',cx_tournaments:{name:'Circuito CX 2026-27'}},'race',date=>date);
-    expect(seo.title).toBe('Carrera CX 2026 — Calendario Ciclismo App');
+    expect(seo.title).toBe('Carrera CX 2026 - Calendario Ciclismo App');
     expect(seo.description.match(/2026-27/g)).toHaveLength(1);
   });
 

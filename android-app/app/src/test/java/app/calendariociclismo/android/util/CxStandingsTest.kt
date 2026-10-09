@@ -31,7 +31,7 @@ class CxStandingsTest {
         assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vm[1].valueKind)
         assertEquals("m.t.", vm[1].valueText)
         assertEquals("+1'45\"", vm[2].valueText)
-        assertEquals("—", vm[3].valueText)
+        assertEquals("-", vm[3].valueText)
         assertEquals("s.t.", CxPresentation.standingRows(rows, "time", Locale.UK, matcher)[1].valueText)
         assertEquals(UciResultsLogic.ValueKind.POINTS, CxPresentation.standingRows(rows, "points", Locale.UK, matcher)[0].valueKind)
     }

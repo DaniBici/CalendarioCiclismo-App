@@ -141,6 +141,14 @@ describe('plan diario sin cambios públicos durante la simulación', () => {
     expect(plan.actions[0].operations).toEqual([{ kind: 'move', teamProfile: '1' }]);
     expect(plan.day).toBe('2026-09-04');
   });
+  it('no abre revisión de equipo por espacios o mayúsculas distintos en el nombre', () => {
+    const { snapshot, context } = moving();
+    context.links[0].sourceName = context.links[0].sourceName.toLowerCase();
+    snapshot.teams['1'].name = ` ${snapshot.teams['1'].name.replace(' ', '   ')}  `;
+    const plan = buildPlan(snapshot, context, NOW);
+    expect(plan.cases.map(c => c.reason)).not.toContain('team_catalog_review');
+    expect(plan.actions).toHaveLength(1);
+  });
   it.each([
     ['primera captura', 'awaiting_stability', c => { c.previous = null; }],
     ['capturas demasiado próximas', 'awaiting_stability', c => { c.previous.observedAt = c.observedAt; }],
@@ -158,6 +166,19 @@ describe('plan diario sin cambios públicos durante la simulación', () => {
     const { snapshot, context } = moving(); mutate(context);
     const plan = buildPlan(snapshot, context, NOW);
     expect(plan.actions).toEqual([]); expect(plan.cases.map(c => c.reason)).toContain(reason);
+  });
+  it('acepta un nombre contenido en el otro o un alias exacto sin aceptar otro nombre', () => {
+    const { snapshot, context } = setup();
+    const review = edit => {
+      const c = structuredClone(context); edit(c.riders[0]);
+      return buildPlan(snapshot, c, NOW).cases.some(row => row.reason === 'biography_review');
+    };
+    expect(review(r => { r.lastName = 'Ciclista 1 Segundo'; })).toBe(false);
+    expect(review(r => { r.firstName = 'Ciclista'; r.lastName = '1'; })).toBe(false);
+    expect(review(r => { r.firstName = 'Anita'; r.otherNames = 'Anita Ciclista,\nAna Ciclista 1'; })).toBe(false);
+    expect(review(r => { r.firstName = 'Anita'; })).toBe(true);
+    expect(review(r => { r.firstName = 'Ana'; r.lastName = 'Otra'; })).toBe(true);
+    expect(review(r => { r.firstName = 'Ana'; r.lastName = ''; })).toBe(true);
   });
   it('no decide entre dos plantillas ni a partir de una ausencia', () => {
     const { snapshot, context } = moving(); snapshot.records['100'].regular.push('2');

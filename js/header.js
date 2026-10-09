@@ -22,6 +22,7 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
+import { cyclocrossHome } from './services/today-season.js';
 
 const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
@@ -52,7 +53,7 @@ const STRINGS = {
   es: {
     home: '/',
     backLabel: 'Volver al calendario',
-    logoAria: 'Calendario Ciclismo — Inicio',
+    logoAria: 'Calendario Ciclismo - Inicio',
     aboutHref: '/about/', aboutText: 'Acerca de mí',
     openHref: '/abierto/', openText: 'Datos abiertos',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
@@ -69,7 +70,7 @@ const STRINGS = {
   en: {
     home: '/en/',
     backLabel: 'Back to calendar',
-    logoAria: 'Calendario Ciclismo — Home',
+    logoAria: 'Calendario Ciclismo - Home',
     aboutHref: '/en/about/', aboutText: 'About me',
     openHref: '/en/open/', openText: 'Open Data',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
@@ -90,6 +91,11 @@ function detectLang() {
   return (p.startsWith('/en/') || p === '/en') ? 'en' : 'es';
 }
 
+// Tras el cierre de la temporada de carretera la home es Ciclocross
+// (services/today-season.js): el menú lo sitúa primero y oculta Hoy.
+const _now = new Date();
+const CX_HOME = cyclocrossHome(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
+
 function detectActive() {
   const p = window.location.pathname;
   if (p.startsWith('/ciclocross') || p.startsWith('/en/cyclocross')) return 'cyclocross';
@@ -101,7 +107,11 @@ function detectActive() {
   // El feed y las páginas de carrera de resultados comparten sección.
   if (p.startsWith('/resultados') || p.startsWith('/en/results')) return 'results';
   if (p.startsWith('/fichajes') || p.startsWith('/en/transfers')) return 'transfers';
-  if (p === '/' || p === '/index.html' || p === '/en/' || p === '/en' || p === '/en/index.html') return 'today';
+  if (p === '/' || p === '/index.html' || p === '/en/' || p === '/en' || p === '/en/index.html') {
+    // `?date=` abre Hoy de carretera, también con la home cedida a Ciclocross.
+    if (!CX_HOME) return 'today';
+    return new URLSearchParams(window.location.search).has('date') ? null : 'cyclocross';
+  }
   return null;
 }
 
@@ -163,10 +173,13 @@ function buildHeader(el) {
       '</div>' +
     '</div>';
 
-  // Cinco destinos fijos: en escritorio comparten fila con la marca y las
-  // acciones; en móvil forman la barra inferior, sin desplazamiento.
-  // «Acerca de mí» y «Datos abiertos» viven en el pie (buildFooterNav).
-  const primaryItems = ['today', 'results', 'transfers', 'cyclocross', 'calendar'];
+  // Cinco destinos fijos (cuatro con la home cedida a Ciclocross): en
+  // escritorio comparten fila con la marca y las acciones; en móvil forman la
+  // barra inferior, sin desplazamiento. «Acerca de mí» y «Datos abiertos»
+  // viven en el pie (buildFooterNav).
+  const primaryItems = CX_HOME
+    ? ['cyclocross', 'results', 'transfers', 'calendar']
+    : ['today', 'results', 'transfers', 'cyclocross', 'calendar'];
   const primaryNav = `<nav class="primary-nav" aria-label="${s.viewsAria}"><div class="primary-nav__inner">` +
     primaryItems.map(key => {
       const item = s[key];

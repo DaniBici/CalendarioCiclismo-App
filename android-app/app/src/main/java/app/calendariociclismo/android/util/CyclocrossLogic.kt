@@ -74,6 +74,66 @@ object CyclocrossLogic {
         return dates.filter { it.take(7) in allowed }
     }
 
+    // MARK: - Agenda diaria (vista Hoy de ciclocross)
+
+    /** Primer día de la temporada CX: 1 de agosto. */
+    fun seasonFirstDay(season: String): LocalDate = months(season).first().atDay(1)
+
+    /** Último día de la temporada CX: último día de febrero. */
+    fun seasonLastDay(season: String): LocalDate = months(season).last().atEndOfMonth()
+
+    /** Día «hoy» de la agenda: la fecha local acotada a su temporada; de marzo
+     *  a julio, el 1 de agosto de la temporada siguiente. */
+    fun agendaDay(date: LocalDate): LocalDate {
+        val season = season(date)
+        val first = seasonFirstDay(season)
+        val last = seasonLastDay(season)
+        return if (date < first) first else if (date > last) last else date
+    }
+
+    /** Días con carreras de [races], ordenados y sin repetir. */
+    fun raceDays(races: List<CxRace>): List<String> = races.flatMap(::dates).distinct().sorted()
+
+    /** Primer día de [days] posterior a [after]. */
+    fun nextRaceDay(days: List<String>, after: String): String? = days.firstOrNull { it > after }
+
+    /** Último día de [days] anterior a [before]. */
+    fun previousRaceDay(days: List<String>, before: String): String? = days.lastOrNull { it < before }
+
+    /** Día de apertura: [today] si tiene carreras; si no, el siguiente día con
+     *  carreras; sin ninguno, [today]. */
+    fun openingDay(days: List<String>, today: String): String =
+        if (today in days) today else nextRaceDay(days, today) ?: today
+
+    /**
+     * Destino de las flechas y del deslizamiento: el día con carreras más
+     * próximo en ese sentido o, si no lo hay, el día contiguo. `null` en el
+     * primer (hacia atrás) o el último (hacia delante) día de la temporada.
+     */
+    fun stepDay(days: List<String>, current: String, forward: Boolean, season: String): String? {
+        val first = seasonFirstDay(season).toString()
+        val last = seasonLastDay(season).toString()
+        val date = runCatching { LocalDate.parse(current) }.getOrNull() ?: return null
+        return if (forward) {
+            if (current >= last) null
+            else nextRaceDay(days, current)?.takeIf { it <= last } ?: date.plusDays(1).toString()
+        } else {
+            if (current <= first) null
+            else previousRaceDay(days, current)?.takeIf { it >= first } ?: date.minusDays(1).toString()
+        }
+    }
+
+    /** Tira de [size] días centrada en [selected] y desplazada en los extremos
+     *  para no salir del intervalo [first]–[last]. */
+    fun dayStrip(selected: LocalDate, first: LocalDate, last: LocalDate, size: Int): List<LocalDate> {
+        val count = minOf(size.toLong(), java.time.temporal.ChronoUnit.DAYS.between(first, last) + 1).coerceAtLeast(0)
+        if (count == 0L) return emptyList()
+        var start = selected.minusDays((count - 1) / 2)
+        if (start.plusDays(count - 1) > last) start = last.minusDays(count - 1)
+        if (start < first) start = first
+        return (0 until count).map { start.plusDays(it) }
+    }
+
     fun racesOn(races: List<CxRace>, date: String): List<CxRace> = races.filter { date in dates(it) }
         .sortedWith(compareBy<CxRace> { classes.indexOf(it.raceClass).takeIf { index -> index >= 0 } ?: classes.size }
             .thenBy { race -> agendaTime(race, date) }
@@ -106,7 +166,7 @@ object CyclocrossLogic {
     /** Duración acumulada: nunca se formatea como hora civil ni se recorta a 24 h. */
     fun duration(seconds: Long?): String = seconds?.takeIf { it >= 0 }?.let {
         String.format(Locale.ROOT, "%d:%02d:%02d", it / 3600, it / 60 % 60, it % 60)
-    } ?: "—"
+    } ?: "-"
 
     /** Fecha civil válida dentro de los meses de la temporada CX. */
     private fun dateInSeason(date: String, allowed: List<String>): Boolean =

@@ -208,15 +208,9 @@ export function setupModals() {
 function newRaceBodyHtml() {
   return `
     <div id="newRaceError" class="alert alert--error" style="display:none"></div>
-    <div class="field-row field-row--2">
-      <div class="field">
-        <label>Nombre</label>
-        <input type="text" id="nr-name" placeholder="Vuelta a España">
-      </div>
-      <div class="field">
-        <label>Abreviatura <span class="u-hint">(máx. 6)</span></label>
-        <input type="text" id="nr-abbrev" placeholder="VUELTA" maxlength="6">
-      </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="nr-name" placeholder="Vuelta a España">
     </div>
     <div class="field-row field-row--2">
       <div class="field">
@@ -345,7 +339,7 @@ export function openNewRaceEditor({ presetYear = null } = {}) {
 function resetNewRaceModal() {
   const nrErr = document.getElementById('newRaceError');
   if (nrErr) nrErr.style.display = 'none';
-  ['nr-name','nr-abbrev','nr-country','nr-logo','nr-color','nr-startDate','nr-endDate'].forEach(id => {
+  ['nr-name','nr-country','nr-logo','nr-color','nr-startDate','nr-endDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -436,7 +430,6 @@ async function saveNewRace() {
     id:          newRaceId,
     raceSeriesId: newSeriesId,
     name,
-    abbrev:      document.getElementById('nr-abbrev').value.trim().toUpperCase() || null,
     uciCategory: document.getElementById('nr-uci').value,
     gender:      document.getElementById('nr-gender').value,
     raceFormat:  document.getElementById('nr-format').value,

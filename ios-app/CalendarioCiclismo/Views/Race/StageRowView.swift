@@ -84,7 +84,7 @@ struct StageRowView: View {
                         .foregroundStyle(AppTheme.red)
                         .accessibilityHidden(true)
                 } else {
-                    Text(rd.stageLabelShort.isEmpty ? "—" : rd.stageLabelShort)
+                    Text(rd.stageLabelShort.isEmpty ? "-" : rd.stageLabelShort)
                         .ccFont(.s13, weight: .semibold)
                         .foregroundStyle(.secondary)
                 }

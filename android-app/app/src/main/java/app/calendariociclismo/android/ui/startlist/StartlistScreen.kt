@@ -144,7 +144,6 @@ fun StartlistScreen(
 private fun LoadingContent() {
     RouteLoadingView(
         message = stringResource(R.string.loading),
-        showProfile = false,
         title = LocaleHolder.t("Inscritos", "Startlist"),
     )
 }
@@ -431,8 +430,9 @@ private fun StartlistTeamCard(
     ridersOut: Map<String, RiderOut> = emptyMap(),
     isOneDay: Boolean = false,
 ) {
-    // Tarjeta de equipo sobre la superficie neutra: cabecera gris con las
-    // franjas de maillot del equipo (las de Resultados), como iOS.
+    // Cabecera con el fondo y el texto editoriales del equipo, como la web y el
+    // PDF; sin colores válidos, superficie neutra.
+    val headerColors = teamHeaderColors(globalTeam)
     CCCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -443,19 +443,18 @@ private fun StartlistTeamCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 38.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(headerColors?.first ?: MaterialTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 12.dp)
                     .semantics(mergeDescendants = true) { heading() },
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                globalTeam?.let { TeamColorBands(it) }
                 Text(
                     globalTeam?.name ?: team.displayName,
                     modifier = Modifier.weight(1f),
                     style = CCText.S14,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = headerColors?.second ?: MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

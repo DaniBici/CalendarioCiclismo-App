@@ -108,7 +108,6 @@ fun StartOrderScreen(
             when (val current = state) {
                 is StartOrderState.Loading -> RouteLoadingView(
                     message = stringResource(R.string.loading),
-                    showProfile = false,
                     title = LocaleHolder.t("Orden de salida", "Start order"),
                 )
                 is StartOrderState.Error -> Text(
@@ -475,7 +474,7 @@ private fun StartOrderRow(
             ) {
                 UciResultsLogic.findMatchingTeam(entry.teamName, teams)?.let { TeamColorBands(it) }
                 Text(
-                    if (hasTeam) entry.teamName!! else "—",
+                    if (hasTeam) entry.teamName!! else "-",
                     style = CCText.S14,
                     fontWeight = FontWeight.Medium,
                     color = if (hasTeam) MaterialTheme.colorScheme.onSurface
@@ -507,7 +506,7 @@ private fun StartOrderRow(
                         CountryFlag(countryCode = it, height = 13.dp)
                     }
                     Text(
-                        if (hasName) entry.riderName!! else "—",
+                        if (hasName) entry.riderName!! else "-",
                         style = CCText.S14,
                         fontWeight = FontWeight.Medium,
                         color = if (hasName) MaterialTheme.colorScheme.onSurface

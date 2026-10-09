@@ -60,7 +60,7 @@ final class ChampionshipsConfigTests: XCTestCase {
         let cn = makeRace(name: "Campeonato de España Línea")
         var notCn = makeRace(name: "Tour")
         notCn = Race(
-            id: notCn.id, name: "Tour", nameEn: nil, abbrev: nil,
+            id: notCn.id, name: "Tour", nameEn: nil,
             uciCategory: "2.UWT", gender: nil, raceFormat: "stage_race",
             countryCode: "FR", colorHex: nil, logoUrl: nil, websiteUrl: nil,
             hideFlag: false, isGrandTour: false,
@@ -120,7 +120,7 @@ final class ChampionshipsConfigTests: XCTestCase {
 
     private func makeRace(name: String, gender: String? = nil, country: String = "ES") -> Race {
         Race(
-            id: UUID().uuidString, name: name, nameEn: nil, abbrev: nil,
+            id: UUID().uuidString, name: name, nameEn: nil,
             uciCategory: "CN", gender: gender, raceFormat: "one_day",
             countryCode: country, colorHex: nil, logoUrl: nil, websiteUrl: nil,
             hideFlag: false, isGrandTour: false,

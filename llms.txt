@@ -15,23 +15,23 @@ contenido web en castellano del Giro d'Italia desde 2025.
 
 - [Hoy](https://calendariociclismo.app/): carreras del día, horarios, televisión, streaming y accesos a resultados o repeticiones.
 - [Últimos resultados](https://calendariociclismo.app/resultados/): etapas y clásicas en orden cronológico inverso, con ganadores y clasificaciones completas. Incluye el ránking UCI de equipos masculino y femenino.
-- [Mercado de fichajes](https://calendariociclismo.app/fichajes/): confirmaciones, rumores, renovaciones, retiradas, contratos y movimientos por equipo y temporada.
+- [Mercado de Fichajes](https://calendariociclismo.app/fichajes/): confirmaciones, rumores, renovaciones, retiradas, contratos y movimientos por equipo y temporada.
 - [Calendario](https://calendariociclismo.app/calendario/): vistas mensual y de temporada, con filtros por categoría, género y país.
 - [Campeonatos Nacionales 2026](https://calendariociclismo.app/campeonatos-nacionales-2026.html): programa y acceso a las pruebas nacionales de ruta y contrarreloj.
 - [Suscripción al calendario](https://calendariociclismo.app/suscripcion/): calendarios iCal por categoría y género para Apple Calendar, Google Calendar, Outlook y otras aplicaciones.
 
 ## Páginas de carreras y datos deportivos
 
-- `https://calendariociclismo.app/competicion/{slug}/` — Ficha de una competición por etapas: fechas, jornadas, formato y categoría UCI.
-- `https://calendariociclismo.app/jornada/{slug}/` — Ficha de una jornada: salida y meta, distancia, horarios, puntos críticos, puertos, televisión, streaming y documentos.
-- `https://calendariociclismo.app/inscritos/{race-slug}/` — Equipos y corredores inscritos, dorsales y abandonos.
-- `https://calendariociclismo.app/orden-salida/{stage-slug}/` — Horarios individuales o por equipos de una contrarreloj.
-- `https://calendariociclismo.app/resultados/{race-slug}/` — Resultados de una clásica o última etapa disponible de una vuelta, con sus clasificaciones generales.
-- `https://calendariociclismo.app/resultados/{race-slug}/etapa-{number}/` — Resultados de etapa: etapa, general, puntos, montaña, jóvenes y equipos cuando estén disponibles.
-- `https://calendariociclismo.app/resultados/{race-slug}/prologo/` — Resultados de un prólogo.
-- `https://calendariociclismo.app/perfil/{stage-slug}/` — Perfil de altimetría interactivo.
-- `https://calendariociclismo.app/mapa/{stage-slug}/` — Mapa interactivo del recorrido.
-- `https://calendariociclismo.app/fichajes/?div={division}&team={team-slug}` — Plantilla y movimientos de un equipo; valores de `{division}`: `WT`, `PT`, `WWT` y `PRW`.
+- `https://calendariociclismo.app/competicion/{slug}/` - Ficha de una competición por etapas: fechas, jornadas, formato y categoría UCI.
+- `https://calendariociclismo.app/jornada/{slug}/` - Ficha de una jornada: salida y meta, distancia, horarios, puntos críticos, puertos, televisión, streaming y documentos.
+- `https://calendariociclismo.app/inscritos/{race-slug}/` - Equipos y corredores inscritos, dorsales y abandonos.
+- `https://calendariociclismo.app/orden-salida/{stage-slug}/` - Horarios individuales o por equipos de una contrarreloj.
+- `https://calendariociclismo.app/resultados/{race-slug}/` - Resultados de una clásica o última etapa disponible de una vuelta, con sus clasificaciones generales.
+- `https://calendariociclismo.app/resultados/{race-slug}/etapa-{number}/` - Resultados de etapa: etapa, general, puntos, montaña, jóvenes y equipos cuando estén disponibles.
+- `https://calendariociclismo.app/resultados/{race-slug}/prologo/` - Resultados de un prólogo.
+- `https://calendariociclismo.app/perfil/{stage-slug}/` - Perfil de altimetría interactivo.
+- `https://calendariociclismo.app/mapa/{stage-slug}/` - Mapa interactivo del recorrido.
+- `https://calendariociclismo.app/fichajes/?div={division}&team={team-slug}` - Plantilla y movimientos de un equipo; valores de `{division}`: `WT`, `PT`, `WWT` y `PRW`.
 
 Los datos deportivos se actualizan durante la temporada. Los horarios se muestran en la zona
 horaria del usuario. Las clasificaciones proceden de la UCI, organizadores y cronometradores;
@@ -49,9 +49,9 @@ las listas de inscritos y los datos editoriales son revisados antes de publicars
 
 - [Sitemap XML](https://calendariociclismo.app/sitemap.xml): índice de las URLs públicas y canónicas disponibles.
 - [Feed Atom](https://calendariociclismo.app/atom.xml): jornadas recientes y próximas.
-- `https://calendariociclismo.app/feed/{year}.ics` — Calendario iCal completo de una temporada.
-- `https://calendariociclismo.app/feed/{year}-{filter}.ics` — Calendario iCal filtrado; valores de `{filter}`: `pro`, `wt`, `wwt`, `masc` y `fem`.
-- `https://calendariociclismo.app/feed/event/{stage-slug}.ics` — Evento iCal de una carrera o jornada concreta.
+- `https://calendariociclismo.app/feed/{year}.ics` - Calendario iCal completo de una temporada.
+- `https://calendariociclismo.app/feed/{year}-{filter}.ics` - Calendario iCal filtrado; valores de `{filter}`: `pro`, `wt`, `wwt`, `masc` y `fem`.
+- `https://calendariociclismo.app/feed/event/{stage-slug}.ics` - Evento iCal de una carrera o jornada concreta.
 - Los equivalentes en inglés se publican bajo `/en/feed/` y `/en/feed/event/`.
 
 ## Aplicaciones y proyecto

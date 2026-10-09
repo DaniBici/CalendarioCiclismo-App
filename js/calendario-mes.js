@@ -19,6 +19,9 @@ import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { readCalendarMonth, writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { mergeRaces, missingRaceIds, monthDateRange } from './services/month-data.js';
+import { fetchAllRows, fetchByIds } from './services/paged-query.js';
+import { staleWhileRevalidate } from './services/local-cache.js';
+import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
 import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js';
 
@@ -36,50 +39,37 @@ const _daysByMonth = {};   // 'YYYY-MM' → [race_days publicados]
 let _rowRefs = new Map();  // id de fila → { rd, race } para la delegación de clics
 
 const MIN_YEAR = 2026;
-const MONTH_DAY_COLUMNS = 'id,raceId,dateKey,stageNumber,slug,slugEn,startLocation,startLocationEn,finishLocation,finishLocationEn,countryCode,primaryType,isRestDay,isCancelledDay,hasAssets,elevationProfile,profileNotViewable,distanceKm,neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,notes';
+// El perfil completo solo decide si la fila enlaza a la jornada: basta la sonda.
+const MONTH_DAY_COLUMNS = `id,raceId,dateKey,stageNumber,slug,slugEn,startLocation,startLocationEn,finishLocation,finishLocationEn,countryCode,primaryType,isRestDay,isCancelledDay,hasAssets,${PROFILE_PROBE_COLUMN},profileNotViewable,distanceKm,neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,notes`;
 const MONTH_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,colorHex,logoUrl,hideFlag,isCancelled,isNoClickable,websiteUrl';
 
 const LOADING_HTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text"></p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
 // ── Datos ─────────────────────────────────────────────────────────
-async function loadMonthData(year, month0) {
+// Paginado con orden estable: la respuesta de PostgREST tiene un tope de filas.
+// Un mes cabe hoy en una página de 1.000.
+async function fetchMonthData(year, month0) {
+  const { startKey, endKey } = monthDateRange(year, month0);
+  const [days, overlapping] = await Promise.all([
+    fetchAllRows(() => supabase.from('race_days').select(MONTH_DAY_COLUMNS)
+      .gte('dateKey', startKey).lte('dateKey', endKey).eq('editorialStatus', 'published').order('id'), 1000),
+    fetchAllRows(() => supabase.from('races').select(MONTH_RACE_COLUMNS)
+      .lte('startDate', endKey).gte('endDate', startKey).order('id'), 1000),
+  ]);
+  const missingIds = missingRaceIds(days, overlapping);
+  const races = missingIds.length
+    ? mergeRaces(overlapping, await fetchByIds(supabase, 'races', MONTH_RACE_COLUMNS, 'id', missingIds))
+    : overlapping;
+  return { days, races };
+}
+
+function prepareMonthData(year, month0, { days, races }) {
   const { monthKey, startKey, endKey, lastDay } = monthDateRange(year, month0);
-
-  const daysQuery = _daysByMonth[monthKey]
-    ? Promise.resolve({ data: _daysByMonth[monthKey], error: null })
-    : supabase.from('race_days').select(MONTH_DAY_COLUMNS).gte('dateKey', startKey).lte('dateKey', endKey)
-        .eq('editorialStatus', 'published');
-  const racesQuery = _racesByMonth[monthKey]
-    ? Promise.resolve({ data: _racesByMonth[monthKey], error: null })
-    : supabase.from('races').select(MONTH_RACE_COLUMNS).lte('startDate', endKey).gte('endDate', startKey);
-
-  const [daysResponse, racesResponse] = await Promise.all([daysQuery, racesQuery]);
-  if (daysResponse.error) throw daysResponse.error;
-  if (racesResponse.error) throw racesResponse.error;
-
-  const rdDocs = daysResponse.data || [];
-  let races = racesResponse.data || [];
-  const missingIds = missingRaceIds(rdDocs, races);
-  if (missingIds.length) {
-    const chunks = [];
-    for (let index = 0; index < missingIds.length; index += 100) {
-      chunks.push(missingIds.slice(index, index + 100));
-    }
-    const responses = await Promise.all(chunks.map(ids =>
-      supabase.from('races').select(MONTH_RACE_COLUMNS).in('id', ids)));
-    const recovered = [];
-    responses.forEach(response => {
-      if (response.error) throw response.error;
-      recovered.push(...(response.data || []));
-    });
-    races = mergeRaces(races, recovered);
-  }
-
-  _daysByMonth[monthKey] = rdDocs;
+  _daysByMonth[monthKey] = days;
   _racesByMonth[monthKey] = races;
   const raceMap = {};
   races.forEach(r => { raceMap[r.id] = r; setCachedRace(r.id, r); });
-  return { rdDocs, races, raceMap, startKey, endKey, lastDay };
+  return { rdDocs: days, races, raceMap, startKey, endKey, lastDay };
 }
 
 // ── Placeholders (carreras sin jornadas publicadas) — misma heurística
@@ -193,7 +183,7 @@ function raceRowHtml(rd, refId) {
 
   const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race), { lazy: true });
   const isFemale = needsFemaleMark(race, activeCat);
-  const name = cleanFeminineName(raceName(race) || '—', activeCat);
+  const name = cleanFeminineName(raceName(race) || '-', activeCat);
 
   let l1Extra = '';
   if (isRestDay)       l1Extra = `<span class="cal-race__note">· ${t('stage.restDay')}</span>`;
@@ -225,8 +215,7 @@ function raceRowHtml(rd, refId) {
   // Destino del clic: misma lógica que la rejilla retirada.
   const isNoClickable = race.isNoClickable === true;
   const isStageRace   = race.raceFormat === 'stage_race';
-  const rdViewableProfile = !!(rd.elevationProfile && !rd.profileNotViewable
-    && Array.isArray(rd.elevationProfile.points) && rd.elevationProfile.points.length >= 2);
+  const rdViewableProfile = hasRenderableElevationProfile(rd);
   const rdHasAssets = rdViewableProfile || (rd.hasAssets === true);
   const rdClickable = !rd._placeholder && !isRestDay && !isNoClickable && rdHasAssets && !cancelled;
 
@@ -261,27 +250,41 @@ async function renderMes() {
   window.__spaDrivenAnalytics = true;
   window._icalYear = viewYear;
   const content = document.getElementById('mesContent');
-  const monthKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+  const year = viewYear;
+  const month0 = viewMonth;
+  const monthKey = `${year}-${String(month0 + 1).padStart(2, '0')}`;
+  const isCurrent = () => monthKey === `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
 
   updateChips();
 
-  const cached = !!_daysByMonth[monthKey];
-  if (!cached) {
-    content.innerHTML = LOADING_HTML;
-    content.querySelector('.loading__text').textContent = t('loading.month');
-  }
-
-  let data;
-  try {
-    data = await loadMonthData(viewYear, viewMonth);
-  } catch (err) {
-    console.error('[calendario-mes]', err);
-    content.innerHTML = `<div class="empty-state"><p class="empty-state__text">${t('loading.month')} — error</p></div>`;
+  if (_daysByMonth[monthKey]) {
+    paintMonth(prepareMonthData(year, month0, { days: _daysByMonth[monthKey], races: _racesByMonth[monthKey] }));
     return;
   }
-  // Si el usuario cambió de mes mientras cargaba, descartar este render
-  if (monthKey !== `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`) return;
 
+  // La copia local, si existe, sustituye a la pantalla de carga en el acto;
+  // la lectura de red solo repinta si trae cambios.
+  content.innerHTML = LOADING_HTML;
+  content.querySelector('.loading__text').textContent = t('loading.month');
+  let painted = false;
+  try {
+    await staleWhileRevalidate(`mes:${monthKey}`, () => fetchMonthData(year, month0), bundle => {
+      // Si el usuario cambió de mes mientras cargaba, descartar este render
+      if (!isCurrent()) return;
+      paintMonth(prepareMonthData(year, month0, bundle), { refresh: painted });
+      painted = true;
+    });
+  } catch (err) {
+    console.error('[calendario-mes]', err);
+    if (isCurrent()) content.innerHTML = `<div class="empty-state"><p class="empty-state__text">${t('loading.month')}: error</p></div>`;
+  }
+}
+
+// `refresh`: repintado por revalidación; conserva el scroll y no repite la analítica.
+function paintMonth(data, { refresh = false } = {}) {
+  const content = document.getElementById('mesContent');
+  const monthKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+  const keepScrollY = refresh ? window.scrollY : null;
   const { rdDocs, races, raceMap, startKey, endKey, lastDay } = data;
 
   const byDate = {};
@@ -339,6 +342,10 @@ async function renderMes() {
 
   syncUrl();
   updateSeoMes(byDate);
+  if (refresh) {
+    window.scrollTo({ top: keepScrollY, behavior: 'instant' });
+    return;
+  }
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 }
 
@@ -521,8 +528,8 @@ function updateSeoMes(byDate) {
     : '';
 
   const title = isEn
-    ? `${mesCapit} ${viewYear} — ${t('seo.siteName')}`
-    : `${mesCapit} de ${viewYear} — ${t('seo.siteName')}`;
+    ? `${mesCapit} ${viewYear} - ${t('seo.siteName')}`
+    : `${mesCapit} de ${viewYear} - ${t('seo.siteName')}`;
   const description = (isEn
     ? `All professional cycling races in ${mesCapit} ${viewYear}: routes, schedules and how to watch on TV and online streaming.${racesStr}`
     : `Todas las carreras ciclistas profesionales de ${mesNombre} de ${viewYear}: recorridos, horarios y cómo ver por TV y online streaming.${racesStr}`).trim();

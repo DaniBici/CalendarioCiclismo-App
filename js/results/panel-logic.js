@@ -218,11 +218,11 @@ function normalizeRiderSurname(value) {
     .replace(/ß/g, 'ss')
     .replace(/æ/g, 'ae')
     .replace(/œ/g, 'oe')
-    .replace(/[øöő]/g, 'o')
-    .replace(/ł/g, 'l')
-    .replace(/đ/g, 'd')
+    .replace(/þ/g, 'th')
+    .replace(/ĳ/g, 'ij')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đłøıħŧŀðŋĸƒ]/g, (char) => 'dloihtldnkf'['đłøıħŧŀðŋĸƒ'.indexOf(char)])
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
@@ -233,10 +233,17 @@ function riderNameTokens(value) {
   return normalized ? normalized.split(' ') : [];
 }
 
-export function riderSearchLookupToken(query) {
-  return riderNameTokens(query)
-    .map((token, index) => ({ token, index }))
-    .sort((a, b) => (b.token.length - a.token.length) || (b.index - a.index))[0]?.token || '';
+// Términos plegados como public.fold_name. El servidor filtra cada uno sobre
+// "searchName" (nombre, apellidos y otros nombres plegados) antes de aplicar el
+// límite; con un único término, los homónimos de apellido llenaban el límite y
+// desplazaban al corredor buscado.
+export function riderSearchTokens(query) {
+  const tokens = riderNameTokens(query);
+  return tokens.some(token => token.length >= 2) ? tokens : [];
+}
+
+export function withRiderSearch(builder, tokens) {
+  return tokens.reduce((query, token) => query.ilike('searchName', `%${token}%`), builder);
 }
 
 export function riderMatchesSearch(rider, query) {
@@ -300,7 +307,7 @@ export function resultRiderPickerInitialQuery(value, restrictToStartlist) {
 }
 
 export function resultRiderDorsalText(value) {
-  return String(value ?? '—');
+  return String(value ?? '-');
 }
 
 export function nextResultRank(rankValues = []) {
@@ -366,7 +373,7 @@ export function resolveResultLeaderName(
     const rider = (/^\d+$/.test(bib) ? riderByBib[Number(bib)] : null)
       || (row.globalRiderId ? riderByGid[row.globalRiderId] : null);
     if (rider?.name) return rider.name;
-    if (row.riderDisplay && row.riderDisplay !== '—') return row.riderDisplay;
+    if (row.riderDisplay && row.riderDisplay !== '-') return row.riderDisplay;
   }
   return stage?.winnerName || '';
 }

@@ -460,29 +460,46 @@ export async function generateStartlistPDF(opts) {
   const gapX = 3;
   const gapY = 3;
   const colW = (usableW - gapX * (cols - 1)) / cols;
-  const teamHeaderH = 5.6;
-  const lineH = 3.35;
-  const padY = 0.9;
-  const riderFont = 6.8;
   const dorsalW = 5.4;
-  const dorsalH = 2.6;
   const flagWRider = 3.1;
 
-  // Bloques: un equipo puede ocupar varias celdas si no cabe en una página.
-  const maxLines = Math.floor((contentBottom - firstGridTop - teamHeaderH - padY * 2) / lineH);
-  const blocks = [];
-  teams.forEach(team => {
-    const riders = ridersByTeam[team.id] || [];
-    if (!riders.length) { blocks.push({ team, riders, startIndex: 0 }); return; }
-    for (let i = 0; i < riders.length; i += maxLines) {
-      blocks.push({ team, riders: riders.slice(i, i + maxLines), startIndex: i });
-    }
-  });
-
+  // Medidas verticales a escala `k` y bloques resultantes: un equipo puede
+  // ocupar varias celdas si no cabe en una página.
+  let teamHeaderH, lineH, padY, riderFont, dorsalH, blocks;
   const blockHeight = (b) => {
     const headerH = isNoTeamPlaceholderTeam(b.team) ? 0 : teamHeaderH;
     return headerH + padY * 2 + Math.max(1, b.riders.length) * lineH;
   };
+  const planGrid = (k) => {
+    teamHeaderH = 5.6 * k;
+    lineH = 3.35 * k;
+    padY = 0.9 * k;
+    riderFont = 6.8 * k;
+    dorsalH = 2.6 * k;
+    const maxLines = Math.floor((contentBottom - firstGridTop - teamHeaderH - padY * 2) / lineH);
+    blocks = [];
+    teams.forEach(team => {
+      const riders = ridersByTeam[team.id] || [];
+      if (!riders.length) { blocks.push({ team, riders, startIndex: 0 }); return; }
+      for (let i = 0; i < riders.length; i += maxLines) {
+        blocks.push({ team, riders: riders.slice(i, i + maxLines), startIndex: i });
+      }
+    });
+    // Páginas que ocupa la rejilla con el mismo salto de fila que el dibujo.
+    let pages = 1;
+    let rowY = firstGridTop;
+    for (let i = 0; i < blocks.length; i += cols) {
+      const rowH = Math.max(...blocks.slice(i, i + cols).map(blockHeight));
+      if (rowY + rowH > contentBottom) { pages++; rowY = contGridTop; }
+      rowY += rowH + gapY;
+    }
+    return pages;
+  };
+  // Si comprimir la rejilla hasta un 12 % ahorra una página (p. ej., la
+  // última fila sola en una hoja nueva), se usa la mayor escala que lo logra.
+  const basePages = planGrid(1);
+  const scale = [0.97, 0.94, 0.91, 0.88].find(k => planGrid(k) < basePages) ?? 1;
+  planGrid(scale);
 
   const drawTeamHeader = (team, x, cellY, continued) => {
     const colors = teamColors[team.id];

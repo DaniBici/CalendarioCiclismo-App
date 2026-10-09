@@ -199,7 +199,7 @@ fun rememberLoadingVisible(isLoading: Boolean): Boolean {
  * [title] nombra lo que se carga (la pantalla, la carrera o la jornada; en Hoy,
  * «Carreras de hoy»), sin repetir la marca de la cabecera; con título, la
  * segunda línea dice «Cargando…». Sin título, [message] es la única línea.
- * `showProfile=false` retira el perfil inferior (ciclocross).
+ * `showProfile=false` retira el perfil inferior y deja un indicador circular; lo usan las pantallas de ciclocross.
  */
 @Composable
 fun RouteLoadingView(

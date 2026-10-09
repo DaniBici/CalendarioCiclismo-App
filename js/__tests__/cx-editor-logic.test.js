@@ -31,7 +31,7 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
     expect(cxPoints('12.123456789012','es-ES')).toBe('12,123456789012');
     expect(cxPoints('-0.125','en-GB')).toBe('-0.125');
     expect(cxPointValue('-000.000')).toBe('0');expect(cxPointValue('0012.500')).toBe('12.5');
-    expect(cxDuration(null)).toBe('—');expect(cxPoints(null)).toBe('—');
+    expect(cxDuration(null)).toBe('-');expect(cxPoints(null)).toBe('-');
   });
   it('coteja unidades exactas y distingue totales desconocidos de cero',()=>{
     const official=[{rank:1,riderDisplay:'Uno',points:'12.123456789012'}];

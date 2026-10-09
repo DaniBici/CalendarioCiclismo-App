@@ -10,14 +10,11 @@ const LOCALES = {
   es: {
     cx: {
       "title": "Ciclocross",
-      "metaTitle": "Ciclocross — Calendario Ciclismo",
+      "metaTitle": "Ciclocross - Calendario Ciclismo",
       "metaDescription": "Calendario de ciclocross UCI 2026-27: horarios por categoría, dorsales, resultados y clasificaciones de la Copa del Mundo, Superprestige, X2O y Copa de España.",
       "season": "Temporada",
-      "previousMonth": "Mes anterior",
-      "nextMonth": "Mes siguiente",
       "filter": { "all": "Todas", "big": "Big", "pro": "Pro", "spain": "España" },
-      "noRaces": "No hay carreras programadas para este mes",
-      "noRacesFilter": "No hay carreras con este filtro para el mes seleccionado",
+      "noRaces": "No hay carreras programadas",
       "categories": "Categorías",
       "programme": "Programa",
       "result": "Resultado",
@@ -98,7 +95,7 @@ const LOCALES = {
     },
     transfers: {
       title: 'Fichajes',
-      heading: 'Mercado de fichajes {season}',
+      heading: 'Mercado de Fichajes {season}',
       feedTitle: 'Últimas confirmaciones',
       feedSignings: 'Fichajes',
       midSeason: 'M. temporada',

@@ -18,6 +18,27 @@ import java.time.temporal.ChronoUnit
  */
 object RaceLogic {
 
+    /**
+     * Orden del programa de una carrera: por número de etapa y, en dobles
+     * sectores, por salida neutralizada; sin número de etapa, por fecha.
+     */
+    val raceProgramOrder: Comparator<RaceDay> = Comparator { a, b ->
+        val na = a.stageNumber
+        val nb = b.stageNumber
+        if (na != null && nb != null) {
+            if (na != nb) na.compareTo(nb)
+            else {
+                val tA = a.neutralStartTimeUtc?.let { DateFormatting.timestampToSeconds(it) }
+                    ?: Double.MAX_VALUE
+                val tB = b.neutralStartTimeUtc?.let { DateFormatting.timestampToSeconds(it) }
+                    ?: Double.MAX_VALUE
+                tA.compareTo(tB)
+            }
+        } else {
+            a.dateKey.compareTo(b.dateKey)
+        }
+    }
+
     fun calendarYear(now: Instant = Instant.now()): Int = now.atOffset(ZoneOffset.UTC).year
 
     fun hasCalendarForYear(year: Int?, now: Instant = Instant.now()): Boolean =

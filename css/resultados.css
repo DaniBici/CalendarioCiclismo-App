@@ -207,6 +207,8 @@
 }
 .res-carried-note svg { flex-shrink: 0; color: var(--text-dim); }
 .res-publication { margin: 10px 0; font-size: var(--fs-2); color: var(--text-muted); }
+/* Sin estado de publicación el bloque no deja el margen entre la barra y la tabla. */
+.res-publication:empty { margin: 0; }
 .res-publication-line {
   display: flex;
   flex-wrap: wrap;
@@ -262,12 +264,14 @@ html.light .res-table {
   --text: #202124;
   --text-muted: #5f6368;
 }
-.res-table .so-th { padding: 0.38rem 0.55rem; }
-.res-table .so-td { padding: 6px 0.55rem; }
+.res-table .so-th { padding: 0.34rem 0.55rem; }
+.res-table .so-td { padding: 4px 0.55rem; }
 /* La fila de columnas se fija bajo las pestañas de clasificación. */
 .res-table thead .so-th {
   position: sticky;
-  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--res-tabs-h, 0px));
+  /* 1px bajo la barra de pestañas (z-index 21): --res-tabs-h se redondea hacia
+     arriba y dejaría una rendija por la que asoman las filas. */
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--res-tabs-h, 0px) - 1px);
   z-index: 20;
   background: #252e3b;
   box-shadow: 0 1px 0 var(--border);
@@ -279,8 +283,8 @@ html.light .res-table thead .so-th { background: #fff; }
 /* Hueco para los puntos UCI: las celdas solo se emiten cuando las filas traen
    `uciPoints`; la posición queda fijada antes del resultado (UCI · Tiempo/Pts)
    para que coincida con las apps. */
-.res-th--uci { width: 3.5rem; text-align: right; }
-.res-th--result { width: 5.75rem; text-align: right; }
+.res-th--uci { width: 3rem; padding-right: 0.3rem; text-align: right; }
+.res-th--result { width: 5.25rem; padding-left: 0.3rem; text-align: right; }
 .res-td--rank {
   text-align: center;
   font-family: var(--font-display);
@@ -294,6 +298,8 @@ html.light .res-table thead .so-th { background: #fff; }
 /* El equipo va en su propia columna en escritorio: el subtítulo se oculta. */
 .res-rider-team { display: none; font-weight: 400; color: var(--text-muted); }
 .res-td--team { font-size: var(--fs-2); color: var(--text-muted); }
+.res-table .res-td--uci { padding-right: 0.3rem; }
+.res-table .res-td--result { padding-left: 0.3rem; }
 .res-td--uci {
   text-align: right;
   white-space: nowrap;
@@ -397,6 +403,12 @@ html.light .res-table thead .so-th { background: #fff; }
 }
 .feed-hero > .feed-view-tabs .feed-view-tab:hover { color: var(--text); }
 .feed-hero > .feed-view-tabs .feed-view-tab--active { color: var(--text); }
+/* Tres vistas (Ciclocross, Carretera y Ránking UCI): una sola fila también en
+   móvil, con el texto a tamaño de subtítulo. */
+@media (max-width: 600px) {
+  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) { flex-wrap: nowrap; gap: 1rem; }
+  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) .feed-view-tab { font-size: var(--fs-4); white-space: nowrap; }
+}
 .feed-hero > .feed-view-tabs .feed-view-tab--active::after {
   content: '';
   position: absolute;
@@ -729,7 +741,7 @@ html.light .uci-ranking-table { background: #fff; }
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 600px) {
   /* Sin columna Equipo: el equipo pasa a subtítulo bajo el corredor. La
      columna y el subtítulo comparten el mismo punto de corte. */
   .res-th--team, .res-td--team { display: none; }
@@ -743,15 +755,10 @@ html.light .uci-ranking-table { background: #fff; }
     text-align: right;
   }
   .res-teamfilter__select { width: 100%; max-width: 100%; }
-  .res-table .so-td { padding-block: 7px; }
-  .res-table .res-td--rider { display: table-cell; overflow: visible; }
+  /* El nombre ocupa una sola línea: uno largo se recorta con puntos suspensivos. */
+  .res-table .res-td--rider { display: table-cell; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .res-rider-main { display: inline; overflow: visible; }
-  .res-rider-name {
-    display: inline;
-    white-space: normal;
-    overflow: visible;
-    overflow-wrap: anywhere;
-  }
+  .res-rider-name { display: inline; white-space: nowrap; overflow: visible; }
   .res-rider-team {
     display: block;
     white-space: normal;
@@ -797,7 +804,12 @@ html.light .uci-ranking-table { background: #fff; }
     min-width: 0;
     line-height: 1.15;
   }
-  .res-rider-name, .res-rider-team { min-width: 0; text-overflow: ellipsis; }
+  .res-rider-name { min-width: 0; text-overflow: ellipsis; }
+  /* El equipo ocupa una sola línea: un nombre largo se recorta en lugar de
+     convertir la fila en una de tres líneas. */
+  .res-rider-team { min-width: 0; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Todas las filas miden lo mismo, tengan o no equipo: la altura de dos líneas. */
+  .res-table:not(.res-table--ttt) .res-td--rider { height: 49px; }
   .res-td--uci { font-size: var(--fs-1); }
   .res-td--result { font-size: var(--fs-2); }
   .res-team-cell, .res-ttt-team { max-width: 100%; }
@@ -814,7 +826,7 @@ html.light .uci-ranking-table { background: #fff; }
   .uci-ranking-row__points { font-size: var(--fs-1); }
 }
 
-@media (min-width: 701px) {
+@media (min-width: 601px) {
   /* Con columna Equipo cada fila ocupa una línea: anchos deterministas (Equipo
      al 36%, Corredor con el resto) y puntos suspensivos en lugar de filas de
      doble altura. */
@@ -840,38 +852,62 @@ html.light .uci-ranking-table { background: #fff; }
   .feed-day>* { grid-column: 1/-1; }
   .feed-day>.feed-day__hdr { margin-bottom: 0; }
   .feed-day>.feed-row { grid-column: auto; margin: 0; }
+  /* Ciclocross: dos columnas de mampostería (packCxDays en resultados-feed.js);
+     la tarjeta crece con sus categorías y cada columna apila sin huecos. */
+  .feed-day__cx-grid {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    grid-auto-rows: 1px;
+    grid-auto-flow: row dense;
+    column-gap: 10px;
+  }
+  .feed-day__cx-grid>.feed-row { margin: 0; align-self: start; }
 }
 
-@media (min-width: 1100px) {
-  /* La ficha de carrera permanece visible; documentos y selector de etapa
-     siguen el flujo, y las pestañas y el thead se fijan debajo de la ficha
-     (--results-race-header-h, medido en resultados.js). */
-  #resultsContent > .race-header {
-    position: sticky;
-    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
-    z-index: 60;
-    background: var(--bg);
-  }
-  .res-tabs-bar {
-    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px));
-  }
-  .res-table thead .so-th {
-    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + var(--res-tabs-h, 0px));
-  }
-  .res-layout--context { grid-template-columns: minmax(0,1fr) 320px; }
-  /* La columna lateral (perfil y datos de la jornada) queda 16px bajo el
-     selector de etapas y se fija 16px bajo la ficha al desplazar la
-     clasificación; si no cabe, se desplaza dentro de su caja. CX redefine
-     --res-context-top y el margen (ciclocross.css). */
+@media (min-width: 900px) {
+  /* La columna lateral (perfil y datos de la jornada) queda a la derecha de la
+     clasificación desde 900px, con 280px; a partir de 1100px pasa a 320px. Se
+     fija 16px bajo la barra de navegación al desplazar la clasificación; si no
+     cabe, se desplaza dentro de su caja. CX redefine --res-context-top y el
+     margen (ciclocross.css). */
+  .res-layout--context { grid-template-columns: minmax(0,1fr) 280px; }
   .res-layout--context > .res-context {
-    margin-top: 16px;
-    --res-context-top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + 16px);
+    /* Arranca a la altura del selector de equipos: el relleno de .res-tabs. */
+    margin-top: 0.45rem;
+    --res-context-top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + 16px);
     position: sticky;
     top: var(--res-context-top);
     max-height: calc(100vh - var(--res-context-top) - 16px);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+  }
+}
+
+@media (min-width: 1100px) {
+  /* La ficha de carrera permanece visible; documentos y selector de etapa
+     siguen el flujo, y las pestañas y el thead se fijan debajo de la ficha
+     (--results-race-header-h, medido en resultados.js). La columna lateral
+     también baja bajo la ficha. */
+  #resultsContent > .race-header {
+    position: sticky;
+    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
+    z-index: 60;
+    background: var(--bg);
+    /* Fondo a sangre: sin él, la sombra de la tabla asoma en los márgenes junto
+       al logo y la bandera. */
+    box-shadow: 0 0 0 100vmax var(--bg);
+    clip-path: inset(0 -100vmax);
+  }
+  .res-tabs-bar {
+    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px));
+  }
+  .res-table thead .so-th {
+    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + var(--res-tabs-h, 0px) - 1px);
+  }
+  .res-layout--context { grid-template-columns: minmax(0,1fr) 320px; }
+  .res-layout--context > .res-context {
+    --res-context-top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + 16px);
   }
 }
 

@@ -24,7 +24,7 @@ export function teamsForSeasonList(teams, seasons) {
   });
 }
 
-export function teamListYearOptions(years, { currentYear, marketYear, minYear = 2020 } = {}) {
+export function teamListYearOptions(years, { currentYear, marketYear, minYear = 2026 } = {}) {
   const latestYear = Math.max(Number(currentYear), Number(marketYear));
   const operationalYears = Number.isInteger(latestYear) && latestYear >= minYear
     ? Array.from({ length: latestYear - minYear + 1 }, (_, index) => latestYear - index)
@@ -33,10 +33,4 @@ export function teamListYearOptions(years, { currentYear, marketYear, minYear = 
     .map(Number)
     .filter(year => Number.isInteger(year) && year >= minYear && year <= 2100))]
     .sort((a, b) => b - a);
-}
-
-export function teamGenderLabel(gender) {
-  if (gender === 'female') return 'Femenino';
-  if (gender === 'male') return 'Masculino';
-  return 'Sexo sin indicar';
 }

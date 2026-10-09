@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { extractRidersForNameResolve, nameResolveWithStartlistAuthoritySql } from '../results-fetchers/results-upsert.mjs';
-import { pendingIdentityDetails } from '../results-fetchers/historical-identity-log.mjs';
 
 describe('identidades de pruebas con dorsales reutilizados', () => {
   it('conserva personas diferentes con el mismo dorsal y deduplica las repeticiones de una persona', () => {
@@ -25,29 +24,13 @@ describe('identidades de pruebas con dorsales reutilizados', () => {
       .toBe('10012345678');
   });
 
-  it('conserva el identificador de perfil UCI para el cruce histórico', () => {
+  it('conserva el identificador de perfil UCI', () => {
     const data = { stages: [{ classifications: [{ eventId: 10, rows: [{
       bib: '7', riderDisplay: 'ALFA Ana', firstName: 'Ana', lastName: 'Alfa',
       isoCode2: 'es', uciProfileId: '428096',
     }] }] }] };
     expect(extractRidersForNameResolve(data, null, { includeBib: true })[0].uciProfileId)
       .toBe('428096');
-  });
-});
-
-describe('expediente de identidades históricas pendientes', () => {
-  it('genera un expediente suficiente para la revisión asistida', () => {
-    const details = pendingIdentityDetails([{
-      eventId: 10, bib: '7', riderDisplay: 'ALFA Ana', sourceTeamName: 'Equipo A',
-      sourceUciProfileId: null, sourceUciLicense: null,
-    }], [{
-      eventIds: [10], bib: '7', display: 'ALFA Ana', firstName: 'Ana', lastName: 'Alfa',
-      birthDate: '2000-01-02', countryCode: 'es', teamName: 'Equipo A',
-    }]);
-    expect(details).toEqual([expect.objectContaining({
-      display: 'ALFA Ana', birthDate: '2000-01-02', countryCode: 'ES',
-      reason: 'no_unique_safe_match', eventIds: [10],
-    })]);
   });
 });
 
@@ -80,13 +63,5 @@ describe('autoridad de identidad de la startlist oficial', () => {
 
     expect(fallback).toBeGreaterThanOrEqual(0);
     expect(authoritative).toBeGreaterThan(fallback);
-  });
-
-  it('resuelve decisiones históricas antes y después de la identidad nominal', () => {
-    const firstHistorical = sql.indexOf('resolve_historical_result_participations');
-    const fallback = sql.indexOf('resolve_uci_results_by_name');
-    const lastHistorical = sql.lastIndexOf('resolve_historical_result_participations');
-    expect(firstHistorical).toBeLessThan(fallback);
-    expect(lastHistorical).toBeGreaterThan(fallback);
   });
 });

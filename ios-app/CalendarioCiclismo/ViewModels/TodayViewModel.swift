@@ -219,9 +219,24 @@ final class TodayViewModel {
             isLoading = false
         }
 
-        // 2. Intentar actualizar desde red
+        // 2. Intentar actualizar desde red. El día y las carreras del año son
+        // independientes: salen a la vez. Ambas peticiones se comparten con la
+        // precarga del arranque si siguen en vuelo o acaban de resolverse.
+        let year = Int(dateKey.prefix(4)) ?? 2026
+        let yearKey = CacheManager.yearRacesKey(year)
+        let racesAge = await cache.age(forKey: yearKey)
+        guard dateKey == capturedKey, generation == loadGeneration else { return }
+        let needsRaces = forceRaceRefresh || allRaces.isEmpty || allRaces.first?.year != year || (racesAge ?? .infinity) >= 3600
+        if needsRaces, allRaces.isEmpty, let cachedRaces: [Race] = await cache.load([Race].self, forKey: yearKey) {
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
+            allRaces = cachedRaces
+        }
+        let service = SupabaseService.shared
+        async let yearRacesReq: Result<[Race], Error>? = needsRaces
+            ? Self.capture { try await service.racesByYear(year, forceNetwork: forceRaceRefresh) }
+            : nil
         do {
-            let data = try await SupabaseService.shared.loadDayComplete(dateKey: dateKey)
+            let data = try await service.loadDayComplete(dateKey: capturedKey, forceNetwork: forceRaceRefresh)
             guard dateKey == capturedKey, generation == loadGeneration else { return }
             // Construir la respuesta fuera del estado visible. Durante un pull
             // refresh hay placeholders en `items`; sustituirlos antes de acabar
@@ -230,28 +245,20 @@ final class TodayViewModel {
             var refreshedItems = data.raceDays
             let refreshedFeaturedRaceIds = data.featuredRaceIds
 
-            // Cargar todas las carreras del año para placeholders
-            let year = Int(dateKey.prefix(4)) ?? 2026
-            let yearKey = CacheManager.yearRacesKey(year)
-            let racesAge = await cache.age(forKey: yearKey)
-            guard dateKey == capturedKey, generation == loadGeneration else { return }
-            if forceRaceRefresh || allRaces.isEmpty || allRaces.first?.year != year || (racesAge ?? .infinity) >= 3600 {
-                if allRaces.isEmpty, let cachedRaces: [Race] = await cache.load([Race].self, forKey: yearKey) {
-                    guard dateKey == capturedKey, generation == loadGeneration else { return }
-                    allRaces = cachedRaces
-                }
-                do {
-                    let freshRaces = try await SupabaseService.shared.racesByYear(year)
-                    guard dateKey == capturedKey, generation == loadGeneration else { return }
-                    allRaces = freshRaces
-                    await cache.save(freshRaces, forKey: yearKey)
-                } catch {
-                    guard dateKey == capturedKey, generation == loadGeneration else { return }
-                    if Task.isCancelled { throw error }
-                    // Una respuesta anual fallida no invalida la instantánea
-                    // local: conservarla permite reconstruir las tarjetas
-                    // placeholder y mostrar el día recién descargado.
-                }
+            // Carreras del año para placeholders
+            switch await yearRacesReq {
+            case .success(let freshRaces)?:
+                guard dateKey == capturedKey, generation == loadGeneration else { return }
+                allRaces = freshRaces
+                await cache.save(freshRaces, forKey: yearKey)
+            case .failure(let error)?:
+                guard dateKey == capturedKey, generation == loadGeneration else { return }
+                if Task.isCancelled { throw error }
+                // Una respuesta anual fallida no invalida la instantánea
+                // local: conservarla permite reconstruir las tarjetas
+                // placeholder y mostrar el día recién descargado.
+            case nil:
+                break
             }
 
             // Añadir placeholders para carreras sin etapa publicada
@@ -360,14 +367,14 @@ final class TodayViewModel {
     }
 
     /// Pre-cachea días cercanos al día mostrado (no solo hoy) en background:
-    /// -1, +1, +2 completos; +3…+7 solo si hay carreras UWT o WWT.
+    /// -1, +1, +2 completos; +3…+7 solo si hay carreras UWT o WWT. Hasta
+    /// `prefetchConcurrency` días a la vez.
     private func prefetchNearbyDays() {
         let racesSnapshot = allRaces
         let anchor = dateKey
         Task.detached(priority: .utility) {
-            for offset in ([-1] + Array(1...7)) {
-                guard let targetDate = DateFormatting.dayOffset(from: anchor, by: offset) else { continue }
-
+            let targets: [String] = ([-1] + Array(1...7)).compactMap { offset in
+                guard let targetDate = DateFormatting.dayOffset(from: anchor, by: offset) else { return nil }
                 // +3…+7: solo prefetchear si hay alguna carrera UWT/WWT ese día
                 if offset >= 3 {
                     let hasTopRace = racesSnapshot.contains { race in
@@ -376,20 +383,37 @@ final class TodayViewModel {
                         let isTopTier = cat == "1.UWT" || cat == "2.UWT" || cat == "1.WWT" || cat == "2.WWT"
                         return isTopTier && RaceLogic.isRaceDay(race: race, dateKey: targetDate)
                     }
-                    guard hasTopRace else { continue }
+                    guard hasTopRace else { return nil }
                 }
-
-                let key = CacheManager.dayKey(targetDate)
-                // Solo pre-cachear si no hay datos recientes (< 1 hora)
-                if let age = await CacheManager.shared.age(forKey: key), age < 3600 { continue }
-                do {
-                    let data = try await SupabaseService.shared.loadDayComplete(dateKey: targetDate)
-                    await CacheManager.shared.save(data, forKey: key)
-                } catch {
-                    // Fallo silencioso en prefetch
+                return targetDate
+            }
+            await withTaskGroup(of: Void.self) { group in
+                var pending = targets[...]
+                func addNext() {
+                    guard let targetDate = pending.popFirst() else { return }
+                    group.addTask {
+                        let key = CacheManager.dayKey(targetDate)
+                        // Solo pre-cachear si no hay datos recientes (< 1 hora)
+                        if let age = await CacheManager.shared.age(forKey: key), age < 3600 { return }
+                        // Fallo silencioso en prefetch
+                        guard let data = try? await SupabaseService.shared.loadDayComplete(dateKey: targetDate) else { return }
+                        await CacheManager.shared.save(data, forKey: key)
+                    }
                 }
+                for _ in 0..<Self.prefetchConcurrency { addNext() }
+                while await group.next() != nil { addNext() }
             }
         }
+    }
+
+    /// Días que el pre-cacheo descarga a la vez.
+    private nonisolated static let prefetchConcurrency = 3
+
+    /// Resultado de una petición sin propagar el error.
+    private static func capture<T: Sendable>(
+        _ operation: @MainActor @Sendable () async throws -> T
+    ) async -> Result<T, Error> {
+        do { return .success(try await operation()) } catch { return .failure(error) }
     }
 
     /// Ajusta `dateKey` y `activeFilter` según el bloqueo de Campeonatos de la

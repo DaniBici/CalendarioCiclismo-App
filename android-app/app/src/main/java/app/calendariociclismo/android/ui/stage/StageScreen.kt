@@ -116,11 +116,16 @@ import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.GuideRow
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.CachedRacePolicy
+import app.calendariociclismo.android.util.InhouseStageMap
+import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.openExternalLink
 import app.calendariociclismo.android.util.SimplifiedGuide
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -161,13 +166,14 @@ import app.calendariociclismo.android.util.ProfileSegment
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun StageScreen(stageId: String, raceId: String? = null, navController: NavController) {
+fun StageScreen(stageId: String, raceId: String? = null, navController: NavController, titleHint: String? = null) {
     val app = rememberApp()
     val context = LocalContext.current
     val haptic = rememberHaptics()
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     var state by remember { mutableStateOf<StageState>(StageState.Loading) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var refreshAnalyticsToken by remember { mutableStateOf(0) }
     var offlineAlert by remember { mutableStateOf<OfflineAccessAlert?>(null) }
     val scope = rememberCoroutineScope()
     // Usado por la lógica de "sin red" para decidir entre modal "fuera de rango"
@@ -178,15 +184,25 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
     val profileSelection = remember(stageId) { ProfileSelection() }
     LaunchedEffect(stageId) {
         state = StageState.Loading
-        runCatching { loadStageData(app, stageId, raceId) }
+        // Room primero: si la jornada ya está completa en caché se pinta sin
+        // esperar a la carrera; la instantánea de red la sustituye al llegar.
+        val cached = runCatching { cachedStageData(app, stageId) }.getOrNull()
+        if (cached != null) state = StageState.Ready(cached.data)
+        runCatching { loadStageData(app, stageId, raceId, cached?.inhouse) }
             .onSuccess { state = StageState.Ready(it) }
-            .onFailure { state = StageState.Error(it.message ?: networkErrorFallback) }
+            .onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                // Con la caché en pantalla se conserva el contenido.
+                if (cached == null) state = StageState.Error(error.message ?: networkErrorFallback)
+            }
     }
 
     // Analytics: paridad con iOS — race_day_id + stage_name + race_name.
     // Se dispara cuando state pasa a Ready porque necesitamos los nombres
     // del ViewModel. Ver docs/memory/analytics.md.
-    LaunchedEffect(state) {
+    // Una vez por carga visible (apertura o pull-to-refresh): la sustitución
+    // de la caché por la red no repite el evento.
+    LaunchedEffect(state is StageState.Ready, refreshAnalyticsToken) {
         val ready = state as? StageState.Ready ?: return@LaunchedEffect
         val race = ready.data.race ?: return@LaunchedEffect
         app.analytics.logScreenView(
@@ -205,7 +221,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                 RouteLoadingView(
                     message = stringResource(R.string.loading),
                     modifier = Modifier.padding(padding),
-                    title = LocaleHolder.t("Jornada", "Stage"),
+                    title = titleHint ?: LocaleHolder.t("Jornada", "Stage"),
                 )
             }
             is StageState.Error -> Box(
@@ -237,6 +253,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                             runCatching { loadStageData(app, stageId, raceId) }
                                 .onSuccess {
                                     state = StageState.Ready(it)
+                                    refreshAnalyticsToken++
                                     haptic(Haptics.Event.Success)
                                 }
                             // Errores silenciados: mantenemos el contenido visible.
@@ -514,31 +531,72 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
 
 // ─── Carga de datos ───────────────────────────────────────────────
 
+/** Jornada pintable desde Room y las clasificaciones in-house ya consultadas. */
+private class CachedStage(val data: StageData, val inhouse: InhouseForRace)
+
+/** Clasificaciones in-house de una carrera (consulta ligera reutilizable). */
+private class InhouseForRace(val raceId: String, val stages: List<RaceUciStage>?) {
+    /** La consulta respondió (aunque sea vacía): se puede reutilizar. */
+    val isLoaded: Boolean get() = stages != null
+}
+
 /**
- * Carga la jornada — primero cache local, luego refresca desde Supabase para
- * poblar Room con la última versión de la carrera. Devuelve una `StageData`
- * ya construida con carrera, retransmisiones ordenadas, assets ordenados y
- * flag de startlist. Se reutiliza tanto en la carga inicial (`LaunchedEffect`)
- * como en el pull-to-refresh.
+ * Jornada desde Room si la caché basta para pintarla sin saltos: la jornada
+ * con su perfil (o sin perfil que mostrar) y su carrera. La única consulta es
+ * la ligera de clasificaciones in-house, que decide el acceso a resultados
+ * antes de publicar la pantalla.
+ */
+private suspend fun cachedStageData(app: CalendarioCiclismoApp, stageId: String): CachedStage? {
+    val cached = app.database.raceDaysDao().getById(stageId)?.toModel() ?: return null
+    if (!CachedRacePolicy.dayHasProfileData(cached)) return null
+    val rid = cached.raceId ?: return null
+    if (app.database.racesDao().getById(rid) == null) return null
+    val inhouse = InhouseForRace(rid, app.repository.inhouseStages(rid))
+    return CachedStage(buildStageData(app, stageId, inhouse), inhouse)
+}
+
+/**
+ * Carga la jornada — refresca desde Supabase la carrera para poblar Room con
+ * la última versión y construye la `StageData` desde Room con carrera,
+ * retransmisiones ordenadas, assets ordenados y flag de startlist. Se reutiliza
+ * tanto en la carga inicial (`LaunchedEffect`) como en el pull-to-refresh.
+ * Solo la jornada abierta descarga perfil; las hermanas conservan el de Room.
  */
 private suspend fun loadStageData(
     app: CalendarioCiclismoApp,
     stageId: String,
     raceId: String?,
-): StageData {
+    knownInhouse: InhouseForRace? = null,
+): StageData = coroutineScope {
     // Intentar cargar desde caché local
     val cached = app.database.raceDaysDao().getById(stageId)?.toModel()
 
     // Si no está en caché local y tenemos un raceId (ej: navegación desde búsqueda
     // por ciudad de una carrera futura como la Vuelta a España), prefetchamos la
-    // carrera completa para poblar Room antes de continuar.
-    if (cached == null && raceId != null) {
-        app.repository.refreshRaceComplete(raceId)
-    } else {
-        // Camino normal: refrescar desde red usando el raceId de la jornada cacheada
-        cached?.raceId?.let { app.repository.refreshRaceComplete(it) }
+    // carrera completa para poblar Room antes de continuar. Camino normal:
+    // refrescar desde red usando el raceId de la jornada cacheada.
+    val targetRaceId = cached?.raceId ?: raceId.takeIf { cached == null }
+    // Se reutiliza la consulta de la caché solo si respondió; tras un fallo de
+    // red se repite para no perder el acceso a clasificaciones.
+    val reusable = knownInhouse?.takeIf { it.isLoaded }
+    val inhouseDeferred = targetRaceId?.takeIf { reusable?.raceId != it }?.let { rid ->
+        async { InhouseForRace(rid, app.repository.inhouseStages(rid)) }
     }
+    targetRaceId?.let { app.repository.refreshRaceComplete(it, profileDayIds = setOf(stageId)) }
 
+    val latestRaceId = app.database.raceDaysDao().getById(stageId)?.raceId
+    val inhouse = listOfNotNull(reusable, inhouseDeferred?.await())
+        .firstOrNull { it.raceId == latestRaceId }
+        ?: latestRaceId?.let { InhouseForRace(it, app.repository.inhouseStages(it)) }
+    buildStageData(app, stageId, inhouse)
+}
+
+/** Construye la `StageData` desde Room con las clasificaciones in-house dadas. */
+private suspend fun buildStageData(
+    app: CalendarioCiclismoApp,
+    stageId: String,
+    inhouse: InhouseForRace?,
+): StageData {
     val latest = app.database.raceDaysDao().getById(stageId)
         ?.toModel() ?: error(app.getString(R.string.stage_label_route_unknown))
     val race = latest.raceId?.let { app.database.racesDao().getById(it)?.toModel() }
@@ -568,12 +626,12 @@ private suspend fun loadStageData(
     val previous = navigable.indexOfFirst { it.id == latest.id }
         .takeIf { it > 0 }
         ?.let { navigable[it - 1] }
-    val inhouseByDay = latest.raceId?.let { rid ->
+    val inhouseByDay = inhouse?.takeIf { it.raceId == latest.raceId }?.let {
         val days = listOfNotNull(
             latest.id to latest.stageNumber,
-            previous?.let { it.id to it.stageNumber },
+            previous?.let { day -> day.id to day.stageNumber },
         )
-        app.repository.inhouseStagesForDays(rid, days)
+        InhouseStageMap.forDays(it.stages.orEmpty(), days)
     }.orEmpty()
     val currentInhouseStage = inhouseByDay[latest.id]
     val technicalGuide = app.repository.cachedAssetsForRaceDays(siblings.map { it.id })
@@ -925,15 +983,17 @@ internal fun StageActionButton(
 @Composable
 internal fun RaceDayHeading(
     name: String?, logoUrl: String?, countryCode: String?, dateLabel: String, onBack: () -> Unit,
-    showFlag: Boolean = true, category: String? = null, stageLabel: String = "", onRaceTap: (() -> Unit)? = null,
+    showFlag: Boolean = true, stageLabel: String = "", onRaceTap: (() -> Unit)? = null,
     categoryName: String? = null,
+    nameMaxLines: Int = 3,
 ) {
     // Línea de detalle como `buildRaceHero` de la web: etapa y categoría
     // escrita completa («Etapa 5 · UCI WorldTour»).
     val detailLine = listOfNotNull(stageLabel.takeIf { it.isNotEmpty() }, categoryName?.takeIf { it.isNotEmpty() })
         .joinToString(" · ")
     val hasStageLabel = detailLine.isNotEmpty()
-    // Fila superior: flecha integrada + logo + nombre de carrera
+    // Fila superior: flecha integrada + nombre de carrera + logo, con el nombre
+    // equilibrado verticalmente respecto al logo (carretera y ciclocross).
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -961,14 +1021,14 @@ internal fun RaceDayHeading(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         // Override puramente cosmético de la jornada
                         // (etapas en el extranjero p.ej.). El override
                         // vence al hideFlag de la carrera.
                         if (showFlag) {
-                            CountryFlag(countryCode = countryCode)
+                            CountryFlag(countryCode = countryCode, modifier = Modifier.padding(top = 7.dp))
                         }
                         Text(
                             text = name,
@@ -978,12 +1038,10 @@ internal fun RaceDayHeading(
                             // cabecera. Compartido por jornada, perfil y orden de
                             // salida (todas reutilizan StageInfoBlock).
                             fontWeight = FontWeight.Medium,
-                            maxLines = 1,
+                            maxLines = nameMaxLines,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Spacer(Modifier.height(2.dp))
-                    category?.let { CategoryBadge(category = it) }
                 }
                 RaceLogo(url = logoUrl, size = 36.dp)
             }

@@ -42,7 +42,7 @@ export function parseDataRideEpoch(value) {
 export function nameSignal(race, competitionName) {
   const tokens = (text) => String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const left = new Set([...tokens(race.name), ...tokens(race.nameEn), ...tokens(race.abbrev)]
+  const left = new Set([...tokens(race.name), ...tokens(race.nameEn)]
     .filter((token) => token.length > 2 && !STOPWORDS.has(token)));
   const right = tokens(competitionName).filter((token) => token.length > 2 && !STOPWORDS.has(token));
   return right.some((token) => left.has(token));

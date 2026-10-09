@@ -25,9 +25,12 @@ import SwiftUI
 /// genera ningún día posterior ni queda hueco a la derecha. El scroll centra
 /// como máximo el cuarto día antes del cierre; en los tres últimos días la
 /// barra se fija con `lastDate` en el extremo derecho y la capsule se desplaza
-/// hasta el día seleccionado (`endStrip`).
+/// hasta el día seleccionado (tira fija de `DateBarWindow`). `firstDate`
+/// (primer día de la temporada de ciclocross) aplica la misma regla al
+/// inicio.
 struct DateBarView: View {
     let selectedDate: String
+    let firstDate: String?
     let lastDate: String?
     let onSelect: (String) -> Void
 
@@ -50,35 +53,34 @@ struct DateBarView: View {
 
     init(
         selectedDate: String,
+        firstDate: String? = nil,
         lastDate: String? = nil,
         onSelect: @escaping (String) -> Void
     ) {
         self.selectedDate = selectedDate
+        self.firstDate = firstDate
         self.lastDate = lastDate
         self.onSelect = onSelect
         self._dateRange = State(
-            initialValue: Self.range(around: selectedDate, lastDate: lastDate, offset: 45)
+            initialValue: Self.range(around: selectedDate, firstDate: firstDate, lastDate: lastDate, offset: 45)
         )
     }
 
-    private static func range(around dateKey: String, lastDate: String?, offset: Int) -> [String] {
-        let keys = DateFormatting.dateRange(around: dateKey, offset: offset)
-        guard let lastDate else { return keys }
-        return keys.filter { $0 <= lastDate }
+    private static func range(around dateKey: String, firstDate: String?, lastDate: String?, offset: Int) -> [String] {
+        DateFormatting.dateRange(around: dateKey, offset: offset).filter { key in
+            (firstDate.map { key >= $0 } ?? true) && (lastDate.map { key <= $0 } ?? true)
+        }
     }
 
-    /// Último día que el scroll puede centrar: tres días antes del cierre.
-    private var lastCenterableDate: String? {
-        lastDate.flatMap { DateFormatting.dayOffset(from: $0, by: -Int(visibleDayCount - 1) / 2) }
-    }
+    /// Primer y último día que el scroll puede centrar: tres días dentro de
+    /// cada extremo.
+    private var firstCenterableDate: String? { DateBarWindow.firstCenterable(firstDate, count: Int(visibleDayCount)) }
+    private var lastCenterableDate: String? { DateBarWindow.lastCenterable(lastDate, count: Int(visibleDayCount)) }
 
-    /// Siete días que terminan en `lastDate` cuando el día seleccionado ya no
-    /// puede centrarse; nil en el resto de casos.
-    private var endStrip: [String]? {
-        guard let lastDate, let limit = lastCenterableDate, selectedDate > limit else { return nil }
-        let count = Int(visibleDayCount)
-        let keys = (0..<count).reversed().compactMap { DateFormatting.dayOffset(from: lastDate, by: -$0) }
-        return keys.count == count ? keys : nil
+    /// Tira fija cuando el día seleccionado no puede centrarse; nil en el
+    /// resto de casos.
+    private var edgeStrip: [String]? {
+        DateBarWindow.fixedStrip(selected: selectedDate, firstDate: firstDate, lastDate: lastDate, count: Int(visibleDayCount))
     }
 
     var body: some View {
@@ -89,8 +91,8 @@ struct DateBarView: View {
             let displayedCenter = scrollPosition ?? selectedDate
 
             ZStack {
-                if let strip = endStrip {
-                    endStripView(strip, dayWidth: dayWidth, capsuleWidth: capsuleWidth)
+                if let strip = edgeStrip {
+                    edgeStripView(strip, dayWidth: dayWidth, capsuleWidth: capsuleWidth)
                 } else {
                     scrollingDays(dayWidth: dayWidth, capsuleWidth: capsuleWidth, displayedCenter: displayedCenter)
                 }
@@ -108,7 +110,7 @@ struct DateBarView: View {
                 if !dateRange.contains(newValue) {
                     // Navegación extrema (> ±45 días): regenerar el rango y
                     // reposicionar con el truco nil → valor.
-                    dateRange = Self.range(around: newValue, lastDate: lastDate, offset: windowOffset)
+                    dateRange = Self.range(around: newValue, firstDate: firstDate, lastDate: lastDate, offset: windowOffset)
                     scrollPosition = nil
                     DispatchQueue.main.async {
                         scrollPosition = newValue
@@ -141,9 +143,14 @@ struct DateBarView: View {
                     Button {
                         guard key != scrollPosition else { return }
                         Haptics.play(.navigation)
-                        // Los tres últimos días no pueden centrarse: se
-                        // seleccionan directamente y la barra pasa a endStrip.
+                        // Los tres días de cada extremo no pueden centrarse:
+                        // se seleccionan directamente y la barra pasa a la
+                        // tira fija.
                         if let limit = lastCenterableDate, key > limit {
+                            onSelect(key)
+                            return
+                        }
+                        if let limit = firstCenterableDate, key < limit {
                             onSelect(key)
                             return
                         }
@@ -206,11 +213,13 @@ struct DateBarView: View {
         .accessibilityHidden(true)
     }
 
-    /// Tramo final de la temporada: siete días fijos que terminan en
-    /// `lastDate`, con la capsule sobre el día seleccionado. Tocar un día lo
-    /// selecciona; arrastrar hacia la derecha vuelve al día anterior.
-    private func endStripView(_ keys: [String], dayWidth: CGFloat, capsuleWidth: CGFloat) -> some View {
-        HStack(spacing: 0) {
+    /// Tramo inicial o final de la temporada: siete días fijos que empiezan en
+    /// `firstDate` o terminan en `lastDate`, con la capsule sobre el día
+    /// seleccionado. Tocar un día lo selecciona; arrastrar hacia el centro de
+    /// la temporada pasa al día contiguo.
+    private func edgeStripView(_ keys: [String], dayWidth: CGFloat, capsuleWidth: CGFloat) -> some View {
+        let atStart = keys.first == firstDate
+        return HStack(spacing: 0) {
             ForEach(keys, id: \.self) { key in
                 let selected = key == selectedDate
                 Button {
@@ -241,11 +250,12 @@ struct DateBarView: View {
         }
         .gesture(
             DragGesture(minimumDistance: 20).onEnded { value in
-                guard value.translation.width > 40,
-                      abs(value.translation.width) > abs(value.translation.height),
-                      let previous = DateFormatting.dayOffset(from: selectedDate, by: -1) else { return }
+                let width = value.translation.width
+                guard abs(width) > 40, abs(width) > abs(value.translation.height),
+                      atStart ? width < 0 : width > 0,
+                      let target = DateFormatting.dayOffset(from: selectedDate, by: atStart ? 1 : -1) else { return }
                 Haptics.play(.navigation)
-                onSelect(previous)
+                onSelect(target)
             }
         )
     }
@@ -262,6 +272,36 @@ struct DateBarView: View {
                 isRepositioning = false
             }
         }
+    }
+}
+
+// MARK: - DateBarWindow
+
+/// Ventana de la barra de fechas en los extremos del rango navegable.
+enum DateBarWindow {
+    /// Primer día centrable: la mitad de la tira después de `firstDate`.
+    static func firstCenterable(_ firstDate: String?, count: Int) -> String? {
+        firstDate.flatMap { DateFormatting.dayOffset(from: $0, by: (count - 1) / 2) }
+    }
+
+    /// Último día centrable: la mitad de la tira antes de `lastDate`.
+    static func lastCenterable(_ lastDate: String?, count: Int) -> String? {
+        lastDate.flatMap { DateFormatting.dayOffset(from: $0, by: -(count - 1) / 2) }
+    }
+
+    /// `count` días fijos que empiezan en `firstDate` o terminan en `lastDate`
+    /// cuando `selected` no puede centrarse sin mostrar días fuera de rango;
+    /// nil cuando puede centrarse.
+    static func fixedStrip(selected: String, firstDate: String?, lastDate: String?, count: Int) -> [String]? {
+        if let firstDate, let limit = firstCenterable(firstDate, count: count), selected < limit {
+            let keys = (0..<count).compactMap { DateFormatting.dayOffset(from: firstDate, by: $0) }
+            return keys.count == count ? keys : nil
+        }
+        if let lastDate, let limit = lastCenterable(lastDate, count: count), selected > limit {
+            let keys = (0..<count).reversed().compactMap { DateFormatting.dayOffset(from: lastDate, by: -$0) }
+            return keys.count == count ? keys : nil
+        }
+        return nil
     }
 }
 

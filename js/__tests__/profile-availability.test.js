@@ -24,3 +24,14 @@ describe('hasRenderableElevationProfile', () => {
     })).toBe(false);
   });
 });
+
+describe('hasRenderableElevationProfile con la sonda de perfil', () => {
+  it('acepta el segundo punto devuelto por la sonda', () => {
+    expect(hasRenderableElevationProfile({ profileNotViewable: false, profilePoint: { km: 1, alt: 20 } })).toBe(true);
+  });
+
+  it('rechaza la sonda vacía o vetada', () => {
+    expect(hasRenderableElevationProfile({ profileNotViewable: false, profilePoint: null })).toBe(false);
+    expect(hasRenderableElevationProfile({ profileNotViewable: true, profilePoint: { km: 1, alt: 20 } })).toBe(false);
+  });
+});

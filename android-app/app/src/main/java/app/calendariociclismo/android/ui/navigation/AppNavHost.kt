@@ -248,7 +248,8 @@ fun AppNavHost(navController: NavHostController) {
             composable(Routes.CX_RACE, arguments = listOf(
                 navArgument("raceId") { type = NavType.StringType },
                 navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
-            )) { entry -> CxRaceScreen(navController, entry.arguments?.getString("raceId").orEmpty(), entry.arguments?.getString("category")) }
+                navArgument("title") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )) { entry -> CxRaceScreen(navController, entry.arguments?.getString("raceId").orEmpty(), entry.arguments?.getString("category"), entry.arguments?.getString("title")) }
             composable(Routes.TRANSFERS) { TransfersScreen(navController, showBackArrow = false) }
             composable(Routes.TRANSFERS_HIGHLIGHT) { TransfersScreen(navController, showBackArrow = true) }
             composable(Routes.SETTINGS) { SettingsScreen(navController) }
@@ -277,11 +278,13 @@ fun AppNavHost(navController: NavHostController) {
                 arguments = listOf(
                     navArgument("stageId") { type = NavType.StringType },
                     navArgument("raceId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("title") { type = NavType.StringType; nullable = true; defaultValue = null },
                 ),
             ) { entry ->
                 StageScreen(
                     stageId = entry.arguments?.getString("stageId").orEmpty(),
                     raceId = entry.arguments?.getString("raceId"),
+                    titleHint = entry.arguments?.getString("title"),
                     navController = navController,
                 )
             }

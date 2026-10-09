@@ -37,6 +37,9 @@ struct CxMediaSelection {
     let hasHiddenTV: Bool
     /// La lista de TV en directo (todas las regiones) no está vacía.
     let showsLiveTV: Bool
+    /// Filas de TV en directo de la región del usuario: con «Todas», el resto
+    /// lleva la etiqueta de región.
+    let regionalIds: Set<String>
     var tvRows: [CxBroadcast] { tv.flatMap(\.rows) }
     /// Hay TV en directo, pero ninguna fila visible con el filtro actual.
     var showsRegionEmpty: Bool { showsLiveTV && tv.isEmpty }
@@ -229,15 +232,15 @@ enum CyclocrossPresentation {
         switch timing.temporalState {
         case .live: return t("En curso", "In progress")
         case .estimatedFinished: return t("Pendiente", "Pending")
-        default: return localTime(category.startTimeUtc) ?? "—"
+        default: return localTime(category.startTimeUtc) ?? "-"
         }
     }
     static func number(_ value: Double?) -> String {
-        guard let value else { return "—" }
+        guard let value else { return "-" }
         let formatter = NumberFormatter()
         formatter.locale = LocaleService.shared.current.locale
         formatter.maximumFractionDigits = 3
-        return formatter.string(from: NSNumber(value: value)) ?? "—"
+        return formatter.string(from: NSNumber(value: value)) ?? "-"
     }
     /// Vueltas acreditadas por LAP o por su unidad explícita; nunca son un tiempo.
     static func lapsLost(_ row: CxResult) -> Int? {
@@ -490,7 +493,10 @@ enum CyclocrossPresentation {
             return keys.insert("\(row.category ?? "")|\(link(row.url)?.absoluteString ?? "")|\(country)|\(row.channel ?? "")").inserted
         }
         let regional = tvRows.filter { RaceLogic.broadcastMatchesRegion($0.country, allowedGroups: allowedGroups) }
-        let visible = showAll ? tvRows : regional
+        let regionalIds = Set(regional.map(\.id))
+        // Con «Todas», las emisiones de otras regiones siguen a las propias
+        // dentro de cada bloque, como en carretera.
+        let visible = showAll ? regional + tvRows.filter { !regionalIds.contains($0.id) } : regional
         var groups: [CxTVGroup] = []
         let common = visible.filter { ($0.category ?? "").isEmpty }
         if !common.isEmpty { groups.append(CxTVGroup(category: nil, rows: common)) }
@@ -514,7 +520,7 @@ enum CyclocrossPresentation {
                 }
         }.compactMap { row in link(row.url).map { CxReplayLink(title: row.channel ?? "TV", url: $0) } }
             .filter { urls.insert($0.id).inserted }
-        return CxMediaSelection(tv: groups, revive: revive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty)
+        return CxMediaSelection(tv: groups, revive: revive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty, regionalIds: regionalIds)
     }
     static func usesDarkChipText(_ hex: String) -> Bool {
         guard let rgb = Int(hex.replacingOccurrences(of: "#", with: ""), radix: 16) else { return false }

@@ -51,3 +51,14 @@ private fun parseColor(colorStr: String, default: Color): Color {
         default
     }
 }
+
+/**
+ * Fondo y texto editoriales de la cabecera de equipo (`teamHeaderColors` de la
+ * web); null si falta o no es válido alguno de los dos.
+ */
+internal fun teamHeaderColors(team: Team?): Pair<Color, Color>? {
+    team ?: return null
+    val background = parseColor(team.headerBg.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
+    val text = parseColor(team.headerText.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
+    return background to text
+}

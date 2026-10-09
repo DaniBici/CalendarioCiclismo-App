@@ -5,11 +5,12 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, startOrderUrl,
-         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, setPressed, setRaceRobots } from './shared.js';
+         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, setPressed, setRaceRobots,
+         embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
 import { stageContextHtml } from './stage/context.js';
-import { teamStripes, teamsForSeason } from './team-appearance.js';
+import { teamStripes, startlistTeamsQuery, splitStartlistTeams } from './team-appearance.js';
 
 const STAGE_TYPE_LABELS = {
   itt: { es: 'CRI', en: 'ITT' },
@@ -45,7 +46,7 @@ function tzOffsetLabel(tz, atDate) {
   } catch { return ''; }
 }
 
-async function init() {
+async function init(i18nReady = Promise.resolve()) {
   window.__spaDrivenAnalytics = true;
   const params  = new URLSearchParams(window.location.search);
   const content = document.getElementById('startOrderContent');
@@ -58,41 +59,30 @@ async function init() {
     const m = location.pathname.match(/^\/(orden-salida|en\/start-order|start-order)\/([^\/]+)\/?$/);
     if (m) slug = decodeURIComponent(m[2]);
   }
+  // Página pre-renderizada: el build incrusta el id de la jornada.
+  if (!rdId && !params.get('slug')) rdId = embeddedId('race-day-id');
 
-  let rd = null;
-  if (slug && !rdId) {
-    // EN paths use slugEn; ES paths use slug
-    const slugField = _isEn ? 'slugEn' : 'slug';
-    const { data } = await supabase
-      .from('race_days')
-      .select('*')
-      .eq(slugField, slug)
-      .single();
-    // fallback: if not found by slugEn, try slug
-    if (!data && _isEn) {
-      const { data: d2 } = await supabase
-        .from('race_days')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-      rd = d2;
-    } else {
-      rd = data;
-    }
-    if (rd) rdId = rd.id;
-  } else if (rdId) {
-    const { data } = await supabase
-      .from('race_days')
-      .select('*')
-      .eq('id', rdId)
-      .single();
-    rd = data;
+  // Jornada con la carrera embebida. Por slug, una sola consulta: en EN se
+  // prefiere slugEn y se admite slug.
+  const DAY_WITH_RACE = '*,race:races(*)';
+  let row = null;
+  if (rdId) {
+    const { data } = await supabase.from('race_days').select(DAY_WITH_RACE).eq('id', rdId).maybeSingle();
+    row = data;
+  }
+  if (!row && slug) {
+    const columns = _isEn ? ['slugEn', 'slug'] : ['slug'];
+    const { data } = await supabase.from('race_days').select(DAY_WITH_RACE).or(orEqFilter(columns, slug)).limit(4);
+    row = pickByPreference(data, columns, slug);
   }
 
-  if (!rd) {
+  if (!row) {
+    await i18nReady;
     content.innerHTML = `<div class="startlist-empty">${_isEn ? 'Start order not found.' : 'No se encontró el orden de salida.'}</div>`;
     return;
   }
+  const { race, ...rd } = row;
+  rdId = rd.id;
 
   const canonSlug = _isEn ? (rd.slugEn || rd.slug) : rd.slug;
   const canonBase = _isEn ? `${enBase()}/start-order/` : '/orden-salida/';
@@ -100,39 +90,22 @@ async function init() {
     ? `${canonBase}${encodeURIComponent(canonSlug)}/`
     : `/orden-salida.html?id=${rdId}`);
 
-  const { data: race } = await supabase
-    .from('races')
-    .select('*')
-    .eq('id', rd.raceId)
-    .single();
-
-  const { data: entries, error } = await supabase
-    .from('start_order_entries_resolved')
-    .select('*')
-    .eq('raceDayId', rdId)
-    .order('sortOrder', { ascending: true });
-
-  // Assets de la jornada (rutómetro/perfil/puertos/mapa/live texto) para el
-  // panel de botones común. Solo en pruebas de un día se muestran (la salvedad
-  // se aplica en inscritos; aquí, al ser una etapa concreta, siempre van).
-  const { data: soAssets } = await supabase.from('assets').select('*').eq('raceDayId', rdId);
+  // Orden, assets de la jornada (panel de botones común), equipos de la
+  // startlist con su temporada y guía técnica: todo depende solo de la jornada.
+  const [{ data: entries, error }, { data: soAssets }, { data: startlistRows }, technicalGuide] = await Promise.all([
+    supabase.from('start_order_entries_resolved').select('*').eq('raceDayId', rdId).order('sortOrder', { ascending: true }),
+    supabase.from('assets').select('*').eq('raceDayId', rdId),
+    startlistTeamsQuery(supabase, rd.raceId, race?.year, 'teamId'),
+    race?.id ? loadRaceTechnicalGuide(race.id) : Promise.resolve(null),
+    i18nReady,
+  ]);
 
   if (error || !entries || entries.length === 0) {
     content.innerHTML = `<div class="startlist-empty">${_isEn ? 'No start order data available for this stage.' : 'No hay datos de orden de salida para esta jornada.'}</div>`;
     return;
   }
 
-  let raceTeams = [];
-  const { data: startlistTeams } = await supabase
-    .from('startlist_teams').select('teamId').eq('raceId', rd.raceId);
-  const teamIds = [...new Set((startlistTeams || []).map(team => team.teamId).filter(Boolean))];
-  if (teamIds.length) {
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
-      .in('id', teamIds);
-    raceTeams = await teamsForSeason(supabase, teams || [], race.year, teamIds);
-  }
+  const raceTeams = splitStartlistTeams(startlistRows, race?.year).teams;
   const teamFor = teamName => teamName ? findMatchingTeam(teamName, raceTeams) : null;
 
   // Enlaces a fichas retirados; equipos y corredores se muestran como texto.
@@ -167,10 +140,10 @@ async function init() {
 
   const heroTitle = [raceName, year].filter(Boolean).join(' ');
   const heroSubline = [stageLabel, typeLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
-  const stageSuffix = stageLabel ? ` — ${stageLabel}` : '';
+  const stageSuffix = stageLabel ? ` - ${stageLabel}` : '';
   const pageTitle = _isEn
-    ? `Start order — ${heroTitle}${stageSuffix}`
-    : `Orden de salida — ${heroTitle}${stageSuffix}`;
+    ? `Start order - ${heroTitle}${stageSuffix}`
+    : `Orden de salida - ${heroTitle}${stageSuffix}`;
 
   document.title = pageTitle;
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
@@ -224,7 +197,7 @@ async function init() {
     ? (_isEn ? 'teams' : 'equipos')
     : (_isEn ? 'riders' : 'corredores');
   const startOrderLabel = _isEn ? 'Start order' : 'Orden de salida';
-  const contextAssets = withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id));
+  const contextAssets = withRaceTechnicalGuide(soAssets || [], technicalGuide);
 
   let html = buildRaceHeader({
     race,
@@ -235,7 +208,7 @@ async function init() {
   }) + buildActionButtons({
     race, rd, view: 'startOrder', assets: contextAssets,
     hasStartlist: !!race.startlistImportedAt,
-    style: 'margin:0.85rem auto', standalone: true,
+    style: 'margin:0 auto 0.85rem', standalone: true,
   }) + `<div class="res-layout res-layout--context"><div class="res-main">
     ${hasFilters ? `
     <div class="so-filters" id="soFilters">
@@ -291,7 +264,7 @@ async function init() {
 
   entries.forEach(e => {
     const flagHtml = e.countryCode ? `<span class="so-flag">${countryFlag(e.countryCode)}</span>` : '';
-    const name = e.riderName ? esc(e.riderName) : `<span style="opacity:0.45">—</span>`;
+    const name = e.riderName ? esc(e.riderName) : `<span style="opacity:0.45">-</span>`;
     const teamColors = teamStripes(teamFor(e.teamName));
     const team = e.teamName ? `${teamColors}${esc(e.teamName)}` : '';
     const teamHref = teamHrefFor(e.teamName);
@@ -323,7 +296,7 @@ async function init() {
       // CRE: solo hora + equipo (sin dorsal, sin bandera, sin corredor).
       const teamCell = e.teamName
         ? (teamHref ? `<a class="so-link" href="${esc(teamHref)}">${team}</a>` : team)
-        : `<span style="opacity:0.45">—</span>`;
+        : `<span style="opacity:0.45">-</span>`;
       html += `
           <tr class="so-row">
             <td class="so-td so-td--time">${timeCell}</td>
@@ -375,4 +348,5 @@ async function init() {
 
 // Esperar a cargar las traducciones (en.json) antes de renderizar: el panel de
 // botones usa t('assets.*'), que sin esto cae al diccionario ES embebido.
-initI18n().then(init);
+// El diccionario EN se carga a la vez que los datos; init lo espera antes de pintar.
+init(initI18n());

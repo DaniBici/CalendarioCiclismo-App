@@ -7,7 +7,7 @@ import { activeCatalogTeams } from '../services/team-catalog.js';
 import { alertDialog } from '../components/dialog.js';
 import {
   filterStartlistRiderCandidates, resultRiderDorsalText, resultRiderPickerInitialQuery,
-  riderMatchesSearch, riderSearchLookupToken,
+  riderMatchesSearch, riderSearchTokens, withRiderSearch,
 } from '../results/panel-logic.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
@@ -89,10 +89,9 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
     }
     if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Escribe al menos 2 letras.</div>'; return; }
     results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Buscando…</div>';
-    const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
-    const { data, error } = await supabase.from(ridersTable)
-      .select('id,firstName,lastName,otherNames,nationality,verified,identityKey')
-      .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
+    const tokens = riderSearchTokens(q);
+    if (!tokens.length) { results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin resultados.</div>'; return; }
+    const { data, error } = await withRiderSearch(supabase.from(ridersTable).select('id,firstName,lastName,otherNames,nationality,verified,identityKey'), tokens)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
     if (error) { results.innerHTML = `<div class="u-c-red u-fs-1 u-p-030">Error: ${esc(error.message)}</div>`; return; }

@@ -6,7 +6,7 @@ import {
   supabase, countryFlag, esc, normalizeTeamName, isNoTeamPlaceholderTeam,
 } from '../shared.js';
 import { confirmDialog } from '../components/dialog.js';
-import { riderMatchesSearch, riderSearchLookupToken } from '../results/panel-logic.js';
+import { riderMatchesSearch, riderSearchTokens, withRiderSearch } from '../results/panel-logic.js';
 import { teamStripes } from '../team-appearance.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
@@ -105,10 +105,9 @@ export async function _slOpenRiderMatchPicker(riderEl) {
       return;
     }
     results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Buscando…</div>';
-    const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
-    const { data, error } = await supabase.from(ridersTable)
-      .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source,identityKey')
-      .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
+    const tokens = riderSearchTokens(q);
+    if (!tokens.length) { results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin resultados.</div>'; return; }
+    const { data, error } = await withRiderSearch(supabase.from(ridersTable).select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source,identityKey'), tokens)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
     if (error) { results.innerHTML = `<div class="u-c-red u-fs-1 u-p-030">Error: ${esc(error.message)}</div>`; return; }
@@ -319,13 +318,15 @@ export async function _slOpenRiderMatchPicker(riderEl) {
       const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
       const curLast = norm(editLast.value);
       const curFirstInitial = norm(editFirst.value).charAt(0);
-      if (!curLast) { wrap.style.display = 'none'; return; }
-      const safeLast = editLast.value.trim().replace(/[%,()]/g, '');
-      const { data, error } = await supabase.from(ridersTable)
+      const lastTokens = riderSearchTokens(editLast.value);
+      if (!curLast || !lastTokens.length) { wrap.style.display = 'none'; return; }
+      // searchName empieza por el nombre plegado: la inicial se filtra en el
+      // servidor para que los homónimos de apellido no agoten el límite.
+      let dupsQuery = withRiderSearch(supabase.from(ridersTable)
         .select('id,firstName,lastName,nationality,verified,source,otherNames')
-        .neq('id', currentId)
-        .ilike('lastName', `%${safeLast}%`)
-        .limit(25);
+        .neq('id', currentId), lastTokens);
+      if (curFirstInitial) dupsQuery = dupsQuery.ilike('searchName', `${curFirstInitial}%`);
+      const { data, error } = await dupsQuery.limit(25);
       if (error) { wrap.style.display = 'none'; return; }
       const dups = (data || []).filter(c =>
         norm(c.lastName) === curLast &&

@@ -6,41 +6,62 @@ import Supabase
 extension SupabaseService {
 
     /// Movimientos del mercado de una temporada, cronológico inverso.
+    /// Paginado en bloques de 1.000 para no depender del tope de filas por
+    /// respuesta de PostgREST: la temporada 2027 ronda ya las 800 filas y
+    /// crece. `id` desempata para que el orden entre páginas sea estable.
     func riderTransfers(season: Int) async throws -> [RiderTransfer] {
-        try await client.from("rider_transfers")
-            .select()
-            .eq("season", value: season)
-            .order("announcedAt", ascending: false)
-            .order("createdAt", ascending: false)
-            .execute()
-            .value
+        var all: [RiderTransfer] = []
+        var offset = 0
+        while true {
+            let page: [RiderTransfer] = try await client.from("rider_transfers")
+                .select()
+                .eq("season", value: season)
+                .order("announcedAt", ascending: false)
+                .order("createdAt", ascending: false)
+                .order("id", ascending: true)
+                .range(from: offset, to: offset + 999)
+                .execute()
+                .value
+            all.append(contentsOf: page)
+            if page.count < 1000 { return all }
+            offset += 1000
+        }
     }
 
     /// Versiones de equipo de un año (team_seasons) — para la lista de equipos
-    /// del mercado (nombre 2027, categoría 2027, chapa ocultable).
+    /// del mercado (nombre 2027, categoría 2027, chapa ocultable). Paginado en
+    /// bloques de 1.000 (2026 supera las 1.300 filas) para no depender del
+    /// tope de filas por respuesta.
     func teamSeasons(year: Int) async throws -> [TeamSeason] {
-        try await client.from("team_seasons")
-            .select()
-            .eq("year", value: year)
-            .execute()
-            .value
+        var all: [TeamSeason] = []
+        var offset = 0
+        while true {
+            let page: [TeamSeason] = try await client.from("team_seasons")
+                .select()
+                .eq("year", value: year)
+                .order("teamId", ascending: true)
+                .range(from: offset, to: offset + 999)
+                .execute()
+                .value
+            all.append(contentsOf: page)
+            if page.count < 1000 { return all }
+            offset += 1000
+        }
     }
 
     /// Fichas mínimas por id (riders_men + riders_women; el id es único
-    /// cross-tabla) — para hidratar nombre/bandera de los movimientos.
+    /// cross-tabla) — para hidratar nombre/bandera de los movimientos. Ambas
+    /// tablas en paralelo y por bloques de IDs.
     func transferRiders(byIds ids: [String]) async throws -> [TransferRider] {
         guard !ids.isEmpty else { return [] }
         let cols = "id,firstName,lastName,nationality,currentTeamId,contractUntil"
-        var out: [TransferRider] = []
-        for table in ["riders_men", "riders_women"] {
-            let rows: [TransferRider] = try await client.from(table)
-                .select(cols)
-                .in("id", values: ids)
-                .execute()
-                .value
-            out += rows
+        async let men: [TransferRider] = inChunks(ids) { chunk in
+            try await self.client.from("riders_men").select(cols).in("id", values: chunk).execute().value
         }
-        return out
+        async let women: [TransferRider] = inChunks(ids) { chunk in
+            try await self.client.from("riders_women").select(cols).in("id", values: chunk).execute().value
+        }
+        return try await men + women
     }
 
     /// Plantilla 2027 MATERIALIZADA de un equipo (rider_team_affiliations
@@ -65,17 +86,14 @@ extension SupabaseService {
         let menIds = affs.filter { ($0.riderGender ?? gender) == "male" }.map(\.riderId)
         let womenIds = affs.filter { ($0.riderGender ?? gender) == "female" }.map(\.riderId)
 
-        var out: [TransferRider] = []
-        for (table, ids) in [("riders_men", menIds), ("riders_women", womenIds)] where !ids.isEmpty {
-            let rows: [TransferRider] = try await client.from(table)
-                .select(cols)
-                .in("id", values: ids)
-                .execute()
-                .value
-            // El contrato lo manda la afiliación (no riders_*.contractUntil).
-            out += rows.map { $0.withContractUntil(contractByRider[$0.id] ?? nil) }
+        async let men: [TransferRider] = inChunks(menIds) { chunk in
+            try await self.client.from("riders_men").select(cols).in("id", values: chunk).execute().value
         }
-        return out
+        async let women: [TransferRider] = inChunks(womenIds) { chunk in
+            try await self.client.from("riders_women").select(cols).in("id", values: chunk).execute().value
+        }
+        // El contrato lo manda la afiliación (no riders_*.contractUntil).
+        return try await (men + women).map { $0.withContractUntil(contractByRider[$0.id] ?? nil) }
     }
 
     /// Carga inicial de la pestaña Fichajes: movimientos + temporadas del

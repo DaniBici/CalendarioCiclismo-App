@@ -167,13 +167,17 @@ final class SeasonViewModel {
         }
 
         // 2. Intentar actualizar desde red
+        // Challenges y carreras son independientes: salen a la vez.
+        let service = SupabaseService.shared
+        async let groupsReq = try? service.challengeGroups(year: year)
+        async let racesReq = service.racesByYear(year)
+        // Sin challenges la temporada se muestra igual, con las pruebas sueltas.
+        if let groups = await groupsReq {
+            challengeGroups = groups
+            await cache.save(groups, forKey: challengesKey)
+        }
         do {
-            // Sin challenges la temporada se muestra igual, con las pruebas sueltas.
-            if let groups = try? await SupabaseService.shared.challengeGroups(year: year) {
-                challengeGroups = groups
-                await cache.save(groups, forKey: challengesKey)
-            }
-            races = try await SupabaseService.shared.racesByYear(year)
+            races = try await racesReq
             isFromCache = false
             cacheAgeLabel = nil
             await cache.save(races, forKey: cacheKey)

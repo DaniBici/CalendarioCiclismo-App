@@ -162,7 +162,6 @@ struct CxRace: Codable, Sendable, Identifiable {
     let id: String
     let name: String
     let nameEn: String?
-    let abbrev: String?
     let slug: String
     let slugEn: String?
     let seasonKey: String
@@ -182,7 +181,7 @@ struct CxRace: Codable, Sendable, Identifiable {
     let categories: [CxCategory]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, nameEn, abbrev, slug, slugEn, seasonKey, dateKey, endDateKey
+        case id, name, nameEn, slug, slugEn, seasonKey, dateKey, endDateKey
         case raceClass = "class"
         case countryCode, venue, tournamentId, colorHex, logoUrl, websiteUrl, timezone, isCancelled
         case assets

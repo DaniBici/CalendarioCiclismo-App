@@ -5,7 +5,7 @@
 import { panelTeamRowHtml, panelTeamCatalogHtml } from './editor-ui.js';
 import { supabase, countryFlag, esc } from '../shared.js';
 import {
-  activeCatalogTeams, teamGenderLabel, teamListYearOptions, teamsForSeasonList,
+  activeCatalogTeams, teamListYearOptions, teamsForSeasonList,
 } from '../services/team-catalog.js';
 import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
@@ -20,7 +20,6 @@ import {
   _syncRosterVisibility, _syncSeason27Visibility, discontinueTeamSeason27,
   setupRosterPanel, setupSeason27Panel,
 } from './team-roster.js';
-import { openDuplicateScanner } from './rider-merge.js';
 
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE EQUIPOS (teams)
@@ -107,7 +106,6 @@ export function populateTeamsYearSelect() {
   const options = teamListYearOptions(existingYears, {
     currentYear: CURRENT_TEAM_SEASON,
     marketYear: MARKET_SEASON,
-    minYear: 2020,
   });
   if (!options.includes(panelState._teamsListYear)) panelState._teamsListYear = options.includes(CURRENT_TEAM_SEASON)
     ? CURRENT_TEAM_SEASON
@@ -207,12 +205,6 @@ export async function setupTeamsView() {
     // Los listeners del editor de equipo (form, colores, specialEdition,
     // categoría→género, editTeamColorsBtn, roster) se cablean por apertura en
     // wireTeamEditor() — el editor se renderiza en el drawer.
-
-    // Detector de duplicados del catálogo de corredores. Antes vivía en la zona
-    // Corredores (eliminada); ahora se dispara desde Equipos y se renderiza en
-    // el drawer (cierre por ✕; toggle masc/fem cableado por apertura en
-    // wireDupScan()).
-    bind('dupScanBtn', 'click', openDuplicateScanner);
   }
   await Promise.all([fetchTeams({ force: true }), fetchTeamSeasonYears({ force: true })]);
   populateTeamsYearSelect();
@@ -257,7 +249,7 @@ export function renderTeamsList() {
 
   const total = allTeams.length;
 
-  const renderTeamRow=t=>panelTeamRowHtml(t,{meta:[teamGenderLabel(t.gender),t.category,String(panelState._teamsListYear)]});
+  const renderTeamRow=t=>panelTeamRowHtml(t);
 
   // Agrupar equipos base por categoría
   const byCategory = {};

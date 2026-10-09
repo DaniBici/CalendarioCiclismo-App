@@ -21,8 +21,9 @@
   --accent-dim:    rgba(26,115,232,0.12);
   /* Texto en color de acento SOBRE fondo --accent-dim (día seleccionado,
      botón Hoy): el azul base #1a73e8 queda por debajo de 4.5:1 sobre el
-     tinte; este azul más claro pasa AA en tema oscuro. */
-  --accent-text:   #4d94f0;
+     tinte; este azul más claro pasa AA en tema oscuro, también sobre el tinte
+     aplicado a una tarjeta (banner de la app de Android). */
+  --accent-text:   #5a9df2;
   --btn-primary-text: #ffffff;
   --red:           #ffb4ab;
   --green:         #6dd58c;
@@ -124,7 +125,7 @@ html.light {
   --text-muted:    #5f6368;
   --text-dim:      #63686d;
   --accent:        #1a73e8;
-  --accent-text:   #1666cc;
+  --accent-text:   #1560bd;
   --accent-dim:    rgba(26,115,232,0.10);
   --btn-primary-text: #fff;
   --red:           #c5221f;
@@ -186,7 +187,7 @@ html.light {
     --text-muted:    #5f6368;
     --text-dim:      #63686d;
     --accent:        #1a73e8;
-    --accent-text:   #1666cc;
+    --accent-text:   #1560bd;
     --accent-dim:    rgba(26,115,232,0.10);
     --btn-primary-text: #fff;
     --red:           #c5221f;

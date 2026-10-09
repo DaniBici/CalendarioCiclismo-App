@@ -22,7 +22,7 @@ def offline_helpers(filename):
                  'SITE_HEADER_HTML','SITE_HEADER_HTML_EN','SITE_FOOTER_HTML',
                  'SITE_FOOTER_HTML_EN','PRERENDER_STYLE','PRERENDER_LOADING_HTML',
                  'JORNADA_SCRIPT','APP_STYLESHEET','MESES','DIAS_SEMANA','PAIS_ES',
-                 'MONTHS_EN','WEEKDAYS_EN','COUNTRY_EN'}
+                 'MONTHS_EN','WEEKDAYS_EN','COUNTRY_EN','SUPABASE_JS_ESM'}
     nodes = [n for n in tree.body if isinstance(n,ast.FunctionDef) or
              isinstance(n,ast.Assign) and all(isinstance(t,ast.Name) and t.id in constants for t in n.targets)]
     namespace = {'os':os,'html':html,'json':json,'quote':quote,'datetime':datetime,'timezone':timezone,'dt_date':date,
@@ -63,7 +63,7 @@ class CxPagesTest(unittest.TestCase):
                 self.assertIn('href="#WE">WE</a> · 2027-01-30',es)
                 self.assertNotIn('href="#WU"',es)
                 self.assertIn('Worlds &amp; CX',en)
-                self.assertIn('<title>Worlds &amp; CX — Calendario Ciclismo App</title>',en)
+                self.assertIn('<title>Worlds &amp; CX - Calendario Ciclismo App</title>',en)
                 self.assertIn('Worlds &amp; CX (Friday 29 January 2027 – Sunday 31 January 2027) is a UCI CM cyclocross race in Ostende (Belgium).',en)
                 self.assertIn(f'<meta name="robots" content="{archived_seasons.ROBOTS_INDEX}">',en)
                 self.assertNotIn('prueba de ciclocross',en)
@@ -185,7 +185,7 @@ class CxPagesTest(unittest.TestCase):
         builder = offline_helpers('tools/site/gen_og_pages.py')
         title,description = builder['cx_race_seo']({**self.race,'name':'Carrera CX 2026','venue':None,
             'countryCode':'ca','cx_tournaments':{'name':'Circuito CX 2026-27'}},'startlist')
-        self.assertEqual(title,'Dorsales · Carrera CX 2026 — Calendario Ciclismo App')
+        self.assertEqual(title,'Dorsales · Carrera CX 2026 - Calendario Ciclismo App')
         self.assertIn('en Canadá.',description)
         self.assertNotIn('viernes,',description)
         self.assertNotIn('Inscritos',title+description)

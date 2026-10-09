@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.data.map.RouteGpxLoader
 import app.calendariociclismo.android.data.model.ElevationPoint
 import app.calendariociclismo.android.data.model.ProfileSummit
 import app.calendariociclismo.android.data.model.ProfileWaypoint
@@ -65,7 +66,6 @@ import app.calendariociclismo.android.util.RouteMapLogic
 import app.calendariociclismo.android.util.RoutePoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URL
 import kotlin.math.roundToInt
 
 // ─── Colores (espejo del perfil y del pin de iOS) ─────────────────
@@ -142,9 +142,10 @@ fun RouteMapScreen(rdId: String, navController: NavHostController) {
         val url = rd?.routeGpxUrl
         if (rd == null || url.isNullOrEmpty()) { state = LoadState.ERROR; return@LaunchedEffect }
 
-        val parsed = withContext(Dispatchers.IO) {
-            runCatching { RouteMapLogic.parseGpx(URL(url).readText()) }.getOrDefault(emptyList())
-        }
+        val parsed = runCatching {
+            val gpx = RouteGpxLoader.load(context, url)
+            withContext(Dispatchers.Default) { RouteMapLogic.parseGpx(gpx) }
+        }.getOrDefault(emptyList())
         if (parsed.size < 2) { state = LoadState.ERROR; return@LaunchedEffect }
 
         points = parsed

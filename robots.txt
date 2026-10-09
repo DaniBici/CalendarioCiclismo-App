@@ -1,4 +1,4 @@
-# Calendario Ciclismo — robots.txt
+# Calendario Ciclismo - robots.txt
 #
 # El contenido es abierto y sin ánimo de lucro. TODOS los crawlers son
 # bienvenidos, incluidos los de entrenamiento de modelos de lenguaje: nos da

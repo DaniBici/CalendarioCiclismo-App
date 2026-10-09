@@ -32,6 +32,10 @@ struct ResultsFeedView: View {
     /// Inicio de la ventana cargada (se amplía con "Cargar más").
     @State private var fromKey = ResultsFeedLogic.initialFromKey()
     @State private var isLoadingMore = false
+    /// Identifica la última carga del feed (completa o «Cargar más»). Una
+    /// respuesta de una carga anterior se descarta: no puede sustituir la
+    /// lista ni el inicio de la ventana de otra más reciente.
+    @State private var feedGeneration = 0
     /// Push por valor a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
     @State private var activeSection = ResultsFeedSection.latest
@@ -367,6 +371,8 @@ struct ResultsFeedView: View {
     // MARK: - Carga
 
     private func load() async {
+        feedGeneration &+= 1
+        let generation = feedGeneration
         if entries.isEmpty { isLoading = true }
         error = nil
         do {
@@ -375,6 +381,7 @@ struct ResultsFeedView: View {
                 to: DateFormatting.todayKey()
             )
             try Task.checkCancellation()
+            guard generation == feedGeneration else { return }
             // Commit único: nunca se expone una lista previa a la resolución de
             // ganadores y líderes.
             entries = loadedEntries
@@ -383,19 +390,42 @@ struct ResultsFeedView: View {
             // Navegar fuera cancela .task; se conserva el último modelo completo.
             return
         } catch {
+            guard generation == feedGeneration else { return }
             self.error = error.localizedDescription
             isLoading = false
         }
     }
 
-    /// Amplía la ventana 14 días más (tope: arranque de temporada) y recarga
-    /// el rango completo, como la web.
+    /// Amplía la ventana 14 días más (tope: arranque de temporada). Solo se
+    /// descarga el tramo nuevo: las entradas se ordenan primero por fecha y
+    /// el tramo es anterior a todo lo cargado, así que se añade al final.
     private func loadMore() async {
         guard !isLoadingMore else { return }
         isLoadingMore = true
-        fromKey = ResultsFeedLogic.extendedFromKey(fromKey)
-        await load()
-        isLoadingMore = false
+        defer { isLoadingMore = false }
+        let previousFrom = fromKey
+        let newFrom = ResultsFeedLogic.extendedFromKey(previousFrom)
+        guard newFrom < previousFrom else { return }
+        feedGeneration &+= 1
+        let generation = feedGeneration
+        fromKey = newFrom
+        do {
+            let older = try await SupabaseService.shared.loadResultsFeed(
+                from: newFrom,
+                to: ResultsFeedLogic.addDays(previousFrom, -1)
+            )
+            try Task.checkCancellation()
+            // Una carga completa posterior ya cubre la ventana ampliada.
+            guard generation == feedGeneration else { return }
+            let loadedKeys = Set(entries.map(\.key))
+            entries += older.filter { !loadedKeys.contains($0.key) }
+        } catch {
+            guard generation == feedGeneration else { return }
+            // El tramo no se cargó: se restaura el inicio de la ventana para
+            // que «Cargar más» vuelva a pedirlo.
+            fromKey = previousFrom
+            if !(error is CancellationError) { self.error = error.localizedDescription }
+        }
     }
 
     private func loadRanking() async {

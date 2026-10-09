@@ -484,6 +484,9 @@
     <string name="results_feed_heading">Results</string>
     <string name="results_feed_latest">Latest Results</string>
     <string name="uci_ranking_tab">UCI Ranking</string>
+    <string name="results_tab_road">Road</string>
+    <string name="results_feed_cx_empty">No cyclocross results this season</string>
+    <string name="results_feed_cx_empty_period">No cyclocross results in this period</string>
     <string name="uci_ranking_error">The UCI ranking could not be loaded.</string>
     <string name="uci_ranking_empty">The UCI has not published this ranking yet.</string>
     <string name="uci_ranking_men">Men</string>
@@ -556,11 +559,10 @@
     <string name="cx_rounds_count">%1$d rounds</string>
     <string name="cx_retry">Retry</string>
     <string name="cx_offline">Saved offline data</string>
-    <string name="cx_previous_month">Previous month</string>
-    <string name="cx_next_month">Next month</string>
     <string name="cx_empty_title">No races</string>
-    <string name="cx_empty_body">No races scheduled for this month</string>
-    <string name="cx_empty_filter_body">No races matching this filter for the selected month</string>
+    <string name="cx_empty_body">No races scheduled for this day</string>
+    <string name="cx_empty_filter_body">No races matching this filter for this day</string>
+    <string name="cx_empty_next_race">Next day with races</string>
     <string name="cx_filter_all">All</string>
     <string name="cx_filter_big">Big</string>
     <string name="cx_filter_pro">Pro</string>
@@ -589,9 +591,6 @@
     <string name="cx_no_startlist">No published startlist</string>
     <string name="cx_no_results">Results pending publication</string>
     <string name="cx_tv">TV and streaming</string>
-    <string name="cx_tv_region">My region</string>
-    <string name="cx_tv_all">All</string>
-    <string name="cx_no_tv">No TV available in your region</string>
     <string name="cx_revive">Race replay</string>
     <string name="cx_scheme_pending">Scheme pending</string>
     <!-- Widget «Carreras de hoy» (5.0.9) -->

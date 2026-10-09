@@ -484,6 +484,9 @@
     <string name="results_feed_heading">Resultados</string>
     <string name="results_feed_latest">Últimos resultados</string>
     <string name="uci_ranking_tab">Ránking UCI</string>
+    <string name="results_tab_road">Carretera</string>
+    <string name="results_feed_cx_empty">No hay resultados de ciclocross en esta temporada</string>
+    <string name="results_feed_cx_empty_period">No hay resultados de ciclocross en este periodo</string>
     <string name="uci_ranking_error">No se pudo cargar el ránking UCI.</string>
     <string name="uci_ranking_empty">La UCI todavía no ha publicado esta clasificación.</string>
     <string name="uci_ranking_men">Masculino</string>
@@ -513,7 +516,7 @@
     <string name="today_highlight_dismiss">Cerrar destacado</string>
 
     <!-- Fichajes (mercado 2027, apps 4.0) -->
-    <string name="transfers_heading">Mercado de fichajes %1$d</string>
+    <string name="transfers_heading">Mercado de Fichajes %1$d</string>
     <string name="transfers_feed_signings">Fichajes</string>
     <string name="transfers_mid_season">M. temporada</string>
     <string name="transfers_feed_renewals">Renovaciones</string>
@@ -556,11 +559,10 @@
     <string name="cx_rounds_count">%1$d rondas</string>
     <string name="cx_retry">Reintentar</string>
     <string name="cx_offline">Datos guardados sin conexión</string>
-    <string name="cx_previous_month">Mes anterior</string>
-    <string name="cx_next_month">Mes siguiente</string>
     <string name="cx_empty_title">No hay carreras</string>
-    <string name="cx_empty_body">No hay carreras programadas para este mes</string>
-    <string name="cx_empty_filter_body">No hay carreras con este filtro para el mes seleccionado</string>
+    <string name="cx_empty_body">No hay carreras programadas para este día</string>
+    <string name="cx_empty_filter_body">No hay carreras con este filtro para este día</string>
+    <string name="cx_empty_next_race">Siguiente día con carreras</string>
     <string name="cx_filter_all">Todas</string>
     <string name="cx_filter_big">Big</string>
     <string name="cx_filter_pro">Pro</string>
@@ -589,9 +591,6 @@
     <string name="cx_no_startlist">No hay inscritos publicados</string>
     <string name="cx_no_results">Resultados pendientes de publicación</string>
     <string name="cx_tv">TV y streaming</string>
-    <string name="cx_tv_region">Mi región</string>
-    <string name="cx_tv_all">Todas</string>
-    <string name="cx_no_tv">No hay TV en tu región</string>
     <string name="cx_revive">Revive la carrera</string>
     <string name="cx_scheme_pending">Esquema pendiente</string>
     <!-- Widget «Carreras de hoy» (5.0.9) -->

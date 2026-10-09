@@ -257,7 +257,7 @@ struct StartOrderRow: View {
                     if let team = UciResultsLogic.findMatchingTeam(entry.teamName, teams: viewModel.teams) {
                         TeamColorBands(team: team)
                     }
-                    Text(entry.teamName?.isEmpty == false ? entry.teamName! : "—")
+                    Text(entry.teamName?.isEmpty == false ? entry.teamName! : "-")
                         .ccFont(.s14, weight: .medium)
                         .foregroundStyle(entry.teamName?.isEmpty == false ? .primary : .secondary)
                         .lineLimit(2)
@@ -275,7 +275,7 @@ struct StartOrderRow: View {
                         if let cc = entry.countryCode, !cc.isEmpty {
                             CountryFlag(countryCode: cc, width: 17.33)
                         }
-                        Text(entry.riderName?.isEmpty == false ? entry.riderName! : "—")
+                        Text(entry.riderName?.isEmpty == false ? entry.riderName! : "-")
                             .ccFont(.s14, weight: .medium)
                             .foregroundStyle(entry.riderName?.isEmpty == false ? .primary : .secondary)
                             .lineLimit(1)

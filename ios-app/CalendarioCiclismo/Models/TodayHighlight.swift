@@ -90,7 +90,7 @@ struct TodayHighlightView: Identifiable {
         if let cxRace { return CyclocrossPresentation.name(cxRace) }
         if let cxTournament { return CyclocrossPresentation.t(cxTournament.name, cxTournament.nameEn ?? cxTournament.name) }
         if isChampionships { return ChampionshipsConfig.title }
-        if isTransfers { return LocaleService.t("Mercado de fichajes", "Transfer market") }
+        if isTransfers { return LocaleService.t("Mercado de Fichajes", "Transfer Market") }
         if isSeason, let year = highlight.seasonYear { return LocaleService.t("Calendario \(year)", "\(year) calendar") }
         return ""
     }

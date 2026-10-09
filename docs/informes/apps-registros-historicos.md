@@ -78,3 +78,13 @@ comprobación visual en el dispositivo queda pendiente de desbloquear el PIN.
 **Contador efectivo (2026-10-07, pruebas CX canceladas ocultas):** el cambio fija `CURRENT_PROJECT_VERSION` en **1459**, con marketing **5.0.14**. Si la integración en `main` no dispara la build en Cloud o Cloud no ofrece Xcode 27.1, la 1459 se archiva en local y el siguiente número de Cloud debe fijarse en **1460** o superior.
 
 **Contador efectivo (2026-10-07, rediseño de las apps):** App Store Connect ya tenía una compilación **1460** de 5.0.14 (anterior al rediseño), así que el rediseño fija `CURRENT_PROJECT_VERSION` en **1461** y Android `versionCode` en **630**, con marketing **5.0.14** (Dani mantiene la versión de marketing para que el rediseño salga con ella). Si la integración en `main` no dispara la build en Cloud o Cloud no ofrece Xcode 27.1, la 1461 se archiva en local y el siguiente número de Cloud debe fijarse en **1462** o superior.
+
+**Contador efectivo (2026-10-07, carga de datos):** la optimización de la carga de datos fija `CURRENT_PROJECT_VERSION` en **1462** y Android `versionCode` en **631**, con marketing **5.0.14**. La 1462 se archiva y se sube en local con Xcode 27.1 RC; el siguiente número de Xcode Cloud debe fijarse en **1463** o superior.
+
+**Contador efectivo (2026-10-07, cabeceras de Inscritos):** la cabecera con color de equipo fija `CURRENT_PROJECT_VERSION` en **1463** y Android `versionCode` en **632**, con marketing **5.0.14**. La 1463 se archiva y se sube en local con Xcode 27.1 RC; el siguiente número de Xcode Cloud debe fijarse en **1464** o superior.
+
+**Contador efectivo (2026-10-09, 5.0.14 sin modo ciclocross):** la rama `agents/ios-5-0-14-sin-modo-cx` fija `CURRENT_PROJECT_VERSION` en **1474** con marketing **5.0.14**, por encima de la **1473** de la 5.0.15 en `main`. Xcode Cloud asigna su propio número de build: comprobar el contador antes de la subida. La 5.0.15 de `main` debe subir a **1475** o más.
+
+**Contador efectivo (2026-10-09, Android 5.0.14 sin modo ciclocross):** la rama `android-5-0-14` fija `versionCode` en **643** con `versionName` **5.0.14**, por encima de la **642** de la 5.0.15 en `main`. La 5.0.15 de `main` debe subir a **644** o más.
+
+**Contador efectivo (2026-10-09, iOS 5.0.14 con las vistas de jornada):** la rama `apps-5-0-14` fija `CURRENT_PROJECT_VERSION` en **1475** con marketing **5.0.14**, sobre la **1474** sin modo ciclocross. Xcode Cloud asigna su propio número de build: comprobar el contador antes de la subida. La 5.0.15 de `main` debe subir a **1476** o más.

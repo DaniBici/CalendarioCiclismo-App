@@ -31,15 +31,17 @@ final class StageDetailViewModel {
     /// `startlist_teams`, por lo que el botón de "Inscritos" aparece sin retraso.
     var hasStartlist: Bool { race?.startlistImportedAt != nil }
 
-    func load(raceDayId: String) async {
+    func load(raceDayId: String, raceIdHint: String? = nil, knownRaceDay: RaceDay? = nil) async {
         isLoading = true
         error = nil
         areInhouseGatesResolved = false
+        var raceIdHint = raceIdHint
 
         // 1. Intentar rellenar desde la caché offline (DayData de los últimos 14 días).
         //    Esto permite que la pantalla se pinte inmediatamente sin red y que
         //    los assets R2 descargados sean accesibles aunque Supabase esté caído.
         if let cached = await Self.loadFromCache(raceDayId: raceDayId) {
+            raceIdHint = raceIdHint ?? cached.raceDay.raceId
             raceDay = cached.raceDay
             race = cached.race
             allBroadcasts = cached.broadcasts.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
@@ -93,65 +95,7 @@ final class StageDetailViewModel {
         }
 
         do {
-            let service = SupabaseService.shared
-            var rd = try await service.client.from("race_days")
-                .select()
-                .eq("id", value: raceDayId)
-                .single()
-                .execute()
-                .value as RaceDay
-
-            // Cargar carrera, broadcasts y assets en paralelo
-            if let raceId = rd.raceId {
-                let rdId = rd.id
-                async let raceResult = service.race(byId: raceId)
-                async let broadcastsResult = service.broadcasts(byRaceDayId: rdId)
-                async let assetsResult = service.assets(byRaceDayId: rdId)
-                // Cargar siblings para detectar doble sector
-                async let siblingsResult = service.raceDays(byRaceId: raceId)
-                async let resultsStagesResult = service.raceUciStages(raceId: raceId)
-                // La guía es de toda la competición. Se pide directamente por
-                // raceId, en paralelo, en vez de esperar a siblings y lanzar
-                // una segunda ronda de red: así el chip no aparece tarde.
-                async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
-
-                let (r, b, a, siblings, technicalGuide, resultsStages) = try await (
-                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
-                )
-                race = r
-
-                // Detectar doble sector desde siblings
-                var allDays = siblings
-                RaceLogic.annotateDoubleSectors(&allDays)
-                if let match = allDays.first(where: { $0.id == rd.id }), match.stageSuffix != nil {
-                    rd.stageSuffix = match.stageSuffix
-                }
-
-                allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
-                broadcasts = RaceLogic.filterBroadcastsByRegion(
-                    allBroadcasts,
-                    allowedGroups: RegionService.shared.allowedBroadcastGroups,
-                )
-                // Se guarda una sola guía técnica por competición, pero se
-                // expone en cada jornada sin duplicar su fila ni su PDF.
-                assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
-                self.siblings = allDays
-                updateInhouseGates(raceDay: rd, siblings: allDays, stages: resultsStages)
-                // Guardar siblings para cargas futuras sin flash
-                await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
-                // Guardar incluso una lista vacía: si el Libro de Ruta se borra
-                // en servidor, no debe resucitar desde una caché anterior.
-                await CacheManager.shared.save(
-                    technicalGuide.map { [$0] } ?? [],
-                    forKey: CacheManager.technicalGuideKey(raceId)
-                )
-                await CacheManager.shared.save(
-                    resultsStages,
-                    forKey: CacheManager.resultsStagesKey(raceId)
-                )
-            }
-
-            raceDay = rd
+            try await fetchAndApply(raceDayId: raceDayId, raceIdHint: raceIdHint, knownRaceDay: knownRaceDay)
             error = nil
         } catch {
             // Si la caché nos ha dejado algo visible, no sobreescribir con error.
@@ -163,6 +107,122 @@ final class StageDetailViewModel {
         // primero una barra que después pueda mutar al CTA nativo.
         areInhouseGatesResolved = true
         isLoading = false
+    }
+
+    /// Instantánea remota completa de la jornada.
+    private struct RemoteSnapshot {
+        var raceDay: RaceDay
+        let race: Race
+        let broadcasts: [Broadcast]
+        let assets: [Asset]
+        let siblings: [RaceDay]
+        let technicalGuide: Asset?
+        let resultsStages: [RaceUciStage]
+    }
+
+    /// Consultas de la carrera de la jornada, todas en paralelo.
+    private static func fetchRaceParts(
+        raceDayId: String,
+        raceId: String,
+        raceDay: @escaping @MainActor @Sendable () async throws -> RaceDay
+    ) async throws -> RemoteSnapshot {
+        let service = SupabaseService.shared
+        async let rdResult = raceDay()
+        async let raceResult = service.race(byId: raceId)
+        async let broadcastsResult = service.broadcasts(byRaceDayId: raceDayId)
+        async let assetsResult = service.assets(byRaceDayId: raceDayId)
+        // Hermanas para detectar doble sector y la etapa anterior: columnas
+        // de lista, sin perfil ni textos.
+        async let siblingsResult = service.raceDays(byRaceId: raceId, columns: SupabaseService.raceDayCoreColumns)
+        async let resultsStagesResult = service.raceUciStages(raceId: raceId)
+        // La guía es de toda la competición. Se pide directamente por
+        // raceId, en paralelo, en vez de esperar a siblings y lanzar
+        // una segunda ronda de red: así el chip no aparece tarde.
+        async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
+
+        let (rd, r, b, a, siblings, technicalGuide, resultsStages) = try await (
+            rdResult, raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
+        )
+        return RemoteSnapshot(
+            raceDay: rd, race: r, broadcasts: b, assets: a,
+            siblings: siblings, technicalGuide: technicalGuide, resultsStages: resultsStages
+        )
+    }
+
+    /// Descarga la jornada y su carrera y sustituye el estado visible. Con
+    /// `raceIdHint` (llamador o caché) todas las consultas salen a la vez; si
+    /// la jornada resulta ser de otra carrera, se repite con la correcta.
+    /// `knownRaceDay` reutiliza una fila ya descargada (p. ej. por slug).
+    private func fetchAndApply(raceDayId: String, raceIdHint: String?, knownRaceDay: RaceDay?) async throws {
+        let service = SupabaseService.shared
+        let fetchRaceDay: @MainActor @Sendable () async throws -> RaceDay = {
+            if let knownRaceDay, knownRaceDay.id == raceDayId { return knownRaceDay }
+            return try await service.raceDay(byId: raceDayId)
+        }
+
+        var snapshot: RemoteSnapshot?
+        var parallelRaceDay: RaceDay?
+        if let hint = raceIdHint {
+            do {
+                let parallel = try await Self.fetchRaceParts(raceDayId: raceDayId, raceId: hint, raceDay: fetchRaceDay)
+                parallelRaceDay = parallel.raceDay
+                if parallel.raceDay.raceId == hint { snapshot = parallel }
+            } catch {
+                // Una pista que apunta a una carrera inexistente hace fallar
+                // `race(byId:)` (`.single()`): se repite sin pista. La
+                // cancelación sí se propaga.
+                if error is CancellationError || Task.isCancelled { throw error }
+            }
+        }
+        var rd: RaceDay
+        if let parallelRaceDay {
+            rd = parallelRaceDay
+        } else {
+            rd = try await fetchRaceDay()
+        }
+        if snapshot == nil, let raceId = rd.raceId {
+            let known = rd
+            snapshot = try await Self.fetchRaceParts(raceDayId: raceDayId, raceId: raceId, raceDay: { known })
+        }
+
+        if let snapshot, let raceId = rd.raceId {
+            race = snapshot.race
+
+            // Detectar doble sector desde siblings
+            var allDays = snapshot.siblings
+            RaceLogic.annotateDoubleSectors(&allDays)
+            if let match = allDays.first(where: { $0.id == rd.id }), match.stageSuffix != nil {
+                rd.stageSuffix = match.stageSuffix
+            }
+
+            allBroadcasts = snapshot.broadcasts.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+            broadcasts = RaceLogic.filterBroadcastsByRegion(
+                allBroadcasts,
+                allowedGroups: RegionService.shared.allowedBroadcastGroups,
+            )
+            // Se guarda una sola guía técnica por competición, pero se
+            // expone en cada jornada sin duplicar su fila ni su PDF.
+            assets = (snapshot.technicalGuide.map { [$0] } ?? []) + snapshot.assets.filter { $0.type != "technicalGuide" }
+            self.siblings = allDays
+            updateInhouseGates(raceDay: rd, siblings: allDays, stages: snapshot.resultsStages)
+            // Guardar siblings para cargas futuras sin flash
+            await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
+            // Guardar incluso una lista vacía: si el Libro de Ruta se borra
+            // en servidor, no debe resucitar desde una caché anterior.
+            await CacheManager.shared.save(
+                snapshot.technicalGuide.map { [$0] } ?? [],
+                forKey: CacheManager.technicalGuideKey(raceId)
+            )
+            await CacheManager.shared.save(
+                snapshot.resultsStages,
+                forKey: CacheManager.resultsStagesKey(raceId)
+            )
+        }
+
+        // Sustituir la instantánea completa. Las colecciones vienen de
+        // consultas nuevas a Supabase, así que se propagan también altas,
+        // bajas y campos vaciados en el backend.
+        raceDay = rd
     }
 
     // MARK: - Caché offline
@@ -203,57 +263,7 @@ final class StageDetailViewModel {
     func refresh(raceDayId: String) async {
         ImageRefresh.shared.refresh()
         do {
-            let service = SupabaseService.shared
-            var rd = try await service.client.from("race_days")
-                .select()
-                .eq("id", value: raceDayId)
-                .single()
-                .execute()
-                .value as RaceDay
-
-            if let raceId = rd.raceId {
-                let rdId = rd.id
-                async let raceResult = service.race(byId: raceId)
-                async let broadcastsResult = service.broadcasts(byRaceDayId: rdId)
-                async let assetsResult = service.assets(byRaceDayId: rdId)
-                async let siblingsResult = service.raceDays(byRaceId: raceId)
-                async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
-                async let resultsStagesResult = service.raceUciStages(raceId: raceId)
-
-                let (r, b, a, siblings, technicalGuide, resultsStages) = try await (
-                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
-                )
-                race = r
-
-                var allDays = siblings
-                RaceLogic.annotateDoubleSectors(&allDays)
-                if let match = allDays.first(where: { $0.id == rd.id }), match.stageSuffix != nil {
-                    rd.stageSuffix = match.stageSuffix
-                }
-
-                allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
-                broadcasts = RaceLogic.filterBroadcastsByRegion(
-                    allBroadcasts,
-                    allowedGroups: RegionService.shared.allowedBroadcastGroups,
-                )
-                assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
-                self.siblings = allDays
-                updateInhouseGates(raceDay: rd, siblings: allDays, stages: resultsStages)
-                await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
-                await CacheManager.shared.save(
-                    technicalGuide.map { [$0] } ?? [],
-                    forKey: CacheManager.technicalGuideKey(raceId)
-                )
-                await CacheManager.shared.save(
-                    resultsStages,
-                    forKey: CacheManager.resultsStagesKey(raceId)
-                )
-            }
-
-            // Sustituir la instantánea completa. Las colecciones vienen de
-            // consultas nuevas a Supabase, así que se propagan también altas,
-            // bajas y campos vaciados en el backend.
-            raceDay = rd
+            try await fetchAndApply(raceDayId: raceDayId, raceIdHint: raceDay?.raceId, knownRaceDay: nil)
             error = nil
             refreshToken &+= 1
         } catch {
@@ -298,8 +308,8 @@ final class StageDetailViewModel {
         do {
             let rd = try await SupabaseService.shared.raceDay(bySlug: slug)
             raceDay = rd
-            // Recargar con ID completo
-            await load(raceDayId: rd.id)
+            // Completar con la fila ya descargada: no se vuelve a pedir.
+            await load(raceDayId: rd.id, raceIdHint: rd.raceId, knownRaceDay: rd)
         } catch {
             self.error = error.localizedDescription
         }

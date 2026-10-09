@@ -5,23 +5,23 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { teamHeaderColors } from '../team-appearance.js';
-import { supabase, isNoTeamPlaceholderTeam } from '../shared.js';
+import { supabase, isNoTeamPlaceholderTeam, embeddedId, orEqFilter, pickByPreference } from '../shared.js';
 import { t, getLang } from '../i18n.js';
 import { isAbandonIrm } from '../results/uci-irm.js';
 
-// Resuelve la carrera por id o por slug (en EN, primero por slugEn).
+// Resuelve la carrera por id (el de la URL o el que incrusta el build en la
+// página pre-renderizada) o por slug en una sola consulta (en EN, se prefiere
+// slugEn).
 export async function resolveStartlistRace({ raceId, slug, isEn }) {
-  if (raceId) {
-    const { data } = await supabase.from('races').select('*').eq('id', raceId).single();
-    return data || null;
+  const id = raceId || (slug ? embeddedId('race-id') : null);
+  if (id) {
+    const { data } = await supabase.from('races').select('*').eq('id', id).maybeSingle();
+    if (data || raceId) return data || null;
   }
   if (!slug) return null;
-  if (isEn) {
-    const { data: d1 } = await supabase.from('races').select('*').eq('slugEn', slug).single();
-    if (d1) return d1;
-  }
-  const { data } = await supabase.from('races').select('*').eq('slug', slug).single();
-  return data || null;
+  const columns = isEn ? ['slugEn', 'slug'] : ['slug'];
+  const { data } = await supabase.from('races').select('*').or(orEqFilter(columns, slug)).limit(4);
+  return pickByPreference(data, columns, slug);
 }
 
 /**
@@ -32,83 +32,82 @@ export async function loadStartlistData(race) {
   const raceId = race.id;
 
   // ── Fase A: todo lo que depende SOLO de raceId ──
-  // race_days (hero), startlist_teams y las etapas con resultados in-house
+  // race_days (hero), startlist_teams con su equipo global y la temporada
+  // embebidos, corredores resueltos y las etapas con resultados in-house
   // (race_uci_stages, para detectar abandonos) son independientes entre sí →
-  // un único round-trip en vez de tres encadenados.
-  const [raceDaysRes, teamsRes, uciStagesRes] = await Promise.all([
+  // un único round-trip.
+  const teamSelect = race.year ? '*,team:teams(*,team_seasons(*))' : '*,team:teams(*)';
+  let teamsQuery = supabase.from('startlist_teams')
+    .select(teamSelect)
+    .eq('raceId', raceId)
+    .order('sortOrder', { ascending: true });
+  if (race.year) teamsQuery = teamsQuery.eq('team.team_seasons.year', race.year);
+  const [raceDaysRes, teamsRes, uciStagesRes, ridersRes] = await Promise.all([
     supabase.from('race_days')
       .select('dateKey, isRestDay')
       .eq('raceId', raceId)
       .eq('editorialStatus', 'published')
       .order('dateKey', { ascending: true }),
-    supabase.from('startlist_teams')
-      .select('*')
-      .eq('raceId', raceId)
-      .order('sortOrder', { ascending: true }),
+    teamsQuery,
     supabase.from('race_uci_stages')
       .select('id, stageNumber, rowCount')
       .eq('raceId', raceId)
       .eq('classKind', 'stage'),
-  ]);
-  const teams = teamsRes.data;
-  if (teamsRes.error || !teams || teams.length === 0) return null;
-
-  const teamIds = teams.map(tm => tm.id);
-
-  // ── Fase B: corredores resueltos (dependen de teamIds) y filas de
-  // resultados UCI para tachar abandonos (dependen de las etapas de la fase A).
-  const stageRows = (uciStagesRes.data || []).filter(s => (s.rowCount || 0) > 0);
-  // Vista resuelta: nombre/country canónicos de riders_men/women cuando hay link,
-  // fallback al snapshot del propio startlist_riders cuando no.
-  const [ridersRes, outRowsRes] = await Promise.all([
+    // Vista resuelta: nombre/country canónicos de riders_men/women cuando hay link,
+    // fallback al snapshot del propio startlist_riders cuando no. Los corredores
+    // de la carrera son los de sus equipos inscritos (teamId → startlist_teams).
     supabase.from('startlist_riders_resolved')
       .select('*')
-      .in('teamId', teamIds)
+      .eq('raceId', raceId)
+      .not('teamId', 'is', null)
       .order('dorsal', { ascending: true }),
-    stageRows.length > 0
-      ? supabase.from('race_uci_results')
-          .select('globalRiderId, irm, stageRef')
-          .in('stageRef', stageRows.map(s => s.id))
-          .not('globalRiderId', 'is', null)
-          .not('irm', 'is', null)
-      : Promise.resolve({ data: [] }),
   ]);
+  if (teamsRes.error || !teamsRes.data || teamsRes.data.length === 0) return null;
+
+  // Equipo global y temporada salen del embebido; la fila de startlist queda limpia.
+  const globalTeamById = {};
+  const seasonRows = [];
+  const teams = teamsRes.data.map(({ team, ...tm }) => {
+    if (team) {
+      const { team_seasons: seasons, ...base } = team;
+      globalTeamById[base.id] = base;
+      seasonRows.push(...(seasons || []));
+    }
+    return tm;
+  });
+
+  // ── Fase B: filas de resultados UCI para tachar abandonos (dependen de las
+  // etapas de la fase A).
+  const stageRows = (uciStagesRes.data || []).filter(s => (s.rowCount || 0) > 0);
+  const outRowsRes = stageRows.length > 0
+    ? await supabase.from('race_uci_results')
+        .select('globalRiderId, irm, stageRef')
+        .in('stageRef', stageRows.map(s => s.id))
+        .not('globalRiderId', 'is', null)
+        .not('irm', 'is', null)
+    : { data: [] };
   const riders = ridersRes.data || [];
 
-  // Equipos y colores de temporada para los ids presentes en esta lista.
-  const globalTeamById = {};
-  const refIds = [...new Set(teams.map(tm => tm.teamId).filter(Boolean))];
-  if (refIds.length > 0) {
-    // teams (visual base) y team_seasons (override del año) dependen ambos solo
-    // de refIds → en paralelo.
-    const [gTeamsRes, seasonsRes] = await Promise.all([
-      supabase.from('teams').select('*').in('id', refIds),
-      race.year
-        ? supabase.from('team_seasons').select('*').in('teamId', refIds).eq('year', race.year)
-        : Promise.resolve({ data: [] }),
-    ]);
-    (gTeamsRes.data || []).forEach(tm => { globalTeamById[tm.id] = tm; });
-
-    if (race.year) {
-      const VISUAL = ['name','nameAliases','category','gender','headerBg','headerText',
-                      'badgeTorsoCenter','badgeTorsoSides','badgeInnerCircle','badgeShorts'];
-      (seasonsRes.data || []).forEach(s => {
-        const base = globalTeamById[s.teamId] || (s.name ? {
-          id: s.teamId,
-          name: s.name,
-          nameAliases: null,
-          headerBg: '#1f2937',
-          headerText: '#ffffff',
-          badgeTorsoCenter: '#ffffff',
-          badgeTorsoSides: '#000000',
-          badgeInnerCircle: null,
-          badgeShorts: '#000000',
-        } : null);
-        if (!base) return;
-        VISUAL.forEach(k => { if (s[k] != null) base[k] = s[k]; });
-        globalTeamById[s.teamId] = base;
-      });
-    }
+  // Colores de temporada para los equipos presentes en esta lista.
+  if (race.year) {
+    const VISUAL = ['name','nameAliases','category','gender','headerBg','headerText',
+                    'badgeTorsoCenter','badgeTorsoSides','badgeInnerCircle','badgeShorts'];
+    seasonRows.forEach(s => {
+      const base = globalTeamById[s.teamId] || (s.name ? {
+        id: s.teamId,
+        name: s.name,
+        nameAliases: null,
+        headerBg: '#1f2937',
+        headerText: '#ffffff',
+        badgeTorsoCenter: '#ffffff',
+        badgeTorsoSides: '#000000',
+        badgeInnerCircle: null,
+        badgeShorts: '#000000',
+      } : null);
+      if (!base) return;
+      VISUAL.forEach(k => { if (s[k] != null) base[k] = s[k]; });
+      globalTeamById[s.teamId] = base;
+    });
   }
 
   // Nombre a mostrar: si hay match, prevalece el nombre del equipo global (tabla teams)

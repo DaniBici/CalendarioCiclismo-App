@@ -49,6 +49,18 @@ export function normalizeSnapshot(snapshot) {
 
 // Mismo plegado que public.fold_name (js/name-fold.js); no genera identificadores ni slugs.
 const name = r => foldName(`${r.firstName} ${r.lastName}`);
+// Misma persona si el nombre plegado coincide, si UCI figura entre los alias de la ficha (otherNames,
+// separados por comas, punto y coma o saltos de línea) o si los términos de uno, con al menos dos,
+// están contenidos en el otro (segundo apellido, nombres adicionales u orden distinto).
+// Nacimiento y nacionalidad se comparan aparte.
+const sameName = (rider, bio) => {
+  const own = name(rider), source = name(bio);
+  if (own === source) return true;
+  if (String(rider.otherNames || '').split(/[,;\n]/).some(alias => foldName(alias) === source)) return true;
+  const a = own.split(' ').filter(Boolean), b = source.split(' ').filter(Boolean);
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 2 && short.every(token => long.includes(token));
+};
 export function buildPlan(snapshot, context, now = new Date()) {
   const day = madridDate(now), actions = [], cases = [], counts = { unchanged: 0 };
   if (snapshot.year !== Number(day.slice(0, 4)) || context.year !== snapshot.year) throw new Error('season_not_adopted');
@@ -66,7 +78,7 @@ export function buildPlan(snapshot, context, now = new Date()) {
   const validTeams = new Map();
   for (const [id, t] of Object.entries(snapshot.teams)) {
     const link = links.get(id);
-    if (!link || link.sourceName !== t.name || link.category !== t.category || link.gender !== t.gender
+    if (!link || sourceName(link.sourceName) !== sourceName(t.name) || link.category !== t.category || link.gender !== t.gender
       || link.sourceCode !== t.code || link.currentCategory !== t.category || link.specialEdition || link.teamKind === 'selection') {
       issue(`team:${snapshot.year}:${id}`, 'team_catalog_review', { profile: id, name: t.name }); continue;
     }
@@ -94,7 +106,7 @@ export function buildPlan(snapshot, context, now = new Date()) {
     const rider = matches[0], state = context.states[`${rider.gender}:${rider.id}`];
     if (!state || context.blocked.includes(key)) { issue(key, 'manual_lock'); continue; }
     const bio = record.bio;
-    if (name(rider) !== name(bio) || (rider.birthDate && rider.birthDate !== bio.birthDate)
+    if (!sameName(rider, bio) || (rider.birthDate && rider.birthDate !== bio.birthDate)
       || (rider.nationality && rider.nationality !== bio.nationality)) { issue(key, 'biography_review'); continue; }
     const stable = stableCycle && sha256(record.evidence) === sha256(previous.snapshot.records[profile]?.evidence || null);
     const propose = (kind, teamProfile = null) => {

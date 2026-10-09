@@ -2,11 +2,12 @@ import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {cxHiddenClasses,cxIsHidden,cxListedInAgenda,CX_SPANISH_AUDIENCE} from '../services/cx-data.js';
-import {cxSeasonMonths,cxMonthDays,cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxRoundBadge,cxUsesCategoryBadges,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,cxCategoryCardState,cxTime} from '../cx/presentation.js';
+import {cxSeasonMonths,cxMonthDays,cxDayRaces,cxAgendaFilterMatches,cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxRoundBadge,cxUsesCategoryBadges,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,cxCategoryCardState,cxTime} from '../cx/presentation.js';
 import {cxTournamentDescription} from '../cx/tournament-seo.js';
 import {CX_CATEGORIES} from '../cx/editor-logic.js';
 import {cxTournamentPage,cxTournamentPageUrl,cxTournamentGeneralCategories,cxClassificationSelection,cxStandingMode} from '../cx/presentation.js';
 import {raceCardHtml,overviewButtonHtml} from '../components/race-card.js';
+import {cxClampDay,cxRaceDays,cxAdjacentRaceDay,cxStepDay,cxDateStrip} from '../cx/today.js';
 
 const script=readFileSync(new URL('../ciclocross.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
 
@@ -18,11 +19,11 @@ const script=readFileSync(new URL('../ciclocross.js',import.meta.url),'utf8').re
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-12T12:00:00Z')); });
 afterEach(() => { vi.useRealTimers(); });
 
-// Exercise the real agenda navigation with empty months and an in-memory DOM/client.
-async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new Map(),initialHash=null,pinnedFilter=null,pointsScheme=null,standings=[],states=[],search=''}={}) {
+// Exercise the real agenda with an in-memory DOM/client.
+async function open({monthRows=null,nextDate=null,tournamentId=null,rows=[],rounds=new Map(),initialHash=null,pinnedFilter=null,pointsScheme=null,standings=[],states=[],search=''}={}) {
   const events=new Map(),frames=[],calls=[],metadata=new Map();
-  const location={search,origin:'http://localhost',hash:initialHash?`#${initialHash}`:''};
-  const history={replaceState:(_state,_title,url)=>{if(typeof url==='string'&&url.startsWith('#'))location.hash=url.slice(1);}};
+  const location={search,pathname:'/ciclocross/',origin:'http://localhost',hash:initialHash?`#${initialHash}`:''};
+  const history={replaceState:(_state,_title,url)=>{location.search=url.slice(url.indexOf('?')>=0?url.indexOf('?'):url.length);}};
   const window={scrollY:0,addEventListener:(name,fn)=>{
     if(!events.has(name))events.set(name,[]);events.get(name).push(fn);
   },scrollTo:vi.fn(({top})=>{window.scrollY=top;})};
@@ -31,6 +32,7 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
     addEventListener(){}
     append(...nodes){this.children.push(...nodes);}
     replaceChildren(...nodes){this.children=[...nodes];}
+    get innerText(){return this.innerHTML;}
     setAttribute(){} removeAttribute(){}
     getBoundingClientRect(){return {left:0,right:50,width:50};}
     scrollIntoView(){window.scrollY=0;}
@@ -40,23 +42,23 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
     }
     querySelectorAll(){return [];}
   }
-  const list=new Element(),bar=new Element(),error=new Element(),navigation=new Element();
+  const list=new Element(),bar=new Element(),error=new Element(),navigation=new Element(),announced=[];
   const root=new Element();root.dataset={cxTournamentId:tournamentId};root.style={setProperty:vi.fn()};
   const standingsNode=new Element(),generalNav=new Element(),sections=new Element();sections.hidden=true;
-  root.querySelector=selector=>({'#cxMonths':list,'#cxMonthBar':bar,'#cxAgendaError':error,'.cx-month-nav':navigation,'.cx-agenda-sticky':navigation,'#cxStandings':standingsNode,'[data-cx-general-nav]':generalNav,'[data-cx-tournament-sections]':sections}[selector]);
+  root.querySelector=selector=>({'#cxAgendaList':list,'#cxDateBar':bar,'#cxAgendaError':error,'.cx-agenda-sticky':navigation,'#cxStandings':standingsNode,'[data-cx-general-nav]':generalNav,'[data-cx-tournament-sections]':sections}[selector]);
   const cxNextDate=vi.fn(async()=>nextDate);
   class FixedDate extends Date { constructor(...args){super(...(args.length?args:['2026-09-12T12:00:00Z']));} }
-  const result=await runInNewContext(`(async()=>{${script}\nreturn {goMonth};})()`,{
+  const result=await runInNewContext(`(async()=>{${script}\nreturn {showDay,goDay,currentDay:()=>currentDay};})()`,{
     window,URLSearchParams,location,history,Date:FixedDate,Intl,document:{querySelector:()=>null,head:{append:()=>{}},hidden:false,getElementById:()=>root,createElement:()=>new Element(),addEventListener:()=>{}},
     ResizeObserver:class {observe(){}},requestAnimationFrame:fn=>frames.push(fn),setInterval:()=>1,clearInterval:()=>{},
     initCintillo:async()=>{},initI18n:async()=>{},t:key=>key,getLang:()=> 'es',getLocale:()=> 'es-ES',cxSeason:()=> '2026-27',cxSeasonMonths,
-    cxMonth:async(_client,_season,year,month)=>{const key=`${year}-${String(month).padStart(2,'0')}`;calls.push(key);if(key===failure)throw Error('Fallo');return rows;},
     cxSeasonRows:async()=>{calls.push('temporada');return rows;},
+    cxMonth:async(_client,_season,year,month)=>{calls.push(`${year}-${String(month).padStart(2,'0')}`);return monthRows??rows;},
     cxTournamentMetadata:async()=>({id:tournamentId,name:'Circuito local',slug:'circuito',seasonKey:'2026-27',logoUrl:'https://example.org/logo.svg',countryCode:'ES',pointsScheme}),
-    cxAllRows:async(_client,table)=>({cx_standings_state:states,cx_tournament_standings:standings}[table]),cxQuery:async()=>[],
+    cxAllRows:async(_client,table)=>({cx_standings_state:states,cx_tournament_standings:standings,cx_teams:[]}[table]),cxQuery:async()=>[],
     cxTournamentGeneralCategories,cxClassificationSelection,cxStandingMode,cxStandingsTableHtml:({rows})=>`<table data-rows="${rows.length}"></table>`,cxWireStandingsScroll:()=>{},
     buildRaceHeader:({race})=>`<div class="race-header">${race.name}</div>`,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxUsesCategoryBadges,countryFlag:()=>'',categoryBadge:()=>'',
-    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,cxListedInAgenda,CX_SPANISH_AUDIENCE,supabase:Object.defineProperty({},'from',{value:()=>({select:()=>({})})}),dateNavigationButton:()=>new Element(),cxMonthDays,esc:cxEsc,cxTournamentDescription,
+    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,cxListedInAgenda,CX_SPANISH_AUDIENCE,supabase:Object.defineProperty({},'from',{value:()=>({select:()=>({})})}),dateNavigationButton:()=>new Element(),initDaySwipe:()=>{},announce:message=>announced.push(message),cxMonthDays,cxDayRaces,cxAgendaFilterMatches,cxClampDay,cxRaceDays,cxAdjacentRaceDay,cxStepDay,cxDateStrip,esc:cxEsc,cxTournamentDescription,
     formatDateLabel:key=>key,CX_CATEGORIES,cxTournamentPage,cxTournamentPageUrl,
     cxSeasonRounds:vi.fn(async()=>rounds),cxRoundBadge,
     cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,openPhBanner:vi.fn(),wirePhDescriptions:vi.fn(),
@@ -64,43 +66,44 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
     cxCategoryCardState,cxTime,raceCardHtml,overviewButtonHtml,cxCategoryTiming:()=>({displayState:'time',temporalState:'scheduled'}),waitingResultsHtml:(lang,tag)=>`<${tag}></${tag}>`,resultsTrophyHtml:'<span></span>',
   });
   const flush=()=>{while(frames.length)frames.shift()();};flush();
-  return {...result,root,list,error,standingsNode,generalNav,sections,calls,metadata,cxNextDate,window,location,flush,scroll:y=>{window.scrollY=y;for(const fn of events.get('scroll')??[])fn();}};
+  return {...result,announced,root,list,error,standingsNode,generalNav,sections,calls,metadata,cxNextDate,window,location,flush,scroll:y=>{window.scrollY=y;for(const fn of events.get('scroll')??[])fn();}};
 }
 
-describe('apertura de la agenda CX: siempre al próximo día con carreras',()=>{
-  it('abre el mes del próximo día con carreras y descarta la posición guardada',async()=>{
-    const agenda=await open({nextDate:'2027-01-30'});
-    expect(agenda.calls).toEqual(['2026-09','2027-01']);
-    expect(agenda.cxNextDate).toHaveBeenCalledOnce();
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2027-01']);
+describe('vista Hoy de la agenda CX',()=>{
+  const race=(id,dateKey,extra={})=>({id,name:`Prueba ${id}`,slug:id,dateKey,seasonKey:'2026-27',cx_race_categories:[],...extra});
+  const rows=[race('a','2026-09-19'),race('b','2026-10-04',{countryCode:'ES'}),race('c','2026-10-04'),race('d','2026-10-11',{isCancelled:true})];
+  it('carga la temporada una vez y abre en el próximo día con carreras',async()=>{
+    const agenda=await open({rows});
+    expect(agenda.calls).toEqual(['temporada']);
+    expect(agenda.currentDay()).toBe('2026-09-19');
+    expect(agenda.location.search).toBe('?date=2026-09-19');
+    expect(agenda.list.innerHTML).toContain('Prueba a');
   });
-
-  it('mantiene el mes en curso cuando el próximo día con carreras cae en él',async()=>{
-    const agenda=await open({nextDate:'2026-09-19'});
-    expect(agenda.calls).toEqual(['2026-09']);
-    expect(agenda.cxNextDate).toHaveBeenCalledWith({},'2026-27','2026-09-12',null,[]);
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2026-09']);
+  it('con el filtro Todas avanza desde un día sin carreras; con otro filtro muestra el aviso y el siguiente día',async()=>{
+    const agenda=await open({rows});
+    agenda.showDay('2026-09-25');
+    expect(agenda.currentDay()).toBe('2026-10-04');
+    expect(agenda.list.innerHTML).toContain('Prueba b');
+    expect(agenda.list.innerHTML).not.toContain('Prueba d');
+    const filtered=await open({rows,pinnedFilter:'spain'});
+    expect(filtered.currentDay()).toBe('2026-10-04');
+    filtered.showDay('2026-09-19');
+    expect(filtered.currentDay()).toBe('2026-09-19');
+    expect(filtered.list.innerHTML).toContain('today.noRacesFilter');
+    expect(filtered.list.innerHTML).toContain('data-cx-next-day="2026-10-04"');
   });
-
-  it('si no quedan días con carreras en el mes, salta al mes siguiente',async()=>{
-    const agenda=await open({nextDate:'2026-10-04'});
-    expect(agenda.calls).toEqual(['2026-09','2026-10']);
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2026-10']);
+  it('al cambiar de día muestra la carga, relee su mes y retira las pruebas que ya no figuran',async()=>{
+    const agenda=await open({rows,monthRows:[rows[2]]});
+    const pending=agenda.goDay('2026-10-04');
+    expect(agenda.list.innerHTML).toContain('class="loading"');
+    await pending;
+    expect(agenda.calls).toEqual(['temporada','2026-10']);
+    expect(agenda.list.innerHTML).toContain('Prueba c');
+    expect(agenda.list.innerHTML).not.toContain('Prueba b');
   });
-
-  it('mantiene el mes anterior si falla el cambio manual de mes',async()=>{
-    const agenda=await open({failure:'2026-11',nextDate:'2026-09-19'});
-    await agenda.goMonth('2026-11');agenda.flush();
-    expect(agenda.error.textContent).toContain('Fallo');
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2026-09']);
-  });
-
-  it('abre el mes indicado en el marcador de la URL',async()=>{
-    const agenda=await open({nextDate:'2026-09-19',initialHash:'2026-10'});
-    expect(agenda.calls).toEqual(['2026-10']);
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2026-10']);
-    expect(agenda.cxNextDate).not.toHaveBeenCalled();
-    expect(agenda.location.hash).toBe('2026-10');
+  it('abre el día de la URL y convierte los enlaces antiguos de mes en su primer día con carreras',async()=>{
+    expect((await open({rows,search:'?date=2026-10-04'})).currentDay()).toBe('2026-10-04');
+    expect((await open({rows,initialHash:'2026-10'})).currentDay()).toBe('2026-10-04');
   });
 });
 

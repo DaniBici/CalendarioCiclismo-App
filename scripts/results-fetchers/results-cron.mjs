@@ -106,8 +106,6 @@
  *   --configured   selecciona únicamente las reglas automáticas activas y en ventana.
  *                  Es el modo del watcher del VPS. Resuelve la jornada exacta y,
  *                  en dobles sectores, pasa también 0=A/1=B al upsert.
- *   --historical   junto a --scope backlog limita la selección a carreras de 2020–2025.
- *                  Es el modo del proceso histórico separado del watcher actual.
  *   --dry-run      lista lo que haría, sin fetch ni escritura.
  *
  * Requiere DATABASE_URL (.env o entorno). Salida JSON de resumen en stdout (la
@@ -121,7 +119,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { hasPublishableResults } from './results-upsert.mjs';
-import { pendingHistoricalRaceIds } from './historical-identity-log.mjs';
 import { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES, MANUAL_OBSERVATION_PROVIDERS, isProgressiveResultSource } from './result-publication.mjs';
 import { databaseUrl } from '../db/env.mjs';
 export { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES };
@@ -159,7 +156,6 @@ const ONE_SECTOR_INDEX = (ONE_RACE && getArg('sector-index') != null)
   ? parseInt(getArg('sector-index'), 10) : null;
 const DRY = hasFlag('dry-run');
 const IGNORE_WINDOW = hasFlag('ignore-window');
-const HISTORICAL = hasFlag('historical');
 // Selección por las ventanas configuradas en el panel. El timer despierta este
 // proceso cada minuto, pero las carreras enlazadas sin regla activa no entran nunca.
 const CONFIGURED = hasFlag('configured');
@@ -269,6 +265,7 @@ const MIKATIMING_FETCH = join(HERE, 'mikatiming-results-fetch.mjs');
 const FICR_FETCH = join(HERE, 'ficr-results-fetch.mjs');
 const LAPCLIP_FETCH = join(HERE, 'lapclip-results-fetch.mjs');
 const SOUTHBOHEMIA_FETCH = join(HERE, 'southbohemia-results-fetch.mjs');
+const KYUSHU_FETCH = join(HERE, 'kyushu-results-fetch.mjs');
 const UPSERT = join(HERE, 'results-upsert.mjs');
 
 function topologyFromPayload(kind, data) {
@@ -379,13 +376,14 @@ export function isFinalStageDump(targetStage, totalStages, needsFinal = false, i
 }
 
 // Etapas que lee el fetcher. La lectura completa de la última etapa recoge la
-// clasificación final de las fuentes que la publican aparte. ASO lee siempre la
-// etapa pedida. AT Results imprime la final en el dossier de la última etapa:
+// clasificación final de las fuentes que la publican aparte. ASO, LAPCLIP y el
+// Tour de Kyushu (cuyo comunicado de la última etapa trae la final) leen
+// siempre la etapa pedida. AT Results imprime la final en el dossier de la última etapa:
 // basta ese dossier, y un defecto de impresión en un dossier anterior ya cargado
 // (Le Tour de Langkawi 2026, montaña general de la etapa 2 sin el 9.º puesto)
 // no bloquea la etapa final.
 export function stageFetchArgs(kind, targetStage, isFinalStage, totalStages = null) {
-  if (kind === 'ASO') return targetStage == null ? [] : ['--stage', String(targetStage)];
+  if (kind === 'ASO' || kind === 'lapclip' || kind === 'kyushu') return targetStage == null ? [] : ['--stage', String(targetStage)];
   if (kind === 'atresults' && isFinalStage && totalStages != null) return ['--stage', String(totalStages)];
   return targetStage != null && !isFinalStage ? ['--stage', String(targetStage)] : [];
 }
@@ -424,11 +422,11 @@ export function shouldResolveBibsByName(source, resultsOnly = false) {
   return source === 'uci' && resultsOnly === true;
 }
 
-export function manual_timingFetchArgs({ code, stage, date, competitionId, outDir, isFinalStage = false }) {
-  if (!code || stage == null) return null;
+export function manual_timingFetchArgs({ code, stage, date, competitionId, outDir, isFinalStage = false, oneDay = false }) {
+  if (!code || (stage == null && !oneDay)) return null;
   return [
     '--code', String(code),
-    '--stage', String(stage),
+    ...(oneDay ? ['--one-day'] : ['--stage', String(stage)]),
     '--date', String(date || ''),
     '--competition-id', String(competitionId),
     '--out', outDir,
@@ -469,14 +467,6 @@ async function main() {
   const env = { ...loadEnv(), ...process.env };
   const url = databaseUrl(env);
   if (!url) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
-  const identityPendingLog = env.HISTORICAL_IDENTITY_PENDING_LOG || null;
-  if (HISTORICAL && !identityPendingLog) {
-    log('FATAL: falta HISTORICAL_IDENTITY_PENDING_LOG para el backlog histórico');
-    process.exit(1);
-  }
-  const blockedHistoricalRaceIds = HISTORICAL
-    ? pendingHistoricalRaceIds(identityPendingLog)
-    : new Set();
 
   const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
@@ -741,16 +731,12 @@ async function main() {
          FROM race_uci_links l JOIN races r ON r.id = l."raceId"
          WHERE l."source" NOT IN (${sqlStringList(MANUAL_RESULT_SOURCES)})
            AND (${where})
-           AND (${HISTORICAL ? 'r.year BETWEEN 2020 AND 2025' : 'TRUE'})
-           AND (${HISTORICAL && blockedHistoricalRaceIds.size ? 'NOT (l."raceId" = ANY($2::text[]))' : 'TRUE'})
          ORDER BY sort_live ASC,
                   l."backlogNextAttemptAt" ASC NULLS FIRST,
                   l."backlogLastAttemptAt" ASC NULLS FIRST,
                   r."endDate" DESC NULLS LAST,
                   l."raceId" ASC
-         LIMIT $1`, HISTORICAL && blockedHistoricalRaceIds.size
-          ? [LIMIT, [...blockedHistoricalRaceIds]]
-          : [LIMIT]);
+         LIMIT $1`, [LIMIT]);
       targets = rows;
       // Un fetch vacío, rechazado o fallido no puede seguir ocupando el primer
       // puesto del backlog. Registrar el intento antes de acceder a la fuente
@@ -803,6 +789,7 @@ async function main() {
         : t.source === 'lapclip' && t.lapclipCode ? `lapclip:${t.lapclipCode}`
         : t.source === 'istanbul' ? `istanbul:${t.year}`
         : t.source === 'southbohemia' ? `southbohemia:${t.year}`
+        : t.source === 'kyushu' ? `kyushu:${t.year}${t.lapclipCode ? ` + lapclip:${t.lapclipCode} (provisional)` : ''}`
         // Híbridos UCI-preferentes: DataRide oficial seguido de los rellenos configurados.
         : t.source === 'uci' && t.domtelCode && t.evodataCode ? `uci + domtel:${t.domtelCode} + evodata:${t.evodataCode} (relleno)`
         : t.source === 'uci' && t.evodataCode ? `uci + evodata:${t.evodataCode} (relleno)`
@@ -961,6 +948,7 @@ async function main() {
         competitionId: t.competitionId,
         outDir,
         isFinalStage,
+        oneDay: t.raceFormat === 'one_day',
       });
       if (!manual_timingArgs) {
         log(`  ✗ manual_timing sin manual_timingCode o etapa seleccionable`);
@@ -1070,13 +1058,16 @@ async function main() {
       // LAPCLIP publica vueltas y tiempos de transpondedor en directo. El
       // fetcher emite la llegada cuando el primero completa las vueltas del
       // código y los abandonos pasado el margen desde la llegada estimada.
+      // En una vuelta por etapas lee la categoría de la etapa pedida.
       const times = t.scheduledTimes || {};
       srcLabel = ` ← lapclip:${t.lapclipCode}`;
       fc = await run(LAPCLIP_FETCH, ['--code', String(t.lapclipCode), '--race-id', String(t.raceId),
         '--competition-id', String(t.competitionId), '--out', outDir,
         ...(times.dateKey ? ['--date', String(times.dateKey)] : []),
         ...(times.startUtc ? ['--start-utc', String(times.startUtc)] : []),
-        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : [])]);
+        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : []),
+        ...(t.raceFormat !== 'one_day' && t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
+        ...(t.raceFormat !== 'one_day' ? fetchStageArgs : [])]);
     } else if (kind === 'istanbul' || kind === 'southbohemia') {
       // El organizador publica un dossier PDF por jornada en una página estable.
       // El fetcher redescubre los enlaces en cada pasada y valida año, etapa y
@@ -1085,6 +1076,19 @@ async function main() {
       fc = await run(kind === 'istanbul' ? ISTANBUL_FETCH : SOUTHBOHEMIA_FETCH, ['--year', String(t.year), '--race-id', String(t.raceId), '--competition-id', String(t.competitionId), '--out', outDir,
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
         ...(t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
+        ...fetchStageArgs]);
+    } else if (kind === 'kyushu') {
+      // Comunicado oficial del organizador por etapa; mientras no aparece, la
+      // llegada provisional de LAPCLIP con las mismas claves.
+      const times = t.scheduledTimes || {};
+      srcLabel = ` ← kyushu:${t.year}`;
+      fc = await run(KYUSHU_FETCH, ['--year', String(t.year), '--race-id', String(t.raceId), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.lapclipCode ? ['--lapclip-code', String(t.lapclipCode)] : []),
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
+        ...(t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
+        ...(times.dateKey ? ['--date', String(times.dateKey)] : []),
+        ...(times.startUtc ? ['--start-utc', String(times.startUtc)] : []),
+        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : []),
         ...fetchStageArgs]);
     } else {
       // 'uci' (DataRide): fuente oficial. --uci-race-id para una prueba concreta (CN).
@@ -1155,9 +1159,6 @@ async function main() {
     // startlist. Los cronometradores conservan sus nombres como texto transitorio.
     if (shouldSeedStartlist(t.sl, kind, t.resultsOnly)) upArgs.push('--seed-startlist');
     if (shouldResolveBibsByName(kind, t.resultsOnly)) upArgs.push('--resolve-bibs-by-name');
-    if (HISTORICAL && t.resultsOnly) {
-      upArgs.push('--require-resolved-identities', '--identity-pending-log', identityPendingLog);
-    }
     if (SKIP_EXISTING && !refreshesCoveredStage(kind)) {
       upArgs.push('--skip-existing');
       // SportSoft Live consolida bonificaciones tras el orden de meta. Cada
@@ -1217,6 +1218,7 @@ async function main() {
       : t.source === 'maneffic' && t.manefficCode ? 'maneffic'
       : t.source === 'istanbul' ? 'istanbul'
       : t.source === 'southbohemia' ? 'southbohemia'
+      : t.source === 'kyushu' ? 'kyushu'
       : t.source === 'bornan' && t.bornanCode ? 'bornan'
       : t.source === 'atresults' && t.atresultsCode ? 'atresults'
       : t.source === 'mikatiming' && t.mikatimingCode ? 'mikatiming'

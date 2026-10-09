@@ -1,4 +1,5 @@
 import {dateNavigationButton} from './components/date-navigation.js';
+import { initDaySwipe } from './components/day-swipe.js';
 import { loadFeaturedRaces, todayRaceState, startlistCyclistHtml } from './services/race-presentation.js';
 // ─────────────────────────────────────────────────────────────────
 //  APP PÚBLICA — index.html
@@ -17,7 +18,9 @@ import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
-import { annotateDoubleSectors } from './services/races.js';
+import { annotateDoubleSectors, buildInhouseResultsMatcher } from './services/races.js';
+import { fetchAllRowsParallel } from './services/paged-query.js';
+import { staleWhileRevalidate } from './services/local-cache.js';
 import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { createRaceCard, cardLogoHtml, overviewButtonHtml, raceCardHtml, setInfoTooltip } from './components/race-card.js';
 import { tvIconHtml, noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
@@ -28,7 +31,7 @@ import { championshipMatchesCategoryFilter,
 import { pickBadgeBroadcast } from './broadcast-priority.js';
 import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js';
 import { sortAgenda } from './services/today-agenda-order.js';
-import { todaySeasonLastDay, clampToTodaySeason, isWithinTodaySeason } from './services/today-season.js';
+import { cyclocrossHome } from './services/today-season.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
@@ -141,29 +144,16 @@ const _urlDate = new URLSearchParams(window.location.search).get('date');
 // `todayKeyNow()` y el auto-avance de medianoche más abajo.
 let today = toDateKey(new Date());
 function todayKeyNow() { return toDateKey(new Date()); }
-// Día que representa "hoy" en la agenda: tras el cierre de temporada es el
-// último día navegable (services/today-season.js).
-function agendaTodayKey() { return clampToTodaySeason(today, today); }
-let currentDateKey = clampToTodaySeason((_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : today, today);
+let currentDateKey = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : today;
 
 function buildDateBar() {
   const bar = document.getElementById('dateBar');
 
-  // 7 días centrados en el día activo (3 antes + activo + 3 después). Cerca
-  // del último día de temporada la tira se desplaza para terminar en él: no
-  // se ofrece ningún día posterior.
+  // 7 días centrados en el día activo (3 antes + activo + 3 después).
   const [cy, cm, cd] = currentDateKey.split('-').map(Number);
   const center = new Date(cy, cm - 1, cd);
-  const seasonLastDay = todaySeasonLastDay(today);
-  let firstOffset = -3;
-  while (firstOffset > -6 && seasonLastDay) {
-    const last = new Date(center);
-    last.setDate(center.getDate() + firstOffset + 6);
-    if (toDateKey(last) <= seasonLastDay) break;
-    firstOffset--;
-  }
   const days = [];
-  for (let i = firstOffset; i <= firstOffset + 6; i++) {
+  for (let i = -3; i <= 3; i++) {
     const d = new Date(center);
     d.setDate(center.getDate() + i);
     days.push(toDateKey(d));
@@ -184,9 +174,8 @@ function buildDateBar() {
   });
   leftSection.appendChild(prevBtn);
 
-  const todayKey = agendaTodayKey();
-  const todayBtn=dateNavigationButton({kind:'today',visible:currentDateKey!==todayKey,label:t('today.todayBtn')});
-  todayBtn.addEventListener('click', () => { currentDateKey = todayKey; buildDateBar(); loadDay(todayKey); });
+  const todayBtn=dateNavigationButton({kind:'today',visible:currentDateKey!==today,label:t('today.todayBtn')});
+  todayBtn.addEventListener('click', () => { currentDateKey = today; buildDateBar(); loadDay(today); });
   leftSection.appendChild(todayBtn);
 
   bar.appendChild(leftSection);
@@ -226,7 +215,6 @@ function buildDateBar() {
   rightSection.className = 'date-bar__right';
 
   const nextBtn=dateNavigationButton({kind:'arrow',direction:'next',label:t('today.nextDayLabel')});
-  nextBtn.disabled = !canGoToNextDay();
   nextBtn.addEventListener('click', () => {
     const next = nextNavigableDay(currentDateKey);
     if (next) loadDay(next);
@@ -259,7 +247,6 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   _progressTimer = null;
   _progressCards = [];
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
-  dateKey = clampToTodaySeason(dateKey, today);
   currentDateKey = dateKey;
   // Reevaluar el bloqueo de filtros de Campeonatos contra la jornada mostrada
   // (puede entrar/salir de la ventana al navegar). Ajusta `_agendaCat` y los
@@ -268,7 +255,9 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   buildDateBar();
 
   // Actualizar URL sin recargar
-  const newUrl = dateKey === today
+  // Con la home cedida a Ciclocross (services/today-season.js), `/` sin fecha
+  // pinta Ciclocross: el día de hoy de carretera conserva `?date=`.
+  const newUrl = dateKey === today && !cyclocrossHome(today)
     ? window.location.pathname
     : `${window.location.pathname}?date=${dateKey}`;
   history.replaceState(null, '', newUrl);
@@ -335,6 +324,10 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
 
     // Detectar dobles sectores (misma carrera, mismo día, mismo stageNumber).
     annotateDoubleSectors(raceDays);
+    _dayProbe = {
+      dateKey, raceIds, rdIds, days: raceDays,
+      signature: daySignature(raceDays, bcastResult.data || [], assetsResult.data || [], rd => rd._hasInhouse),
+    };
 
     // ⚠️ NO vaciar la lista aquí: por debajo quedan awaits (ensureYearRacesCached,
     // loadPlaceholders) que NO mutan el DOM. Si se limpia antes, el overlay de
@@ -445,7 +438,7 @@ function updateSeoDay(dateKey, raceDays) {
   // Valores evergreen — espejo exacto del HTML estático (`index.html` / `en/index.html`).
   // Se reescriben explícitamente por si una navegación previa en la misma sesión los tocó.
   // Título EN propio: con el mismo título que la home ES, Google agrupaba /en/ con /.
-  const title = isEn ? 'Pro Cycling Races Today: Schedule, TV and Streaming — Calendario Ciclismo App' : 'Calendario Ciclismo App';
+  const title = isEn ? 'Pro Cycling Races Today: Schedule, TV and Streaming - Calendario Ciclismo App' : 'Calendario Ciclismo App';
   const description = isEn
     ? 'All professional cycling races with schedule, route, profile and how to watch on TV and streaming.'
     : 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
@@ -552,17 +545,29 @@ async function loadPlaceholders(dateKey, existingRaceDays, racesPromise = fetchA
   return placeholders;
 }
 
-/** Carga y cachea todas las carreras del año para navegación filter-aware. */
 let _cachedYear = null;
 let _yearRacesRequest = null;
+/**
+ * Carga y cachea todas las carreras del año para navegación filter-aware.
+ * Paginado: las carreras de un año se acercan al tope de filas por respuesta
+ * de PostgREST. La copia local permite resolver la navegación sin esperar a
+ * la red.
+ */
 async function ensureYearRacesCached(year) {
   if (_cachedYear === year && _cachedYearRaces.length) return;
   if (_yearRacesRequest?.year === year) return _yearRacesRequest.promise;
-  const promise = Promise.resolve(supabase.from('races').select(YEAR_NAV_COLUMNS).eq('year', year))
-    .then(({ data }) => {
-      _cachedYearRaces = data || [];
-      _cachedYear = year;
-    }).finally(() => { if (_yearRacesRequest?.promise === promise) _yearRacesRequest = null; });
+  const apply = races => {
+    _cachedYearRaces = races || [];
+    _cachedYear = year;
+  };
+  // Con copia local, `apply` ya se ha ejecutado al volver de la llamada y la
+  // navegación no espera a la revalidación.
+  const revalidation = staleWhileRevalidate(`year-nav:${year}`,
+    () => fetchAllRowsParallel(() => supabase.from('races').select(YEAR_NAV_COLUMNS).eq('year', year).order('id')),
+    apply);
+  revalidation.catch(() => {});
+  const promise = (_cachedYear === year ? Promise.resolve() : revalidation.then(() => {}, () => {}))
+    .finally(() => { if (_yearRacesRequest?.promise === promise) _yearRacesRequest = null; });
   _yearRacesRequest = { year, promise };
   return promise;
 }
@@ -806,15 +811,13 @@ function matchesCategoryFilter(race, cat) {
   return true;
 }
 
-/** Busca el siguiente día con carreras que coincidan con el filtro (escanea
- *  hasta 180 días, sin pasar del último día de temporada). */
+/** Busca el siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
 function findNextDayWithRaces(afterDateKey, cat) {
   if (!_cachedYearRaces.length) return null;
   let [y, m, d] = afterDateKey.split('-').map(Number);
   for (let i = 0; i < 180; i++) {
     const dt = new Date(y, m - 1, d + 1 + i);
     const dk = toDateKey(dt);
-    if (!isWithinTodaySeason(dk, today)) return null;
     const hasMatch = _cachedYearRaces.some(race =>
       !race.isCancelled && isRaceDay(race, dk) && matchesCategoryFilter(race, cat)
     );
@@ -823,16 +826,10 @@ function findNextDayWithRaces(afterDateKey, cat) {
   return null;
 }
 
-/** True si existe algún día navegable posterior al mostrado. */
-function canGoToNextDay() {
-  return isWithinTodaySeason(addDaysKey(currentDateKey, 1), today);
-}
-
 /** Destino de «día siguiente»: el próximo día con carreras del filtro o, si no
- *  lo hay, el día contiguo; null en el último día de temporada. */
+ *  lo hay, el día contiguo. */
 function nextNavigableDay(fromKey) {
-  const next = findNextDayWithRaces(fromKey, _agendaCat) || addDaysKey(fromKey, 1);
-  return isWithinTodaySeason(next, today) ? next : null;
+  return findNextDayWithRaces(fromKey, _agendaCat) || addDaysKey(fromKey, 1);
 }
 
 function addDaysKey(dateKey, days) {
@@ -991,150 +988,23 @@ document.getElementById('raceList')?.addEventListener('click', e => {
 // El cintillo «Hoy» (today_highlights) vive ahora en ./cintillo.js (initCintillo).
 
 // ── Swipe horizontal para cambiar de día (móvil) ──────────────────
-// El dedo arrastra la lista de carreras (#raceList); al soltar por encima del
-// umbral (o con un flick rápido) se confirma el cambio al día anterior/siguiente
-// con un «settle» animado (la lista sale por un lado y la nueva entra por el
-// otro). Mismo destino que las flechas ◀▶: findNext/PrevDayWithRaces con
-// fallback a ±1 día. El gesto se escucha sobre #raceList Y sobre el selector de
-// días (#dateBar) — las 7 píldoras reparten el ancho SIN scroll, así que no hay
-// conflicto; el feedback visual (transform) siempre va sobre #raceList y un
-// arrastre sobre una píldora NO dispara su tap (suppressClick). El cintillo
-// tiene gesto propio y vive fuera de ambos. Paridad con el DragGesture de las
-// apps (umbral h > v*1.5).
-function initDaySwipe() {
-  const list = document.getElementById('raceList');
-  if (!list) return;
-  const dateBar = document.getElementById('dateBar');
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  const DECIDE_PX = 12;   // distancia para decidir si el gesto es horizontal
-  const COMMIT_PX = 60;   // distancia para confirmar el cambio de día
-  const RESIST    = 0.4;  // rubber-band al rebasar el 60% del ancho
-
-  let startX = 0, startY = 0, startT = 0, width = 0;
-  let tracking = false, horizontal = false, dragging = false;
-  let animating = false, suppressClick = false;
-
-  const addDays = (dk, n) => {
-    const [y, m, d] = dk.split('-').map(Number);
-    return toDateKey(new Date(y, m - 1, d + n));
-  };
-
-  function resetTransform() {
-    list.style.transition = '';
-    list.style.transform = '';
-    list.style.willChange = '';
-  }
-
-  function settleBack() {
-    if (reduceMotion) { resetTransform(); return; }
-    list.style.transition = 'transform .22s cubic-bezier(.22,.61,.36,1)';
-    list.style.transform = 'translateX(0)';
-    setTimeout(resetTransform, 240);
-  }
-
-  function commit(forward) {
-    const targetDk = forward
+// Mismo destino que las flechas ◀▶: findNext/PrevDayWithRaces con fallback a
+// ±1 día (js/components/day-swipe.js).
+function initTodaySwipe() {
+  initDaySwipe({
+    list: document.getElementById('raceList'),
+    dateBar: document.getElementById('dateBar'),
+    target: forward => forward
       ? nextNavigableDay(currentDateKey)
-      : (findPrevDayWithRaces(currentDateKey, _agendaCat) || addDays(currentDateKey, -1));
-    if (!targetDk) { settleBack(); return; }
-
-    if (reduceMotion || !width) { resetTransform(); loadDay(targetDk); return; }
-
-    animating = true;
-    const outX = forward ? -width : width;
-    const inX  = forward ? width : -width;
-
-    // 1) La lista actual sale por el lado del gesto.
-    list.style.transition = 'transform .2s ease-in';
-    list.style.transform = `translateX(${outX}px)`;
-    setTimeout(() => {
-      // 2) Cargar el nuevo día (rellena #raceList; loading → contenido «a golpes»).
-      loadDay(targetDk);
-      // 3) Colocar la lista fuera por el lado opuesto y deslizarla a su sitio.
-      list.style.transition = 'none';
-      list.style.transform = `translateX(${inX}px)`;
-      void list.offsetWidth; // forzar reflow antes de la transición de entrada
-      list.style.transition = 'transform .24s cubic-bezier(.22,.61,.36,1)';
-      list.style.transform = 'translateX(0)';
-      setTimeout(() => { resetTransform(); animating = false; }, 260);
-    }, 200);
-  }
-
-  function onTouchStart(e) {
-    if (animating || e.touches.length !== 1) { tracking = false; return; }
-    const tch = e.touches[0];
-    startX = tch.clientX; startY = tch.clientY; startT = Date.now();
-    width = list.getBoundingClientRect().width || window.innerWidth;
-    tracking = true; horizontal = false; dragging = false;
-  }
-
-  function onTouchMove(e) {
-    if (!tracking || animating || e.touches.length !== 1) return;
-    const tch = e.touches[0];
-    const dx = tch.clientX - startX;
-    const dy = tch.clientY - startY;
-
-    if (!horizontal) {
-      if (Math.abs(dx) < DECIDE_PX && Math.abs(dy) < DECIDE_PX) return;
-      if (Math.abs(dx) > Math.abs(dy) * 1.5) {
-        horizontal = true; dragging = true;
-        if (!reduceMotion) { list.style.transition = 'none'; list.style.willChange = 'transform'; }
-      } else {
-        tracking = false; return; // scroll vertical → no interferir
-      }
-    }
-
-    e.preventDefault(); // ya es un swipe horizontal: bloquear scroll/overscroll
-    if (reduceMotion) return; // sin animación de arrastre, solo se confirma al soltar
-    let shift = dx;
-    const cap = width * 0.6;
-    if (Math.abs(dx) > cap) shift = Math.sign(dx) * (cap + (Math.abs(dx) - cap) * RESIST);
-    list.style.transform = `translateX(${shift}px)`;
-  }
-
-  function onTouchEnd(e) {
-    if (!tracking) return;
-    tracking = false;
-    if (!horizontal) return;
-    horizontal = false; dragging = false;
-    suppressClick = true; // hubo arrastre horizontal → no abrir tarjeta ni píldora
-    setTimeout(() => { suppressClick = false; }, 400);
-
-    const tch = e.changedTouches[0];
-    const dx = tch.clientX - startX;
-    const dt = Date.now() - startT;
-    const flick = dt < 300 && Math.abs(dx) > 30;
-    if (Math.abs(dx) > COMMIT_PX || flick) commit(dx < 0);
-    else settleBack();
-  }
-
-  function onTouchCancel() {
-    if (dragging) settleBack();
-    tracking = false; horizontal = false; dragging = false;
-  }
-
-  // Tras un arrastre horizontal, anular el click que dispararía la tarjeta
-  // (#raceList) o la píldora de día (#dateBar). Ambos handlers escuchan en
-  // burbuja; este capture corre antes y corta la propagación.
-  function onClickCapture(e) {
-    if (suppressClick) { e.preventDefault(); e.stopPropagation(); }
-  }
-
-  for (const el of [list, dateBar]) {
-    if (!el) continue;
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove', onTouchMove, { passive: false });
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
-    el.addEventListener('touchcancel', onTouchCancel, { passive: true });
-    el.addEventListener('click', onClickCapture, true);
-  }
+      : (findPrevDayWithRaces(currentDateKey, _agendaCat) || addDaysKey(currentDateKey, -1)),
+    load: loadDay,
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────
 initAgendaFilters();
 initCintillo();
-initDaySwipe();
+initTodaySwipe();
 initPhTooltip();
 window.loadDay = loadDay;
 initI18n().then(() => {
@@ -1156,10 +1026,10 @@ initI18n().then(() => {
 function _maybeAdvanceToNewLocalDay() {
   const nowKey = todayKeyNow();
   if (nowKey === today) return;            // sigue siendo el mismo día local
-  const wasOnToday = currentDateKey === agendaTodayKey();
+  const wasOnToday = currentDateKey === today;
   today = nowKey;                          // actualizar la referencia de "hoy"
   if (!wasOnToday) { buildDateBar(); return; } // respetar navegación manual
-  currentDateKey = agendaTodayKey();
+  currentDateKey = today;
   buildDateBar();
   loadDay(currentDateKey, { skipEmptyDay: true });
 }
@@ -1169,8 +1039,50 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', _maybeAdvanceToNewLocalDay);
 setInterval(_maybeAdvanceToNewLocalDay, 60_000);
 
-const refreshToday = () => {
-  if (!document.hidden && !dayLoading && currentDateKey === toDateKey(new Date())) loadDay(currentDateKey,{refresh:true});
+// ── Refresco de Hoy ───────────────────────────────────────────────
+// Mientras quede alguna jornada sin terminar (todayRaceState), una lectura
+// ligera de jornadas, emisiones, assets y resultados propios decide si hace
+// falta recargar el día completo (perfiles incluidos).
+let _dayProbe = null;
+const PROBE_DAY_COLUMNS = 'id,raceId,stageNumber,raceStatus,isCancelledDay,isRestDay,neutralStartTimeUtc,estimatedFinishTimeUtc,realStartTimeUtc,tvStatus,updatedAt';
+const PROBE_BROADCAST_COLUMNS = 'id,raceDayId,channel,startTimeUtc,url,country,embeddable,sortOrder';
+
+function daySignature(days, broadcasts, assets, hasInhouse) {
+  const pick = (row, columns) => columns.split(',').map(column => row[column] ?? null);
+  return JSON.stringify([
+    days.map(rd => [...pick(rd, PROBE_DAY_COLUMNS), !!hasInhouse(rd)]).sort(),
+    broadcasts.map(row => pick(row, PROBE_BROADCAST_COLUMNS)).sort(),
+    assets.map(row => [row.id, row.raceDayId, row.type, row.url]).sort(),
+  ]);
+}
+
+async function dayChanged(probe) {
+  const [days, broadcasts, assets, stages] = await Promise.all([
+    supabase.from('race_days').select(PROBE_DAY_COLUMNS).eq('dateKey', probe.dateKey).eq('editorialStatus', 'published'),
+    probe.rdIds.length ? supabase.from('broadcasts').select(PROBE_BROADCAST_COLUMNS).in('raceDayId', probe.rdIds) : Promise.resolve({ data: [] }),
+    probe.rdIds.length ? supabase.from('assets').select('id,raceDayId,type,url').in('raceDayId', probe.rdIds) : Promise.resolve({ data: [] }),
+    probe.raceIds.length
+      ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('keepForWeb', true).gt('rowCount', 0).in('raceId', probe.raceIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const failed = [days, broadcasts, assets, stages].find(result => result.error);
+  if (failed) throw failed.error;
+  const matcher = buildInhouseResultsMatcher(stages.data || []);
+  return daySignature(days.data || [], broadcasts.data || [], assets.data || [],
+    rd => !rd.isCancelledDay && matcher.has(rd)) !== probe.signature;
+}
+
+let dayProbing = false;
+const refreshToday = async () => {
+  if (document.hidden || dayLoading || dayProbing || currentDateKey !== toDateKey(new Date())) return;
+  const probe = _dayProbe;
+  if (!probe || probe.dateKey !== currentDateKey) return;
+  if (!probe.days.some(rd => ['scheduled', 'running', 'waiting'].includes(todayRaceState(rd)))) return;
+  dayProbing = true;
+  try {
+    if (await dayChanged(probe) && currentDateKey === probe.dateKey) loadDay(currentDateKey, { refresh: true });
+  } catch { /* Sin red: se conserva la agenda visible hasta la siguiente lectura. */ }
+  finally { dayProbing = false; }
 };
 const dayRefreshTimer=setInterval(refreshToday,60000);
 document.addEventListener('visibilitychange',refreshToday);

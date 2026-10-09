@@ -30,7 +30,6 @@ final class ResultsFeedLogicTests: XCTestCase {
             id: id,
             name: name,
             nameEn: nil,
-            abbrev: nil,
             uciCategory: uciCategory,
             gender: gender,
             raceFormat: raceFormat,
@@ -146,6 +145,25 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(reversed.count, 1)
         XCTAssertEqual(reversed[0].winner, "Ganadora Final")
         XCTAssertEqual(reversed[0].stageRefId, "s2")
+    }
+
+    func testDestacadaAbreSuDiaConTodasSusEntradas() {
+        let wt = makeRace(id: "WT", name: "Clásica WT", raceFormat: "one_day", uciCategory: "1.UWT")
+        let small = makeRace(id: "P", name: "Vuelta pequeña", uciCategory: "2.2")
+        let other = makeRace(id: "Q", name: "Otra clásica", raceFormat: "one_day", uciCategory: "1.UWT")
+        let stages = [
+            makeStage(id: "w1", raceId: "WT", classKind: "stage", stageDate: "2026-06-05", winnerName: "A"),
+            makeStage(id: "p1", raceId: "P", classKind: "stage", stageNumber: 3, stageDate: "2026-06-05", winnerName: "B"),
+            makeStage(id: "p2", raceId: "P", classKind: "gc", stageDate: "2026-06-05", winnerName: "C", isFinal: true),
+            makeStage(id: "p0", raceId: "P", classKind: "stage", stageNumber: 2, stageDate: "2026-06-04", winnerName: "D"),
+            makeStage(id: "q0", raceId: "Q", classKind: "stage", stageDate: "2026-06-04", winnerName: "E"),
+        ]
+        let entries = build(stages: stages, races: [wt, small, other])
+        XCTAssertEqual(entries.first?.race.id, "WT")
+        let sorted = ResultsFeedLogic.featuredFirst(entries, selected: ["2026-06-05#P"])
+        XCTAssertEqual(sorted.filter { $0.date == "2026-06-05" }.map(\.stageRefId), ["p2", "p1", "w1"])
+        XCTAssertEqual(sorted.filter { $0.date == "2026-06-04" }.map(\.race.id), entries.filter { $0.date == "2026-06-04" }.map(\.race.id))
+        XCTAssertEqual(sorted.map(\.date), entries.map(\.date))
     }
 
     func testGcNoFinalDeUnDiaSeIgnora() {

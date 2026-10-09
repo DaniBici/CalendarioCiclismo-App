@@ -67,7 +67,7 @@ class FeedsTest(unittest.TestCase):
                 self.assertFalse(Path("feed/2020.ics").exists())
                 self.assertFalse(Path("feed/event/old.ics").exists())
                 self.assertTrue(Path("en/feed/event/stage-1004.ics").exists())
-                self.assertIn("X-WR-CALNAME:Race 2026 — Stage 1004", Path("en/feed/event/stage-1004.ics").read_text())
+                self.assertIn("X-WR-CALNAME:Race 2026 - Stage 1004", Path("en/feed/event/stage-1004.ics").read_text())
                 self.assertFalse(Path("feed/event/rest.ics").exists())
                 self.assertFalse(Path("en/feed/event/cancel.ics").exists())
                 self.assertEqual(Path("en/feed/2026.ics").read_text().count("BEGIN:VEVENT"), 1005)

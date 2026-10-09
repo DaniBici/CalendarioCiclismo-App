@@ -243,7 +243,6 @@ final class AccessibilityTests: XCTestCase {
             id: UUID().uuidString,
             name: name,
             nameEn: nil,
-            abbrev: nil,
             uciCategory: uciCategory,
             gender: nil,
             raceFormat: raceFormat,

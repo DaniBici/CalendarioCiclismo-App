@@ -12,7 +12,7 @@ export const UciRankingTier = Object.freeze({
 
 export function formatUciRankingUpdated(value, isEnglish = false) {
   const prefix = isEnglish ? 'Updated' : 'Actualizado';
-  if (!value) return `${prefix}: —`;
+  if (!value) return `${prefix}: -`;
   const [year, month, day] = value.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   const formatted = date.toLocaleDateString(isEnglish ? 'en-GB' : 'es-ES', {

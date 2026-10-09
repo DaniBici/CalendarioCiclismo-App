@@ -58,6 +58,30 @@ class ResultsFeedLogicTest {
         neutralStartTimeUtc = start, countryCode = countryCode,
     )
 
+    // ── Destacadas ──
+
+    @Test
+    fun `la destacada abre su dia con todas sus entradas`() {
+        val races = listOf(
+            race("WT", format = "one_day", uci = "1.UWT"),
+            race("P", uci = "2.2"),
+            race("Q", format = "one_day", uci = "1.UWT"),
+        )
+        val stages = listOf(
+            stage("w1", "WT", sn = null, date = "2026-06-05", winner = "A"),
+            stage("p1", "P", sn = 3, date = "2026-06-05", winner = "B"),
+            stage("p2", "P", kind = "gc", sn = null, date = "2026-06-05", final = true, winner = "C"),
+            stage("p0", "P", sn = 2, date = "2026-06-04", winner = "D"),
+            stage("q0", "Q", sn = null, date = "2026-06-04", winner = "E"),
+        )
+        val entries = ResultsFeedLogic.buildEntries(stages, emptyList(), races, "2026-06-01", "2026-06-10")
+        assertEquals("WT", entries.first().race.id)
+        val sorted = ResultsFeedLogic.featuredFirst(entries, setOf("2026-06-05#P"))
+        assertEquals(listOf("p2", "p1", "w1"), sorted.filter { it.date == "2026-06-05" }.map { it.stageRefId })
+        assertEquals(entries.filter { it.date == "2026-06-04" }, sorted.filter { it.date == "2026-06-04" })
+        assertEquals(entries.map { it.date }, sorted.map { it.date })
+    }
+
     // ── Override de país por jornada sin raceDayId en la clasificación ──
 
     @Test

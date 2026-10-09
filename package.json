@@ -2,7 +2,7 @@
   "name": "calendario-ciclismo",
   "version": "1.0.0",
   "private": true,
-  "description": "Calendario de carreras del ciclismo profesional — web, app iOS (SwiftUI) y app Android (Kotlin + Jetpack Compose)",
+  "description": "Calendario de carreras del ciclismo profesional - web, app iOS (SwiftUI) y app Android (Kotlin + Jetpack Compose)",
   "keywords": [
     "ciclismo",
     "calendario",

@@ -1,6 +1,6 @@
 import {startlistCyclistHtml,resultsTrophyHtml} from './services/race-presentation.js';
 import {cxLogoImage} from './components/cx-logo.js';
-import {supabase,countryFlag,buildRaceHeader,findMatchingTeam,setMeta,setMetaProperty,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDateWeekday} from './shared.js';
+import {supabase,countryFlag,buildRaceHeader,findMatchingTeam,setMeta,setMetaProperty,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDateWeekday,orEqFilter,pickByPreference} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxQuery,cxAllRows,cxSeasonRounds,cxIsHidden,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
 import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank} from './cx/presentation.js';
@@ -12,11 +12,15 @@ import {cxDateInSeason} from './cx/season.js';
 import './race-assets.js';
 import {limitScrollToStickyStart} from './results/dom.js';
 
-await initI18n();
-const root=document.getElementById('cxRaceContent'),lang=getLang(),locale=getLocale();
-const safeLink=url=>{try{return cxUrl(url);}catch{return null;}};
+const root=document.getElementById('cxRaceContent'),lang=getLang();
 const sourceId=root.querySelector('[data-cx-race-id]')?.dataset.cxRaceId;
 const route=cxRacePageLocation(location.pathname,location.search);
+// La carrera se pide a la vez que el diccionario EN.
+const racePromise=findRace();
+racePromise.catch(()=>{});
+await initI18n();
+const locale=getLocale();
+const safeLink=url=>{try{return cxUrl(url);}catch{return null;}};
 let page=route.page;
 const dateLabel=date=>new Intl.DateTimeFormat(locale,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
 window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/ciclocross/',label:t('cx.back')});
@@ -88,7 +92,7 @@ function tvGroups(broadcasts,categories) {
   const group=(label,rows)=>rows.length?`<div class="cx-tv-group"${rows.some(row=>mine.has(row))?'':' data-cx-regional-hidden hidden'}>${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="stage-tv-grid">${rows.map(row=>tvEntry(row,!mine.has(row))).join('')}</div></div>`:'';
   const html=group('',broadcasts.filter(row=>!row.category))+categories.map(c=>group(t(`cx.category.${c.category}`),broadcasts.filter(row=>row.category===c.category))).join('');
   if(!html)return '';
-  return `<section class="jornada-section cx-media-section"><div class="jornada-section__title-row"><h2 class="jornada-section__title">${t('cx.tv')}</h2>${hasHidden?`<button type="button" class="tv-filter-btn" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button>`:''}</div>${!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html}</section>`;
+  return `<section class="jornada-section cx-media-section"><div class="jornada-section__title-row"><h2 class="jornada-section__title">${t('cx.tv')}</h2>${hasHidden?`<button type="button" class="stage-key-toggle" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button>`:''}</div>${!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html}</section>`;
 }
 function mapImageUrl(assets) {
   const url=safeLink(assets.find(asset=>asset.type==='map'&&asset.url)?.url);
@@ -101,7 +105,7 @@ function mapPreview(assets) {
   const url=mapImageUrl(assets);
   if(!url)return '';
   const label=esc(t('assets.map'));
-  return `<section class="jornada-section cx-programme-map"><h2 class="jornada-section__title">${label}</h2>${mapLink(url,label)}</section>`;
+  return `<section class="stage-profile-panel cx-programme-map"><header class="stage-profile-heading"><h2>${label}</h2></header>${mapLink(url,label)}</section>`;
 }
 // Solo cuentan las categorías con horario verificado.
 function scheduledCategories(race,categories) {
@@ -125,10 +129,10 @@ function programme(race,categories,results,multiDate,assets=[],hasMedia=false) {
   const scheduled=scheduledCategories(race,categories);
   const rows=scheduled.map(c=>{
     const cancelled=race.isCancelled||c.isCancelled,hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
-    const badges=`${c.startlistImportedAt?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}">${startlistCyclistHtml} ${t('cx.startlist')}</a>`:''}${hasResults?`<a class="badge badge--results" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}">${resultsTrophyHtml} ${t('stage.viewResults')}</a>`:''}`;
+    const badges=`${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistCyclistHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
     return `<section class="cx-programme-row" id="${c.category}"><div class="cx-programme-top"><div class="cx-programme-heading"><time title="${esc(t('stage.yourTimezone'))}: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}">${esc(cancelled?t('stage.cancelled'):cxTime(c.startTimeUtc,locale))}</time><h3>${esc(t(`cx.category.${c.category}`))}</h3></div>${badges?`<div class="cx-programme-actions">${badges}</div>`:''}</div>${multiDate?`<p>${esc(dateLabel(cxCategoryDate(race,c)))}</p>`:''}</section>`;
   }).join('');
-  const map=mapPreview(assets),schedule=rows?`<section class="jornada-section cx-programme-schedule"><h2 class="jornada-section__title">${t('stage.schedule')}</h2><div class="cx-programme-grid">${rows}</div></section>`:hasMedia?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
+  const map=mapPreview(assets),schedule=rows?`<section class="stage-profile-panel cx-programme-schedule"><header class="stage-profile-heading"><h2>${t('stage.schedule')}</h2></header><div class="cx-programme-grid">${rows}</div></section>`:hasMedia?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
   return map?`<div class="cx-programme-layout">${schedule}${map}</div>`:schedule;
 }
 async function findRace() {
@@ -138,9 +142,9 @@ async function findRace() {
   const params=new URLSearchParams(location.search),id=params.get('raceId');
   if(id)return cxQuery(base().eq('id',id).maybeSingle());
   const slug=params.get('slug')||route.slug;
-  let race=await cxQuery(base().eq(lang==='en'?'slugEn':'slug',slug).maybeSingle());
-  if(!race&&lang==='en')race=await cxQuery(base().eq('slug',slug).maybeSingle());
-  return race;
+  // Una sola consulta: en EN se prefiere slugEn y se admite slug.
+  const columns=lang==='en'?['slugEn','slug']:['slug'];
+  return pickByPreference(await cxQuery(base().or(orEqFilter(columns,slug)).limit(4)),columns,slug);
 }
 function seo(race) {
   // La raíz conserva su canonical aunque abra resultados por defecto. Las
@@ -157,17 +161,18 @@ function seo(race) {
   }
 }
 try {
-  const race=await findRace();if(!race||!cxDateInSeason(race.seasonKey,race.dateKey)||(race.endDateKey&&!cxDateInSeason(race.seasonKey,race.endDateKey)))throw new Error(t('cx.notFound'));
+  const race=await racePromise;if(!race||!cxDateInSeason(race.seasonKey,race.dateKey)||(race.endDateKey&&!cxDateInSeason(race.seasonKey,race.endDateKey)))throw new Error(t('cx.notFound'));
   if(cxIsHidden(race,lang)){
     document.querySelector('link[rel=alternate][hreflang="en"]')?.remove();
     setMeta('robots','noindex');
     root.innerHTML=`<div class="race-header cx-race-header"><h1 class="race-header__name">${esc(CX_SPANISH_AUDIENCE.title)}</h1><p>${esc(CX_SPANISH_AUDIENCE.text)}</p><div class="cx-race-actions"><a href="${esc(cxRacePageUrl(race,'es'))}">${esc(CX_SPANISH_AUDIENCE.link)}</a></div></div>`;
   } else {
-  const [broadcasts,videos,inscritos,results,teamRows,rounds,docAssets]=await Promise.all([cxAllRows(supabase,'cx_broadcasts','*',{raceId:race.id}),cxAllRows(supabase,'cx_videos','*',{raceId:race.id}),cxAllRows(supabase,'cx_startlist_riders','*',{raceId:race.id}),cxAllRows(supabase,'cx_results','*',{raceId:race.id}),cxQuery(supabase.from('cx_teams').select('id,name,nameAliases,uciCode,colorHex,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts')),cxSeasonRounds(supabase,race.seasonKey).then(map=>map,()=>null),cxAllRows(supabase,'assets','id,type,url',{cxRaceId:race.id})]);
+  // Todo depende solo de la carrera (y de su torneo, ya embebido): un único round-trip.
+  const tournament=race.cx_tournaments,filters=tournament?{tournamentId:tournament.id,seasonKey:race.seasonKey}:null;
+  const [broadcasts,videos,inscritos,results,teamRows,rounds,docAssets,[states,standings,tournamentRaceRows]]=await Promise.all([cxAllRows(supabase,'cx_broadcasts','*',{raceId:race.id}),cxAllRows(supabase,'cx_videos','*',{raceId:race.id}),cxAllRows(supabase,'cx_startlist_riders','*',{raceId:race.id}),cxAllRows(supabase,'cx_results','*',{raceId:race.id}),cxAllRows(supabase,'cx_teams','id,name,nameAliases,uciCode,colorHex,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts'),cxSeasonRounds(supabase,race.seasonKey).then(map=>map,()=>null),cxAllRows(supabase,'assets','id,type,url',{cxRaceId:race.id}),
+    filters?Promise.all([cxAllRows(supabase,'cx_standings_state','*',filters,'category'),cxAllRows(supabase,'cx_tournament_standings','*',filters),cxAllRows(supabase,'cx_races','id,name,nameEn,slug,slugEn,class,countryCode',{tournamentId:tournament.id,editorialStatus:'published'})]):[[],[],[]]]);
   const teams=new Map(teamRows.map(team=>[team.id,team]));
   const teamList=teamRows.map(team=>({...team,nameAliases:(team.nameAliases||[]).join('\n')}));
-  const tournament=race.cx_tournaments,filters=tournament?{tournamentId:tournament.id,seasonKey:race.seasonKey}:null;
-  const [states,standings,tournamentRaceRows]=filters?await Promise.all([cxAllRows(supabase,'cx_standings_state','*',filters,'category'),cxAllRows(supabase,'cx_tournament_standings','*',filters),cxAllRows(supabase,'cx_races','id,name,nameEn,slug,slugEn,class,countryCode',{tournamentId:tournament.id,editorialStatus:'published'})]):[[],[],[]];
   // Rondas del torneo para las columnas del desglose de la general.
   const tournamentRaces=new Map(tournamentRaceRows.map(row=>[row.id,row]));
   const actualCategories=cxCategories(race),publishedCategories=cxResultCategories(race,results);
@@ -228,7 +233,7 @@ try {
   const multiDate=new Set(categories.map(c=>cxCategoryDate(race,c))).size>1;
   const contextHtml=resultsContext(race,categories,multiDate,docAssets);
   const classificationsHtml=`<div class="res-layout cx-classification-page${contextHtml?' res-layout--context':''}"><div class="res-main">${classificationPanels||`<p class="cx-empty">${t('cx.noResults')}</p>`}</div>${contextHtml}</div>`;
-  const standingsPageHtml=`<div class="res-layout cx-classification-page cx-standings-page"><div class="res-main">${generalHtml||`<p class="cx-empty">${t('cx.noStandings')}</p>`}</div></div>`;
+  const standingsPageHtml=`<div class="res-layout cx-classification-page cx-standings-page${contextHtml?' res-layout--context':''}"><div class="res-main">${generalHtml||`<p class="cx-empty">${t('cx.noStandings')}</p>`}</div>${contextHtml}</div>`;
   const startlistHtml=categories.map(c=>`<section class="cx-category-section" data-cx-startlist-category="${c.category}"><div class="cx-category-content">${startlist(inscritos.filter(row=>row.category===c.category),teams)}</div></section>`).join('');
   const capitalizeDate=value=>value?value.charAt(0).toLocaleUpperCase(lang)+value.slice(1):value;
   const headerDate= race.dateKey ? capitalizeDate(seoLongDateWeekday(race.dateKey,lang)) + (race.endDateKey&&race.endDateKey!==race.dateKey?` – ${capitalizeDate(seoLongDateWeekday(race.endDateKey,lang))}`:'') : '';
@@ -292,7 +297,7 @@ try {
       const section=button.closest('.cx-media-section'),all=button.dataset.cxTvFilter==='mine';
       section.querySelectorAll('[data-cx-regional-hidden]').forEach(node=>node.hidden=!all);
       section.querySelector('[data-cx-no-region]')?.toggleAttribute('hidden',all);
-      button.dataset.cxTvFilter=all?'all':'mine';button.textContent=t(all?'tv.filterMine':'tv.filterAll');button.setAttribute('aria-pressed',String(all));button.classList.toggle('tv-filter-btn--active',all);return;
+      button.dataset.cxTvFilter=all?'all':'mine';button.textContent=t(all?'tv.filterMine':'tv.filterAll');button.setAttribute('aria-pressed',String(all));return;
     }
     const link=event.target.closest('a[href]');
     if(!link||event.defaultPrevented||event.button>0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.hasAttribute('download')||link.target&&link.target!=='_self')return;

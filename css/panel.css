@@ -40,8 +40,8 @@ html.light {
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* Botones sin el borde del navegador: cada clase define su superficie. */
-button { border: 0; }
+/* Botones sin el borde ni la tipografía del navegador: cada clase define su superficie. */
+button { border: 0; font-family: inherit; }
 html {
   font-size: var(--fs-4);
   -webkit-text-size-adjust: 100%;
@@ -218,6 +218,11 @@ a { color: inherit; text-decoration: none; }
   color: var(--accent-text);
 }
 .btn--ghost:hover:not(:disabled) { background: var(--hover-bg); }
+
+/* Botón con relleno tintado (como los campos), para acciones que sin él
+   quedan como texto; se suma a .btn--ghost, que aporta el color. */
+.btn--tonal { background: var(--bg-input); }
+.btn--tonal:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
 
 .btn--danger { background: transparent; color: var(--red); }
 .btn--danger:hover:not(:disabled) { background: var(--hover-bg); }
@@ -1658,7 +1663,8 @@ html.dark  .date-nav__input { color-scheme: dark; }
 }
 
 .ga-hour-bar {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1696,6 +1702,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
   color: var(--text-dim);
   margin-top: 3px;
   line-height: 1;
+  white-space: nowrap;
 }
 
 /* Daily pageviews chart (rango ≥ 2 días) */
@@ -2192,10 +2199,9 @@ input[type="color"].u-color-dot {
   }
   .panel-view-actions--teams {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     width: 100%;
   }
-  .panel-view-actions--teams #dupScanBtn { grid-column: 1 / -1; }
   .panel-view-actions--teams .btn {
     width: 100%;
     min-width: 0;
@@ -3635,10 +3641,10 @@ label.panel-check-label { display: inline-flex; align-items: center; cursor: poi
   font-weight: 600;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  background: transparent;
+  background: var(--bg-input);
   color: var(--text-muted);
 }
-.tr-situation-btn:hover { background: var(--hover-bg); }
+.tr-situation-btn:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
 .tr-situation-btn.is-active { background: color-mix(in srgb, var(--seg-color) 13%, transparent); color: var(--seg-color); }
 .tr-create-rider-btn,
 .btn--ghost.tr-create-rider-btn:hover:not(:disabled) {
@@ -3792,73 +3798,6 @@ label.panel-field-heading {
   color: var(--text);
   width: 100%;
 }
-.dup-cluster {
-  border-radius: var(--radius);
-  padding: 0.75rem;
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
-}
-/* Probabilidad de duplicado */
-.dup-score {
-  font-size: var(--fs-1);
-  font-weight: 600;
-}
-.dup-score--distinct,
-.dup-score--doubtful { color: var(--text-muted); }
-.dup-score--probable { color: var(--red); }
-.dup-score--possible { color: var(--orange); }
-/* El fondo lo destella el JS al guardar */
-.dup-rider-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--border);
-  font-size: var(--fs-2);
-}
-.dup-rider-fields { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-.dup-input {
-  background: var(--bg-input);
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0.2rem 0.35rem;
-  font-size: var(--fs-2);
-  color: var(--text);
-  min-width: 0;
-}
-.dup-input--last  { flex: 1.4; min-width: 8rem; font-weight: 700; }
-.dup-input--first { flex: 1.2; min-width: 6rem; }
-.dup-input--nat   { width: 3.2rem; flex-shrink: 0; text-transform: lowercase; text-align: center; }
-/* La opacidad la alterna el JS según haya cambios */
-.dup-save-btn {
-  background: var(--accent);
-  color: var(--btn-primary-text);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.2rem 0.5rem;
-  font-size: var(--fs-1);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.dup-team-name {
-  font-size: var(--fs-1);
-  color: var(--text-dim);
-  white-space: nowrap;
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
-}
-.dup-race-list { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
-.dup-race-chip {
-  background: var(--badge-neutral-bg);
-  border-radius: var(--radius-sm);
-  padding: 0.05rem 0.3rem;
-  font-size: var(--fs-1);
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
 /* — Resultados: origen, ventana de volcado y selectores (results*.js) — */
 .ru-sync-box { margin-top: 0.55rem; padding: 0.6rem; background: var(--bg); border-radius: var(--radius); font-size: var(--fs-2); }
 .ru-pick-popover { width: 360px; }
@@ -3959,11 +3898,11 @@ label.panel-field-heading {
   font-weight: 600;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  background: transparent;
+  background: var(--bg-input);
   color: var(--text-muted);
   white-space: nowrap;
 }
-.tse-seg-btn:hover { background: var(--hover-bg); }
+.tse-seg-btn:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
 .tse-seg-btn.is-active { background: color-mix(in srgb, var(--seg-color) 13%, transparent); color: var(--seg-color); }
 .tse-rider-row {
   display: flex;

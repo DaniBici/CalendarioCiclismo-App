@@ -22,7 +22,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -194,20 +198,36 @@ class OfflineManager(
             // de Room al final y purgar los ficheros huérfanos).
             val syncedRaceDayIds = mutableSetOf<String>()
 
-            // 1. Próximos 14 días
+            // 1. Próximos 14 días, con concurrencia limitada. Un día descargado
+            //    completo hace menos de 12 h en este proceso no se repite (iOS).
             setStatus("Descargando agenda diaria…")
-            for (offset in 0 until 14) {
-                val dateKey = DateFormatting.dayOffset(todayKey, offset) ?: continue
-                runCatching { repo.refreshDay(dateKey) }
-                    .onFailure { Log.w(TAG, "Error día $dateKey: ${it.message}") }
-                // Recoger los IDs de jornadas ahora cacheadas — incluso si la
-                // llamada a refreshDay falló, puede haber datos previos válidos.
+            val dayKeys = (0 until 14).mapNotNull { DateFormatting.dayOffset(todayKey, it) }
+            val dayPermits = Semaphore(DAY_SYNC_CONCURRENCY)
+            val progressLock = Mutex()
+            coroutineScope {
+                dayKeys.map { dateKey ->
+                    launch {
+                        dayPermits.withPermit {
+                            runCatching { repo.refreshDayIfStale(dateKey, CalendarRepository.OFFLINE_DAY_TTL_SECONDS) }
+                                .onFailure {
+                                    if (it is CancellationException) throw it
+                                    Log.w(TAG, "Error día $dateKey: ${it.message}")
+                                }
+                        }
+                        progressLock.withLock {
+                            completed++
+                            publishProgress(completed / totalSteps)
+                        }
+                    }
+                }
+            }
+            // Recoger los IDs de jornadas ahora cacheadas — incluso si la
+            // llamada a refreshDay falló, puede haber datos previos válidos.
+            for (dateKey in dayKeys) {
                 runCatching {
                     val ids = repo.cachedRaceDaysByDate(dateKey).map { it.id }
                     syncedRaceDayIds.addAll(ids)
                 }
-                completed++
-                publishProgress(completed / totalSteps)
             }
 
             // 2. Mes actual
@@ -362,5 +382,8 @@ class OfflineManager(
          *         carreras nuevas no incluidas en el bundle empaquetado.
          */
         const val CACHE_SCHEMA_VERSION = 4
+
+        /** Días de la agenda descargados a la vez durante la sincronización. */
+        private const val DAY_SYNC_CONCURRENCY = 3
     }
 }

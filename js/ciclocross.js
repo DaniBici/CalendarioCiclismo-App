@@ -1,31 +1,36 @@
 import {initCintillo} from './cintillo.js';
 import {waitingResultsHtml,resultsTrophyHtml} from './services/race-presentation.js';
 import {dateNavigationButton} from './components/date-navigation.js';
+import {initDaySwipe} from './components/day-swipe.js';
 import {cxLogoImage} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
-import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed} from './shared.js';
+import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed,announce} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxCategoryTiming} from './cx/timing.js';
-import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows,cxQuery,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
+import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
+import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
 import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
 import {cxTournamentDescription} from './cx/tournament-seo.js';
+import {cxClampDay,cxRaceDays,cxAdjacentRaceDay,cxStepDay,cxDateStrip} from './cx/today.js';
 
-await initI18n();
-const root=document.getElementById('cxAgendaContent'),lang=getLang(),locale=getLocale();
+// El diccionario EN se carga a la vez que los metadatos del torneo.
+const i18nReady=initI18n();
+const root=document.getElementById('cxAgendaContent'),lang=getLang();
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const scope=root.querySelector('[data-cx-tournament-id]')?.dataset||root.dataset;
 const tournamentSlug=new URLSearchParams(location.search).get('torneo');
 let tournamentId=scope.cxTournamentId||null;
 let tournament=null;
 if(tournamentId||tournamentSlug) {
-  try { tournament=await cxTournamentMetadata(supabase,tournamentId||tournamentSlug,{bySlug:!tournamentId});if(!tournament)throw Error(lang==='en'?'Cyclocross series not found.':'Torneo de ciclocross no encontrado.');tournamentId=tournament.id; }
-  catch(e) { root.innerHTML=`<p id="cxAgendaError" role="alert">${esc(t('cx.loadError'))} ${esc(e.message)}</p><button type="button" class="btn">${t('cx.retry')}</button>`;root.querySelector('button').onclick=()=>location.reload();throw e; }
+  try { [tournament]=await Promise.all([cxTournamentMetadata(supabase,tournamentId||tournamentSlug,{bySlug:!tournamentId}),i18nReady.catch(()=>{})]);if(!tournament)throw Error(lang==='en'?'Cyclocross series not found.':'Torneo de ciclocross no encontrado.');tournamentId=tournament.id; }
+  catch(e) { await i18nReady.catch(()=>{});root.innerHTML=`<p id="cxAgendaError" role="alert">${esc(t('cx.loadError'))} ${esc(e.message)}</p><button type="button" class="btn">${t('cx.retry')}</button>`;root.querySelector('button').onclick=()=>location.reload();throw e; }
 }
+await i18nReady;
+const locale=getLocale();
 const tournamentName=tournament?cxRaceName(tournament,lang):'';
 if(tournament) {
-  const url=`${location.origin}${cxTournamentUrl(tournament,lang)}`,title=`${tournamentName} · ${tournament.seasonKey} — Calendario Ciclismo`;
+  const url=`${location.origin}${cxTournamentUrl(tournament,lang)}`,title=`${tournamentName} · ${tournament.seasonKey} - Calendario Ciclismo`;
   document.title=title;setMetaProperty('og:title',title);setMetaProperty('og:url',url);
   document.querySelector('link[rel=canonical]')?.setAttribute('href',url);
   for(const language of ['es','en','x-default']) {
@@ -34,13 +39,19 @@ if(tournament) {
     link.href=`${location.origin}${cxTournamentUrl(tournament,language==='en'?'en':'es')}`;
   }
 }
-// La agenda general conserva el controlador mensual; la página de torneo carga
-// todas sus pruebas de la temporada en una sola página (sin selector de meses).
+// La agenda general es la vista Hoy de Carretera: un día cada vez dentro de la
+// temporada. La página de torneo carga todas sus pruebas de la temporada en una
+// sola página.
 const tournamentMode=!!tournamentId;
-let season=tournament?.seasonKey||cxSeason(),months=cxSeasonMonths(season),activeMonth=months[0],version=0,busy=false;
-const cache=new Map(),renderedCategories=new Map();
+let season=tournament?.seasonKey||cxSeason(),months=cxSeasonMonths(season),version=0,busy=false;
+const renderedCategories=new Map();
 let seasonRounds=null;
-const heading=tournamentId?buildRaceHeader({race:{...tournament,name:tournamentName,nameEn:tournamentName},hideFlag:!tournament.countryCode,nameHref:''}):`<h1 class="sr-only">${t('cx.title')}</h1>`;
+// Las rondas de la temporada se piden desde el inicio (cxSeasonRounds guarda la
+// promesa por temporada); el pintado las espera solo si aún no han llegado.
+cxSeasonRounds(supabase,season).catch(()=>{});
+// En la home (js/home.js) el título principal es el del texto estático de la página.
+const homeMode=root.dataset.cxHome!==undefined;
+const heading=tournamentId?buildRaceHeader({race:{...tournament,name:tournamentName,nameEn:tournamentName},hideFlag:!tournament.countryCode,nameHref:''}):homeMode?`<h2 class="sr-only">${t('cx.title')}</h2>`:`<h1 class="sr-only">${t('cx.title')}</h1>`;
 // Filtro de la agenda, con la misma presentación y posición que Hoy en
 // Carretera: franja de chips pegada bajo la cabecera. El filtro se puede fijar
 // como predeterminado de SOLO esta vista (chincheta), con clave propia.
@@ -53,12 +64,12 @@ const filterBarHtml=()=>`<section class="agenda-filters" id="cxAgendaFilters" ar
 const standingCategories=tournamentMode?CX_CATEGORIES.filter(code=>tournament.pointsScheme?.categories?.[code]):[];
 const sectionNavHtml=standingCategories.length?`<div class="res-tabs-bar cx-section-nav" data-cx-tournament-sections hidden><nav class="res-tabs" aria-label="${esc(tournamentName)}"><div class="res-tabs__scroll"><div class="res-tabs__inner">${[['calendar',t('cx.calendar')],['general',t('cx.standings')]].map(([key,label])=>`<a class="res-tab" data-cx-tournament-section="${key}" href="${esc(cxTournamentPageUrl(tournament,lang,key))}">${esc(label)}</a>`).join('')}</div></div></nav></div><div data-cx-general-nav hidden></div>`:'';
 root.innerHTML=tournamentMode
-  ?`<div class="cx-agenda-sticky">${heading}${sectionNavHtml}</div><p id="cxAgendaError" role="alert"></p><div id="cxMonths"></div><div class="cx-tournament-standings" id="cxStandings" hidden></div>`
-  :`<div class="cx-agenda-sticky">${heading}<nav class="temporada-filters cx-month-nav" aria-label="${t('cx.title')}"><div class="date-bar" id="cxMonthBar"></div></nav>${filterBarHtml()}</div><p id="cxAgendaError" role="alert"></p><div id="cxMonths"></div>`;
-const list=root.querySelector('#cxMonths'),error=root.querySelector('#cxAgendaError');
+  ?`<div class="cx-agenda-sticky">${heading}${sectionNavHtml}</div><p id="cxAgendaError" role="alert"></p><div id="cxAgendaList"></div><div class="cx-tournament-standings" id="cxStandings" hidden></div>`
+  :`<div class="cx-agenda-sticky">${heading}<div class="date-bar" id="cxDateBar"></div>${filterBarHtml()}</div><p id="cxAgendaError" role="alert"></p><div id="cxAgendaList" class="cx-day-list"></div>`;
+const list=root.querySelector('#cxAgendaList'),error=root.querySelector('#cxAgendaError');
 const filterCatsNode=root.querySelector('#cxAgendaFilterCats');
 const filteredRows=rows=>agendaFilter==='all'?rows:rows.filter(race=>cxAgendaFilterMatches(race,agendaFilter));
-async function refreshFilter(){ await goMonth(activeMonth,true); }
+function refreshFilter(){ if(currentDay)void goDay(currentDay); }
 if(filterCatsNode){
   renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);
   const onFilterEvent=event=>{
@@ -72,39 +83,23 @@ if(filterCatsNode){
   filterCatsNode.addEventListener('click',onFilterEvent);
   filterCatsNode.addEventListener('keydown',onFilterEvent);
 }
-let previous=null,next=null,pills=null,pillsWrap=null,navigation=null,measureNavigation=()=>{};
-if(!tournamentMode) {
-  const bar=root.querySelector('#cxMonthBar'),left=document.createElement('div'),right=document.createElement('div');
-  left.className='date-bar__left';pillsWrap=document.createElement('div');pills=document.createElement('div');right.className='date-bar__right';
-  pillsWrap.className='date-bar__pills-wrap';pills.className='date-bar__pills';
-  previous=dateNavigationButton({kind:'arrow',direction:'prev',label:t('cx.previousMonth'),onClick:()=>void goMonth(months[months.indexOf(activeMonth)-1])});previous.id='cxPrevious';
-  next=dateNavigationButton({kind:'arrow',direction:'next',label:t('cx.nextMonth'),onClick:()=>void goMonth(months[months.indexOf(activeMonth)+1])});next.id='cxNext';
-  left.append(previous);right.append(next);pillsWrap.append(pills);bar.append(left,pillsWrap,right);
-  for(const key of months){const date=new Date(`${key}-01T12:00:00Z`),name=new Intl.DateTimeFormat(locale,{month:'short',timeZone:'UTC'}).format(date).toLocaleLowerCase(locale),year=key.slice(0,4);const button=dateNavigationButton({kind:'pill',label:new Intl.DateTimeFormat(locale,{month:'long',year:'numeric',timeZone:'UTC'}).format(date),contentHtml:`<span class="date-pill__wd">${esc(name)}</span><span class="date-pill__num">${year}</span>`,onClick:()=>void goMonth(key)});button.dataset.monthChoice=key;pills.append(button);}
-  navigation=root.querySelector('.cx-month-nav');
-  const sticky=root.querySelector('.cx-agenda-sticky');
-  // Flechas visibles solo si la tira de meses llega a desplazarse: cuando los
-  // siete meses caben, sobran y se retiran (cx-months-scroll ausente).
-  measureNavigation=()=>{root.style.setProperty('--cx-agenda-nav-h',`${sticky.offsetHeight}px`);navigation.classList.toggle('cx-months-scroll',pillsWrap.scrollWidth>pillsWrap.clientWidth+1);};
-  const navObserver=new ResizeObserver(measureNavigation);
-  navObserver.observe(sticky);navObserver.observe(pillsWrap);
-}else {
+let measureNavigation=()=>{};
+if(tournamentMode) {
   const header=root.querySelector('.cx-agenda-sticky');
   // La fila de columnas de la general se fija bajo la cabecera del torneo.
   measureNavigation=()=>{root.style.setProperty('--cx-agenda-nav-h',`${header.offsetHeight}px`);document.documentElement?.style.setProperty('--res-tabs-h',`${header.offsetHeight}px`);};
   new ResizeObserver(measureNavigation).observe(header);
   measureNavigation();
 }
-// Lleva el día (o el mes, si el día aún no está pintado) al borde superior del
-// área visible. `scroll-margin-top` descuenta la cabecera fija; si el destino
-// queda cerca del final del documento, el navegador desplaza todo lo posible.
-let lastScrollTarget=null,scrollGuard=null;
+// Página de torneo: lleva el día al borde superior del área visible.
+// `scroll-margin-top` descuenta la cabecera fija; si el destino queda cerca del
+// final del documento, el navegador desplaza todo lo posible.
+let lastScrollTarget=null;
 function scrollTo(node) {
   if(!node)return;
   lastScrollTarget=node;
   measureNavigation();
   node.scrollIntoView({block:'start',behavior:'instant'});
-  scrollGuard=window.scrollY;
 }
 function cellMeta(race,c) {
   const phase=cxCategoryCardState(race,c),results=phase==='results';
@@ -125,7 +120,7 @@ function scheduleHtml(race,c,open) {
   // Cancelada: aspa roja de trazo grueso, como la X del emblema de
   // ciclocross, en la mitad central del hueco de la categoría.
   if(phase==='cancelled')return `<svg class="cx-category-cross" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${esc(t('stage.cancelled'))}"><path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>`;
-  return `<strong class="cx-category-hour"${time?'':` title="${esc(t('stage.noSchedule'))}"`}>${esc(time||'—')}</strong>`;
+  return `<strong class="cx-category-hour"${time?'':` title="${esc(t('stage.noSchedule'))}"`}>${esc(time||'-')}</strong>`;
 }
 function refreshTiming() {
   if(document.hidden)return;
@@ -149,7 +144,9 @@ function card(race,date) {
   const round=cxRoundBadge(seasonRounds?.get(race.id));
   const menu=tournamentUrl?overviewButtonHtml(esc(tournamentUrl),esc(cxRaceName(tournament,lang))):'';
   const sep='<span class="race-card__sep">·</span>';
-  const meta=[tournamentUrl?esc(cxRaceName(tournament,lang)):'',round,race.venue&&race.venue!==cxRaceName(race,lang)?esc(race.venue):''].filter(Boolean).join(sep);
+  // Torneo y sede en su propio elemento para recortarse con puntos suspensivos.
+  const metaText=(text,venue=false)=>`<span class="cx-card-meta-text${venue?' cx-card-meta-text--venue':''}">${esc(text)}</span>`;
+  const meta=[tournamentUrl?metaText(cxRaceName(tournament,lang)):'',round,race.venue&&race.venue!==cxRaceName(race,lang)?metaText(race.venue,true):''].filter(Boolean).join(sep);
   // Datos del aviso placeholder (mismo banner/tooltip que Hoy en Carretera).
   const phData=placeholder?` data-ph-tooltip="${esc(cxPlaceholderMessage(race))}" data-ph-name="${esc(cxRaceName(race,lang))}" data-ph-flag="${esc(countryFlag(race.countryCode))}" data-ph-sub="${esc([cxClassLabel(race.class,lang),new Date(`${date}T12:00:00Z`).toLocaleDateString(locale,{day:'numeric',month:'short'})].join(' · '))}"`:'';
   const categoriesHtml=`<div class="race-card__meta cx-category-times${badges?' cx-category-times--badges':''}" style="--cx-category-count:${categories.length||1}" aria-label="${t('cx.categories')}">${categories.map(c=>{
@@ -183,95 +180,159 @@ function dayHtml(day) {
 }
 // Estado vacío con la presentación de Hoy en Carretera (icono + texto).
 const EMPTY_ICON_HTML='<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
-const emptyStateHtml=filtered=>`<div class="empty-state"><div class="empty-state__icon">${EMPTY_ICON_HTML}</div><div class="empty-state__text">${esc(t(filtered?'cx.noRacesFilter':'cx.noRaces'))}</div></div>`;
-function paint(node,rows,key) {
-  const allDays=cxMonthDays(rows,key),days=cxMonthDays(filteredRows(rows),key);
-  node.innerHTML=days.length?days.map(dayHtml).join(''):emptyStateHtml(allDays.length>0);
-}
+const emptyStateHtml=()=>`<div class="empty-state"><div class="empty-state__icon">${EMPTY_ICON_HTML}</div><div class="empty-state__text">${esc(t('cx.noRaces'))}</div></div>`;
 function loadLogos(container,rows) {
   for(const slot of container.querySelectorAll('[data-cx-logo-race]')) {
     const race=rows.find(row=>row.id===slot.dataset.cxLogoRace),logo=cxLogoImage(race,race?.cx_tournaments,{onState:state=>slot.parentElement.classList.toggle('race-card__logo--without-logo',['empty','unavailable'].includes(state.status))});
     slot.replaceChildren(...(logo?[logo]:[]));
   }
 }
-function navState() {
-  if(tournamentMode)return;
-  previous.disabled=busy||months.indexOf(activeMonth)<=0;next.disabled=busy||months.indexOf(activeMonth)>=months.length-1;
-  for(const button of pills.children){const selected=button.dataset.monthChoice===activeMonth;button.classList.toggle('active',selected);button.classList.toggle('is-today',button.dataset.monthChoice===today().slice(0,7));button.disabled=busy;if(selected)button.setAttribute('aria-current','date');else button.removeAttribute('aria-current');if(selected){const rect=button.getBoundingClientRect(),wrap=pillsWrap.getBoundingClientRect();if(rect.left<wrap.left||rect.right>wrap.right)pillsWrap.scrollLeft+=rect.left-wrap.left-(wrap.width-rect.width)/2;}}
+// ── Vista Hoy (agenda general) ────────────────────────────────────
+// Navegación de Hoy en Carretera (js/app.js): siete días con el activo
+// centrado, flechas al día con carreras del filtro anterior o siguiente, botón
+// Hoy, deslizamiento y auto-avance a medianoche. Las pruebas de la temporada se
+// cargan una vez; filtro y día se resuelven en memoria (js/cx/today.js).
+const LOADING_HTML=`<div class="loading"><div class="loading__icons">${EMPTY_ICON_HTML}</div><p class="loading__text">${esc(t('cx.loading'))}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
+let seasonRows=null,currentDay=null,dayRequest=0,todayAtLoad=today();
+const agendaToday=()=>cxClampDay(today(),season);
+const visibleRaceDays=()=>cxRaceDays(filteredRows(seasonRows||[]));
+const stepTarget=forward=>seasonRows&&currentDay?cxStepDay(visibleRaceDays(),currentDay,forward?1:-1,season):null;
+const longDate=key=>new Date(`${key}T12:00:00`).toLocaleDateString(locale,{weekday:'long',day:'numeric',month:'long'});
+function step(forward){const target=stepTarget(forward);if(target)void goDay(target);}
+// En la home la URL no cambia: `?date=` abre allí Hoy de carretera.
+function writeDayUrl() {
+  if(homeMode||typeof history==='undefined'||!history.replaceState)return;
+  const params=new URLSearchParams(location.search);
+  if(currentDay===today())params.delete('date');else params.set('date',currentDay);
+  const query=params.toString();
+  history.replaceState(null,'',`${location.pathname}${query?`?${query}`:''}`);
 }
-async function monthRows(key,token) {
-  const cacheKey=`${season}:${key}`;
-  let rows=cache.get(cacheKey);
-  if(!rows){rows=await cxMonth(supabase,season,Number(key.slice(0,4)),Number(key.slice(5)));if(token!==version)return null;rows=rows.filter(race=>cxListedInAgenda(race,lang)&&(!tournamentId||race.tournamentId===tournamentId));cache.set(cacheKey,rows);}
-  if(token!==version)return null;
-  return rows;
+function buildDateBar() {
+  const bar=root.querySelector('#cxDateBar'),days=visibleRaceDays(),todayKey=agendaToday();
+  const left=document.createElement('div'),pillsWrap=document.createElement('div'),pills=document.createElement('div'),right=document.createElement('div');
+  left.className='date-bar__left';pillsWrap.className='date-bar__pills-wrap';pills.className='date-bar__pills';right.className='date-bar__right';
+  const previous=dateNavigationButton({kind:'arrow',direction:'prev',label:t('today.prevDayLabel'),onClick:()=>step(false)});
+  previous.disabled=!cxStepDay(days,currentDay,-1,season);
+  left.append(previous,dateNavigationButton({kind:'today',visible:currentDay!==todayKey,label:t('today.todayBtn'),onClick:()=>void goDay(todayKey)}));
+  for(const key of cxDateStrip(currentDay,season)) {
+    // Abreviatura del día sobre el número, como en Hoy en Carretera.
+    const date=new Date(`${key}T12:00:00`);
+    let weekday=date.toLocaleDateString(locale,{weekday:'short'}).replace(/\.$/,'');
+    weekday=weekday.charAt(0).toUpperCase()+weekday.slice(1);
+    const pill=dateNavigationButton({kind:'pill',label:longDate(key),selected:key===currentDay,isToday:key===today(),
+      contentHtml:`<span class="date-pill__wd" aria-hidden="true">${esc(weekday)}</span><span class="date-pill__num" aria-hidden="true">${date.toLocaleDateString(locale,{day:'numeric'})}</span>`,
+      onClick:()=>void goDay(key)});
+    pill.dataset.dk=key;pills.append(pill);
+  }
+  const following=dateNavigationButton({kind:'arrow',direction:'next',label:t('today.nextDayLabel'),onClick:()=>step(true)});
+  following.disabled=!cxStepDay(days,currentDay,1,season);
+  right.append(following);pillsWrap.append(pills);bar.replaceChildren(left,pillsWrap,right);
 }
-async function monthNode(key,token) {
-  const rows=await monthRows(key,token);if(!rows)return null;
-  if(!seasonRounds)seasonRounds=await cxSeasonRounds(supabase,season).then(map=>map,()=>null);
-  const node=document.createElement('section');node.className='cx-month';node.dataset.month=key;
-  renderedCategories.clear();paint(node,rows,key);
-  loadLogos(node,rows);
-  wirePhDescriptions(node);
-  return node;
+function showDay(dateKey,{skipEmpty=false}={}) {
+  if(!seasonRows)return;
+  currentDay=cxClampDay(dateKey,season);
+  const all=cxDayRaces(seasonRows,currentDay),races=cxDayRaces(filteredRows(seasonRows),currentDay);
+  const next=races.length?null:cxAdjacentRaceDay(visibleRaceDays(),currentDay,1,season);
+  // Auto-navegación de Hoy: en la apertura y, después, solo con el filtro Todas.
+  if(next&&(skipEmpty||agendaFilter==='all'))return showDay(next);
+  writeDayUrl();buildDateBar();renderedCategories.clear();
+  if(!races.length) {
+    const message=t(all.length?'today.noRacesFilter':'today.noRaces');
+    list.innerHTML=`<div class="empty-state"><div class="empty-state__icon">${EMPTY_ICON_HTML}</div><div class="empty-state__text">${esc(message)}</div>${next?`<button type="button" class="btn btn--ghost" data-cx-next-day="${next}">${esc(t('today.nextDay'))}</button>`:''}</div>`;
+    announce(message);
+    return;
+  }
+  list.innerHTML=races.map(race=>card(race,currentDay)).join('');
+  loadLogos(list,races);
+  wirePhDescriptions(list);
+  // La lista se sustituye sin recargar: confirmación para lectores de pantalla.
+  announce(t('today.racesFor',{n:races.length===1?t('today.races_one',{n:1}):t('today.races_other',{n:races.length}),date:longDate(currentDay)}));
 }
-async function goMonth(key,force=false) {
-  if(busy||!months.includes(key)||(!force&&key===activeMonth&&list.querySelector('[data-month]')))return;
-  const token=version;busy=true;error.textContent='';navState();
+// Cambio de día como en Hoy en Carretera: indicador de carga mientras se relee
+// el mes del día de destino; sin red se pinta con las pruebas ya cargadas.
+async function goDay(dateKey,options={}) {
+  if(!seasonRows)return;
+  const request=++dayRequest,day=cxClampDay(dateKey,season),month=day.slice(0,7);
+  currentDay=day;buildDateBar();renderedCategories.clear();list.innerHTML=LOADING_HTML;
   try {
-    const node=await monthNode(key,token);if(!node)return;
-    list.replaceChildren(node);activeMonth=key;
-    if(!tournamentMode&&typeof history!=='undefined'&&history.replaceState)history.replaceState(null,'',`#${key}`);
-    scrollTo(node);
-  }catch(e){if(token===version)error.textContent=`${t('cx.loadError')} ${e.message}`;}
-  finally {if(token===version){busy=false;navState();}}
+    const fresh=(await cxMonth(supabase,season,Number(month.slice(0,4)),Number(month.slice(5)))).filter(race=>cxListedInAgenda(race,lang));
+    if(request!==dayRequest)return;
+    // Las pruebas del mes se sustituyen por las leídas: altas, cambios y retiradas.
+    const ids=new Set(fresh.map(race=>race.id));
+    seasonRows=[...seasonRows.filter(race=>!ids.has(race.id)&&!cxRaceDays([race]).some(date=>date.startsWith(month))),...fresh];
+  }catch{/* Sin red: se conserva la temporada cargada. */}
+  if(request===dayRequest)showDay(day,options);
 }
-async function jump() {
-  if(busy)return;
-  const token=++version;busy=true;error.textContent='';navState();
-  const current=months.includes(today().slice(0,7))?today().slice(0,7):months[0];
-  const from=current===today().slice(0,7)?today():`${current}-01`;
-  const upcoming=cxNextDate(supabase,season,from,tournamentId,cxHiddenClasses(lang)).then(date=>({date}),error=>({error}));
+async function loadSeason() {
+  return (await cxSeasonRows(supabase,season)).filter(race=>cxListedInAgenda(race,lang));
+}
+// Día de apertura: `?date=`, el mes de un enlace antiguo de la agenda mensual
+// (`#AAAA-MM`) o hoy, que salta al próximo día con carreras si no las tiene.
+function initialDay() {
+  const date=new URLSearchParams(location.search).get('date');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(date||''))return {day:date};
+  let hash='';try{hash=decodeURIComponent((location.hash||'').slice(1));}catch{}
+  if(months.includes(hash))return {day:visibleRaceDays().find(day=>day.startsWith(hash))||`${hash}-01`};
+  return {day:agendaToday(),skipEmpty:true};
+}
+async function openToday() {
+  const request=++dayRequest;
+  list.innerHTML=LOADING_HTML;
   try {
-    const rows=await monthRows(current,token);if(!rows)return;
-    let target=from;
-    const next=await upcoming;if(next.error)throw next.error;if(token!==version)return;
-    if(next.date&&months.includes(next.date.slice(0,7)))target=next.date;
-    const node=await monthNode(target.slice(0,7),token);
-    if(!node||token!==version)return;
-    list.replaceChildren(node);activeMonth=node.dataset.month;
-    if(!tournamentMode&&typeof history!=='undefined'&&history.replaceState)history.replaceState(null,'',`#${activeMonth}`);
-    scrollTo(list.querySelector(`[data-date="${target}"]`)||node);
+    const [rows,rounds]=await Promise.all([loadSeason(),cxSeasonRounds(supabase,season).then(map=>map,()=>null)]);
+    if(request!==dayRequest)return;
+    seasonRows=rows;seasonRounds=rounds;
+    const {day,skipEmpty}=currentDay?{day:currentDay}:initialDay();
+    showDay(day,{skipEmpty});
   }catch(e){
-    if(token===version){
-      error.textContent=`${t('cx.loadError')} ${e.message}`;
-      if(!list.querySelector('[data-month]')&&cache.has(`${season}:${current}`)) {
-        const node=await monthNode(current,token);if(node){list.replaceChildren(node);activeMonth=current;}
-      }
-    }
+    if(request!==dayRequest)return;
+    list.innerHTML=`<div class="empty-state day-load-error" role="status"><p>${esc(t('cx.loadError'))} ${esc(e.message)}</p><button type="button" class="btn btn--ghost" data-cx-retry>${esc(t('cx.retry'))}</button></div>`;
   }
-  finally {if(token===version){busy=false;navState();}}
 }
-// Apertura: siempre el mes del próximo día con carreras desde hoy. Si en el mes
-// en curso ya no queda ninguna prueba, `cxNextDate` devuelve la primera del mes
-// siguiente y se carga ese. Nunca se restaura una posición guardada.
-async function openAgenda() {
-  const hash=decodeURIComponent((location.hash||'').slice(1));
-  if(months.includes(hash)) {
-    await goMonth(hash);
-    if(list.querySelector('[data-month]'))return;
-  }
-  await jump();
+// Refresco del día en curso mientras quede alguna manga sin resultados.
+let dayRefreshing=false;
+async function refreshDay() {
+  if(document.hidden||dayRefreshing||!seasonRows||currentDay!==today())return;
+  const pending=cxDayRaces(seasonRows,currentDay).some(race=>cxCategories(race,currentDay).some(c=>!['results','cancelled'].includes(cxCategoryCardState(race,c))));
+  if(!pending)return;
+  dayRefreshing=true;
+  try {
+    const rows=await loadSeason();
+    if(JSON.stringify(rows)!==JSON.stringify(seasonRows)){seasonRows=rows;showDay(currentDay);}
+  }catch{/* Sin red: se conserva el día visible hasta la siguiente lectura. */}
+  finally{dayRefreshing=false;}
 }
-if(!tournamentMode)window.addEventListener('hashchange',()=>{
-  const key=decodeURIComponent((location.hash||'').slice(1));
-  if(months.includes(key)&&key!==activeMonth)void goMonth(key);
-});
+// Al cruzar la medianoche local pasa al día nuevo solo si se estaba viendo hoy.
+function advanceToNewDay() {
+  const now=today();if(now===todayAtLoad)return;
+  const wasToday=currentDay===cxClampDay(todayAtLoad,season);
+  todayAtLoad=now;
+  if(!seasonRows)return;
+  if(wasToday)void goDay(agendaToday(),{skipEmpty:true});else buildDateBar();
+}
+if(!tournamentMode) {
+  initDaySwipe({list,dateBar:root.querySelector('#cxDateBar'),target:stepTarget,load:key=>void goDay(key)});
+  const tick=()=>{advanceToNewDay();void refreshDay();};
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick();});
+  window.addEventListener('focus',advanceToNewDay);
+  const dayTimer=setInterval(tick,60000);
+  window.addEventListener('pagehide',()=>clearInterval(dayTimer),{once:true});
+  list.addEventListener('click',event=>{
+    const nextDay=event.target.closest('[data-cx-next-day]');
+    if(nextDay){void goDay(nextDay.dataset.cxNextDay);return;}
+    if(event.target.closest('[data-cx-retry]'))void openToday();
+  });
+}
 async function openTournament() {
   const token=version;busy=true;error.textContent='';
   try {
-    let rows=await cxSeasonRows(supabase,season);
+    const from=months.includes(today().slice(0,7))?today():`${months[0]}-01`;
+    // Filas, rondas y próxima fecha dependen solo del torneo y la temporada.
+    const [rows,rounds,next]=await Promise.all([cxSeasonRows(supabase,season),
+      cxSeasonRounds(supabase,season).then(map=>map,()=>null),
+      cxNextDate(supabase,season,from,tournamentId,cxHiddenClasses(lang)).then(date=>date,()=>null)]);
     if(token!==version)return;
+    if(!seasonRounds)seasonRounds=rounds;
     const ownRows=rows.filter(race=>race.tournamentId===tournamentId&&!race.isCancelled);
     const tournamentRows=ownRows.filter(race=>cxListedInAgenda(race,lang));
     // Torneo solo nacional en inglés: aviso con enlace a la versión en castellano.
@@ -281,22 +342,15 @@ async function openTournament() {
     }
     const description=cxTournamentDescription(tournament,tournamentRows,lang);
     setMeta('description',description);setMetaProperty('og:description',description);setMeta('twitter:description',description);
-    if(!seasonRounds)seasonRounds=await cxSeasonRounds(supabase,season).then(map=>map,()=>null);
-    if(token!==version)return;
     renderedCategories.clear();
-    const allDays=months.flatMap(key=>cxMonthDays(tournamentRows,key));
     const days=months.flatMap(key=>cxMonthDays(filteredRows(tournamentRows),key));
-    if(!days.length){list.innerHTML=emptyStateHtml(allDays.length>0);return;}
+    if(!days.length){list.innerHTML=emptyStateHtml();return;}
     const node=document.createElement('section');node.className='cx-tournament-list';
     node.innerHTML=days.map(dayHtml).join('');
     list.replaceChildren(node);
     loadLogos(list,tournamentRows);
     wirePhDescriptions(list);
-    const from=months.includes(today().slice(0,7))?today():`${months[0]}-01`;
-    const next=await cxNextDate(supabase,season,from,tournamentId,cxHiddenClasses(lang)).then(date=>date,()=>null);
-    if(token!==version)return;
     const target=next&&months.includes(next.slice(0,7))?next:from;
-    activeMonth=target.slice(0,7);
     scrollTo(list.querySelector(`[data-date="${target}"]`)||node);
   }catch(e){if(token===version)error.textContent=`${t('cx.loadError')} ${e.message}`;}
   finally {if(token===version)busy=false;}
@@ -308,7 +362,7 @@ async function loadStandings() {
   if(!standingsData)standingsData=(async()=>{
     const filters={tournamentId,seasonKey:season};
     const [states,standings,teamRows,rows,rounds]=await Promise.all([cxAllRows(supabase,'cx_standings_state','*',filters,'category'),cxAllRows(supabase,'cx_tournament_standings','*',filters),
-      cxQuery(supabase.from('cx_teams').select('id,name,nameAliases,uciCode,colorHex,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts')),
+      cxAllRows(supabase,'cx_teams','id,name,nameAliases,uciCode,colorHex,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts'),
       cxSeasonRows(supabase,season),cxSeasonRounds(supabase,season).then(map=>map,()=>null)]);
     return {states,standings,rounds,teamList:teamRows.map(team=>({...team,nameAliases:(team.nameAliases||[]).join('\n')})),
       races:new Map(rows.filter(race=>race.tournamentId===tournamentId).map(race=>[race.id,race]))};
@@ -360,7 +414,7 @@ if(tournamentMode&&standingCategories.length) {
   window.addEventListener('popstate',()=>void showSection());
 }
 async function open() {
-  if(!tournamentMode){await openAgenda();return;}
+  if(!tournamentMode){await openToday();return;}
   if(standingCategories.length) {
     const data=await loadStandings().catch(()=>null);
     hasStandings=!!data&&cxTournamentGeneralCategories(data.standings,data.states).length>0;
@@ -401,12 +455,5 @@ window.addEventListener('pagehide',()=>clearInterval(timingInterval));window.add
 document.addEventListener('visibilitychange',refreshTiming);
 startTiming();
 if(tournamentId)window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/ciclocross/',label:t('cx.back')});
-const cintilloReady=!tournamentId?initCintillo('cx'):null;
+if(!tournamentId)initCintillo('cx');
 await open();
-// El cintillo y la cabecera fijan sus alturas después de pintar la agenda
-// (`--giro-h`, `--site-header-h`); el anclaje inicial se calculó con la altura
-// antigua y quedaba parte del primer día bajo la cabecera. Reajusta el anclaje
-// cuando el cintillo ya está montado, solo si el usuario no ha desplazado.
-if(cintilloReady)Promise.resolve(cintilloReady).then(()=>{
-  requestAnimationFrame(()=>{if(lastScrollTarget?.isConnected&&Math.abs(window.scrollY-(scrollGuard??0))<=2)scrollTo(lastScrollTarget);});
-}).catch(()=>{});

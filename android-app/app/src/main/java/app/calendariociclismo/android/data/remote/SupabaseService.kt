@@ -38,13 +38,20 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.query.PostgrestRequestBuilder
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.rpc
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonNull
@@ -65,7 +72,7 @@ import java.time.YearMonth
 @OptIn(SupabaseInternal::class)
 class SupabaseService : CxRemote {
 
-    private val cxAgendaColumns = "id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+    private val cxAgendaColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
@@ -210,6 +217,68 @@ class SupabaseService : CxRemote {
         }
     }
 
+    // Catálogo de equipos de ciclocross: se pide completo y paginado desde cada
+    // ficha y general; cambia poco, así que se conserva en memoria una hora.
+    private val cxTeamsMutex = Mutex()
+    private var cxTeamsCache: Pair<Long, List<CxTeam>>? = null
+
+    private suspend fun cxTeamsCatalog(): List<CxTeam> = cxTeamsMutex.withLock {
+        val now = System.currentTimeMillis() / 1000
+        cxTeamsCache?.let { (fetchedAt, teams) ->
+            if (now - fetchedAt < CX_TEAMS_TTL_SECONDS) return@withLock teams
+        }
+        val fresh = cxRows<CxTeam>("cx_teams", emptyMap())
+        cxTeamsCache = now to fresh
+        fresh
+    }
+
+    /**
+     * Lee todas las páginas de una consulta. PostgREST corta cada respuesta en
+     * su tope de filas por respuesta aunque se pida un `limit` mayor; las
+     * páginas de [PAGE_SIZE] quedan por debajo de ese tope. [block] debe
+     * ordenar por una clave única para que las páginas no se solapen ni salten
+     * filas.
+     */
+    private suspend inline fun <reified T : Any> selectAllPages(
+        table: String,
+        columns: Columns = Columns.ALL,
+        crossinline block: PostgrestRequestBuilder.() -> Unit,
+    ): List<T> {
+        val all = mutableListOf<T>()
+        var offset = 0L
+        while (true) {
+            val page = client.from(table).select(columns = columns) {
+                block()
+                range(offset, offset + PAGE_SIZE - 1)
+            }.decodeList<T>()
+            all.addAll(page)
+            if (page.size < PAGE_SIZE) return all
+            offset += PAGE_SIZE
+        }
+    }
+
+    /**
+     * Ejecuta [fetch] por lotes de [size] identificadores con un máximo de
+     * [MAX_PARALLEL_REQUESTS] peticiones simultáneas. Los lotes acotan la URL
+     * de los filtros `in.(…)`.
+     */
+    private suspend fun <T> inChunks(
+        ids: List<String>,
+        size: Int,
+        fetch: suspend (List<String>) -> List<T>,
+    ): List<T> {
+        val unique = ids.filter { it.isNotEmpty() }.distinct()
+        if (unique.isEmpty()) return emptyList()
+        if (unique.size <= size) return fetch(unique)
+        val permits = Semaphore(MAX_PARALLEL_REQUESTS)
+        return coroutineScope {
+            unique.chunked(size)
+                .map { chunk -> async { permits.withPermit { fetch(chunk) } } }
+                .awaitAll()
+                .flatten()
+        }
+    }
+
     // General de la página de torneo: estados y filas por torneo y temporada,
     // catálogo de equipos, puntuación configurada y carreras de sus rondas.
     override suspend fun cxTournamentGeneral(tournamentId: String, seasonKey: String): CxTournamentGeneral = coroutineScope {
@@ -221,7 +290,7 @@ class SupabaseService : CxRemote {
         }
         val states = async { cxRows<CxStandingState>("cx_standings_state", filters, "category") }
         val standings = async { cxRows<CxStanding>("cx_tournament_standings", filters) }
-        val catalog = async { cxRows<CxTeam>("cx_teams", emptyMap()) }
+        val catalog = async { cxTeamsCatalog() }
         val stateRows = states.await()
         val races = cxRacesByIds(stateRows.flatMap { it.roundIds })
         CxTournamentGeneral(tournament.await(), stateRows, standings.await(), catalog.await(), races)
@@ -246,7 +315,7 @@ class SupabaseService : CxRemote {
         }
         // Catálogo completo: resultados y generales casan `teamName` por nombre
         // y alias, igual que la web; los dorsales usan `teamId`.
-        val catalog = async { cxRows<CxTeam>("cx_teams", emptyMap()) }
+        val catalog = async { cxTeamsCatalog() }
         val riders = startlist.await()
         val teams = catalog.await()
         val (states, rows) = standings.await()
@@ -272,29 +341,31 @@ class SupabaseService : CxRemote {
 
     // ─────────── Races ───────────
 
+    /** Carreras de un año. Paginada: un año puede superar el tope de filas por respuesta. */
     suspend fun racesByYear(year: Int): List<Race> =
-        client.from("races").select {
+        selectAllPages("races", RACE_COLUMNS) {
             filter { eq("year", year) }
-        }.decodeList()
+            order("id", Order.ASCENDING)
+        }
 
     suspend fun raceById(id: String): Race =
-        client.from("races").select {
+        client.from("races").select(columns = RACE_COLUMNS) {
             filter { eq("id", id) }
             limit(1)
         }.decodeSingle()
 
     suspend fun raceBySlug(slug: String): Race =
-        client.from("races").select {
+        client.from("races").select(columns = RACE_COLUMNS) {
             filter { eq("slug", slug) }
             limit(1)
         }.decodeSingle()
 
-    suspend fun racesByIds(ids: List<String>): List<Race> {
-        if (ids.isEmpty()) return emptyList()
-        return client.from("races").select {
-            filter { isIn("id", ids) }
-        }.decodeList()
-    }
+    suspend fun racesByIds(ids: List<String>): List<Race> =
+        inChunks(ids, ID_CHUNK) { chunk ->
+            client.from("races").select(columns = RACE_COLUMNS) {
+                filter { isIn("id", chunk) }
+            }.decodeList<Race>()
+        }
 
     /** Selección editorial de hasta dos carreras por fecha. */
     suspend fun featuredRaces(dateKeys: List<String>): List<FeaturedRaceSelection> {
@@ -308,12 +379,13 @@ class SupabaseService : CxRemote {
 
     /** Carreras cuyo intervalo se solapa con el rango solicitado. */
     suspend fun racesOverlapping(startKey: String, endKey: String): List<Race> =
-        client.from("races").select {
+        selectAllPages("races", RACE_COLUMNS) {
             filter {
                 lte("startDate", endKey)
                 gte("endDate", startKey)
             }
-        }.decodeList()
+            order("id", Order.ASCENDING)
+        }
 
     /** Jornadas y carreras necesarias para un mes, incluidas las carreras
      * referenciadas por una jornada aunque sus fechas estén desalineadas. */
@@ -329,7 +401,7 @@ class SupabaseService : CxRemote {
     /** Carreras de Campeonatos Nacionales (uciCategory='CN') de un año dentro de
      *  un rango de fechas de salida. Espejo de la query en `js/campeonatos.js`. */
     suspend fun championshipRaces(year: Int, from: String, to: String): List<Race> =
-        client.from("races").select {
+        client.from("races").select(columns = RACE_COLUMNS) {
             filter {
                 eq("uciCategory", "CN")
                 eq("year", year)
@@ -365,33 +437,72 @@ class SupabaseService : CxRemote {
         }.decodeList()
     }
 
+    /** Jornadas publicadas de una carrera con todas sus columnas (perfil incluido). */
     suspend fun raceDaysByRace(raceId: String): List<RaceDay> =
-        client.from("race_days").select {
+        raceDaysByRace(raceId, Columns.ALL)
+
+    /** Jornadas publicadas de una carrera sin el perfil de elevación. */
+    suspend fun raceDaysByRaceSlim(raceId: String): List<RaceDay> =
+        raceDaysByRace(raceId, Columns.raw(RACE_DAY_SLIM_COLUMNS))
+
+    private suspend fun raceDaysByRace(raceId: String, columns: Columns): List<RaceDay> =
+        client.from("race_days").select(columns = columns) {
             filter {
                 eq("raceId", raceId)
                 eq("editorialStatus", "published")
             }
         }.decodeList()
 
-    /** Jornadas publicadas de un conjunto de carreras (batch). Modo Campeonatos. */
-    suspend fun raceDaysByRaceIds(ids: List<String>): List<RaceDay> {
-        if (ids.isEmpty()) return emptyList()
-        return client.from("race_days").select {
+    /** Identificadores de las jornadas publicadas de una carrera. */
+    suspend fun raceDayIdsByRace(raceId: String): List<String> =
+        client.from("race_days").select(columns = Columns.list("id")) {
             filter {
-                isIn("raceId", ids)
+                eq("raceId", raceId)
                 eq("editorialStatus", "published")
             }
-        }.decodeList()
-    }
+            order("dateKey", Order.ASCENDING)
+        }.decodeList<IdRow>().map { it.id }
+
+    /**
+     * Jornadas publicadas de un conjunto de carreras (batch) sin perfil de
+     * elevación. Modo Campeonatos.
+     */
+    suspend fun raceDaysByRaceIdsSlim(ids: List<String>): List<RaceDay> =
+        raceDaysByRaceIds(ids, Columns.raw(RACE_DAY_SLIM_COLUMNS))
+
+    /**
+     * Programa mínimo de un conjunto de carreras: identifica la última jornada
+     * competitiva de cada una (feed de Resultados).
+     */
+    suspend fun raceDaysProgramByRaceIds(ids: List<String>): List<RaceDay> =
+        raceDaysByRaceIds(ids, Columns.raw(RACE_DAY_PROGRAM_COLUMNS))
+
+    private suspend fun raceDaysByRaceIds(ids: List<String>, columns: Columns): List<RaceDay> =
+        inChunks(ids, ID_CHUNK) { chunk ->
+            selectAllPages<RaceDay>("race_days", columns) {
+                filter {
+                    isIn("raceId", chunk)
+                    eq("editorialStatus", "published")
+                }
+                order("id", Order.ASCENDING)
+            }
+        }
+
+    /** Jornadas reducidas a su identidad y fecha (cintillo de Hoy). */
+    suspend fun raceDaySummariesByIds(ids: List<String>): List<RaceDay> =
+        inChunks(ids, ID_CHUNK) { chunk ->
+            client.from("race_days").select(columns = Columns.raw(RACE_DAY_PROGRAM_COLUMNS)) {
+                filter { isIn("id", chunk) }
+            }.decodeList<RaceDay>()
+        }
 
     /**
      * Jornadas publicadas en un rango de fechas (sin perfil de elevación).
-     * Pagina manualmente en chunks de 1.000: PostgREST aplica un tope
-     * server-side de 1.000 filas por request que un `limit()` más alto NO
-     * evita (mismo tope que ya documenta `panel.js` para riders_men/women).
-     * Sin esto, cualquier consumidor que solicite más de 1.000 jornadas se
-     * truncaría en silencio y la parte recortada no tendría por qué coincidir
-     * con el final cronológico del rango.
+     * Pagina manualmente en páginas de 1.000: PostgREST aplica un tope
+     * server-side de filas por respuesta que un `limit()` más alto NO evita.
+     * Sin esto, cualquier consumidor que solicite más jornadas que ese tope
+     * las recibiría truncadas en silencio y la parte recortada no tendría por
+     * qué coincidir con el final cronológico del rango.
      * Se pagina por `id` (clave única) para que el orden entre páginas sea
      * estable — paginar por `dateKey` (no único) puede saltar o duplicar
      * filas en el borde de cada página.
@@ -486,28 +597,41 @@ class SupabaseService : CxRemote {
             order("dorsal", Order.ASCENDING)
         }.decodeList()
 
-    suspend fun teams(): List<Team> =
-        client.from("teams").select().decodeList()
+    /**
+     * Catálogo completo de equipos, paginado (supera el tope de filas por
+     * respuesta). Solo para casar nombres sin identificadores conocidos; con
+     * ids, [teamsByIds].
+     */
+    suspend fun teamsCatalog(): List<Team> =
+        selectAllPages("teams", TEAM_COLUMNS) {
+            order("id", Order.ASCENDING)
+        }
 
     suspend fun teamsByIds(ids: List<String>): List<Team> =
-        if (ids.isEmpty()) emptyList() else client.from("teams").select {
-            filter { isIn("id", ids) }
-        }.decodeList()
+        inChunks(ids, ID_CHUNK) { chunk ->
+            client.from("teams").select(columns = TEAM_COLUMNS) {
+                filter { isIn("id", chunk) }
+            }.decodeList<Team>()
+        }
 
     suspend fun teamSeasonsByIds(year: Int, ids: List<String>): List<TeamSeason> =
-        if (ids.isEmpty()) emptyList() else client.from("team_seasons").select {
-            filter {
-                eq("year", year)
-                isIn("teamId", ids)
-            }
-        }.decodeList()
+        inChunks(ids, ID_CHUNK) { chunk ->
+            client.from("team_seasons").select {
+                filter {
+                    eq("year", year)
+                    isIn("teamId", chunk)
+                }
+            }.decodeList<TeamSeason>()
+        }
 
     // Render temporal: versiones de equipo de un año concreto (team_seasons).
     // Se filtra por año; los teamIds se cruzan en memoria con globalTeams.
+    // Paginada: un año puede superar el tope de filas por respuesta.
     suspend fun teamSeasons(year: Int): List<TeamSeason> =
-        client.from("team_seasons").select {
+        selectAllPages("team_seasons") {
             filter { eq("year", year) }
-        }.decodeList()
+            order("id", Order.ASCENDING)
+        }
 
     /** Instantánea semanal de DataRide compartida por web, iOS y Android. */
     suspend fun uciTeamRankings(): List<UciTeamRankingRow> =
@@ -531,25 +655,32 @@ class SupabaseService : CxRemote {
     suspend fun ridersByIds(ids: List<String>): List<RiderProfile> {
         if (ids.isEmpty()) return emptyList()
         val cols = Columns.list("id", "firstName", "lastName", "nationality", "currentTeamId", "contractUntil")
-        val out = ArrayList<RiderProfile>()
-        for (table in listOf("riders_men", "riders_women")) {
-            val rows: List<RiderProfile> = client.from(table).select(cols) {
-                filter { isIn("id", ids) }
-            }.decodeList()
-            out += rows
+        return coroutineScope {
+            listOf("riders_men", "riders_women").map { table ->
+                async {
+                    inChunks(ids, ID_CHUNK) { chunk ->
+                        client.from(table).select(cols) {
+                            filter { isIn("id", chunk) }
+                        }.decodeList<RiderProfile>()
+                    }
+                }
+            }.awaitAll().flatten()
         }
-        return out
     }
 
     // ─────────── Fichajes (mercado, mig. 122) ───────────
 
-    /** Movimientos del mercado de una temporada, cronológico inverso. */
+    /**
+     * Movimientos del mercado de una temporada, cronológico inverso. Paginada
+     * con `id` como desempate para que las páginas sean estables.
+     */
     suspend fun riderTransfers(season: Int): List<RiderTransfer> =
-        client.from("rider_transfers").select {
+        selectAllPages("rider_transfers") {
             filter { eq("season", season) }
             order("announcedAt", Order.DESCENDING)
             order("createdAt", Order.DESCENDING)
-        }.decodeList()
+            order("id", Order.ASCENDING)
+        }
 
     @Serializable
     private data class AffiliationRow(
@@ -593,17 +724,22 @@ class SupabaseService : CxRemote {
 
     // ─────────── Start Order ───────────
 
-    suspend fun startOrderRaceDay(raceDayId: String): StartOrderRaceDay? =
-        client.from("race_days").select(
-            Columns.list(
-                "id", "raceId", "date", "dateKey", "slug", "slugEn", "stageNumber", "primaryType",
-                "startLocation", "finishLocation", "startLocationEn", "finishLocationEn",
-                "distanceKm", "timezone", "startOrderTtDorsals", "startOrderGcDorsals"
-            )
-        ) {
+    /**
+     * Jornada del orden de salida en una sola lectura: la misma fila se
+     * decodifica como DTO del orden de salida y como [RaceDay] canónico para la
+     * cabecera. El [RaceDay] es null si su decodificación falla.
+     */
+    suspend fun startOrderRaceDayWithFull(raceDayId: String): Pair<StartOrderRaceDay, RaceDay?>? {
+        val raw = client.from("race_days").select {
             filter { eq("id", raceDayId) }
             limit(1)
-        }.decodeList<StartOrderRaceDay>().firstOrNull()
+        }.data
+        val row = rowJson.decodeFromString<List<kotlinx.serialization.json.JsonElement>>(raw).firstOrNull()
+            ?: return null
+        val startOrder = rowJson.decodeFromJsonElement(StartOrderRaceDay.serializer(), row)
+        val full = runCatching { rowJson.decodeFromJsonElement(RaceDay.serializer(), row) }.getOrNull()
+        return startOrder to full
+    }
 
     suspend fun startOrderEntries(raceDayId: String): List<StartOrderEntry> =
         client.from("start_order_entries_resolved").select {
@@ -632,19 +768,35 @@ class SupabaseService : CxRemote {
             order("position", Order.ASCENDING)
         }.decodeList()
 
-    suspend fun raceClassificationsByRaceIds(raceIds: List<String>): List<RaceClassificationConfig> {
-        if (raceIds.isEmpty()) return emptyList()
-        val out = ArrayList<RaceClassificationConfig>()
-        raceIds.distinct().chunked(20).forEach { chunk ->
-            out += client.from("race_classifications").select(
+    suspend fun raceClassificationsByRaceIds(raceIds: List<String>): List<RaceClassificationConfig> =
+        inChunks(raceIds, 20) { chunk ->
+            client.from("race_classifications").select(
                 columns = Columns.raw("raceId,classKind,position,labelEs,labelEn,colorHex")
             ) {
                 filter { isIn("raceId", chunk) }
                 order("position", Order.ASCENDING)
             }.decodeList<RaceClassificationConfig>()
         }
-        return out
-    }
+
+    /**
+     * Clasificaciones in-house publicables (keepForWeb y con filas) de un lote
+     * de carreras, reducidas a lo que necesitan los accesos a resultados de
+     * Hoy, Carrera, Jornada, Campeonatos e inscritos. Una consulta por lote.
+     */
+    suspend fun inhouseStagesByRaceIds(raceIds: List<String>): List<RaceUciStage> =
+        inChunks(raceIds, 50) { chunk ->
+            selectAllPages<RaceUciStage>(
+                "race_uci_stages",
+                Columns.raw("id,raceId,raceDayId,classKind,stageNumber,rowCount,keepForWeb"),
+            ) {
+                filter {
+                    isIn("raceId", chunk)
+                    eq("keepForWeb", true)
+                    gt("rowCount", 0)
+                }
+                order("id", Order.ASCENDING)
+            }
+        }
 
     // Filas de una clasificación concreta (siempre por stageRef → índice).
     suspend fun raceUciResults(stageRef: String): List<RaceUciResultRow> =
@@ -656,7 +808,7 @@ class SupabaseService : CxRemote {
     // Filas con abandono (irm) de un conjunto de etapas — para tachar inscritos.
     // CLAVE: el filtro `globalRiderId IS NOT NULL` + `irm IS NOT NULL` va EN EL
     // SERVIDOR (no en memoria): traer todas las filas de todas las etapas y filtrar
-    // en Kotlin chocaba con el límite de ~1000 filas de PostgREST → los abandonos
+    // en Kotlin chocaba con el tope de filas por respuesta de PostgREST → los abandonos
     // de las primeras etapas se truncaban (p.ej. Cat Ferguson, DNF etapa 1 del
     // Giro Women, no se tachaba). Filtrando en servidor solo vuelven los pocos DNF.
     suspend fun raceUciResultsForStages(stageRefs: List<String>): List<RaceUciResultRow> {
@@ -681,22 +833,21 @@ class SupabaseService : CxRemote {
 
     /**
      * Clasificaciones keepForWeb de un conjunto de carreras, en una pasada.
-     * Troceado en lotes — el límite de PostgREST son ~1000 filas. Lo usan el
+     * Troceado en lotes y paginado por el tope de filas por respuesta de
+     * PostgREST. Lo usan el
      * feed de Resultados y la rejilla de Campeonatos (claves in-house).
      */
-    suspend fun raceUciStagesByRaceIds(raceIds: List<String>): List<RaceUciStage> {
-        if (raceIds.isEmpty()) return emptyList()
-        val out = ArrayList<RaceUciStage>()
-        for (chunk in raceIds.chunked(15)) {
-            out += client.from("race_uci_stages").select {
+    suspend fun raceUciStagesByRaceIds(raceIds: List<String>): List<RaceUciStage> =
+        inChunks(raceIds, 15) { chunk ->
+            // Quince vueltas por etapas pueden superar el tope de filas por respuesta.
+            selectAllPages<RaceUciStage>("race_uci_stages") {
                 filter {
                     isIn("raceId", chunk)
                     eq("keepForWeb", true)
                 }
-            }.decodeList<RaceUciStage>()
+                order("id", Order.ASCENDING)
+            }
         }
-        return out
-    }
 
     // ─────────── Feed de resultados (pestaña Resultados, apps 3.1) ───────────
 
@@ -739,13 +890,16 @@ class SupabaseService : CxRemote {
      * al primero en supabase-kt 2.6.1 (ver nota de raceUciStagesFeed).
      */
     suspend fun raceDaysFeedWindow(fromKey: String, toKey: String): List<RaceDay> =
-        client.from("race_days").select(
-            columns = Columns.raw(
+        // Del perfil solo se muestra el desnivel: PostgREST extrae ese campo del
+        // JSONB en lugar de transferir el perfil completo de cada jornada.
+        selectAllPages<FeedRaceDayRow>(
+            "race_days",
+            Columns.raw(
                 "id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay," +
                     "estimatedFinishTimeUtc,neutralStartTimeUtc,realStartTimeUtc,startLocation,finishLocation," +
-                    "startLocationEn,finishLocationEn,distanceKm,elevationProfile," +
+                    "startLocationEn,finishLocationEn,distanceKm,elevationGain:elevationProfile->elevationGain," +
                     "primaryType,secondaryType,countryCode"
-            )
+            ),
         ) {
             filter {
                 eq("editorialStatus", "published")
@@ -754,7 +908,8 @@ class SupabaseService : CxRemote {
                     lte("dateKey", toKey)
                 }
             }
-        }.decodeList()
+            order("id", Order.ASCENDING)
+        }.map { it.toRaceDay() }
 
     /** Filas rank=1 de un conjunto de clasificaciones (ganador de cada entrada). */
     suspend fun raceUciRank1(stageRefs: List<String>): List<UciRank1Row> {
@@ -775,13 +930,23 @@ class SupabaseService : CxRemote {
      */
     suspend fun riderNamesByIds(ids: List<String>): Map<String, String> {
         if (ids.isEmpty()) return emptyMap()
+        val tables = coroutineScope {
+            listOf("riders_men", "riders_women").map { table ->
+                async {
+                    inChunks(ids, ID_CHUNK) { chunk ->
+                        client.from(table).select(
+                            columns = Columns.list("id", "firstName", "lastName")
+                        ) {
+                            filter { isIn("id", chunk) }
+                        }.decodeList<RiderNameRow>()
+                    }
+                }
+            }.awaitAll()
+        }
+        // Mismo orden de precedencia que la versión secuencial: mujeres pisa a
+        // hombres si un id apareciera en ambas tablas.
         val out = HashMap<String, String>()
-        for (table in listOf("riders_men", "riders_women")) {
-            val rows: List<RiderNameRow> = client.from(table).select(
-                columns = Columns.list("id", "firstName", "lastName")
-            ) {
-                filter { isIn("id", ids) }
-            }.decodeList()
+        for (rows in tables) {
             for (r in rows) {
                 val name = "${r.firstName.orEmpty()} ${r.lastName.orEmpty()}".trim()
                 if (name.isNotEmpty()) out[r.id] = name
@@ -803,46 +968,45 @@ class SupabaseService : CxRemote {
     /** Nombres canónicos de equipos para líderes de clasificaciones por equipos. */
     suspend fun teamNamesByIds(teamIds: List<String>): Map<String, String> {
         if (teamIds.isEmpty()) return emptyMap()
-        val rows: List<TeamIdentityRow> = client.from("teams").select(
-            columns = Columns.list("id", "name")
-        ) {
-            filter { isIn("id", teamIds) }
-        }.decodeList()
+        val rows = inChunks(teamIds, ID_CHUNK) { chunk ->
+            client.from("teams").select(
+                columns = Columns.list("id", "name")
+            ) {
+                filter { isIn("id", chunk) }
+            }.decodeList<TeamIdentityRow>()
+        }
         return rows.associate { it.id to it.name }
     }
 
     /**
-     * PKs de startlist_teams de los corredores dados en una carrera (CRE: el
-     * ganador es el EQUIPO; el corredor rank 1 → fila de startlist → equipo).
-     * `teamId` aquí es el PK de startlist_teams, NO la ref canónica a teams.
+     * Filas de inscritos (carrera, corredor, PK de startlist_teams) de un lote
+     * de carreras y corredores. CRE: el ganador es el EQUIPO; corredor rank 1 →
+     * fila de startlist → equipo. `teamId` aquí es el PK de startlist_teams, NO
+     * la ref canónica a teams. El cruce exacto carrera × corredor se hace en el
+     * llamador.
      */
-    suspend fun startlistRiderTeamPks(raceId: String, riderIds: List<String>): List<String> {
-        if (riderIds.isEmpty()) return emptyList()
-        val rows: List<TeamPkRow> = client.from("startlist_riders_resolved").select(
-            columns = Columns.list("teamId")
-        ) {
-            filter {
-                eq("raceId", raceId)
-                isIn("globalRiderId", riderIds)
-            }
-            limit(3)
-        }.decodeList()
-        return rows.mapNotNull { it.teamId }
+    suspend fun startlistRiderTeamRows(raceIds: List<String>, riderIds: List<String>): List<StartlistRiderTeamRow> {
+        val races = raceIds.filter { it.isNotEmpty() }.distinct()
+        if (races.isEmpty() || riderIds.isEmpty()) return emptyList()
+        return inChunks(riderIds, ID_CHUNK) { chunk ->
+            client.from("startlist_riders_resolved").select(
+                columns = Columns.list("raceId", "globalRiderId", "teamId")
+            ) {
+                filter {
+                    isIn("raceId", races)
+                    isIn("globalRiderId", chunk)
+                }
+            }.decodeList<StartlistRiderTeamRow>()
+        }
     }
 
-    /** Fila de startlist_teams por su PK (nombre snapshot + ref canónica). */
-    suspend fun startlistTeamByPk(pk: String): StartlistTeam? =
-        client.from("startlist_teams").select {
-            filter { eq("id", pk) }
-            limit(1)
-        }.decodeList<StartlistTeam>().firstOrNull()
-
-    /** Nombre canónico de un equipo del catálogo. */
-    suspend fun teamNameById(teamId: String): String? =
-        client.from("teams").select(columns = Columns.list("name")) {
-            filter { eq("id", teamId) }
-            limit(1)
-        }.decodeList<TeamNameRow>().firstOrNull()?.name
+    /** Filas de startlist_teams por PK (nombre snapshot + ref canónica). */
+    suspend fun startlistTeamsByPks(pks: List<String>): List<StartlistTeam> =
+        inChunks(pks, ID_CHUNK) { chunk ->
+            client.from("startlist_teams").select {
+                filter { isIn("id", chunk) }
+            }.decodeList<StartlistTeam>()
+        }
 
     // ─────────── Today Highlights (cintillo manual) ───────────
 
@@ -943,6 +1107,8 @@ class SupabaseService : CxRemote {
 
     /** Carga datos completos de un día: jornadas + carreras + emisiones + assets + elevación. */
     suspend fun loadDayComplete(dateKey: String): DayData = coroutineScope {
+        // La selección destacada solo depende de la fecha: viaja con la primera tanda.
+        val featuredDeferred = async { featuredRaces(listOf(dateKey)) }
         var raceDays = raceDaysByDate(dateKey).toMutableList()
 
         val raceIds = raceDays.mapNotNull { it.raceId }.distinct()
@@ -952,7 +1118,6 @@ class SupabaseService : CxRemote {
         val broadcastsDeferred = async { broadcastsByRaceDays(rdIds) }
         val assetsDeferred = async { assetsByRaceDays(rdIds) }
         val elevDeferred = async { raceDaysElevation(rdIds) }
-        val featuredDeferred = async { featuredRaces(listOf(dateKey)) }
 
         val fetchedRaces = racesDeferred.await()
         val fetchedBroadcasts = broadcastsDeferred.await()
@@ -988,28 +1153,24 @@ class SupabaseService : CxRemote {
         )
     }
 
-    /** Carga datos completos de una carrera: info + etapas + emisiones + assets. */
-    suspend fun loadRaceComplete(raceId: String): Pair<Race, List<EnrichedRaceDay>> =
+    /**
+     * Carga datos completos de una carrera: info + etapas + emisiones + assets.
+     *
+     * Con [profileDayIds] null todas las jornadas llegan con perfil de
+     * elevación (Carrera pinta un miniperfil por etapa). Con un conjunto, solo
+     * esas jornadas traen perfil; el resto llega sin él y [RaceComplete.profileDayIds]
+     * lo indica para que la caché conserve el perfil ya guardado.
+     */
+    suspend fun loadRaceComplete(raceId: String, profileDayIds: Set<String>? = null): RaceComplete =
         coroutineScope {
-            val race = raceById(raceId)
-            val days = raceDaysByRace(raceId).toMutableList()
+            val raceDeferred = async { raceById(raceId) }
+            val elevationDeferred = profileDayIds?.let { ids -> async { raceDaysElevation(ids.toList()) } }
+            val fetchedDays = if (profileDayIds == null) raceDaysByRace(raceId) else raceDaysByRaceSlim(raceId)
+            val elevationById = elevationDeferred?.await().orEmpty().associateBy { it.id }
+            val days = fetchedDays.map { rd -> elevationById[rd.id]?.let { rd.applyingElevation(it) } ?: rd }
+                .toMutableList()
 
-            days.sortWith(Comparator { a, b ->
-                val na = a.stageNumber
-                val nb = b.stageNumber
-                if (na != null && nb != null) {
-                    if (na != nb) na.compareTo(nb)
-                    else {
-                        val tA = a.neutralStartTimeUtc?.let { DateFormatting.timestampToSeconds(it) }
-                            ?: Double.MAX_VALUE
-                        val tB = b.neutralStartTimeUtc?.let { DateFormatting.timestampToSeconds(it) }
-                            ?: Double.MAX_VALUE
-                        tA.compareTo(tB)
-                    }
-                } else {
-                    a.dateKey.compareTo(b.dateKey)
-                }
-            })
+            days.sortWith(RaceLogic.raceProgramOrder)
 
             RaceLogic.annotateDoubleSectors(days)
 
@@ -1017,6 +1178,7 @@ class SupabaseService : CxRemote {
             val broadcastsDeferred = async { broadcastsByRaceDays(dayIds) }
             val assetsDeferred = async { assetsByRaceDays(dayIds) }
 
+            val race = raceDeferred.await()
             val broadcastsByRd = broadcastsDeferred.await().groupBy { it.raceDayId }
             val assetsByRd = assetsDeferred.await().groupBy { it.raceDayId }
 
@@ -1029,7 +1191,13 @@ class SupabaseService : CxRemote {
                 )
             }
 
-            race to enriched
+            RaceComplete(
+                race = race,
+                days = enriched,
+                // Solo cuentan como completas las jornadas cuyo perfil se pidió;
+                // una fila sin perfil en BD (o con perfil no visible) también lo es.
+                profileDayIds = profileDayIds?.intersect(days.map { it.id }.toSet()),
+            )
         }
 
     // ─────────── Helpers DTO ───────────
@@ -1045,22 +1213,116 @@ class SupabaseService : CxRemote {
     )
 
     @Serializable
-    private data class TeamPkRow(val teamId: String? = null)
-
-    @Serializable
-    private data class TeamNameRow(val name: String)
+    private data class IdRow(val id: String)
 
     @Serializable
     private data class TeamIdentityRow(val id: String, val name: String)
 
+    /** Jornada del feed con el desnivel extraído del JSONB del perfil. */
+    @Serializable
+    private data class FeedRaceDayRow(
+        val id: String,
+        val raceId: String? = null,
+        val dateKey: String,
+        val stageNumber: Int? = null,
+        val isRestDay: Boolean = false,
+        val isCancelledDay: Boolean = false,
+        val estimatedFinishTimeUtc: String? = null,
+        val neutralStartTimeUtc: String? = null,
+        val realStartTimeUtc: String? = null,
+        val startLocation: String? = null,
+        val finishLocation: String? = null,
+        val startLocationEn: String? = null,
+        val finishLocationEn: String? = null,
+        val distanceKm: Double? = null,
+        val elevationGain: Double? = null,
+        val primaryType: String? = null,
+        val secondaryType: String? = null,
+        val countryCode: String? = null,
+    ) {
+        fun toRaceDay() = RaceDay(
+            id = id,
+            raceId = raceId,
+            dateKey = dateKey,
+            stageNumber = stageNumber,
+            isRestDay = isRestDay,
+            isCancelledDay = isCancelledDay,
+            estimatedFinishTimeUtc = estimatedFinishTimeUtc,
+            neutralStartTimeUtc = neutralStartTimeUtc,
+            realStartTimeUtc = realStartTimeUtc,
+            startLocation = startLocation,
+            finishLocation = finishLocation,
+            startLocationEn = startLocationEn,
+            finishLocationEn = finishLocationEn,
+            distanceKm = distanceKm,
+            // Perfil reducido al desnivel: sin puntos no cuenta como perfil visible.
+            elevationProfile = elevationGain?.let {
+                ElevationProfile(distance = distanceKm ?: 0.0, elevationGain = kotlin.math.round(it).toInt())
+            },
+            primaryType = primaryType,
+            secondaryType = secondaryType,
+            countryCode = countryCode,
+        )
+    }
+
     companion object {
+        /** Filas por página; por debajo del tope por respuesta de PostgREST. */
+        private const val PAGE_SIZE = 1000L
+
+        /** Identificadores por filtro `in.(…)`: acota la longitud de la URL. */
+        private const val ID_CHUNK = 150
+
+        /** Peticiones simultáneas máximas al trocear una consulta por lotes. */
+        private const val MAX_PARALLEL_REQUESTS = 4
+
+        private const val CX_TEAMS_TTL_SECONDS = 3600L
+
+        private val rowJson = Json { ignoreUnknownKeys = true }
+
+        /**
+         * Columnas de `races` que decodifica [Race]. Mantener sincronizada con
+         * el modelo: un campo nuevo de [Race] debe añadirse aquí.
+         */
+        private val RACE_COLUMNS = Columns.raw(
+            "id,name,nameEn,uciCategory,gender,raceFormat,countryCode,colorHex,logoUrl," +
+                "websiteUrl,hideFlag,isGrandTour,isNoClickable,isCancelled,startDate,endDate,year," +
+                "slug,originalName,startlistImportedAt,startlistProvisional,createdAt"
+        )
+
+        /** Columnas de `teams` que decodifica [Team]. */
+        private val TEAM_COLUMNS = Columns.raw(
+            "id,name,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle," +
+                "headerBg,headerText,nameAliases,category"
+        )
+
         /** Columnas de race_days sin los campos de perfil de elevación (JSONB pesados).
-         *  Para queries masivas (Mes, Temporada, Búsqueda) donde esos datos no son necesarios. */
+         *  Para queries masivas (Mes, Temporada, Búsqueda) donde esos datos no son necesarios.
+         *  Junto con [raceDaysElevation] cubre todos los campos de [RaceDay]. */
         private const val RACE_DAY_SLIM_COLUMNS =
             "id,raceId,dateKey,date,slug,isRestDay,isCancelledDay,stageNumber," +
             "startLocation,finishLocation,distanceKm,primaryType,secondaryType," +
-            "neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
+            "neutralStartTimeUtc,realStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
             "startLocationEn,finishLocationEn,translations,editorialStatus,hasAssets,updatedAt,countryCode,routeGpxUrl"
                 .plus(",raceStatus,competitiveDistanceKm,timingPolicy,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis,metricsUpdatedAt")
+
+        /** Identidad, fecha y estado de una jornada: programa de carrera y cintillo. */
+        private const val RACE_DAY_PROGRAM_COLUMNS =
+            "id,raceId,dateKey,date,slug,stageNumber,isRestDay,isCancelledDay,neutralStartTimeUtc,editorialStatus"
     }
 }
+
+/** Instantánea de una carrera descargada por [SupabaseService.loadRaceComplete]. */
+data class RaceComplete(
+    val race: Race,
+    val days: List<EnrichedRaceDay>,
+    /** Jornadas que llegan con perfil; null si todas lo traen. */
+    val profileDayIds: Set<String>?,
+)
+
+/** Fila mínima de inscritos para resolver el equipo ganador de una CRE. */
+@Serializable
+data class StartlistRiderTeamRow(
+    val raceId: String,
+    val globalRiderId: String? = null,
+    val teamId: String? = null,
+)

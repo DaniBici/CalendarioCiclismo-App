@@ -41,7 +41,7 @@ export async function _ruNewClass(rd, race, stages, finalStageDay = false, raceD
           su volcado la sustituye. Guardar no cambia el candado; si quieres impedir que el cron
           la toque, usa «Bloquear» en la lista.
         </div>
-        <label class="u-mt-080 u-mb-030 u-fs-2">Tipo de clasificación</label>
+        <label for="ruNewKind" class="u-block u-mt-080 u-mb-030 u-fs-2">Tipo de clasificación</label>
         <select id="ruNewKind" class="input u-input-block">${opts}</select>
         <label class="u-row u-mt-080 u-fs-3 u-pointer">
           <input type="checkbox" id="ruNewFinal"${isOneDay ? ' checked' : ''}>

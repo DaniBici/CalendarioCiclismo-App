@@ -149,6 +149,9 @@ object CxPresentation {
             .sortedBy { it.sortOrder }.distinctBy { youtubeVideoId(it.url) ?: it.id }
             .filter { youtubeVideoId(it.url) != null }
     }
+    /** Manga n/total de una prueba en su torneo; sin ella o con total ≤ 1, nada. */
+    fun roundLabel(round: CxRound?): String? = round?.takeIf { it.total > 1 }?.let { "${it.n}/${it.total}" }
+
     fun tournamentRoundTotal(tournamentId: String, races: List<CxRace>, rounds: Map<String, CxRound>): Int =
         races.asSequence().filter { it.tournamentId == tournamentId }
             .mapNotNull { rounds[it.id]?.total }.maxOrNull() ?: 0
@@ -274,8 +277,8 @@ object CxPresentation {
         if (gapSeconds == 0L) (if (english) "s.t." else "m.t.") else UciResultsLogic.secondsToGap(gapSeconds.toInt()).orEmpty()
     fun standingValue(row: CxStanding, mode: String?, locale: Locale): String = when (mode) {
         "time" -> CyclocrossLogic.duration(row.timeSeconds)
-        "points" -> row.points?.let { NumberFormat.getNumberInstance(locale).format(it) } ?: "—"
-        else -> "—"
+        "points" -> row.points?.let { NumberFormat.getNumberInstance(locale).format(it) } ?: "-"
+        else -> "-"
     }
     /** Vueltas acreditadas por LAP o por su unidad explícita; nunca son un tiempo. */
     fun lapsLost(row: CxResult): Int? {

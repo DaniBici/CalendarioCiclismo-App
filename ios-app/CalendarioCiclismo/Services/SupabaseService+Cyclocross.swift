@@ -4,7 +4,6 @@ import Supabase
 @MainActor
 protocol CxRemote {
     func cxMonth(season: String, month: CxMonth) async throws -> [CxRace]
-    func cxNextDate(season: String, date: String) async throws -> String?
     func cxTournamentNextDate(season: String, date: String, tournamentId: String) async throws -> String?
     func cxDetail(id: String) async throws -> CxDetail?
     func cxRaceForSlug(_ slug: String) async throws -> CxRace?
@@ -15,20 +14,25 @@ protocol CxRemote {
     func cxTournamentStandings(tournamentId: String, season: String) async throws -> CxTournamentStandings
     /// Variantes que ignoran las clases ocultas en el idioma activo
     /// (`CyclocrossPresentation.hiddenClasses`).
-    func cxNextDate(season: String, date: String, excluding classes: [String]) async throws -> String?
     func cxTournamentNextDate(season: String, date: String, tournamentId: String, excluding classes: [String]) async throws -> String?
     /// `true` si el torneo tiene alguna carrera publicada fuera de `classes`.
     func cxTournamentHasRaces(tournamentId: String, excluding classes: [String]) async throws -> Bool
+    /// Torneos de `tournamentIds` con alguna carrera publicada fuera de `classes`.
+    func cxTournamentIdsWithRaces(_ tournamentIds: [String], excluding classes: [String]) async throws -> Set<String>
 }
 
 extension CxRemote {
-    func cxNextDate(season: String, date: String, excluding classes: [String]) async throws -> String? {
-        try await cxNextDate(season: season, date: date)
-    }
     func cxTournamentNextDate(season: String, date: String, tournamentId: String, excluding classes: [String]) async throws -> String? {
         try await cxTournamentNextDate(season: season, date: date, tournamentId: tournamentId)
     }
     func cxTournamentHasRaces(tournamentId: String, excluding classes: [String]) async throws -> Bool { true }
+    func cxTournamentIdsWithRaces(_ tournamentIds: [String], excluding classes: [String]) async throws -> Set<String> {
+        var out = Set<String>()
+        for id in tournamentIds where try await cxTournamentHasRaces(tournamentId: id, excluding: classes) {
+            out.insert(id)
+        }
+        return out
+    }
     func cxTournamentNextDate(season: String, date: String, tournamentId: String) async throws -> String? { throw URLError(.notConnectedToInternet) }
     func cxTournamentForSlug(_ slug: String) async throws -> CxTournament? { throw URLError(.notConnectedToInternet) }
     func cxSeasonRounds(season: String) async throws -> [String: CxRound] { throw URLError(.notConnectedToInternet) }
@@ -41,17 +45,6 @@ private struct CxDateEntry: Decodable, Sendable {
     struct Category: Decodable, Sendable { let dateKey: String?; let isCancelled: Bool }
 }
 
-private struct CxNextDateParams: Encodable {
-    let p_season_key: String
-    let p_date_key: String
-}
-
-private struct CxNextDateExcludingParams: Encodable {
-    let p_season_key: String
-    let p_date_key: String
-    let p_exclude_classes: [String]
-}
-
 private struct CxIdEntry: Decodable, Sendable {
     let id: String
 }
@@ -62,7 +55,7 @@ private struct CxSchemeEntry: Decodable, Sendable {
 
 extension SupabaseService: CxRemote {
     private var cxAgendaColumns: String {
-        "id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+        "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
@@ -100,23 +93,24 @@ extension SupabaseService: CxRemote {
         return tournaments
     }
 
-    func cxNextDate(season: String, date: String) async throws -> String? {
-        try await client.schema("public").rpc("cx_next_race_date", params: CxNextDateParams(p_season_key: season, p_date_key: date), get: true)
-            .execute().value
-    }
-
-    func cxNextDate(season: String, date: String, excluding classes: [String]) async throws -> String? {
-        guard !classes.isEmpty else { return try await cxNextDate(season: season, date: date) }
-        return try await client.schema("public").rpc("cx_next_race_date", params: CxNextDateExcludingParams(p_season_key: season, p_date_key: date, p_exclude_classes: classes))
-            .execute().value
-    }
-
     func cxTournamentHasRaces(tournamentId: String, excluding classes: [String]) async throws -> Bool {
         var query = client.from("cx_races").select("id")
             .eq("tournamentId", value: tournamentId).eq("editorialStatus", value: "published")
         for raceClass in classes { query = query.neq("class", value: raceClass) }
         let rows: [CxIdEntry] = try await query.limit(1).execute().value
         return !rows.isEmpty
+    }
+
+    /// Variante por lotes de `cxTournamentHasRaces`: una sola consulta.
+    func cxTournamentIdsWithRaces(_ tournamentIds: [String], excluding classes: [String]) async throws -> Set<String> {
+        let ids = Array(Set(tournamentIds))
+        guard !ids.isEmpty else { return [] }
+        struct Row: Decodable, Sendable { let tournamentId: String? }
+        var query = client.from("cx_races").select("tournamentId")
+            .in("tournamentId", values: ids).eq("editorialStatus", value: "published")
+        for raceClass in classes { query = query.neq("class", value: raceClass) }
+        let rows: [Row] = try await query.execute().value
+        return Set(rows.compactMap(\.tournamentId))
     }
 
     func cxTournamentNextDate(season: String, date: String, tournamentId: String) async throws -> String? {
@@ -203,20 +197,34 @@ extension SupabaseService: CxRemote {
         async let docs = cxRows(CxAsset.self, table: "assets", filters: ["cxRaceId": id])
         // Catálogo completo: resultados y generales casan `teamName` por nombre
         // y alias, igual que la web; los dorsales usan `teamId`.
-        async let catalog = cxRows(CxTeam.self, table: "cx_teams", filters: [:])
-        let startlist = try await riders
-        let teams = try await catalog
+        async let catalog = cxTeamCatalog()
         let rows: [CxStanding]
         let states: [CxStandingState]
         let tournamentRaces: [CxRaceRef]?
         if let tournamentId = race.tournamentId {
-            states = try await cxRows(CxStandingState.self, table: "cx_standings_state", filters: ["tournamentId": tournamentId, "seasonKey": race.seasonKey], orderColumn: "category")
-            rows = try await cxRows(CxStanding.self, table: "cx_tournament_standings", filters: ["tournamentId": tournamentId, "seasonKey": race.seasonKey])
+            let filters = ["tournamentId": tournamentId, "seasonKey": race.seasonKey]
+            async let statesReq = cxRows(CxStandingState.self, table: "cx_standings_state", filters: filters, orderColumn: "category")
+            async let rowsReq = cxRows(CxStanding.self, table: "cx_tournament_standings", filters: filters)
             // Las columnas de ronda solo necesitan nombre y clase: un fallo
-            // no impide abrir la ficha.
-            tournamentRaces = rows.isEmpty ? [] : try? await cxTournamentRaces(tournamentId: tournamentId)
+            // no impide abrir la ficha. Se piden a la vez y se descartan si
+            // el torneo no tiene generales.
+            async let racesReq: [CxRaceRef]? = try? await cxTournamentRaces(tournamentId: tournamentId)
+            states = try await statesReq
+            rows = try await rowsReq
+            tournamentRaces = rows.isEmpty ? [] : await racesReq
         } else { rows = []; states = []; tournamentRaces = nil }
+        let startlist = try await riders
+        let teams = try await catalog
         return try await CxDetail(race: race, startlist: startlist, results: results, broadcasts: broadcasts, videos: videos, teams: teams, standings: rows, standingsState: states, assets: docs, tournamentRaces: tournamentRaces)
+    }
+
+    /// Catálogo de equipos CX (≈650 filas, paginado). Cambia muy poco: se
+    /// conserva una hora en memoria y las fichas abiertas a la vez comparten
+    /// la descarga.
+    private func cxTeamCatalog() async throws -> [CxTeam] {
+        try await sharedRequest("cxTeamCatalog", reuseWindow: 3600) {
+            try await self.cxRows(CxTeam.self, table: "cx_teams", filters: [:])
+        }
     }
 
     private func cxTournamentRaces(tournamentId: String) async throws -> [CxRaceRef] {
@@ -228,7 +236,7 @@ extension SupabaseService: CxRemote {
         async let states = cxRows(CxStandingState.self, table: "cx_standings_state", filters: filters, orderColumn: "category")
         async let standings = cxRows(CxStanding.self, table: "cx_tournament_standings", filters: filters)
         async let schemes = cxRows(CxSchemeEntry.self, table: "cx_tournaments", columns: "id,pointsScheme", filters: ["id": tournamentId])
-        async let catalog = cxRows(CxTeam.self, table: "cx_teams", filters: [:])
+        async let catalog = cxTeamCatalog()
         async let races = cxTournamentRaces(tournamentId: tournamentId)
         return try await CxTournamentStandings(pointsScheme: schemes.first?.pointsScheme, states: states, standings: standings, teams: catalog, races: races)
     }

@@ -231,6 +231,9 @@ struct CalendarioCiclismoApp: App {
     }
 
     private func preloadTodayData() async {
+        // Limpieza de fichas de carrera antiguas y de la temporada en formato
+        // anterior; no depende de la red.
+        Task.detached(priority: .background) { await CacheManager.shared.purgeNavigationCache() }
         guard SupabaseService.shared.configurationError == nil else { return }
         let today = DateFormatting.todayKey()
         let year = Int(today.prefix(4)) ?? 2026

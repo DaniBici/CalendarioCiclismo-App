@@ -94,7 +94,7 @@ struct ContentView: View {
                 NavigationStack(path: $cxNavigationPath) {
                     CyclocrossView()
                         .navigationDestination(for: CxDestination.self) { destination in
-                            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+                            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
                         }
                         .navigationDestination(for: CxTournamentDestination.self) { destination in
                             CyclocrossView(tournament: destination.tournament, season: destination.season)

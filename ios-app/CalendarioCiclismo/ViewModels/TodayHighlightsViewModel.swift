@@ -74,22 +74,36 @@ final class TodayHighlightsViewModel {
             let raceIds   = Set(highlights.compactMap { $0.raceId })
             let raceDayIds = Set(highlights.compactMap { $0.raceDayId })
 
-            // Cargados secuencialmente — `async let` con `try await` en tuple
-            // enmascaraba qué fetch fallaba si la decodificación de Race/RaceDay
-            // rompía. Secuencial + try independiente da mejor diagnóstico.
+            let cxIds = Array(Set(highlights.filter { $0.targetType == "cxRace" }.compactMap { $0.cxRaceId }))
+            let cxTournamentIds = Array(Set(highlights.filter { $0.targetType == "cxTournament" }.compactMap { $0.cxTournamentId }))
+            let service = SupabaseService.shared
+
+            // En paralelo, pero cada petición captura su propio resultado:
+            // `async let` con `try await` en tupla enmascaraba qué fetch fallaba
+            // si la decodificación de Race/RaceDay rompía. El cintillo solo
+            // pinta la fecha y la ruta de la jornada: columnas de lista.
+            async let racesReq = Self.capture { try await service.races(byIds: Array(raceIds)) }
+            async let raceDaysReq = Self.capture {
+                try await service.raceDays(byIds: Array(raceDayIds), columns: SupabaseService.raceDayCoreColumns)
+            }
+            // Un fallo de CX no elimina los destacados de carretera ya resueltos.
+            async let cxRowsReq: [CxRace] = (try? await service.cxRaces(byIds: cxIds)) ?? []
+            async let cxTournamentsReq: [CxTournament] = (try? await service.cxTournaments(byIds: cxTournamentIds)) ?? []
+            async let visibleTournamentsReq: Set<String> = CyclocrossRepository.shared.visibleTournamentIds(cxTournamentIds)
+
             let rs: [Race]
-            do {
-                rs = try await SupabaseService.shared.races(byIds: Array(raceIds))
-            } catch {
-                print("[TodayHighlights] races(byIds:) FAILED — \(error)")
+            switch await racesReq {
+            case .success(let value): rs = value
+            case .failure(let error):
+                print("[TodayHighlights] races(byIds:) FAILED - \(error)")
                 self.items = []
                 return
             }
             let rds: [RaceDay]
-            do {
-                rds = try await SupabaseService.shared.raceDays(byIds: Array(raceDayIds))
-            } catch {
-                print("[TodayHighlights] raceDays(byIds:) FAILED — \(error)")
+            switch await raceDaysReq {
+            case .success(let value): rds = value
+            case .failure(let error):
+                print("[TodayHighlights] raceDays(byIds:) FAILED - \(error)")
                 self.items = []
                 return
             }
@@ -101,23 +115,17 @@ final class TodayHighlightsViewModel {
             let parentRaceIds = Set(rds.compactMap { $0.raceId })
             let missing = parentRaceIds.subtracting(racesById.keys)
             if !missing.isEmpty {
-                let extra: [Race] = try await SupabaseService.shared.races(byIds: Array(missing))
+                let extra: [Race] = try await service.races(byIds: Array(missing))
                 for r in extra { racesById[r.id] = r }
             }
 
-            let cxIds = Array(Set(highlights.filter { $0.targetType == "cxRace" }.compactMap { $0.cxRaceId }))
-            // Un fallo de CX no elimina los destacados de carretera ya resueltos.
             // En inglés se descartan las carreras nacionales y los torneos solo
             // nacionales (CyclocrossPresentation.hiddenClasses).
-            let cxRows = ((try? await SupabaseService.shared.cxRaces(byIds: cxIds)) ?? []).filter { !CyclocrossPresentation.isHidden($0) }
-            let cxTournamentIds = Array(Set(highlights.filter { $0.targetType == "cxTournament" }.compactMap { $0.cxTournamentId }))
-            var cxTournamentRows = (try? await SupabaseService.shared.cxTournaments(byIds: cxTournamentIds)) ?? []
+            let cxRows = await cxRowsReq.filter { !CyclocrossPresentation.isHidden($0) }
+            var cxTournamentRows = await cxTournamentsReq
             if !CyclocrossPresentation.hiddenClasses.isEmpty {
-                var visible: [CxTournament] = []
-                for tournament in cxTournamentRows {
-                    if await CyclocrossRepository.shared.tournamentIsVisible(tournament.id) { visible.append(tournament) }
-                }
-                cxTournamentRows = visible
+                let visible = await visibleTournamentsReq
+                cxTournamentRows = cxTournamentRows.filter { visible.contains($0.id) }
             }
             guard !Task.isCancelled else { return }
             let cxById = Dictionary(uniqueKeysWithValues: cxRows.map { ($0.id, $0) })
@@ -139,7 +147,7 @@ final class TodayHighlightsViewModel {
                     return h.seasonYear == nil ? nil : TodayHighlightView(highlight: h, race: nil, raceDay: nil)
                 }
                 guard let race else {
-                    print("[TodayHighlights] DROP \(h.id) — no race resolved (raceId=\(h.raceId ?? "nil") raceDayId=\(h.raceDayId ?? "nil"))")
+                    print("[TodayHighlights] DROP \(h.id) - no race resolved (raceId=\(h.raceId ?? "nil") raceDayId=\(h.raceDayId ?? "nil"))")
                     return nil
                 }
                 return TodayHighlightView(highlight: h, race: race, raceDay: rd)
@@ -147,9 +155,17 @@ final class TodayHighlightsViewModel {
             print("[TodayHighlights] resolved \(resolved.count) items / shouldShow=\(dismissedHash != contentHashFor(items: resolved))")
             self.items = resolved
         } catch {
-            print("[TodayHighlights] load() outer catch — \(error)")
+            print("[TodayHighlights] load() outer catch - \(error)")
             self.items = []
         }
+    }
+
+    /// Resultado de una petición sin propagar el error, para diagnosticar
+    /// cada consulta por separado aunque se lancen en paralelo.
+    private static func capture<T: Sendable>(
+        _ operation: @MainActor @Sendable () async throws -> T
+    ) async -> Result<T, Error> {
+        do { return .success(try await operation()) } catch { return .failure(error) }
     }
 
     private func contentHashFor(items: [TodayHighlightView]) -> String {

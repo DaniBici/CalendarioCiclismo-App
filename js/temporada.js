@@ -11,6 +11,10 @@ import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
 import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLang } from './i18n.js';
 import { readCalendarMonth } from './calendario-query.js';
+import { seasonCalendarYear } from './services/today-season.js';
+import { fetchAllRows, fetchAllRowsParallel } from './services/paged-query.js';
+import { staleWhileRevalidate } from './services/local-cache.js';
+import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
 import { CAMP, campUrl, campTitle } from './campeonatos-config.js';
@@ -67,7 +71,10 @@ function formatDateRange(days) {
 // ── Estado ───────────────────────────────────────────────────────
 let allRaces          = [];   // [{...raceData, id, _days:[{dateKey}]}]
 let allChallengeGroups = [];  // [{...groupData, id, _races:[raceObj]}]
-let activeYear        = new Date().getFullYear();
+// Año por defecto: el siguiente tras el cierre de la temporada de carretera
+// (services/today-season.js).
+const _now = new Date();
+let activeYear        = seasonCalendarYear(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
 window._icalYear = activeYear;
 let activeCat         = getPinnedFilter() || 'all';
 let activeCountry     = '';
@@ -97,39 +104,6 @@ window._temporadaCat = activeCat;
   document.querySelectorAll('#navTemporadaLabel').forEach(el => {
     el.textContent = activeYear;
   });
-
-  // Cargar races del año activo + race_days solo de 3 meses (actual ±1)
-  const todayMonth = new Date().getMonth(); // 0-based
-  const initialMonths = _monthRange(activeYear, todayMonth, 1);
-  const rdStartKey = initialMonths[0].start;
-  const rdEndKey   = initialMonths[initialMonths.length - 1].end;
-
-  const [racesResult, rdResult, cgResult] = await Promise.all([
-    supabase.from('races').select('*').eq('year', activeYear),
-    supabase.from('race_days').select('*').eq('editorialStatus', 'published').gte('dateKey', rdStartKey).lte('dateKey', rdEndKey),
-    supabase.from('challenge_groups').select('*')
-  ]);
-  const races = racesResult.data || [];
-
-  // Poblar caché de races
-  const raceCacheMap = {};
-  races.forEach(r => { raceCacheMap[r.id] = r; });
-  bulkCacheRaces(raceCacheMap);
-
-  // Inicializar estado lazy
-  _loadedMonths = new Set(initialMonths.map(m => m.key));
-  _daysByRace = {};
-  _mergeRaceDays(rdResult.data || []);
-  races.forEach(r => { r._days = _daysByRace[r.id] || []; });
-
-  // Incluir races con jornadas publicadas, con startDate/endDate definidos, o placeholders
-  allRaces = races.filter(r => r._days.length > 0 || r.startDate || r.isPlaceholder === true);
-
-  // Cargar challenge_groups y asociarles las races que ya tenemos en memoria
-  allChallengeGroups = (cgResult.data || []).map(d => {
-    const raceIds = Array.isArray(d.raceIds) ? d.raceIds : [];
-    return { ...d, _races: allRaces.filter(r => raceIds.includes(r.id)) };
-  }).filter(cg => cg._races.length > 0);
 
   // Poblar selector de años (rango fijo para evitar consulta extra)
   const currentYear = new Date().getFullYear();
@@ -213,7 +187,17 @@ window._temporadaCat = activeCat;
     if (raceObj) openRaceDataModal(rdId, raceObj);
   });
 
-  render();
+  // Guardar estado de navegación (incluido scroll) al salir a una carrera
+  document.getElementById('temporadaContent').addEventListener('click', e => {
+    if (e.target.closest('.t-race')) {
+      sessionStorage.setItem('cc_nav', JSON.stringify({
+        from: 'temporada', year: activeYear, cat: activeCat,
+        scrollY: Math.round(window.scrollY)
+      }));
+    }
+  });
+
+  await loadYear();
 }
 
 
@@ -464,9 +448,17 @@ async function _loadMonth(monthKey) {
   const startKey = `${monthKey}-01`;
   const endKey   = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
 
-  const { data: rdData } = await supabase.from('race_days').select('*').eq('editorialStatus', 'published').gte('dateKey', startKey).lte('dateKey', endKey);
+  let rdData;
+  try {
+    rdData = await fetchPublishedDays(startKey, endKey, query => fetchAllRows(query, 1000));
+  } catch (error) {
+    // Sin datos: el mes se podrá volver a pedir al reaparecer en pantalla.
+    _loadedMonths.delete(monthKey);
+    console.error(error);
+    return;
+  }
 
-  _mergeRaceDays(rdData || []);
+  _mergeRaceDays(rdData);
 
   // Actualizar allRaces: incluir races que ahora tienen _days pero antes no
   const racesById = {};
@@ -618,41 +610,88 @@ async function reloadYear() {
   content.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.season')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
   if (_monthObserver) { _monthObserver.disconnect(); _monthObserver = null; }
+  await loadYear();
+}
 
-  const todayMonth = new Date().getMonth();
-  const initialMonths = _monthRange(activeYear, todayMonth, 1);
-  const rdStartKey = initialMonths[0].start;
-  const rdEndKey   = initialMonths[initialMonths.length - 1].end;
+// ── Carga del año: carreras, jornadas de 3 meses (actual ±1) y challenges ──
+// La respuesta de PostgREST tiene un tope de filas: carreras y jornadas se
+// paginan con orden estable. Se pinta desde la copia local y se revalida
+// contra la red.
+const SEASON_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,colorHex,logoUrl,hideFlag,isCancelled,isNoClickable,websiteUrl';
+// Lo que leen renderRaceRow y hasModalData; el modal pide la jornada completa.
+const SEASON_DAY_COLUMNS = `id,raceId,dateKey,slug,slugEn,hasAssets,profileNotViewable,${PROFILE_PROBE_COLUMN},startLocation,distanceKm,primaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,notes`;
 
-  const [racesResult, rdResult, cgResult] = await Promise.all([
-    supabase.from('races').select('*').eq('year', activeYear),
-    supabase.from('race_days').select('*').eq('editorialStatus', 'published').gte('dateKey', rdStartKey).lte('dateKey', rdEndKey),
-    supabase.from('challenge_groups').select('*')
+// Un mes cabe en una página; la ventana inicial de tres meses, en dos.
+function fetchPublishedDays(startKey, endKey, fetchPages) {
+  return fetchPages(() => supabase.from('race_days').select(SEASON_DAY_COLUMNS)
+    .eq('editorialStatus', 'published').gte('dateKey', startKey).lte('dateKey', endKey).order('id'));
+}
+
+async function fetchSeasonBundle(year, startKey, endKey) {
+  const [races, days, groups] = await Promise.all([
+    fetchAllRowsParallel(() => supabase.from('races').select(SEASON_RACE_COLUMNS).eq('year', year).order('id')),
+    fetchPublishedDays(startKey, endKey, fetchAllRowsParallel),
+    supabase.from('challenge_groups').select('*').then(({ data, error }) => {
+      if (error) throw error;
+      return data || [];
+    }),
   ]);
-  const races = racesResult.data || [];
+  return { races, days, groups };
+}
+
+// Vuelca un lote en el estado. Las jornadas de meses cargados después (fuera
+// de la ventana inicial) se conservan al aplicar una revalidación.
+function applySeasonBundle({ races, days, groups }, initialMonths) {
+  const startKey = initialMonths[0].start;
+  const endKey = initialMonths[initialMonths.length - 1].end;
+  const keptDays = Object.values(_daysByRace).flat()
+    .filter(day => day.dateKey < startKey || day.dateKey > endKey);
+  const keptMonths = [..._loadedMonths].filter(key => !initialMonths.some(month => month.key === key));
 
   const raceCacheMap = {};
   races.forEach(r => { raceCacheMap[r.id] = r; });
   bulkCacheRaces(raceCacheMap);
 
-  _loadedMonths = new Set(initialMonths.map(m => m.key));
+  _loadedMonths = new Set([...initialMonths.map(m => m.key), ...keptMonths]);
   _daysByRace = {};
-  _mergeRaceDays(rdResult.data || []);
+  allRaces = [];
+  allChallengeGroups = [];
+  _mergeRaceDays([...days, ...keptDays]);
   races.forEach(r => { r._days = _daysByRace[r.id] || []; });
 
+  // Incluir races con jornadas publicadas, con startDate/endDate definidos, o placeholders
   allRaces = races.filter(r => r._days.length > 0 || r.startDate || r.isPlaceholder === true);
 
-  allChallengeGroups = (cgResult.data || []).map(d => {
+  // Challenge_groups con las races que ya tenemos en memoria
+  allChallengeGroups = groups.map(d => {
     const raceIds = Array.isArray(d.raceIds) ? d.raceIds : [];
     return { ...d, _races: allRaces.filter(r => raceIds.includes(r.id)) };
   }).filter(cg => cg._races.length > 0);
+}
 
-  render();
+async function loadYear() {
+  const year = activeYear;
+  const todayMonth = new Date().getMonth();
+  const initialMonths = _monthRange(year, todayMonth, 1);
+  const startKey = initialMonths[0].start;
+  const endKey = initialMonths[initialMonths.length - 1].end;
+  _loadedMonths = new Set();
+  _daysByRace = {};
+  let painted = false;
+  await staleWhileRevalidate(`temporada:${year}:${startKey}`, () => fetchSeasonBundle(year, startKey, endKey), bundle => {
+    if (year !== activeYear) return;
+    applySeasonBundle(bundle, initialMonths);
+    render({ refresh: painted });
+    painted = true;
+  });
 }
 
 // ── Render ───────────────────────────────────────────────────────
-function render() {
+// `refresh`: repintado por revalidación en segundo plano; conserva el scroll
+// y no repite el desplazamiento inicial ni la analítica.
+function render({ refresh = false } = {}) {
   const content = document.getElementById('temporadaContent');
+  const keepScrollY = refresh ? window.scrollY : null;
 
   // Poblar selector de país con las carreras del año (antes del filtro de país)
   updateTemporadaCountrySelector(allRaces.filter(r => (r.year || 0) === activeYear && r.uciCategory !== 'CN'));
@@ -718,13 +757,12 @@ function render() {
     }
   });
 
-  // Actualizar top dinámico del sticky de mes
+  // Altura de los filtros para el sticky de mes; la cabecera la aporta --site-header-h,
+  // que vale 0 cuando la cabecera se desplaza con la página (móvil).
   function updateMonthStickyTop() {
-    const header  = document.querySelector('.site-header');
     const filters = document.getElementById('temporadaFilters');
-    const hH = header  ? header.offsetHeight  : 56;
     const fH = filters ? filters.offsetHeight : 0;
-    document.documentElement.style.setProperty('--temporada-month-top', `${hH + fH}px`);
+    document.documentElement.style.setProperty('--temporada-filters-h', `${fH}px`);
   }
   updateMonthStickyTop();
   // Recalcular si cambia tamaño (wrap de filtros en móvil)
@@ -733,6 +771,11 @@ function render() {
   if (filtersEl && window.ResizeObserver) {
     window._temporadaResizeObs = new ResizeObserver(updateMonthStickyTop);
     window._temporadaResizeObs.observe(filtersEl);
+  }
+
+  if (refresh) {
+    window.scrollTo({ top: keepScrollY, behavior: 'instant' });
+    return;
   }
 
   // ── Restaurar scroll o scroll inteligente ────────────────────────
@@ -840,16 +883,6 @@ function render() {
     }
   }
 
-  // Guardar estado de navegación (incluido scroll) al salir a una carrera
-  content.addEventListener('click', e => {
-    if (e.target.closest('.t-race')) {
-      sessionStorage.setItem('cc_nav', JSON.stringify({
-        from: 'temporada', year: activeYear, cat: activeCat,
-        scrollY: Math.round(window.scrollY)
-      }));
-    }
-  });
-
   updateSeoTemporada(activeYear);
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 }
@@ -884,8 +917,7 @@ function renderRaceRow(race) {
   if (hasDays) {
     const firstDay = [...race._days].sort((a, b) => a.dateKey.localeCompare(b.dateKey))[0];
     if (isOneDay) {
-      const fdViewableProfile = !!(firstDay.elevationProfile && !firstDay.profileNotViewable
-        && Array.isArray(firstDay.elevationProfile.points) && firstDay.elevationProfile.points.length >= 2);
+      const fdViewableProfile = hasRenderableElevationProfile(firstDay);
       const rdClickable = !race.isNoClickable && (fdViewableProfile || firstDay.hasAssets === true);
       if (rdClickable) {
         href = jornadaUrl(firstDay);
@@ -906,10 +938,10 @@ function renderRaceRow(race) {
   const inner = `
     <span class="t-race__flag">${flag}</span>
     ${race.logoUrl
-      ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`
+      ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
       : '<span class="t-race__logo-empty"></span>'
     }
-    <span class="t-race__name" style="${race.isCancelled ? 'text-decoration:line-through;opacity:0.45' : ''}">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${race.isCancelled ? `<span class="t-race__cancel" role="img" aria-label="${getLang() === 'en' ? 'Cancelled' : 'Cancelada'}"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.2 2.2l5.6 5.6M7.8 2.2L2.2 7.8"/></svg></span>` : ''}<span class="t-race__name-text">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span></span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -966,7 +998,7 @@ function renderChallengeGroup(cg) {
   const inner = `
     <span class="t-race__flag">${flag}</span>
     ${cg.logoUrl
-      ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`
+      ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
       : '<span class="t-race__logo-empty"></span>'
     }
     <span class="t-race__name">${displayName}${femaleSuffix}</span>
@@ -998,7 +1030,7 @@ function updateSeoTemporada(year) {
   const BASE_KW = 'calendario ciclismo, ciclismo donde echan, ciclismo por TV, ciclismo streaming, Danibici, Dani Sánchez, calendario ciclismo app, calendario ciclista, horarios carrera ciclismo';
 
   const isEn        = getLang() === 'en';
-  const title       = `${isEn ? 'Season' : 'Temporada'} ${year} — ${t('seo.siteName')}`;
+  const title       = `${isEn ? 'Season' : 'Temporada'} ${year} - ${t('seo.siteName')}`;
   const description = isEn
     ? `All races of the ${year} season, with their routes, schedules, dates and how to watch on TV.`
     : `Listado con todas las carreras de la temporada ${year}, con acceso a la información sobre sus recorridos, horarios, fechas y cómo ver por TV.`;

@@ -2,7 +2,7 @@ import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} fro
 import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js';
 import { mountStageProfile } from './stage/profile.js';
 import { stageContextHtml, stageMetricsHtml } from './stage/context.js';
-import { teamStripes, teamsForSeason } from './team-appearance.js';
+import { teamStripes, teamsForSeason, startlistTeamsQuery, splitStartlistTeams } from './team-appearance.js';
 import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
 import { arrowHtml, installScrollRail } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
@@ -22,9 +22,11 @@ import { arrowHtml, installScrollRail } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
-         raceUrl, raceName as getRaceName, enBase, findMatchingTeam, normalizeTeamName, teamLinkUrl,
-         buildRaceHeader, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl, loadRaceTechnicalGuide, withRaceTechnicalGuide,
-         isNoTeamPlaceholderTeam, effectiveCountryCode, setRaceRobots } from './shared.js';
+         raceName as getRaceName, enBase, findMatchingTeam, normalizeTeamName, teamLinkUrl,
+         buildRaceHero, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl, loadRaceTechnicalGuide, withRaceTechnicalGuide,
+         isNoTeamPlaceholderTeam, setRaceRobots,
+         embeddedId, orEqFilter, pickByPreference } from './shared.js';
+import { isNearToday } from './services/refresh-window.js';
 import { getLang, initI18n } from './i18n.js';
 import { IRM_LABELS, isAbandonIrm, isNonWinnerIrm, irmDescription } from './results/uci-irm.js';
 import { sectorSuffixMap, resultStageEntryKey, parseResultStageKey } from './services/races.js';
@@ -120,7 +122,7 @@ function stageSlugSegment(stageNumber, isEn, suffix = '') {
 
 const statusIcon = kind => `<svg class="res-status-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${kind==='pending'?'<path d="M14 2H6a2 2 0 0 0-2 2v16h8M14 2v6h6M14 2l6 6v3"/><circle cx="17" cy="17" r="5"/><path d="M17 14v3l2 1"/>':kind==='offline'?'<path d="m2 2 20 20M8.5 16.5a5 5 0 0 1 7 0M12 20h.01M3 9a15 15 0 0 1 3-2m4-1a15 15 0 0 1 11 3M6 12a10 10 0 0 1 3-2m5 0a10 10 0 0 1 4 2"/>':'<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18a8 8 0 0 1-13-2"/>'}</svg>`;
 
-async function init() {
+async function init(i18nReady = Promise.resolve()) {
   window.__spaDrivenAnalytics = true;
   const params  = new URLSearchParams(window.location.search);
   const content = document.getElementById('resultsContent');
@@ -172,7 +174,7 @@ async function init() {
     // Índice de una sección principal: sin flecha de volver, como Fichajes,
     // Ciclocross o Calendario (la base compartida con las fichas la declara).
     window.ccHeaderBack?.(null);
-    const { renderResultsFeed } = await import('./resultados-feed.js');
+    const [{ renderResultsFeed }] = await Promise.all([import('./resultados-feed.js'), i18nReady]);
     renderResultsFeed(content);
     return;
   }
@@ -187,20 +189,45 @@ async function init() {
   }
 
   // ── Carrera ────────────────────────────────────────────────────────
+  // Página pre-renderizada: el build incrusta el id de la carrera. Por slug,
+  // una sola consulta: en EN se prefiere slugEn y se admite slug.
   let race = null;
-  if (raceId) {
-    const { data } = await supabase.from('races').select('*').eq('id', raceId).maybeSingle();
-    race = data || null;
-  } else if (raceSlug) {
-    const slugField = _isEn ? 'slugEn' : 'slug';
-    let { data } = await supabase.from('races').select('*').eq(slugField, raceSlug).maybeSingle();
-    if (!data && _isEn) {
-      ({ data } = await supabase.from('races').select('*').eq('slug', raceSlug).maybeSingle());
-    }
+  const pageRaceId = raceId || (!params.get('slug') ? embeddedId('race-id') : null);
+  if (pageRaceId) {
+    const { data } = await supabase.from('races').select('*').eq('id', pageRaceId).maybeSingle();
     race = data || null;
   }
-  if (!race) { empty('No se encontró la carrera.', 'Race not found.'); return; }
+  if (!race && raceSlug) {
+    const columns = _isEn ? ['slugEn', 'slug'] : ['slug'];
+    const { data } = await supabase.from('races').select('*').or(orEqFilter(columns, raceSlug)).limit(4);
+    race = pickByPreference(data, columns, raceSlug);
+  }
+  if (!race) { await i18nReady; empty('No se encontró la carrera.', 'Race not found.'); return; }
   raceId = race.id;
+
+  // Todo lo que depende solo de la carrera va en un único viaje: clasificaciones
+  // disponibles, jornadas, configuración, startlist y guía técnica.
+  const [stagesResponse, daysResponse, configResponse, slRidersResponse, slTeamsResponse, technicalGuide] = await Promise.all([
+    supabase.from('race_uci_stages').select('*').eq('raceId', raceId).eq('keepForWeb', true).gt('rowCount', 0)
+      .order('stageNumber', { ascending: true }),
+    supabase.from('race_days')
+      .select('id, "stageNumber", "dateKey", "isCancelledDay", "isRestDay", "neutralStartTimeUtc"')
+      .eq('raceId', raceId)
+      .order('dateKey', { ascending: true })
+      .order('neutralStartTimeUtc', { ascending: true, nullsFirst: true }),
+    supabase.from('race_classifications').select('*').eq('raceId', raceId),
+    // Vista RESUELTA (no la tabla cruda): nombre/país canónicos de la ficha
+    // riders_men/women vía globalRiderId, con el snapshot de fallback. Así una
+    // edición de ficha se refleja aquí sin re-importar la startlist (igual que
+    // inscritos). `teamId` = PK de startlist_teams (se conserva en la vista).
+    supabase.from('startlist_riders_resolved')
+      .select('dorsal, firstName, lastName, countryCode, teamId, globalRiderId')
+      .eq('raceId', raceId),
+    // Equipos de la startlist con el equipo canónico y su temporada embebidos.
+    startlistTeamsQuery(supabase, raceId, race.year),
+    loadRaceTechnicalGuide(raceId),
+    i18nReady,
+  ]);
 
   // Botón atrás — prioridad a la página de procedencia de OTRO apartado
   // (p. ej. la jornada o el calendario desde los que se navegó). Si no hay
@@ -226,13 +253,7 @@ async function init() {
   }
 
   // ── Clasificaciones disponibles (keepForWeb) de esta carrera ───────
-  const { data: stagesAll, error: stagesError } = await supabase
-    .from('race_uci_stages')
-    .select('*')
-    .eq('raceId', raceId)
-    .eq('keepForWeb', true)
-    .gt('rowCount', 0)
-    .order('stageNumber', { ascending: true });
+  const { data: stagesAll, error: stagesError } = stagesResponse;
 
   // ── Jornadas de la carrera ─────────────────────────────────────────
   // Se cargan ANTES de armar las pestañas porque una etapa CANCELADA no tiene
@@ -242,12 +263,7 @@ async function init() {
   // Hoy/Mes y las apps para los dobles sectores: la "etapa anterior" de un
   // sector B es su sector A, y la del día siguiente a un doble sector es el B.
   if (stagesError) throw stagesError;
-  const { data: allRaceDays, error: daysError } = await supabase
-    .from('race_days')
-    .select('id, "stageNumber", "dateKey", "isCancelledDay", "isRestDay", "neutralStartTimeUtc"')
-    .eq('raceId', raceId)
-    .order('dateKey', { ascending: true })
-    .order('neutralStartTimeUtc', { ascending: true, nullsFirst: true });
+  const { data: allRaceDays, error: daysError } = daysResponse;
   if (daysError) throw daysError;
   const racedDays = (allRaceDays || []).filter(d => !d.isRestDay);
   // Dobles sectores (etapa partida 3A/3B): dos jornadas del mismo día con el
@@ -349,7 +365,7 @@ async function init() {
     const heroTitle = [getRaceName(race) || '', race.year || ''].filter(Boolean).join(' ');
     const stageLabel = stagePathLabel(stageNumberForTitle, _isEn, suffixForTitle);
     const titleStage = race.raceFormat === 'one_day' ? '' : ` · ${stageLabel}`;
-    document.title = _isEn ? `Results — ${heroTitle}${titleStage}` : `Resultados — ${heroTitle}${titleStage}`;
+    document.title = _isEn ? `Results - ${heroTitle}${titleStage}` : `Resultados - ${heroTitle}${titleStage}`;
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
   };
 
@@ -363,11 +379,13 @@ async function init() {
   }
   if (!stagesByNum.has(activeKey)) {
     const pollPending = async () => {
-      if(document.hidden) return;
+      if(document.hidden || !isNearToday(race.startDate,race.endDate)) return;
       const {data,error}=await supabase.from('race_uci_stages').select('raceDayId,stageNumber,isFinalClassification,rowCount').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0);
       if(!error && data?.some(row=>requestedKey===undefined || keyForStage(row)===activeKey)) location.reload();
     };
-    const pendingTimer=setInterval(pollPending,60000);
+    // Solo en la ventana de la carrera: una página adelantada de una etapa
+    // lejana no cambia minuto a minuto.
+    const pendingTimer=isNearToday(race.startDate,race.endDate) ? setInterval(pollPending,60000) : null;
     document.addEventListener('visibilitychange',pollPending);
     window.addEventListener('pagehide',()=> {clearInterval(pendingTimer);document.removeEventListener('visibilitychange',pollPending);},{once:true});
     if (requestedStage !== undefined) {
@@ -395,7 +413,7 @@ async function init() {
   const { stageNumber: activeStageNumber, suffix: activeSuffix } = parseResultStageKey(activeKey);
 
   // Clasificaciones de la etapa activa, ordenadas por CLASS_ORDER.
-  const { data: classificationConfig, error: configError } = await supabase.from('race_classifications').select('*').eq('raceId',raceId);
+  const { data: classificationConfig, error: configError } = configResponse;
   if (configError) throw configError;
   const inventory = classificationInventory(classificationConfig || [], stagesAll);
   const configByKind = new Map(inventory.map(row => [row.classKind,row]));
@@ -422,30 +440,31 @@ async function init() {
   let raceTeams = [];
   let startlistTeams = [];
   const teamBySlugId = new Map();   // teamId canónico → fila teams (hoisted: lo reusa enrichRiders)
+  // raceDayId de la etapa activa: el que arrastra la clasificación, o —si el
+  // volcado no lo trajo (race_uci_stages.raceDayId NULL)— el de la jornada que
+  // corresponde a esta entrada (`dayByKey`, casada por stageNumber). Sin este
+  // segundo, la cabecera cae al país de la CARRERA e ignora el override por
+  // jornada (p. ej. Giro della Valle d'Aosta et1, en Francia, countryCode='FR').
+  // Pruebas de un día (o GC final sin raceDayId): la "Final Classification" no
+  // mapea a race_days → raceDayId NULL. Si la carrera tiene una sola jornada,
+  // se usa esa para que la cabecera muestre ruta + distancia igual.
+  let raceDayId = activeStages.find(s => s.raceDayId)?.raceDayId
+    || dayByKey.get(activeKey)?.id
+    || ((allRaceDays || []).length === 1 ? allRaceDays[0].id : null);
+  const RD_COLS = '*';
+  // Jornada activa y assets dependen solo del raceDayId: salen a la vez que
+  // los equipos canónicos de la startlist.
+  const stageDayRequest = Promise.all([
+    raceDayId ? supabase.from('race_days').select(RD_COLS).eq('id', raceDayId).maybeSingle() : Promise.resolve({ data: null }),
+    raceDayId ? supabase.from('assets').select('*').eq('raceDayId', raceDayId) : Promise.resolve({ data: [] }),
+  ]);
   {
-    const [{ data: slRiders }, { data: slTeams }] = await Promise.all([
-      // Vista RESUELTA (no la tabla cruda): nombre/país canónicos de la ficha
-      // riders_men/women vía globalRiderId, con el snapshot de fallback. Así una
-      // edición de ficha se refleja aquí sin re-importar la startlist (igual que
-      // inscritos). `teamId` = PK de startlist_teams (se conserva en la vista).
-      supabase.from('startlist_riders_resolved')
-        .select('dorsal, firstName, lastName, countryCode, teamId, globalRiderId')
-        .eq('raceId', raceId),
-      supabase.from('startlist_teams').select('id, teamId, teamName').eq('raceId', raceId),
-    ]);
-    // PK de la fila de startlist_teams → { teamName, canonical teamId }.
-    startlistTeams = slTeams || [];
+    const { data: slRiders } = slRidersResponse;
+    // PK de la fila de startlist_teams → { teamName, canonical teamId }, y
+    // equipos canónicos (para enlazar a /equipo/<slug>/): teamId canónico → fila teams.
+    ({ startlistTeams, teams: raceTeams } = splitStartlistTeams(slTeamsResponse.data, race.year));
     const slTeamByPk = new Map(startlistTeams.map(t => [t.id, t]));
-    // Equipos canónicos (para enlazar a /equipo/<slug>/): teamId canónico → fila teams.
-    const canonIds = [...new Set(startlistTeams.map(s => s.teamId).filter(Boolean))];
-    if (canonIds.length) {
-      const { data } = await supabase
-        .from('teams')
-        .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
-        .in('id', canonIds);
-      raceTeams = await teamsForSeason(supabase,data || [],race.year,canonIds);
-      raceTeams.forEach(t => teamBySlugId.set(t.id, t));
-    }
+    raceTeams.forEach(t => teamBySlugId.set(t.id, t));
     (slRiders || []).forEach(r => {
       const slTeam = r.teamId ? slTeamByPk.get(r.teamId) : null;       // fila por PK
       const canon  = slTeam?.teamId ? teamBySlugId.get(slTeam.teamId) : null;
@@ -576,33 +595,8 @@ async function init() {
   // ── Jornada de la etapa activa (para detalle de cabecera + botón) ──
   // Cada clasificación keepForWeb arrastra su raceDayId; de él salen la ruta
   // (salida › meta), la distancia y el tipo (CRI/CRE), como en orden-salida.
-  const RD_COLS = '*';
-  // raceDayId de la etapa activa: el que arrastra la clasificación, o —si el
-  // volcado no lo trajo (race_uci_stages.raceDayId NULL)— el de la jornada que
-  // corresponde a esta entrada (`dayByKey`, casada por stageNumber). Sin este
-  // segundo, la cabecera cae al país de la CARRERA e ignora el override por
-  // jornada (p. ej. Giro della Valle d'Aosta et1, en Francia, countryCode='FR').
-  let raceDayId = activeStages.find(s => s.raceDayId)?.raceDayId
-    || dayByKey.get(activeKey)?.id || null;
-  let raceDay = null;
-  if (raceDayId) {
-    const { data: rdRow } = await supabase
-      .from('race_days').select(RD_COLS).eq('id', raceDayId).maybeSingle();
-    raceDay = rdRow || null;
-  }
-  // Pruebas de un día (o GC final sin raceDayId): la "Final Classification" no
-  // mapea a race_days → raceDayId NULL. Si la carrera tiene una sola jornada,
-  // la cargamos por raceId para que la cabecera muestre ruta + distancia igual.
-  if (!raceDay) {
-    const { data: rdRows } = await supabase
-      .from('race_days').select(RD_COLS).eq('raceId', race.id).order('stageNumber', { ascending: true }).limit(2);
-    if (rdRows && rdRows.length === 1) { raceDay = rdRows[0]; raceDayId = raceDay.id; }
-  }
-
-  const [{ data: stageAssets, error: assetsError }, technicalGuide] = await Promise.all([
-    raceDayId ? supabase.from('assets').select('*').eq('raceDayId',raceDayId) : Promise.resolve({ data:[] }),
-    loadRaceTechnicalGuide(race.id),
-  ]);
+  const [{ data: rdRow }, { data: stageAssets, error: assetsError }] = await stageDayRequest;
+  let raceDay = rdRow || null;
   if (assetsError) throw assetsError;
   const contextAssets = withRaceTechnicalGuide(stageAssets || [],technicalGuide);
   // ── SEO / cabecera ─────────────────────────────────────────────────
@@ -611,16 +605,16 @@ async function init() {
   const stageLabel = stagePathLabel(activeStageNumber, _isEn, activeSuffix);
   const heroTitle = [raceNameStr, year].filter(Boolean).join(' ');
   // En pruebas de un día NO hay etapas → el sufijo "· Clasificación final" es
-  // redundante y se omite del título (igual que en detailLine más abajo).
+  // redundante y se omite del título (igual que en el subtítulo de la cabecera).
   const titleStage = race.raceFormat === 'one_day' ? '' : ` · ${stageLabel}`;
   const pageTitle = _isEn
-    ? `Results — ${heroTitle}${titleStage}`
-    : `Resultados — ${heroTitle}${titleStage}`;
+    ? `Results - ${heroTitle}${titleStage}`
+    : `Resultados - ${heroTitle}${titleStage}`;
   document.title = pageTitle;
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
   setMeta('description', _isEn
-    ? `Official results for ${heroTitle} — ${stageLabel}: stage classification, GC, points, KOM and youth.`
-    : `Resultados oficiales de ${heroTitle} — ${stageLabel}: clasificación de etapa, general, puntos, montaña y jóvenes.`);
+    ? `Official results for ${heroTitle} - ${stageLabel}: stage classification, GC, points, KOM and youth.`
+    : `Resultados oficiales de ${heroTitle} - ${stageLabel}: clasificación de etapa, general, puntos, montaña y jóvenes.`);
   setMetaProperty('og:title', pageTitle);
 
   const esOrigin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : 'https://calendariociclismo.app';
@@ -655,39 +649,16 @@ async function init() {
   // La navegación a la jornada vive en el panel de botones ("Ir a la etapa" /
   // "Ir a la carrera"), no en un botón de acción aparte en la cabecera.
 
-  // Ruta (salida › meta) + distancia de la jornada — como en orden-salida.
-  const STAGE_TYPE_LABELS = { itt: { es: 'CRI', en: 'ITT' }, ttt: { es: 'CRE', en: 'TTT' } };
-  const startLoc  = (_isEn ? raceDay?.startLocationEn : null) || raceDay?.startLocation || '';
-  const finishLoc = (_isEn ? raceDay?.finishLocationEn : null) || raceDay?.finishLocation || '';
-  const sameOrOne = !finishLoc || startLoc === finishLoc;
-  const routeLabel = sameOrOne ? (startLoc || finishLoc || '') : `${startLoc} › ${finishLoc}`;
-  // Kilometraje con separador decimal del locale (175,5 km en ES; 175.5 en EN),
-  // como en jornada.js (toLocaleString), NO interpolación cruda (siempre da punto).
-  const distLabel = raceDay?.distanceKm
-    ? `${Number(raceDay.distanceKm).toLocaleString(_isEn ? 'en-GB' : 'es-ES')} km` : '';
-  const ttEntry = raceDay?.primaryType ? STAGE_TYPE_LABELS[raceDay.primaryType] : null;
-  const ttLabel = ttEntry ? ttEntry[_isEn ? 'en' : 'es'] : '';
-  // Detalle: etapa · [CRI/CRE] · ruta · distancia.
   // En pruebas de un día la etiqueta "Clasificación final" es redundante (no hay
-  // etapas que distinguir) → se omite y el detalle arranca por la ruta.
+  // etapas que distinguir) → se omite del subtítulo.
   const isOneDay = race.raceFormat === 'one_day';
-  const detailLine = [isOneDay ? '' : stageLabel, ttLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
-
-  const resultsLabel = _isEn ? 'Results' : 'Resultados';
   // El botón ← del header ya quedó resuelto arriba (procedencia o feed).
   let html = '';
   // País efectivo: la jornada puede transcurrir en un país distinto al de la
   // carrera (p. ej. una etapa del Tour que sale de Italia) → prevalece el de la
   // jornada. Mismo criterio de ocultar bandera que buildRaceHero.
-  const showHeaderFlag = !(race?.hideFlag && !raceDay?.countryCode);
-  html += buildRaceHeader({
-    race,
-    countryCode: effectiveCountryCode(raceDay, race),
-    hideFlag: !showHeaderFlag,
-    nameHref: race.raceFormat !== 'one_day' ? raceUrl(race) : undefined,
-    label: resultsLabel,
-    detail: detailLine,
-  });
+  html += buildRaceHero(raceDay || {}, race, { stage: isOneDay ? '' : stageLabel });
+
   // Solo navegación: web oficial + "Ir a la etapa/carrera" (sin inscritos ni
   // botones de recorrido — en Resultados esos botones se consideran superfluos).
   html += buildActionButtons({
@@ -695,7 +666,7 @@ async function init() {
     rd: raceDay || { id: raceDayId, slug: raceDay?.slug, slugEn: raceDay?.slugEn },
     view: 'resultados',
     assets:contextAssets, hasStartlist:!!race.startlistImportedAt,
-    style: 'margin:0.85rem auto', standalone: true,
+    style: 'margin:0 auto 0.85rem', standalone: true,
   });
 
   const stageNavigation = keys => keys.map(k=> {
@@ -893,7 +864,7 @@ async function init() {
       const teamBadge = tr.teamObj ? teamStripes(tr.teamObj) : '';
       const nameInner = tr.teamHref
         ? `<a class="so-link" href="${esc(tr.teamHref)}">${esc(tr.teamName)}</a>`
-        : esc(tr.teamName || '—');
+        : esc(tr.teamName || '-');
       // Tiempo: 1er equipo absoluto; resto +gap respecto al ganador.
       let resultCell;
       if (tr.rank == null) resultCell = '';
@@ -1346,7 +1317,7 @@ async function init() {
           ? `<a class="so-link res-rider-name" href="${esc(riderHref)}">${esc(riderName)}</a>`
           : (riderName
             ? `<span class="res-rider-name">${esc(riderName)}</span>`
-            : '<span class="res-rider-name" style="opacity:0.45">—</span>');
+            : '<span class="res-rider-name" style="opacity:0.45">-</span>');
         // Subtítulo de equipo (solo visible en móvil, donde la columna Equipo se oculta).
         let teamSub = '';
         // Objeto equipo (override manual → por dorsal → equipo actual del
@@ -1426,11 +1397,31 @@ async function init() {
     });
   });
   renderClassification(activeClass);
+  // Sondeo: solo en la ventana de la carrera o mientras alguna clasificación
+  // de la etapa siga provisional o actualizándose. Una lectura ligera de las
+  // clasificaciones y de la jornada decide si se recarga todo.
+  const STAGE_PROBE_COLUMNS = 'id,updatedAt,rowCount,publicationStatus,updating,updatingUntil,officialAt,lastSyncedAt';
+  const DAY_PROBE_COLUMNS = 'id,updatedAt,metricsUpdatedAt,distanceKm';
+  const pick = (row, columns) => columns.split(',').map(column => row?.[column] ?? null);
+  const probeKey = (stages, day) => JSON.stringify([
+    (stages || []).map(row => pick(row, STAGE_PROBE_COLUMNS)).sort(),
+    day ? pick(day, DAY_PROBE_COLUMNS) : null,
+  ]);
+  let lastProbe = probeKey(stagesAll, raceDay);
+  const needsRefresh = () => isNearToday(race.startDate, race.endDate)
+    || activeStages.some(row => row.publicationStatus === 'provisional' || row.updating);
   let refreshing=false;
   const refreshCurrent=async()=> {
-    if(document.hidden || refreshing || !content.isConnected) return;
+    if(document.hidden || refreshing || !content.isConnected || !needsRefresh()) return;
     refreshing=true;
     try {
+      const [stageProbe, dayProbe] = await Promise.all([
+        supabase.from('race_uci_stages').select(STAGE_PROBE_COLUMNS).eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
+        raceDayId ? supabase.from('race_days').select(DAY_PROBE_COLUMNS).eq('id',raceDayId).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      if(stageProbe.error || dayProbe.error) throw stageProbe.error || dayProbe.error;
+      const nextProbe = probeKey(stageProbe.data, dayProbe.data);
+      if(nextProbe === lastProbe) return;
       const [stageResult,configResult,dayResult]=await Promise.all([
         supabase.from('race_uci_stages').select('*').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
         supabase.from('race_classifications').select('*').eq('raceId',raceId),
@@ -1471,6 +1462,7 @@ async function init() {
         raceDay=nextDay;
         const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(raceDay));
       }
+      lastProbe = nextProbe;
     } catch { showPublication(displayedStage||activeClass,true); }
     finally { refreshing=false; }
   };
@@ -1481,7 +1473,9 @@ async function init() {
 
 // Esperar a cargar las traducciones (en.json) antes de renderizar: el panel de
 // botones usa t('assets.*'), que sin esto cae al diccionario ES embebido.
-initI18n().then(init).catch(() => {
+// El diccionario EN (assets.* de buildActionButtons) se carga en paralelo con
+// los datos; init lo espera antes de pintar.
+init(initI18n()).catch(() => {
   const en=getLang()==='en',content=document.getElementById('resultsContent');
   content.innerHTML=`<div class="startlist-empty" role="status">${en?'Unable to load results.':'No se han podido cargar los resultados.'} <button type="button" data-initial-retry>${en?'Retry':'Reintentar'}</button></div>`;
   content.querySelector('[data-initial-retry]').addEventListener('click',()=>location.reload());

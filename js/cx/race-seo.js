@@ -69,7 +69,7 @@ export function cxRaceSeo(race,page,dateLabel,lang='es') {
     const membership=tournament?` It is part of the ${tournament.nameEn||tournament.name}${race.seasonKey&&!tournament.name.includes(race.seasonKey)?` ${race.seasonKey}`:''}.`:'';
     const description=`${name} (${dateText}) is a ${category?`${category} `:''}cyclocross race${location}.${membership} See the programme, startlist and results, how to watch the race on TV and online streaming, and race videos.`;
     const prefix=page==='startlist'?'Startlist · ':page==='results'?'Results · ':'';
-    return {title:`${prefix}${name} — Calendario Ciclismo App`,description};
+    return {title:`${prefix}${name} - Calendario Ciclismo App`,description};
   }
   const dateText=dates.map(date=>dateLabel(date,'es').replace(', ', ' ')).join(' – ');
   const category=race.class==='NAC'?'de categoría nacional':race.class?`de categoría UCI ${race.class}`:'';
@@ -79,6 +79,6 @@ export function cxRaceSeo(race,page,dateLabel,lang='es') {
   const membership=tournament?` Pertenece a ${tournament.name}${race.seasonKey&&!tournament.name.includes(race.seasonKey)?` ${race.seasonKey}`:''}.`:'';
   const description=`${race.name} (${dateText}) es una prueba de ciclocross${category?` ${category}`:''}${location}.${membership} Consulta el programa, los dorsales y resultados, cómo ver la carrera por TV y online streaming y vídeos de las carreras.`;
   const prefix=page==='startlist'?'Dorsales · ':page==='results'?'Resultados · ':'';
-  const title=`${prefix}${race.name} — Calendario Ciclismo App`;
+  const title=`${prefix}${race.name} - Calendario Ciclismo App`;
   return {title,description};
 }

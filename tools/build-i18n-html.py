@@ -88,7 +88,7 @@ MAIN_BLOCKS_EN = {
     "privacidad.html": """\
   <main class="cc-public-document" style="">
     <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;text-transform:uppercase;letter-spacing:-0.01em;margin-bottom:0.5rem;text-align:center">Privacy Policy</h1>
-    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem"><strong>calendariociclismo.app</strong> &mdash; Last updated: 24 August 2026</p>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem"><strong>calendariociclismo.app</strong> - Last updated: 24 August 2026</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">1. Controller and scope</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The data controller and service provider is <strong>Daniel Sánchez Badorrey</strong>, independent developer of <strong>Calendario Ciclismo</strong> for iOS and Android and of <a href="https://calendariociclismo.app" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">calendariociclismo.app</a>. Contact: <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>. This policy applies to the website, the apps and their related services.</p>
@@ -201,7 +201,7 @@ def apply_translations(html: str) -> str:
 HOME_DESC_EN = "All professional cycling races with schedule, route, profile and how to watch on TV and streaming."
 PAGE_SEO_EN = {
     "index.html": {
-        "title": "Pro Cycling Races Today: Schedule, TV and Streaming — Calendario Ciclismo App",
+        "title": "Pro Cycling Races Today: Schedule, TV and Streaming - Calendario Ciclismo App",
         "description": HOME_DESC_EN,
         "keywords": "cycling calendar, cycling on TV, cycling streaming, Tour de France, Giro d'Italia, "
                     "Vuelta a España, Paris-Roubaix, Tour of Flanders, Calendario Ciclismo, Dani Sánchez",
@@ -213,16 +213,16 @@ PAGE_SEO_EN = {
                        "of the World Cup, Superprestige, X2O and Copa de España.",
     },
     "privacidad.html": {
-        "title": "Privacy Policy &mdash; Calendario Ciclismo App",
+        "title": "Privacy Policy - Calendario Ciclismo App",
         "description": "Privacy policy of Calendario Ciclismo: processing of personal data, user rights and use of cookies.",
         "twitter_description": "Privacy policy of Calendario Ciclismo: processing of personal data and user rights.",
         "keywords": "privacy policy, privacy, data protection, GDPR, calendario ciclismo",
     },
     "404.html": {
-        "title": "Page not found — Calendario Ciclismo App",
+        "title": "Page not found - Calendario Ciclismo App",
     },
     "suscripcion/index.html": {
-        "title": "Subscribe to the calendar — Calendario Ciclismo",
+        "title": "Subscribe to the calendar - Calendario Ciclismo",
         "description": "Subscribe to the professional cycling calendar in your calendar app. Choose WorldTour, Pro, "
                        "men, women or all categories. Works with iPhone, iPad, Mac, Android and Google Calendar.",
         "og_description": "Add every professional cycling race to your calendar app. WorldTour, Pro, men, women or all categories.",
@@ -442,7 +442,7 @@ def main():
     if "--out" in sys.argv:
         OUT_ROOT = Path(sys.argv[sys.argv.index("--out") + 1]).resolve()
         OUT_ROOT.mkdir(parents=True, exist_ok=True)
-    print(f"build-i18n-html.py — generando páginas EN en {OUT_ROOT}…")
+    print(f"build-i18n-html.py - generando páginas EN en {OUT_ROOT}…")
     for src, out in PAGES:
         build_page(src, out)
     print("Listo.")

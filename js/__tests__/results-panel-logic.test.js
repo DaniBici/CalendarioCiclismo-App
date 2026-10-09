@@ -16,7 +16,7 @@ import {
   resultSyncScopeOptionsVisible,
   resolveResultLeaderName,
   riderMatchesSearch,
-  riderSearchLookupToken,
+  riderSearchTokens,
   shouldMirrorFinalClassification,
   startlistRosterCandidates,
   uniqueStartlistSurnameMatch,
@@ -285,8 +285,9 @@ describe('autoasociación por apellido en resultados', () => {
     expect(filterStartlistRiderCandidates(riders, 'Dijke Tim').map(rider => rider.dorsal)).toEqual([126]);
     expect(filterStartlistRiderCandidates(riders, 'Tomas Kopecky').map(rider => rider.dorsal)).toEqual([214]);
     expect(riderMatchesSearch(riders.at(-1), 'Kopeck')).toBe(true);
-    expect(riderSearchLookupToken('Marijn van den Berg')).toBe('marijn');
-    expect(riderSearchLookupToken('John Smith')).toBe('smith');
+    expect(riderSearchTokens('David González')).toEqual(['david', 'gonzalez']);
+    expect(riderSearchTokens('Søren Wærenskjold Þórsson Łukasz')).toEqual(['soren', 'waerenskjold', 'thorsson', 'lukasz']);
+    expect(riderSearchTokens('- (a) -')).toEqual([]);
   });
 
   it('precarga el nombre completo en el selector de la startlist', () => {

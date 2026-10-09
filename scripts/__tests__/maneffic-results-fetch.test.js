@@ -4,6 +4,7 @@ import {
   mapRows,
   normalizeGap,
   normalizeTime,
+  plannedStageNumbers,
   stagesFromDocuments,
   startlistPublication,
   suggestCompetitionId,
@@ -130,5 +131,40 @@ describe('topología por etapas', () => {
     expect(stages[1].classifications.map((item) => [item.classKind, item.scope])).toEqual([
       ['gc', 'stage'], ['points', 'stage'],
     ]);
+  });
+});
+
+describe('prólogo y grafías de jóvenes (Eneco Tour)', () => {
+  const eneco = '2026/ROA/NED_78467';
+  const prologue = (resultName, data, generated = '2026-10-13 21:00:00') =>
+    ({ eventName: 'Eneco Tour - Men Elite', raceName: 'Prologue - The Hague', resultName, generated, resultRemark: '', resultData: data });
+
+  it('consulta el prólogo solo si la carrera lo tiene', () => {
+    expect(plannedStageNumbers({ totalStages: 5 })).toEqual([1, 2, 3, 4, 5]);
+    expect(plannedStageNumbers({ totalStages: 5, stageDates: { 0: '2026-10-13', 1: '2026-10-14' } })).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(plannedStageNumbers({ onlyStage: 0, totalStages: 5 })).toEqual([0]);
+  });
+
+  it('emite el prólogo como etapa 0 sin tratarlo como final', () => {
+    const documents = {
+      'prologue/result.json': prologue('Result', [row(1, 1, '04:26.67')]),
+      'prologue/result_young.json': prologue('Young', [row(1, 7, '04:30.10')]),
+      'classifications/classification_general.json': prologue('General', [row(1, 1, '4:26.67')]),
+    };
+    const stages = stagesFromDocuments(documents, { code: eneco, onlyStage: 0, totalStages: 5, expectedDate: '2026-10-13' });
+    expect(stages).toHaveLength(1);
+    expect(stages[0]).toMatchObject({ stageNumber: 0, isFinalClassification: false, raceType: 'ITT' });
+    expect(stages[0].classifications.map((item) => item.classKind)).toEqual(['stage', 'youth', 'gc']);
+  });
+
+  it('acepta result_youth y classification_young en las etapas', () => {
+    const stage1 = (resultName, data) => ({ eventName: 'Eneco Tour - Men Elite', raceName: 'Stage 1 - Ede - Ede', resultName, generated: '2026-10-14 16:00:00', resultRemark: '', resultData: data });
+    const documents = {
+      'stage1/result.json': stage1('Result', [row(1, 4, '02:40:00')]),
+      'stage1/result_youth.json': stage1('Youth', [row(1, 9, '02:40:05')]),
+      'classifications/classification_young.json': stage1('Youth GC', [row(1, 9, '2:44:31')]),
+    };
+    const [stage] = stagesFromDocuments(documents, { code: eneco, onlyStage: 1, totalStages: 5, expectedDate: '2026-10-14' });
+    expect(stage.classifications.map((item) => [item.classKind, item.scope])).toEqual([['stage', 'stage'], ['youth', 'stage'], ['youth', 'overall']]);
   });
 });

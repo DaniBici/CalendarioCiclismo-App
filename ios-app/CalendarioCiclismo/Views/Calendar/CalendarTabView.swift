@@ -34,7 +34,7 @@ struct CalendarTabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .background(AppTheme.background.ignoresSafeArea())
         .navigationDestination(for: RaceDay.self) { raceDay in
-            StageDetailView(raceDayId: raceDay.id)
+            StageDetailView(raceDayId: raceDay.id, raceIdHint: raceDay.raceId)
         }
         .navigationDestination(for: ChampionshipsRoute.self) { _ in
             ChampionshipsView()

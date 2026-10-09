@@ -16,9 +16,9 @@ describe('catálogo de equipos del panel', () => {
     expect(activeCatalogTeams(teams).map(team => team.id)).toEqual(['current', 'old-without-flag']);
   });
 
-  it('ofrece todos los años del listado hasta 2020', () => {
-    expect(teamListYearOptions([2019, 2023], { currentYear: 2026, marketYear: 2027 }))
-      .toEqual([2027, 2026, 2025, 2024, 2023, 2022, 2021, 2020]);
+  it('ofrece los años del listado desde 2026', () => {
+    expect(teamListYearOptions([2019, 2025], { currentYear: 2026, marketYear: 2027 }))
+      .toEqual([2027, 2026]);
   });
 
   it('construye el listado anual desde los datos de temporada', () => {

@@ -212,17 +212,17 @@ SITE_HEADER_HTML = (
 
 SITE_FOOTER_HTML = (
     '<footer class="site-footer">'
-    '<p>&copy; 2026 Calendario Ciclismo &mdash; Ideado y editado por '
+    '<p>&copy; 2026 Calendario Ciclismo - Ideado y editado por '
     '<a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> '
-    '&mdash; <a href="/privacidad.html">Privacidad</a></p>'
+    '- <a href="/privacidad.html">Privacidad</a></p>'
     '</footer>'
 )
 
 SITE_FOOTER_HTML_EN = (
     '<footer class="site-footer">'
-    '<p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by '
+    '<p>&copy; 2026 Calendario Ciclismo - Created and edited by '
     '<a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> '
-    '&mdash; <a href="/en/privacy/">Privacy</a></p>'
+    '- <a href="/en/privacy/">Privacy</a></p>'
     '</footer>'
 )
 
@@ -281,6 +281,19 @@ LEAFLET_HEAD = (
     '<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
 )
 
+# Cliente de Supabase que importa js/shared.js (misma versión fija).
+SUPABASE_JS_ESM = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm"
+
+
+def page_id_meta(page_ids):
+    """Identificadores de la página para que la SPA omita la resolución
+    slug→id: {"race-day-id": ..., "race-id": ..., "cx-race-id": ...}."""
+    return "".join(
+        f'\n<meta name="cc:{name}" content="{esc(value)}">'
+        for name, value in (page_ids or {}).items() if value
+    )
+
+
 # ── Página HTML base ───────────────────────────────────────
 def og_page(title, description, canonical_url,
             og_image=None, og_image_alt=None,
@@ -289,7 +302,7 @@ def og_page(title, description, canonical_url,
             main_class="",
             prerender_visible=True, show_loading=True,
             date_published=None, date_modified=None,
-            head_extra="", robots=ROBOTS_INDEX, en_url=None):
+            head_extra="", robots=ROBOTS_INDEX, en_url=None, page_ids=None):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
     img_alt = og_image_alt or title
     hreflang_en = f'\n<link rel="alternate" hreflang="en" href="{esc(en_url)}">' if en_url else ''
@@ -320,10 +333,12 @@ def og_page(title, description, canonical_url,
 <link rel="canonical" href="{esc(canonical_url)}">
 <link rel="alternate" hreflang="es" href="{esc(canonical_url)}">{hreflang_en}
 <link rel="alternate" hreflang="x-default" href="{esc(canonical_url)}">
-<link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo App — Próximas jornadas" href="{BASE_URL}/atom.xml">
+<link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo App - Próximas jornadas" href="{BASE_URL}/atom.xml">
 <link rel="alternate" type="text/plain" title="LLMs.txt" href="{BASE_URL}/llms.txt">
-<link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
-<link rel="preconnect" href="https://assets.calendariociclismo.app">
+<link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="{SUPABASE_JS_ESM}" crossorigin>
+<link rel="preconnect" href="https://assets.calendariociclismo.app">{page_id_meta(page_ids)}
 <link rel="dns-prefetch" href="https://og.calendariociclismo.app">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_ES">
@@ -641,7 +656,7 @@ def og_page_en(title, description, canonical_url,
                main_class="",
                prerender_visible=True, show_loading=True,
                date_published=None, date_modified=None,
-               head_extra="", robots=ROBOTS_INDEX):
+               head_extra="", robots=ROBOTS_INDEX, page_ids=None):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
     img_alt = og_image_alt or title
     ld_tags = ""
@@ -674,8 +689,10 @@ def og_page_en(title, description, canonical_url,
 {hreflang_es}
 {hreflang_def}
 <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo" href="{BASE_URL}/atom.xml">
-<link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
-<link rel="preconnect" href="https://assets.calendariociclismo.app">
+<link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="{SUPABASE_JS_ESM}" crossorigin>
+<link rel="preconnect" href="https://assets.calendariociclismo.app">{page_id_meta(page_ids)}
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="{esc(title)}">
@@ -874,7 +891,7 @@ for race in emit_rows(races, "races"):
     art = articulo(name)
     cancelled = bool(race.get("isCancelled"))
 
-    title = f"{name} {year} — Calendario Ciclismo App"
+    title = f"{name} {year} - Calendario Ciclismo App"
     display_title = f"{name} {year}" if year else name
 
     is_one_day_comp = race.get("raceFormat") == "one_day"
@@ -988,6 +1005,7 @@ for race in emit_rows(races, "races"):
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="competicionContent",
                         spa_script=COMPETICION_SCRIPT,
+                        page_ids={"race-id": race.get("id")},
                         date_published=date_published_comp,
                         date_modified=date_modified_comp,
                         robots=race_robots(race),
@@ -1085,16 +1103,16 @@ for rd in emit_rows(racedays, "stages"):
     # Título: route + km en clásicas (nuevas keywords); solo route en etapas (ya existía)
     if is_one_day:
         tail = " · ".join([x for x in [route if route else "", km_txt] if x])
-        title = f"{race_name}{(' ' + str(race_year)) if race_year else ''}" + (f": {tail}" if tail else "") + " — Calendario Ciclismo App"
+        title = f"{race_name}{(' ' + str(race_year)) if race_year else ''}" + (f": {tail}" if tail else "") + " - Calendario Ciclismo App"
         display_title = f"{race_name}{(' ' + str(race_year)) if race_year else ''}"
     elif is_rest:
-        title = f"{race_name} {race_year}, {sl or 'Descanso'}: Jornada de descanso — Calendario Ciclismo App"
+        title = f"{race_name} {race_year}, {sl or 'Descanso'}: Jornada de descanso - Calendario Ciclismo App"
         display_title = f"{race_name} {race_year} · {sl or 'Descanso'}"
     else:
-        title = (f"{race_name}, {sl}: {route}" if route else f"{race_name}, {sl}") + (f" · {km_txt}" if km_txt else "") + " — Calendario Ciclismo App"
+        title = (f"{race_name}, {sl}: {route}" if route else f"{race_name}, {sl}") + (f" · {km_txt}" if km_txt else "") + " - Calendario Ciclismo App"
         display_title = f"{race_name} {race_year} · {sl}" if sl else f"{race_name} {race_year}"
         if route:
-            display_title = f"{display_title} — {route}" if sl else display_title
+            display_title = f"{display_title} - {route}" if sl else display_title
 
     # Descripción
     ruta_str = (f"con salida y meta en {start_loc}" if same_or_one and start_loc
@@ -1109,7 +1127,7 @@ for rd in emit_rows(racedays, "stages"):
 
     if is_rest:
         description = (f"Jornada de descanso de {art} {race_name_with_orig} {race_year}"
-                       f"{' — ' + fecha_cap if fecha_cap else ''}.")
+                       f"{' - ' + fecha_cap if fecha_cap else ''}.")
     elif is_one_day:
         art_cap = art[0].upper() + art[1:]
         description = (f"{art_cap} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
@@ -1121,7 +1139,7 @@ for rd in emit_rows(racedays, "stages"):
         description = (f"{prefix_art} {ord_str} {deArt} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
                        f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
 
-    og_title = f"{race_name} {race_year}" if is_one_day else title.replace(" — Calendario Ciclismo App", "")
+    og_title = f"{race_name} {race_year}" if is_one_day else title.replace(" - Calendario Ciclismo App", "")
     og_image = og_image_url(race.get("logoUrl"), og_title)
     canonical_slug = canonical_slug_by_slug.get(slug, slug)
     canonical = f"{BASE_URL}/jornada/{quote(canonical_slug)}/"
@@ -1204,6 +1222,7 @@ for rd in emit_rows(racedays, "stages"):
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="jornadaContent",
                         spa_script=JORNADA_SCRIPT,
+                        page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
                         date_published=date_key or None,
                         date_modified=rd_updated_at or date_key or None,
                         robots=race_robots(race),
@@ -1244,10 +1263,10 @@ for race in emit_rows(races, "extras"):
     else:
         description = f"Lista de equipos y {rider_phrase} en {art} {name_with_orig} {year}{provisional_note}. Dorsales y participantes."
 
-    title = f"{inscritos_label} — {name} {year} — Calendario Ciclismo App"
-    display_title = f"{inscritos_label} — {name} {year}"
+    title = f"{inscritos_label} - {name} {year} - Calendario Ciclismo App"
+    display_title = f"{inscritos_label} - {name} {year}"
 
-    og_image = og_image_url(race.get("logoUrl"), f"{inscritos_label} — {name} {year}")
+    og_image = og_image_url(race.get("logoUrl"), f"{inscritos_label} - {name} {year}")
     canonical = f"{BASE_URL}/inscritos/{quote(slug)}/"
     en_url = (f"{BASE_URL_EN}/startlist/{quote(race['slugEn'])}/"
               if race.get("slugEn") and (race.get("nameEn") or race.get("name")) else None)
@@ -1267,10 +1286,11 @@ for race in emit_rows(races, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
-                        og_image_alt=f"{inscritos_label} — {name} {year}",
+                        og_image_alt=f"{inscritos_label} - {name} {year}",
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="inscritosContent",
                         spa_script="/js/inscritos.js",
+                        page_ids={"race-id": race.get("id")},
                         robots=race_robots(race),
                         en_url=en_url))
     inscritos_count += 1
@@ -1307,9 +1327,9 @@ for rd in emit_rows(so_rds_raw, "extras"):
     is_ttt = rd.get("primaryType", "") == "ttt"
     type_label = type_map.get(rd.get("primaryType", ""), "Contrarreloj")
     hero_title = f"{race_name} {year}".strip()
-    display_title = f"Orden de Salida — {hero_title}"
+    display_title = f"Orden de Salida - {hero_title}"
     if so_stage_label:
-        display_title = f"Orden de Salida — {so_stage_label} {type_label} — {hero_title}"
+        display_title = f"Orden de Salida - {so_stage_label} {type_label} - {hero_title}"
     so_unit = "cada equipo" if is_ttt else "cada corredor"
     # «Horarios y orden de salida de la CRI (1ª etapa) del Tour de Francia
     #  2026: Barcelona > Tarragona (18 km).»
@@ -1338,7 +1358,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
         so_detail = ""
     description = (f"Horarios y orden de salida de la {so_type_name}{so_stage_par} "
                    f"{so_de_art} {hero_title}{so_detail}.")
-    title = f"{display_title} — Calendario Ciclismo App"
+    title = f"{display_title} - Calendario Ciclismo App"
     og_image = og_image_url(race.get("logoUrl"), display_title)
     canonical = f"{BASE_URL}/orden-salida/{quote(slug)}/"
     race_slug = race.get("slug", "")
@@ -1364,6 +1384,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="startOrderContent",
                         spa_script="/js/orden-salida.js",
+                        page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
                         date_modified=rd_updated_at,
                         robots=race_robots(race),
                         en_url=(f"{BASE_URL_EN}/start-order/{quote(rd['slugEn'])}/"
@@ -1397,9 +1418,9 @@ for rd in emit_rows(so_rds_raw, "extras"):
     type_label_en = type_map_en.get(rd.get("primaryType", ""), "Time trial")
     hero_title_en = f"{name_en} {year}".strip()
     if stage_label_en:
-        display_title_en = f"Start order — {stage_label_en} {type_label_en} — {hero_title_en}"
+        display_title_en = f"Start order - {stage_label_en} {type_label_en} - {hero_title_en}"
     else:
-        display_title_en = f"Start order — {hero_title_en}"
+        display_title_en = f"Start order - {hero_title_en}"
     # «Schedule and start order for the ITT (stage 1) of the Tour de France
     #  2026: Barcelona > Tarragona (18 km).» — ITT/TTT en mayúscula.
     if stage_num == 0:
@@ -1424,7 +1445,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
         so_detail_en = ""
     desc_en = (f"Schedule and start order for the {type_label_en}{so_stage_par_en} "
                f"of the {hero_title_en}{so_detail_en}.")
-    title_en = f"{display_title_en} — Calendario Ciclismo"
+    title_en = f"{display_title_en} - Calendario Ciclismo"
     og_img_en = og_image_url(race.get("logoUrl"), display_title_en)
     canonical_en = f"{BASE_URL_EN}/start-order/{quote(slug_en)}/"
     canonical_es = f"{BASE_URL}/orden-salida/{quote(slug_es)}/" if slug_es else None
@@ -1454,6 +1475,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
             json_ld_objs=[breadcrumb_list(crumbs_en)],
             container_id="startOrderContent",
             spa_script="/js/orden-salida.js",
+            page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
             date_modified=rd_updated_at,
             robots=race_robots(race),
         ))
@@ -1563,7 +1585,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
     hero_en = f"{name_en} {year}".strip()
     is_one_day_res = race.get("raceFormat") == "one_day"
     res_de_art = "del" if articulo_nombre(name_es) == "el" else "de la"
-    og_image = og_image_url(race.get("logoUrl"), f"Resultados — {hero_es}")
+    og_image = og_image_url(race.get("logoUrl"), f"Resultados - {hero_es}")
     for stage_entry in sorted(stage_set, key=result_entry_sort_key):
         stage_num, stage_suffix = stage_entry
         # race_day correspondiente: por entrada sectorizada; para un día,
@@ -1592,8 +1614,8 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
         if slug_es:
             seg = _res_seg_es(stage_num, stage_suffix)
             res_stage_label = _res_stage_label_es(stage_num, stage_suffix)
-            display_title = f"Resultados — {hero_es} · {res_stage_label}"
-            title = f"{display_title} — Calendario Ciclismo App"
+            display_title = f"Resultados - {hero_es} · {res_stage_label}"
+            title = f"{display_title} - Calendario Ciclismo App"
             if res_cancelled:
                 # Cancelada: no habrá clasificación. Se dice lo que pasó.
                 _et = et_ord_art if stage_num is not None else "la carrera"
@@ -1670,6 +1692,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
                                 json_ld_objs=[breadcrumb_list(crumbs)],
                                 container_id="resultsContent",
                                 spa_script="/js/resultados.js",
+                                page_ids={"race-id": race_id},
                                 robots=race_robots(race),
                                 en_url=en_url)
                 f.write(source)
@@ -1678,8 +1701,8 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
         if slug_en:
             seg_en = _res_seg_en(stage_num, stage_suffix)
             stage_label_en = _res_stage_label_en(stage_num, stage_suffix)
-            display_title_en = f"Results — {hero_en} · {stage_label_en}"
-            title_en = f"{display_title_en} — Calendario Ciclismo"
+            display_title_en = f"Results - {hero_en} · {stage_label_en}"
+            title_en = f"{display_title_en} - Calendario Ciclismo"
             # Ruta/km/fecha EN del mismo race_day (res_rd).
             if res_rd:
                 _se = res_rd.get("startLocationEn") or res_rd.get("startLocation") or ""
@@ -1752,12 +1775,13 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
                 f.write(og_page_en(
                     title_en, desc_en, canonical_en,
                     es_url=canonical_es,
-                    og_image=og_image_url(race.get("logoUrl"), f"Results — {hero_en}"),
+                    og_image=og_image_url(race.get("logoUrl"), f"Results - {hero_en}"),
                     og_image_alt=display_title_en,
                     body_html=body_en,
                     json_ld_objs=[breadcrumb_list(crumbs_en)],
                     container_id="resultsContent",
                     spa_script="/js/resultados.js",
+                    page_ids={"race-id": race_id},
                     robots=race_robots(race)))
             res_en_count += 1
 print(f"  → {res_count} resultados ES · {res_en_count} resultados EN")
@@ -1809,7 +1833,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     else:
         display_title = f"{race_name} {race_year}" if race_year else race_name
 
-    title = f"Perfil — {display_title} — Calendario Ciclismo App"
+    title = f"Perfil - {display_title} - Calendario Ciclismo App"
     annot_str = f"{n_summits} puertos" if n_summits else ""
     if n_waypoints_sp:
         annot_str = (annot_str + f", {n_waypoints_sp} sprints") if annot_str else f"{n_waypoints_sp} sprints"
@@ -1858,7 +1882,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     if route_str: parts.append(f'<p class="static-meta"><strong>Recorrido:</strong> {esc(route_str)}</p>')
     if km:        parts.append(f'<p class="static-meta"><strong>Distancia:</strong> {esc(str(km).replace(".", ","))} km</p>')
     if annot_str: parts.append(f'<p class="static-meta">{esc(annot_str)}</p>')
-    body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" — Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
+    body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" - Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
 
     json_ld_list = [breadcrumb_list(crumbs)]
     slug_en = rd.get("slugEn") or slug
@@ -1872,6 +1896,7 @@ for rd in emit_rows(perfil_rds, "extras"):
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="perfilEtapaContent",
                         spa_script="/js/perfil-pub.js",
+                        page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
                         main_class="pfe-wrap",
                         date_published=date_key or None,
                         date_modified=rd_updated_at or date_key or None,
@@ -1921,7 +1946,7 @@ for rd in emit_rows(mapa_rds, "extras"):
     else:
         display_title = f"{race_name} {race_year}" if race_year else race_name
 
-    title = f"Mapa del recorrido — {display_title} — Calendario Ciclismo App"
+    title = f"Mapa del recorrido - {display_title} - Calendario Ciclismo App"
 
     # «Mapa del recorrido de [la Nª etapa del] X 2026: NNN km con salida
     # en A y meta en B. D de mes de YYYY.» — espejo en js/mapa-pub.js.
@@ -1964,7 +1989,7 @@ for rd in emit_rows(mapa_rds, "extras"):
     parts = []
     if route_str: parts.append(f'<p class="static-meta"><strong>Recorrido:</strong> {esc(route_str)}</p>')
     if km_txt:    parts.append(f'<p class="static-meta"><strong>Distancia:</strong> {esc(km_txt)}</p>')
-    body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" — Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
+    body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" - Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
 
     slug_en = rd.get("slugEn") or slug
     en_url = (f"{BASE_URL_EN}/route-map/{quote(slug_en)}/"
@@ -1977,6 +2002,7 @@ for rd in emit_rows(mapa_rds, "extras"):
                         body_html=body, json_ld_objs=[breadcrumb_list(crumbs)],
                         container_id="mapaEtapaContent",
                         spa_script="/js/mapa-pub.js",
+                        page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
                         main_class="pfe-wrap",
                         head_extra=LEAFLET_HEAD,
                         date_published=date_key or None,
@@ -2017,7 +2043,7 @@ for rd in emit_rows(mapa_rds, "extras"):
             desc_en += f" {format_full_date_en(date_key)}."
         canonical_en = f"{BASE_URL_EN}/route-map/{quote(slug_en)}/"
         canonical_es = f"{BASE_URL}/mapa/{quote(slug)}/"
-        title_en = f"Route map — {display_title_en} — Calendario Ciclismo"
+        title_en = f"Route map - {display_title_en} - Calendario Ciclismo"
         crumbs_en = [("Home", f"{BASE_URL_EN}/")]
         if year:
             crumbs_en.append((f"{year} season", f"{BASE_URL_EN}/calendar/?year={year}"))
@@ -2033,7 +2059,7 @@ for rd in emit_rows(mapa_rds, "extras"):
         if route_str_en: parts_en.append(f'<p class="static-meta"><strong>Route:</strong> {esc(route_str_en)}</p>')
         if km_txt_en:    parts_en.append(f'<p class="static-meta"><strong>Distance:</strong> {esc(km_txt_en)}</p>')
         body_en = (breadcrumb_html(crumbs_en)
-                   + f'<h1>{esc(title_en.replace(" — Calendario Ciclismo", ""))}</h1>' + ''.join(parts_en))
+                   + f'<h1>{esc(title_en.replace(" - Calendario Ciclismo", ""))}</h1>' + ''.join(parts_en))
         dir_path_en = f"en/route-map/{slug_en}"
         os.makedirs(dir_path_en, exist_ok=True)
         with output_open(f"{dir_path_en}/index.html", "w", encoding="utf-8") as f:
@@ -2047,6 +2073,7 @@ for rd in emit_rows(mapa_rds, "extras"):
                 json_ld_objs=[breadcrumb_list(crumbs_en)],
                 container_id="mapaEtapaContent",
                 spa_script="/js/mapa-pub.js",
+                page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
                 main_class="pfe-wrap",
                 head_extra=LEAFLET_HEAD,
                 date_published=date_key or None,
@@ -2189,6 +2216,7 @@ for race in emit_rows(races, "races"):
             body_html=body_en,
             json_ld_objs=json_ld_en,
             spa_script=COMPETICION_SCRIPT,
+            page_ids={"race-id": race.get("id")},
             container_id="competicionContent",
             date_published=start or None,
             date_modified=race_updated_en or end or start or None,
@@ -2244,7 +2272,7 @@ for rd in emit_rows(racedays, "stages"):
         tail_en = " · ".join([x for x in [route_en if route_en else "", km_txt_en] if x])
         title_en = f"{base_title_en}" + (f": {tail_en}" if tail_en else "")
     else:
-        title_en = f"{name_en} — {stage_label_en}".rstrip("— ").strip() if stage_label_en else name_en
+        title_en = f"{name_en} - {stage_label_en}".rstrip("- ").strip() if stage_label_en else name_en
         if start_en and finish_en and start_en != finish_en:
             title_en += f" · {start_en} › {finish_en}"
         elif finish_en or start_en:
@@ -2338,6 +2366,7 @@ for rd in emit_rows(racedays, "stages"):
             body_html=body_en,
             json_ld_objs=json_ld_list_en,
             spa_script=JORNADA_SCRIPT,
+            page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
             container_id="jornadaContent",
             date_published=date_key_en or None,
             date_modified=rd_updated_en or date_key_en or None,
@@ -2355,7 +2384,7 @@ for race in emit_rows(races, "extras"):
     year = race.get("year") or ""
     canonical_en = f"{BASE_URL_EN}/startlist/{quote(slug_en)}/"
     canonical_es = f"{BASE_URL}/inscritos/{quote(slug_es)}/" if slug_es else None
-    title_en = f"{name_en} {year} — Startlist".strip()
+    title_en = f"{name_en} {year} - Startlist".strip()
     desc_en  = f"Full startlist for {name_en} {year}.".strip()
     og_img_sl = og_image_url(race.get("logoUrl") or "", name_en)
     crumbs_sl = [
@@ -2378,6 +2407,7 @@ for race in emit_rows(races, "extras"):
             body_html=body_sl,
             json_ld_objs=[breadcrumb_list(crumbs_sl)],
             spa_script="/js/inscritos.js",
+            page_ids={"race-id": race.get("id")},
             container_id="startlistContent",
             robots=race_robots(race),
         ))
@@ -2437,7 +2467,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
-            f"Profile — {display_title_en} — Calendario Ciclismo",
+            f"Profile - {display_title_en} - Calendario Ciclismo",
             desc_en,
             canonical_en,
             es_url=canonical_es,
@@ -2446,6 +2476,7 @@ for rd in emit_rows(perfil_rds, "extras"):
             json_ld_objs=None,
             container_id="perfilEtapaContent",
             spa_script="/js/perfil-pub.js",
+            page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},
             main_class="pfe-wrap",
             robots=race_robots(race),
         ))
@@ -2576,7 +2607,7 @@ def generate_cx_tournament_pages(races):
                          + ''.join(f'<li><a href="{esc(agenda + quote((race.get("slugEn") if lang == "en" else None) or race["slug"]) + "/")}">{esc((race.get("nameEn") if lang == "en" else None) or race["name"])}</a> {cx_round_badge(rounds.get(race["id"]),lang)}</li>' for race in entries)
                          + '</ul></section>')
             body += '</div>'
-            kwargs = dict(title=f"{name} · {season} — Calendario Ciclismo",
+            kwargs = dict(title=f"{name} · {season} - Calendario Ciclismo",
                 description=cx_tournament_description(tournament,races,lang),
                 canonical_url=canonical,og_image=og_image_url(tournament.get("logoUrl"),name),body_html=body,
                 json_ld_objs=[breadcrumb_list(crumbs)],container_id="cxAgendaContent",
@@ -2621,7 +2652,7 @@ def cx_race_seo(race, page="race", lang="es"):
                        + f"{location}.{membership} "
                        + "See the programme, startlist and results, how to watch the race on TV and online streaming, and race videos.")
         prefix = "Startlist · " if page == "startlist" else "Results · " if page == "results" else ""
-        return f"{prefix}{name} — Calendario Ciclismo App", description
+        return f"{prefix}{name} - Calendario Ciclismo App", description
     date_text = " – ".join(format_weekday_full_date(value).replace(", ", " ", 1) for value in dates)
     category = ("de categoría nacional" if race.get("class") == "NAC" else
                 f"de categoría UCI {race['class']}" if race.get("class") else "")
@@ -2634,7 +2665,7 @@ def cx_race_seo(race, page="race", lang="es"):
                    + (f" {category}" if category else "") + f"{location}.{membership} "
                    + "Consulta el programa, los dorsales y resultados, cómo ver la carrera por TV y online streaming y vídeos de las carreras.")
     prefix = "Dorsales · " if page == "startlist" else "Resultados · " if page == "results" else ""
-    title = f"{prefix}{race['name']} — Calendario Ciclismo App"
+    title = f"{prefix}{race['name']} - Calendario Ciclismo App"
     return title, description
 
 def generate_cx_pages(cx_races):
@@ -2728,7 +2759,7 @@ def generate_cx_pages(cx_races):
                           date_modified=(race.get("updatedAt") or "")[:10] or None)
             if lang == "en" and not has_english:
                 # Carrera nacional: la página EN solo muestra el aviso y no se indexa.
-                kwargs.update(title=f"{name} — Calendario Ciclismo", body_html=cx_spanish_audience_body(canonical_es),
+                kwargs.update(title=f"{name} - Calendario Ciclismo", body_html=cx_spanish_audience_body(canonical_es),
                               json_ld_objs=[], robots="noindex, follow")
             if lang == "en":
                 source = og_page_en(es_url=canonical_es,**kwargs)

@@ -303,6 +303,20 @@ enum ResultsFeedLogic {
         }
     }
 
+    /// Como en Hoy, las carreras destacadas del día (`featured_races_for_dates`,
+    /// claves `fecha#raceId`) abren ese día con todas sus entradas juntas; el
+    /// resto conserva el orden canónico. Espejo de `featuredRank` en
+    /// `js/resultados-feed.js`.
+    static func featuredFirst(_ entries: [FeedEntry], selected: Set<String>) -> [FeedEntry] {
+        guard !selected.isEmpty else { return entries }
+        let rank = { (e: FeedEntry) in selected.contains("\(e.date)#\(e.race.id)") ? 0 : 1 }
+        return entries.enumerated().sorted { a, b in
+            if a.element.date != b.element.date { return a.element.date > b.element.date }
+            let ra = rank(a.element), rb = rank(b.element)
+            return ra != rb ? ra < rb : a.offset < b.offset
+        }.map(\.element)
+    }
+
     // MARK: - Orden canónico dentro del día
 
     /// Orden canónico de carreras dentro del día (espejo de `cmpEntries` en

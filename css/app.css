@@ -26,14 +26,15 @@
                     de carrera, orden de salida y tabla de resultados compactos
        760 / 761    tarjetas en una columna / rejilla de dos columnas de Hoy
                     (COMPACT_VIEWPORT_QUERY en js/shared.js)
+       899 / 900    ficha de resultados con columna lateral de 280px
        1099 / 1100  escritorio: nombres de día completos, ficha de resultados
-                    fija con columna lateral
+                    fija y columna lateral de 320px
        701, 1200    margen de página (--page-gutter: 24px y 32px)
      De componente
        420          cabecera: acciones solo con icono
        480          rejilla de recorrido y aviso de cambios en una columna;
                     ránking UCI compacto
-       700 / 701    tabla de resultados sin / con columna Equipo
+       600 / 601    tabla de resultados sin / con columna Equipo
        768          explicaciones del ránking UCI solo al pulsar (táctil)
        961          últimos resultados a dos columnas
        1024         perfil de etapa con lista de puntos lateral
@@ -352,7 +353,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   transform: rotate(90deg);
 }
 
-/* Navegación principal (js/header.js): cinco destinos. */
+/* Navegación principal (js/header.js): cinco destinos (cuatro con la home cedida a Ciclocross). */
 .primary-nav { flex: 1 1 auto; min-width: 0; align-self: stretch; }
 .primary-nav__inner {
   display: flex;
@@ -462,7 +463,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 0.25rem 1.5rem;
   flex-wrap: wrap;
 }
 .footer-link {
@@ -475,7 +476,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   text-decoration: none;
   transition: color var(--transition);
 }
-.site-footer .footer-link { color: var(--text-muted); }
+.site-footer .footer-link { color: var(--text-muted); padding-block: 0.25rem; }
 .site-footer .footer-link:hover { color: var(--text); text-decoration: underline; }
 .footer-link--icon { display: inline-flex; align-items: center; gap: 0.35rem; }
 .footer-link--icon svg { width: 14px; height: 14px; }
@@ -486,8 +487,13 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   .site-header { position: relative; }
   .site-logo__text { display: none; }
   .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display: none; }
-  .nav-apps-btn, .header-support-link { width: 32px; padding: 0; justify-content: center; }
-  /* Barra inferior: cinco celdas iguales, sin desplazamiento. */
+  .nav-apps-btn, .header-support-link { width: 40px; padding: 0; justify-content: center; }
+  /* Zona táctil de 44 px; la cabecera mide 56 px y no crece. */
+  .nav-apps-btn, .header-support-link, .lang-btn, .theme-toggle, .back-btn { min-height: 44px; }
+  .lang-btn, .theme-toggle { min-width: 40px; }
+  .theme-toggle { width: 40px; height: 44px; }
+  .back-btn { width: 40px; height: 44px; }
+  /* Barra inferior: celdas iguales, sin desplazamiento. */
   .primary-nav {
     position: fixed;
     inset: auto 0 0;
@@ -1601,7 +1607,7 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   .race-card:not(:has(>.race-card__logo,>.race-card__flag))>:is(.race-card__main,.race-card__meta) {
     grid-column: 1;
   }
-  /* Hoy en móvil: el nombre pasa a dos líneas en lugar de cortarse; la hora o
+  /* Hoy en móvil: el nombre en una línea con puntos suspensivos; la hora o
      los iconos de jornada terminada van arriba a la derecha, como en
      escritorio; debajo, cifras y etiquetas a todo el ancho. */
   #raceList .race-card:not(.race-card--placeholder) {
@@ -1614,7 +1620,6 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   #raceList .race-card:not(.race-card--placeholder)>.race-card__main { display: contents; }
   #raceList .race-card:not(.race-card--placeholder)>:is(.race-card__logo,.race-card__flag) { grid-column: 1; grid-row: 1 / span 3; align-self: start; }
   #raceList .race-card:not(.race-card--placeholder) .race-card__name { grid-column: 2; grid-row: 1; font-size: var(--fs-4); line-height: 1.3; }
-  #raceList .race-card__name>span:first-child { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   #raceList .race-card:not(.race-card--placeholder) .race-card__sub { grid-column: 2; grid-row: 2; margin: 2px 0 0; line-height: 1.35; }
   #raceList .race-card:not(.race-card--placeholder) .race-card__badges { grid-column: 2 / -1; grid-row: 3; margin: 6px 0 0; }
   /* Hora o iconos de jornada terminada arriba a la derecha, junto al nombre,
@@ -1629,9 +1634,10 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   #raceList .race-card__schedule:not(.race-card__schedule--waiting) { flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.15; }
   #raceList .race-card__schedule>span { font-size: var(--fs-1); }
   #raceList .race-card__schedule>strong { font-size: var(--fs-3); }
-  /* Iconos de jornada terminada, más pequeños y tenues. */
-  #raceList .race-card__meta .badge--icon { width: 1.75rem; height: 1.75rem; color: var(--text-dim); }
-  #raceList .race-card__meta .badge--icon svg { width: 1.15rem; height: 1.15rem; }
+  /* Iconos de jornada terminada, más pequeños y tenues; mismos en Hoy y en
+     Competición. */
+  :is(#raceList, #competicionContent) .race-card__meta .badge--icon { width: 1.75rem; height: 1.75rem; color: var(--text-dim); }
+  :is(#raceList, #competicionContent) .race-card__meta .badge--icon svg { width: 1.15rem; height: 1.15rem; }
   /* Inscritos y orden de salida, solo con icono: el texto queda para lectores
      de pantalla y el resto de etiquetas cabe en una fila. */
   #raceList .badge:is(.badge--startlist,.badge--startorder) { padding-inline: 0.4rem; }
@@ -1646,21 +1652,24 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   /* Miniperfil: banda de 36 px. */
   #raceList .race-card--elevation, #raceList .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
   #raceList :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
+  /* Competición: mismas medidas de tarjeta que Hoy (relleno, interlineado,
+     iconos arriba a la derecha y banda de perfil de 36 px). */
+  #competicionContent .race-card:not(.race-card--placeholder) { padding: 0.875rem 1rem; }
+  #competicionContent .race-card__name { font-size: var(--fs-4); line-height: 1.3; }
+  #competicionContent .race-card:not(.race-card--placeholder) .race-card__sub { margin: 2px 0 0; line-height: 1.35; }
+  #competicionContent .race-card:not(.race-card--placeholder)>.race-card__meta { align-self: start; margin-top: 0; }
+  #competicionContent .race-card--elevation, #competicionContent .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
+  #competicionContent :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
 }
 
 @media (min-width: 761px) {
   #raceList>.race-card { align-items: start; padding: 1rem 1.25rem 58px; }
+  /* Competición: contenido e iconos alineados arriba, como en Hoy. */
+  #competicionContent .race-card:not(.race-card--placeholder) { align-items: start; }
   /* Sin diseño propio para las destacadas: la ordenación por categoría ya las
      pone primeras. Una tarjeta única conserva el ancho de columna. */
   #raceList .race-card--placeholder .race-card__main { justify-content: flex-start; }
   #raceList .race-card__flag { line-height: 1.25rem; }
-  #raceList .race-card__name { flex-wrap: wrap; }
-  #raceList .race-card__name>span:first-child {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    overflow-wrap: anywhere;
-  }
   #raceList .race-card__sub { white-space: normal; flex-wrap: wrap; row-gap: 0.15rem; }
   #raceList .race-card__route-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
 }
@@ -1687,6 +1696,7 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   align-items: flex-end;
   gap: 1rem;
 }
+/* Logo y bandera centrados verticalmente respecto al bloque de texto. */
 .race-header__main {
   display: flex;
   align-items: center;
@@ -1702,12 +1712,12 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   flex-shrink: 0;
 }
 .race-header__logo {
-  max-height: 3.5rem;
+  max-height: 2.5rem;
   width: auto;
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
-.race-header__flag { font-size: var(--fs-6); line-height: 1; }
+.race-header__flag { font-size: var(--fs-5); line-height: 1; }
 .race-header__flag--solo { font-size: var(--fs-6); }
 .race-header__text { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
 .race-header__name {
@@ -1719,6 +1729,12 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   color: var(--text);
   /* Es un <h1>: se anula el margen del navegador para que no cambie nada. */
   margin: 0;
+  /* Como en las apps: tres líneas como máximo, con puntos suspensivos. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 .race-header__subtitle {
   font-family: var(--font-display);
@@ -1859,7 +1875,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
 }
 
 /* Rejilla de recorrido: recorrido, distancia y tipo, horarios. */
-.jornada-section--route-grid { padding-bottom: 0; }
+.jornada-section--route-grid { padding-block: 0.4rem 0; }
 .route-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -1877,6 +1893,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   flex-direction: column;
   padding: 0.75rem 1rem;
 }
+.route-grid__block + .route-grid__block { border-left: 1px solid var(--border); }
 /* El tipo de etapa se identifica por el color de su texto (los de Hoy); el
    bloque no lleva tinte propio. */
 .route-grid__title {
@@ -2377,6 +2394,22 @@ button.stage-key-row { cursor: pointer; }
    gris, sin icono de color. */
 .stage-key-row--foot { padding-block: 4px; font-size: var(--fs-1); color: var(--text-dim); }
 .stage-key-foot-mark { display: inline-block; width: 20px; }
+/* Datos del perfil: columna lateral de las jornadas sin puntos clave. */
+/* En pantallas estrechas el perfil queda solo, como antes. */
+@media (max-width: 1023px) { .stage-side--summary { display: none; } }
+.stage-summary { margin: 0; }
+.stage-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-3);
+}
+.stage-summary__row:last-child { border-bottom: 0; }
+.stage-summary dt { color: var(--text-muted); }
+.stage-summary dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 
 @media (max-width: 760px) {
@@ -2390,6 +2423,7 @@ button.stage-key-row { cursor: pointer; }
   .race-header { padding-block: 1.5rem 1rem; }
   .jornada-hero { padding: 1.5rem 1rem 1rem; }
   .jornada-section { padding: 1rem; }
+  .jornada-section.jornada-section--route-grid { padding-block: 0.4rem 0; }
   .asset-btn {
     flex-direction: column;
     min-height: 66px;
@@ -2403,6 +2437,7 @@ button.stage-key-row { cursor: pointer; }
 
 @media (max-width: 480px) {
   .route-grid, .route-grid--2col, .route-grid--1col { grid-template-columns: 1fr; }
+  .route-grid__block + .route-grid__block { border-left: 0; border-top: 1px solid var(--border); }
   .route-block__km { font-size: var(--fs-5); }
   .stage-nav__race { display: none; }
 }
@@ -3571,7 +3606,10 @@ html.cc-android-banner-pending body::before { content: ''; display: block; heigh
   border: none;
   cursor: pointer;
   color: var(--text-tertiary);
-  padding: 0.15rem;
+  /* Icono de 21 px con zona táctil de 44 px; el margen negativo conserva la
+     altura de 56 px del banner. */
+  padding: 0.875rem;
+  margin: -0.55rem;
   flex-shrink: 0;
   line-height: 1;
   display: flex;
