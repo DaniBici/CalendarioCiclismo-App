@@ -217,6 +217,11 @@ calendario-ciclismo/
 - Motivos: dominio propio, control de `Content-Type`, `Cache-Control` y CORS,
   ausencia de `Content-Disposition` para que iOS abra los PDF en línea, y
   posibilidad de añadir autenticación o transformaciones sin cambiar las URL.
+  Además, el dominio no pasa por el proxy de Cloudflare (registro DNS en «solo
+  DNS»): LaLiga bloquea las IP de Cloudflare y los assets dejarían de cargar
+  en España durante los partidos. No activar el proxy ni rutas de Workers sobre
+  `assets`; las cabeceras y transformaciones se añaden en nginx (ejemplo:
+  `docs/runbooks/assets-canonical-vps.md`).
   Supabase Storage se descartó para assets por coste y límites de almacenamiento.
 - Consecuencias: el VPS es un punto de fallo para los assets aunque R2 esté
   disponible, y la configuración de nginx se mantiene junto con el bucket. Si

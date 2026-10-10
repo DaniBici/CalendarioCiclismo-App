@@ -455,31 +455,80 @@ def start_order_body(display_title, description, crumbs):
     return ''.join(parts)
 
 # ── Artículos para nombres de carreras ──
-FEMENINOS = ["vuelta", "volta", "ronde", "classica", "clásica", "paris-roubaix femmes",
-             "liège-bastogne-liège femmes", "strade bianche women", "course", "itzulia"]
-def articulo(name):
-    nl = (name or "").lower()
-    for f in FEMENINOS:
-        if nl.startswith(f) or f" {f}" in f" {nl}":
-            return "la"
-    return "el"
-
-# Espejo de articuloNombre() en js/shared.js (la usan las descriptions de
-# perfiles). articulo() de arriba es la heurística legacy de jornadas.
-MASCULINOS_NOMBRE = ["tour","giro","gran","grande","campeonato","criterium","critérium",
-                     "circuito","circuit","grand","trofeo","trophee","trophée",
-                     "memorial","premio","prix","open","paris","parís","eschborn","o","gp"]
+# Espejo de articuloNombre() en js/shared.js. Una sola heurística para las
+# descriptions de jornada, competición, inscritos, orden de salida, perfil,
+# mapa y resultados.
+# Devuelve «el», «la», «los» o «las». Femenino por defecto («la París-Tours»,
+# «la Milán-San Remo»: clásica). Masculinos por primera palabra o por patrón.
+MASCULINOS_NOMBRE = ["tour","giro","gran","grande","campeonato","criterium",
+                     "circuito","circuit","grand","trofeo","trophee",
+                     "memorial","premio","prix","open","paris","eschborn","o","gp",
+                     "chrono","omloop","kuurne-bruselas-kuurne"]
 def articulo_nombre(name):
-    nl = (name or "").strip().lower()
-    parts_n = nl.split()
-    first = parts_n[0] if parts_n else ""
+    nl = unicodedata.normalize("NFD", (name or "").strip().lower())
+    nl = "".join(c for c in nl if not unicodedata.combining(c))
+    first = nl.split()[0] if nl else ""
+    # Plurales: «los Juegos del Mediterráneo», «los Cuatro Días de Dunkerque».
+    if first == "juegos" or re.match(r"(dos|tres|cuatro|cinco|seis|siete) dias\b", nl):
+        return "los"
     if first in MASCULINOS_NOMBRE:
         return "el"
-    # «X Tour» (UAE Tour, Renewi Tour, Alpes Isère Tour…): masculino
-    # aunque la palabra clave no vaya primera.
-    if re.search(r"\btour\b", nl):
+    # «X Tour» (UAE Tour, Renewi Tour…), «X Omloop» (EPZ Omloop van Borsele),
+    # «X GP» / «X Grand Prix» (Rhodes GP, Orlen Nations Grand Prix) y
+    # «Grote Prijs» / «Velika Nagrada» (gran premio): masculino aunque la
+    # palabra clave no vaya primera.
+    if re.search(r"\b(tour|omloop)\b|\b(gp|grand prix)$|^(grote prijs|velika nagrada)\b", nl):
         return "el"
     return "la"
+
+# Nombres que ya empiezan por artículo («La Vuelta», «La Polynormande», «Il
+# Lombardia»): la descripción no antepone otro («de la La Vuelta»). Espejo en
+# js/shared.js.
+def lleva_articulo(name):
+    first = (name or "").strip().lower().split(" ")[0]
+    return first in ("la", "el", "las", "los", "il")
+
+def con_articulo(name, label=None, art=None):
+    """«el Tour de Francia» / «La Vuelta». `label` sustituye al nombre en el texto."""
+    label = label or name
+    if lleva_articulo(name):
+        return label
+    return f"{art or articulo_nombre(name)} {label}"
+
+def _clave_nombre(text):
+    """Minúsculas sin tildes, espacios ni signos: «Paris-Chauny» == «París Chauny»."""
+    base = unicodedata.normalize("NFD", (text or "").lower())
+    return re.sub(r"[\W_]+", "", "".join(c for c in base if not unicodedata.combining(c)))
+
+def nombre_original_distinto(name, original):
+    """Nombre original para mostrar entre paréntesis, o «» si repite el nombre propio.
+
+    Se repite cuando, sin tildes, mayúsculas ni signos, el original es igual al
+    nombre o está contenido en él («Il Lombardia (Il Lombardia)», «Chrono des
+    Nations femenina (Chrono des Nations)»). Espejo en js/shared.js
+    (originalNameDistinto)."""
+    original = (original or "").strip()
+    clave = _clave_nombre(original)
+    return "" if not clave or clave in _clave_nombre(name) else original
+
+_DE_ARTICULO = {"el": "del", "la": "de la", "los": "de los", "las": "de las"}
+
+def de_articulo(name, art=None):
+    """«del» / «de la» / «de los» / «de las» / «de» (nombre con artículo propio: «de La Vuelta»)."""
+    if lleva_articulo(name):
+        return "de"
+    return _DE_ARTICULO.get(art or articulo_nombre(name), "de la")
+
+# Nombre con el que se busca la carrera cuando difiere del nombre de marca.
+# Clave: slug sin el sufijo de año. Espejo en js/shared.js (raceSearchName).
+NOMBRE_BUSQUEDA = {
+    "la-vuelta": "Vuelta a España",
+    "la-vuelta-femenina": "Vuelta a España Femenina",
+}
+
+def race_search_name(race):
+    base = re.sub(r"-\d{4}$", "", race.get("slug") or "")
+    return NOMBRE_BUSQUEDA.get(base) or race.get("name", "")
 
 # ── Formateo de fechas (paridad con updateSeoCompeticion en js/competicion.js) ──
 MESES = ["enero","febrero","marzo","abril","mayo","junio",
@@ -885,16 +934,23 @@ for race in emit_rows(races, "races"):
         continue
 
     name = race.get("name", "")
-    orig_name = race.get("originalName", "")
+    orig_name = nombre_original_distinto(name, race.get("originalName"))
     name_with_orig = f"{name} ({orig_name})" if orig_name else name
     year = race.get("year", "")
-    art = articulo(name)
+    art = articulo_nombre(name)
     cancelled = bool(race.get("isCancelled"))
 
-    title = f"{name} {year} - Calendario Ciclismo App"
     display_title = f"{name} {year}" if year else name
 
     is_one_day_comp = race.get("raceFormat") == "one_day"
+    # Etapas y kilómetros totales para la descripción (espejo en
+    # updateSeoCompeticion de js/competicion.js).
+    _comp_days = [d for d in stages_by_race.get(race.get("id"), []) if not d.get("isRestDay")]
+    _comp_km = round(sum(float(d.get("distanceKm") or 0) for d in _comp_days))
+    title = (f"{name} {year} - Calendario Ciclismo App" if is_one_day_comp
+             else f"{name} {year}: etapas y recorrido - Calendario Ciclismo App")
+    art_name = con_articulo(name, name_with_orig, art)
+    art_name = art_name[0].upper() + art_name[1:]
     start = race.get("startDate", "")
     end = race.get("endDate", "")
     # Paridad con updateSeoCompeticion en js/competicion.js.
@@ -903,11 +959,14 @@ for race in emit_rows(races, "races"):
         multi_month = start[:7] != end[:7]
         fecha_inicio = format_day_month(start, multi_month)
         fecha_fin = format_full_date(end)
-        description = f"{art.capitalize()} {name_with_orig} se disputa del {fecha_inicio} al {fecha_fin}. Consulta el recorrido, etapas y cómo ver por TV y online streaming."
+        if len(_comp_days) > 1 and _comp_km > 0:
+            description = f"{art_name} se disputa del {fecha_inicio} al {fecha_fin}. Consulta las {len(_comp_days)} etapas y {_comp_km} km de recorrido, sus perfiles y cómo ver por TV y online streaming."
+        else:
+            description = f"{art_name} se disputa del {fecha_inicio} al {fecha_fin}. Consulta el recorrido, etapas y cómo ver por TV y online streaming."
     elif start or end:
-        description = f"{art.capitalize()} {name_with_orig} se disputa el {format_full_date(start or end)}. Consulta el recorrido y cómo ver por TV y online streaming."
+        description = f"{art_name} se disputa el {format_full_date(start or end)}. Consulta el recorrido y cómo ver por TV y online streaming."
     else:
-        description = f"{art.capitalize()} {name_with_orig} {year}. Consulta el recorrido, etapas y cómo ver por TV y online streaming."
+        description = f"{art_name} {year}. Consulta el recorrido, etapas y cómo ver por TV y online streaming."
 
     og_image = og_image_url(race.get("logoUrl"), f"{name} {year}")
     # Carrera de un día: /competicion/ y /jornada/ comparten keyword y
@@ -1066,7 +1125,7 @@ for rd in emit_rows(racedays, "stages"):
 
     race = race_map.get(rd.get("raceId"), {})
     race_name = race.get("name", "")
-    orig_name = race.get("originalName", "")
+    orig_name = nombre_original_distinto(race_name, race.get("originalName"))
     race_name_with_orig = f"{race_name} ({orig_name})" if orig_name else race_name
     race_year = race.get("year", "")
     race_slug = race.get("slug", "")
@@ -1109,7 +1168,10 @@ for rd in emit_rows(racedays, "stages"):
         title = f"{race_name} {race_year}, {sl or 'Descanso'}: Jornada de descanso - Calendario Ciclismo App"
         display_title = f"{race_name} {race_year} · {sl or 'Descanso'}"
     else:
-        title = (f"{race_name}, {sl}: {route}" if route else f"{race_name}, {sl}") + (f" · {km_txt}" if km_txt else "") + " - Calendario Ciclismo App"
+        # «Etapa 20 del Tour de Francia 2026: A › B · 172,1 km»: orden y año de la consulta.
+        _t_name = race_search_name(race)
+        _t_head = f"{sl} {de_articulo(_t_name)} {_t_name} {race_year}".strip() if sl else f"{_t_name} {race_year}".strip()
+        title = (f"{_t_head}: {route}" if route else _t_head) + (f" · {km_txt}" if km_txt else "") + " - Calendario Ciclismo App"
         display_title = f"{race_name} {race_year} · {sl}" if sl else f"{race_name} {race_year}"
         if route:
             display_title = f"{display_title} - {route}" if sl else display_title
@@ -1119,24 +1181,27 @@ for rd in emit_rows(racedays, "stages"):
                 else f"con salida en {start_loc} y meta en {finish_loc}" if finish_loc
                 else "")
     # Fecha entre paréntesis tras el nombre; conserva minúscula el día de semana.
-    fecha_parentesis = f" ({fecha_larga})" if fecha_larga else ""
+    # Con nombre original ya entre paréntesis, la fecha va entre comas («… (Vuelta
+    # Ciclista a España), miércoles 9 de septiembre de 2026, cubre …»).
+    fecha_parentesis = (f", {fecha_larga}," if orig_name else f" ({fecha_larga})") if fecha_larga else ""
     fecha_cap = (fecha_larga[0].upper() + fecha_larga[1:]) if fecha_larga else ""
-    art = articulo(race_name)
+    art = articulo_nombre(race_name)
+    race_con_art = con_articulo(race_name, race_name_with_orig, art)
+    race_de_art = de_articulo(race_name, art)
     cuerpo = (f"cubre {str(km).replace('.', ',')} km" + (f" {ruta_str}" if ruta_str else "")
               if km else f"se disputa {ruta_str}" if ruta_str else "se disputa")
 
     if is_rest:
-        description = (f"Jornada de descanso de {art} {race_name_with_orig} {race_year}"
+        description = (f"Jornada de descanso {race_de_art} {race_name_with_orig} {race_year}"
                        f"{' - ' + fecha_cap if fecha_cap else ''}.")
     elif is_one_day:
-        art_cap = art[0].upper() + art[1:]
-        description = (f"{art_cap} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
+        art_cap = race_con_art[0].upper() + race_con_art[1:]
+        description = (f"{art_cap}{fecha_parentesis} {cuerpo}. "
                        f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
     else:
         ord_str = ordinal_etapa(int(stage_num)) if stage_num is not None else ""
         prefix_art = "El" if ord_str == "prólogo" else "La"
-        deArt = "del" if art == "el" else "de la"
-        description = (f"{prefix_art} {ord_str} {deArt} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
+        description = (f"{prefix_art} {ord_str} {race_de_art} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
                        f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
 
     og_title = f"{race_name} {race_year}" if is_one_day else title.replace(" - Calendario Ciclismo App", "")
@@ -1244,10 +1309,10 @@ for race in emit_rows(races, "extras"):
         continue
 
     name = race.get("name", "")
-    orig_name = race.get("originalName", "")
+    orig_name = nombre_original_distinto(name, race.get("originalName"))
     name_with_orig = f"{name} ({orig_name})" if orig_name else name
     year = race.get("year", "")
-    art = articulo(name)
+    art = articulo_nombre(name)
 
     is_female = race.get("gender") == "female"
     provisional = bool(race.get("startlistProvisional"))
@@ -1258,12 +1323,16 @@ for race in emit_rows(races, "extras"):
     n_teams = sl_team_counts.get(race_id, 0)
     n_riders = sl_rider_counts.get(race_id, 0)
     rider_phrase = "corredoras inscritas" if is_female else "corredores inscritos"
+    insc_con_art = con_articulo(name, name_with_orig, art)
     if n_teams > 0 and n_riders > 0:
-        description = f"Lista de {n_teams} equipos y {n_riders} {rider_phrase} en {art} {name_with_orig} {year}{provisional_note}. Dorsales y participantes."
+        description = f"Lista de {n_teams} equipos y {n_riders} {rider_phrase} en {insc_con_art} {year}{provisional_note}. Dorsales y participantes."
     else:
-        description = f"Lista de equipos y {rider_phrase} en {art} {name_with_orig} {year}{provisional_note}. Dorsales y participantes."
+        description = f"Lista de equipos y {rider_phrase} en {insc_con_art} {year}{provisional_note}. Dorsales y participantes."
 
-    title = f"{inscritos_label} - {name} {year} - Calendario Ciclismo App"
+    # «Vuelta a España 2026: dorsales y corredores inscritos»: nombre y palabras de la consulta.
+    insc_search_name = race_search_name(race)
+    insc_title_tail = "lista provisional de inscritos" if provisional else f"dorsales y {rider_phrase}"
+    title = f"{insc_search_name} {year}: {insc_title_tail} - Calendario Ciclismo App"
     display_title = f"{inscritos_label} - {name} {year}"
 
     og_image = og_image_url(race.get("logoUrl"), f"{inscritos_label} - {name} {year}")
@@ -1335,7 +1404,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
     #  2026: Barcelona > Tarragona (18 km).»
     type_name_map = {"CRI": "CRI", "CRE": "CRE"}
     so_type_name = type_name_map.get(type_label, type_label)  # mantiene mayúsculas
-    so_de_art = "del" if articulo_nombre(race_name) == "el" else "de la"
+    so_de_art = de_articulo(race_name)
     if stage_num == 0:
         so_stage_par = " (prólogo)"
     elif stage_num is not None:
@@ -1584,7 +1653,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
     hero_es = f"{name_es} {year}".strip()
     hero_en = f"{name_en} {year}".strip()
     is_one_day_res = race.get("raceFormat") == "one_day"
-    res_de_art = "del" if articulo_nombre(name_es) == "el" else "de la"
+    res_de_art = de_articulo(name_es)
     og_image = og_image_url(race.get("logoUrl"), f"Resultados - {hero_es}")
     for stage_entry in sorted(stage_set, key=result_entry_sort_key):
         stage_num, stage_suffix = stage_entry
@@ -1596,16 +1665,12 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
         res_route, res_km = _res_route_km(res_rd)
         res_route_km = ", ".join(p for p in (res_route, res_km) if p)
         res_date = format_weekday_date(res_rd.get("dateKey")) if res_rd and res_rd.get("dateKey") else ""
-        res_clasifs = "clasificación de etapa, general, puntos, montaña y jóvenes"
-        # Clasificación real (keepForWeb) vs. jornada adelantada sin datos
-        # todavía — misma URL en ambos casos, solo cambia el texto SEO.
-        has_real = stage_entry in res_real_by_race.get(race_id, set())
+        res_clasifs = "resultados de etapa, general, puntos, montaña y jóvenes"
         # Etapa CANCELADA: no habrá clasificación oficial nunca. Su página
-        # existe (aviso + generales arrastradas de la etapa anterior), pero
-        # NO puede prometer "vuelve tras la etapa".
+        # existe (aviso + generales arrastradas de la etapa anterior).
         res_cancelled = bool(res_rd and res_rd.get("isCancelledDay"))
-        # Prólogo/etapa Nª (con y sin artículo) — una sola vez para las 4
-        # combinaciones ES/EN × real/placeholder que lo usan más abajo.
+        # Prólogo/etapa Nª (con y sin artículo) — una sola vez para las
+        # combinaciones ES/EN que lo usan más abajo.
         et_ord_bare = "prólogo" if stage_num == 0 else ((f"etapa {stage_num}{stage_suffix}" if stage_suffix else f"{stage_num}ª etapa") if stage_num is not None else None)
         et_ord_art = "el prólogo" if stage_num == 0 else ((f"la etapa {stage_num}{stage_suffix}" if stage_suffix else f"la {stage_num}ª etapa") if stage_num is not None else None)
         et_art = "del" if stage_num == 0 else "de la"
@@ -1614,51 +1679,44 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
         if slug_es:
             seg = _res_seg_es(stage_num, stage_suffix)
             res_stage_label = _res_stage_label_es(stage_num, stage_suffix)
+            # h1 e imagen: sin cambios. Título y descripción: las consultas que
+            # llegan a estas páginas dicen «clasificación» (727 impresiones
+            # frente a 247 de «resultado», Search Console 2026-10-09) y el
+            # recorte ronda los 60 caracteres: las dos palabras abren el título
+            # y no lleva sufijo de marca.
+            # Misma cadena con y sin datos: la página adelantada no avisa de que
+            # falta la clasificación. Espejo en js/resultados.js.
             display_title = f"Resultados - {hero_es} · {res_stage_label}"
-            title = f"{display_title} - Calendario Ciclismo App"
+            hero_search_es = f"{race_search_name(race)} {year}".strip()
+            if is_one_day_res:
+                title = f"Clasificación y resultados {hero_search_es}"
+            elif stage_num is None:
+                title = f"Clasificación final y resultados {hero_search_es}"
+            else:
+                title = f"Clasificación y resultados {'prólogo' if stage_num == 0 else f'etapa {stage_num}{stage_suffix}'} {hero_search_es}"
             if res_cancelled:
                 # Cancelada: no habrá clasificación. Se dice lo que pasó.
                 _et = et_ord_art if stage_num is not None else "la carrera"
-                description = f"{_et.capitalize()} {et_art} {hero_es} se canceló" if stage_num is not None \
+                description = f"{_et.capitalize()} {res_de_art} {hero_es} se canceló" if stage_num is not None \
                     else f"{hero_es}: carrera cancelada"
                 description += f" ({res_route_km})" if res_route_km else ""
                 description += "."
                 if res_date:
                     description += f" {res_date}."
                 description += " No hubo clasificación; la general se mantiene como en la etapa anterior."
-            elif not has_real:
-                # Jornada ya publicada pero sin clasificación volcada todavía.
-                if is_one_day_res:
-                    description = f"Resultados aún no disponibles {res_de_art} {hero_es}"
-                    description += f" ({res_route_km})" if res_route_km else ""
-                    description += "."
-                    if res_date:
-                        description += f" {res_date}."
-                    description += " Vuelve tras la carrera para consultar la clasificación oficial."
-                elif stage_num is not None:
-                    description = f"Resultados aún no disponibles para {et_ord_art} {et_art} {hero_es}"
-                    description += f" ({res_route_km})" if res_route_km else ""
-                    description += "."
-                    if res_date:
-                        description += f" {res_date}."
-                    description += " Vuelve tras la etapa para consultar la clasificación oficial."
-                else:
-                    # No debería alcanzarse: stage_num=None solo llega vía
-                    # res_real_by_race (final GC real), nunca se sintetiza
-                    # desde race_days.
-                    description = f"Clasificación final {res_de_art} {hero_es} aún no disponible."
             elif is_one_day_res:
-                # «Resultados oficiales del Tour de Flandes 2026: Brujas >
-                #  Oudenaarde, 253 km. Domingo 5 de abril.»
-                description = f"Resultados oficiales {res_de_art} {hero_es}"
-                description += f": {res_route_km}." if res_route_km else "."
+                # «Clasificación del Tour de Flandes 2026 (Brujas > Oudenaarde,
+                #  253 km): resultados completos y ganador. Domingo 5 de abril.»
+                description = f"Clasificación {res_de_art} {hero_es}"
+                description += f" ({res_route_km})" if res_route_km else ""
+                description += ": resultados completos y ganador."
                 if res_date:
                     description += f" {res_date}."
             elif stage_num is not None:
-                # «Resultados oficiales de la 4ª etapa de la Vuelta a Suiza
-                #  2026 (Bad Ragaz > Villars, 153 km): clasificación de
-                #  etapa, general, puntos, montaña y jóvenes. Sábado 20 de junio.»
-                description = f"Resultados oficiales {et_art} {et_ord_bare} {res_de_art} {hero_es}"
+                # «Clasificación de la 4ª etapa de la Vuelta a Suiza 2026 (Bad
+                #  Ragaz > Villars, 153 km): resultados de etapa, general, puntos,
+                #  montaña y jóvenes. Sábado 20 de junio.»
+                description = f"Clasificación {et_art} {et_ord_bare} {res_de_art} {hero_es}"
                 if res_route_km:
                     description += f" ({res_route_km})"
                 description += f": {res_clasifs}."
@@ -1702,7 +1760,14 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
             seg_en = _res_seg_en(stage_num, stage_suffix)
             stage_label_en = _res_stage_label_en(stage_num, stage_suffix)
             display_title_en = f"Results - {hero_en} · {stage_label_en}"
-            title_en = f"{display_title_en} - Calendario Ciclismo"
+            # Título y descripción: espejo de la versión ES, sin aviso de datos
+            # pendientes ni sufijo de marca. Espejo en js/resultados.js.
+            if is_one_day_res:
+                title_en = f"{hero_en} results and classification"
+            elif stage_num is None:
+                title_en = f"{hero_en} final classification and results"
+            else:
+                title_en = f"{hero_en} {'prologue' if stage_num == 0 else f'stage {stage_num}{stage_suffix}'} results and classification"
             # Ruta/km/fecha EN del mismo race_day (res_rd).
             if res_rd:
                 _se = res_rd.get("startLocationEn") or res_rd.get("startLocation") or ""
@@ -1715,7 +1780,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
             else:
                 res_route_km_en = ""
                 res_date_en = ""
-            res_clasifs_en = "stage classification, GC, points, KOM and youth"
+            res_clasifs_en = "stage results, GC, points, KOM and youth"
             if res_cancelled:
                 # Cancelada: no habrá clasificación (ver rama ES).
                 desc_en = (f"{et_ord_en.capitalize()} of the {hero_en} was cancelled"
@@ -1725,32 +1790,17 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
                 if res_date_en:
                     desc_en += f" {res_date_en}."
                 desc_en += " There was no classification; the GC stands as after the previous stage."
-            elif not has_real:
-                if is_one_day_res:
-                    desc_en = f"Results not yet available for the {hero_en}"
-                    desc_en += f" ({res_route_km_en})" if res_route_km_en else ""
-                    desc_en += "."
-                    if res_date_en:
-                        desc_en += f" {res_date_en}."
-                    desc_en += " Check back after the race for the official classification."
-                elif stage_num is not None:
-                    desc_en = f"Results not yet available for {et_ord_en} of the {hero_en}"
-                    desc_en += f" ({res_route_km_en})" if res_route_km_en else ""
-                    desc_en += "."
-                    if res_date_en:
-                        desc_en += f" {res_date_en}."
-                    desc_en += " Check back after the stage for the official classification."
-                else:
-                    desc_en = f"Final classification of the {hero_en} not yet available."
             elif is_one_day_res:
-                # «Official results for the Tour of Flanders 2026: Bruges >
-                #  Oudenaarde, 253 km. Sunday 5 April.»
-                desc_en = f"Official results for the {hero_en}"
-                desc_en += f": {res_route_km_en}." if res_route_km_en else "."
+                # «Classification and results of the Tour of Flanders 2026
+                #  (Bruges > Oudenaarde, 253 km): full results and winner.
+                #  Sunday 5 April.»
+                desc_en = f"Classification and results of the {hero_en}"
+                desc_en += f" ({res_route_km_en})" if res_route_km_en else ""
+                desc_en += ": full results and winner."
                 if res_date_en:
                     desc_en += f" {res_date_en}."
             elif stage_num is not None:
-                desc_en = f"Official results for {et_ord_en} of the {hero_en}"
+                desc_en = f"Classification and results for {et_ord_en} of the {hero_en}"
                 if res_route_km_en:
                     desc_en += f" ({res_route_km_en})"
                 desc_en += f": {res_clasifs_en}."
@@ -1849,7 +1899,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     else:
         loc_txt = ""
     sn_desc = None if (is_one_day or is_rest or stage_num is None) else stage_num
-    de_art = "del" if articulo_nombre(race_name) == "el" else "de la"
+    de_art = de_articulo(race_name)
     if sn_desc is None:
         desc_head = f"Perfil y recorrido de {race_title}"
     elif sn_desc == 0:
@@ -1959,7 +2009,7 @@ for rd in emit_rows(mapa_rds, "extras"):
     else:
         loc_txt = ""
     sn_desc = None if (is_one_day or is_rest or stage_num is None) else stage_num
-    de_art = "del" if articulo_nombre(race_name) == "el" else "de la"
+    de_art = de_articulo(race_name)
     if sn_desc is None:
         desc_head = f"Mapa del recorrido de {race_title}"
     elif sn_desc == 0:

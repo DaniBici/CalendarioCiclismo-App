@@ -197,6 +197,7 @@ Flag histórico `PREMIUM_TEST_BUILD`, reutilizado para simular Amigo activo:
 - **Scheme manual:** `setup.sh`/XcodeGen no declara en `project.yml` el scheme manual `CalendarioAnalytics.xcscheme`; cada regeneración lo borra. Restaurarlo desde `origin/main` tras cada `setup.sh` y vigilar en futuras regeneraciones.
 - **Versión de release:** `ios-app/project.yml` es la fuente de verdad que el pre-build de Xcode Cloud aplica sobre el `.pbxproj`. Un bump debe actualizar `MARKETING_VERSION` y `CURRENT_PROJECT_VERSION` tanto en `project.yml` (base + target principal) como en el proyecto generado; cambiar solo el `.pbxproj` se revierte en Cloud.
 - **Contador de Xcode Cloud:** comprobarlo antes de cada incremento de `CURRENT_PROJECT_VERSION`; el último valor registrado está en los [registros históricos de las apps](../informes/apps-registros-historicos.md).
+- **SDK para el iPhone Duo:** las builds de iOS que se distribuyen deben compilarse en local con Xcode 27.1 RC o con el Xcode oficial que incluya el SDK de iOS 27.1. Con un SDK anterior (27.0) el iPhone Duo no usa la pantalla interior completa y la app no puede entrar en ese dispositivo. Si Xcode Cloud no ofrece el SDK 27.1, archivar y subir en local (como las 1455 a 1463) en lugar de depender de la compilación de Cloud.
 
 #### Script post-build — reporte de errores en GitHub
 

@@ -117,7 +117,7 @@ Si reutilizas este código, esos materiales son responsabilidad tuya.
 
 ## Autor
 
-**[Dani Sánchez](https://danisanchez.info)** — profesional de la comunicación en el ciclismo durante dos décadas: departamento de comunicación de Movistar Team (2011-2024) y editor digital en Eurosport España (2024-2026). Actualmente responsable de contenido web en castellano del Giro d'Italia (2025-), freelance y docente en comunicación digital.
+**[Dani Sánchez](https://danisanchez.info)** — profesional de la comunicación en el ciclismo durante dos décadas: departamento de comunicación de Movistar Team (2011-2024) y editor digital en Eurosport España (2024-2026). Actualmente responsable de contenido web en castellano del Giro d'Italia (2025-) y de la comunicación digital y web de la [Clàssica Camp de Morvedre](https://classicacampdemorvedre.com), freelance y docente en comunicación digital.
 
 [danisanchez.info](https://danisanchez.info) · [@danibvo_](https://x.com/danibvo_) · [LinkedIn](https://linkedin.com/in/danibvo) · [hola@danisanchez.info](mailto:hola@danisanchez.info)
 

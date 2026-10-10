@@ -292,8 +292,10 @@ manual previa. La CRI conserva las diferencias publicadas antes de truncar las
 centésimas; los PDF requieren `pdftotext`, ya instalado en el VPS.
 
 `kyushu-results-fetch.mjs` lee el comunicado oficial de cada etapa del Tour de
-Kyushu, enlazado desde el aviso de resultados de las noticias del organizador:
-llegada, general, puntos, montaña, jóvenes y equipos. Sin comunicado emite la
+Kyushu, enlazado desde el aviso de resultados de las noticias del organizador o
+desde sus páginas de resultados (`assets/pdf/communique/`, páginas localizadas
+por los mapas del sitio sin fijar el slug): llegada, general, puntos, montaña,
+jóvenes y equipos. Sin comunicado emite la
 llegada provisional de LAPCLIP (`lapclipCode`) con las mismas claves. El cron
 usa `source='kyushu'`.
 

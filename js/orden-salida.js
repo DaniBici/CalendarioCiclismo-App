@@ -131,15 +131,10 @@ async function init(i18nReady = Promise.resolve()) {
   const typeEntry = STAGE_TYPE_LABELS[rd.primaryType];
   const typeLabel = typeEntry ? typeEntry[_isEn ? 'en' : 'es'] : (_isEn ? 'Time trial' : 'Contrarreloj');
   const startLoc = (_isEn ? rd.startLocationEn : null) || rd.startLocation;
-  const finishLoc = (_isEn ? rd.finishLocationEn : null) || rd.finishLocation;
-  const sameOrOne = !finishLoc || startLoc === finishLoc;
-  const routeLabel = sameOrOne
-    ? (startLoc || finishLoc || '')
-    : `${startLoc} › ${finishLoc}`;
   const distLabel = rd.distanceKm ? `${Number(rd.distanceKm).toLocaleString(_isEn ? 'en-GB' : 'es-ES')} km` : '';
 
   const heroTitle = [raceName, year].filter(Boolean).join(' ');
-  const heroSubline = [stageLabel, typeLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
+  const heroSubline = [stageLabel, typeLabel, distLabel].filter(Boolean).join(' · ');
   const stageSuffix = stageLabel ? ` - ${stageLabel}` : '';
   const pageTitle = _isEn
     ? `Start order - ${heroTitle}${stageSuffix}`

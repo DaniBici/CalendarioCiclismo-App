@@ -1,7 +1,7 @@
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, perfilUrl, enBase,
-         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots,
+         seoLongDate, deArticulo, startFinishLabels, setRaceRobots,
          embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
@@ -140,7 +140,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
          : sn === 0   ? `Profile and route of the prologue of ${racePart}`
          :              `Profile and route of stage ${sn} of ${racePart}`;
   } else {
-    const deArt = articuloNombre(name) === 'el' ? 'del' : 'de la';
+    const deArt = deArticulo(name);
     head = sn == null ? `Perfil y recorrido de ${racePart}`
          : sn === 0   ? `Perfil y recorrido del prólogo ${deArt} ${racePart}`
          :              `Perfil y recorrido de la ${sn}ª etapa ${deArt} ${racePart}`;

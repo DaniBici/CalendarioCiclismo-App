@@ -1,0 +1,32 @@
+[Unit]
+Description=Calendario Ciclismo - mapa canonical de PDF para nginx
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/assets-canonical-vps.md
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/calendario-ciclismo
+ExecStart=/usr/bin/flock -n /run/cc-assets-canonical.lock /usr/bin/node scripts/assets-canonical/sync-map.mjs
+TimeoutStartSec=2min
+Nice=10
+CPUQuota=25%
+MemoryMax=256M
+TasksMax=32
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/etc/nginx /var/log/nginx /var/lib/nginx /run
+
+[Install]
+WantedBy=multi-user.target

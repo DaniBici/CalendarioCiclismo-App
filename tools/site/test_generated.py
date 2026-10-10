@@ -32,7 +32,10 @@ def sitemap_fixture(count=100):
             "sitemap-1.xml": '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                              + ''.join(f'<url><loc>https://calendariociclismo.app/fixture-{index}/</loc></url>'
                                        for index in range(count)) + '</urlset>',
-            "atom.xml": "<feed/>"}
+            "atom.xml": "<feed/>",
+            "asset-canonicals.json": json.dumps({f"/races/fixture-{index}/2026/stage-1/map.pdf":
+                                                 f"https://calendariociclismo.app/jornada/fixture-{index}/"
+                                                 for index in range(count)})}
 
 
 class FakePostgrest:
@@ -322,6 +325,10 @@ class GeneratedTest(unittest.TestCase):
                 self.assertTrue((Path(cwd) / "sitemap-1.xml").is_file())
                 for name, content in sitemap_fixture(101).items():
                     (Path(cwd) / name).write_text(content)
+            elif "gen_asset_canonicals.py" in command[1]:
+                self.assertEqual(len(command), 2)  # siempre completo, sin --stage-slugs
+                self.assertTrue((Path(cwd) / "asset-canonicals.json").is_file())
+                (Path(cwd) / "asset-canonicals.json").write_text(sitemap_fixture(102)["asset-canonicals.json"])
             else:
                 self.fail(f"Generador inesperado: {command}")
 

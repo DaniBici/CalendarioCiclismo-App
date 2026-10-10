@@ -1,0 +1,12 @@
+[Unit]
+Description=Calendario Ciclismo - mapa canonical de PDF cada hora
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=2min
+Persistent=true
+Unit=cc-assets-canonical.service
+
+[Install]
+WantedBy=timers.target

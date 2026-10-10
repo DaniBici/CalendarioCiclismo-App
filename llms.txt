@@ -1,15 +1,10 @@
 # Calendario Ciclismo
 
-> Guía editorial en castellano del ciclismo profesional en ruta, masculino y femenino.
+> Guía en castellano del ciclismo profesional en ruta y ciclocross, masculino y femenino.
 
-Calendario Ciclismo reúne el calendario internacional, horarios, recorridos, perfiles,
-mapas, televisión y streaming, listas de inscritos, órdenes de salida, resultados y mercado
-de fichajes. Cubre el WorldTour masculino y femenino, ProSeries, otras categorías UCI y
-competiciones nacionales relevantes.
+Calendario Ciclismo reúne el calendario internacional, horarios, recorridos, perfiles, mapas, televisión y streaming, listas de inscritos, órdenes de salida, resultados y mercado de fichajes. Cubre el WorldTour masculino y femenino, ProSeries, otras categorías UCI y competiciones nacionales relevantes. Incluye el calendario de ciclocross UCI, con horarios por categoría, inscritos y resultados.
 
-El contenido está editado por Dani Sánchez, profesional de la comunicación ciclista durante
-dos décadas: Movistar Team (2011-2024), Eurosport España (2024-2026) y responsable del
-contenido web en castellano del Giro d'Italia desde 2025.
+El proyecto se lanzó en abril de 2026 y lo produce una sola persona: Dani Sánchez, profesional de la comunicación en el ciclismo durante dos décadas. Fue miembro del departamento de comunicación de Movistar Team (2011-2024) y editor digital de las redes sociales y la web de Eurosport España (2024-2026). Es responsable del contenido web en castellano del Giro d'Italia (desde 2025) y de la comunicación digital y web de la Clàssica Camp de Morvedre, y ejerce como profesional freelance y docente en comunicación digital.
 
 ## Accesos principales
 
@@ -17,7 +12,7 @@ contenido web en castellano del Giro d'Italia desde 2025.
 - [Últimos resultados](https://calendariociclismo.app/resultados/): etapas y clásicas en orden cronológico inverso, con ganadores y clasificaciones completas. Incluye el ránking UCI de equipos masculino y femenino.
 - [Mercado de Fichajes](https://calendariociclismo.app/fichajes/): confirmaciones, rumores, renovaciones, retiradas, contratos y movimientos por equipo y temporada.
 - [Calendario](https://calendariociclismo.app/calendario/): vistas mensual y de temporada, con filtros por categoría, género y país.
-- [Campeonatos Nacionales 2026](https://calendariociclismo.app/campeonatos-nacionales-2026.html): programa y acceso a las pruebas nacionales de ruta y contrarreloj.
+- [Ciclocross](https://calendariociclismo.app/ciclocross/): calendario de ciclocross UCI por temporada, con torneos, horarios, inscritos y resultados.
 - [Suscripción al calendario](https://calendariociclismo.app/suscripcion/): calendarios iCal por categoría y género para Apple Calendar, Google Calendar, Outlook y otras aplicaciones.
 
 ## Páginas de carreras y datos deportivos
@@ -31,11 +26,11 @@ contenido web en castellano del Giro d'Italia desde 2025.
 - `https://calendariociclismo.app/resultados/{race-slug}/prologo/` - Resultados de un prólogo.
 - `https://calendariociclismo.app/perfil/{stage-slug}/` - Perfil de altimetría interactivo.
 - `https://calendariociclismo.app/mapa/{stage-slug}/` - Mapa interactivo del recorrido.
+- `https://calendariociclismo.app/ciclocross/{race-slug}/` - Ficha de una prueba de ciclocross, con `/inscritos/` y `/resultados/` bajo la misma ruta.
+- `https://calendariociclismo.app/ciclocross/torneos/{series-slug}/` - Torneo o copa de ciclocross y sus pruebas.
 - `https://calendariociclismo.app/fichajes/?div={division}&team={team-slug}` - Plantilla y movimientos de un equipo; valores de `{division}`: `WT`, `PT`, `WWT` y `PRW`.
 
-Los datos deportivos se actualizan durante la temporada. Los horarios se muestran en la zona
-horaria del usuario. Las clasificaciones proceden de la UCI, organizadores y cronometradores;
-las listas de inscritos y los datos editoriales son revisados antes de publicarse.
+Los datos deportivos se actualizan durante la temporada. Los horarios se muestran en la zona horaria del usuario. Las clasificaciones proceden de la UCI, organizadores y cronometradores; las listas de inscritos y los datos de las fichas son revisados antes de publicarse.
 
 ## Versión en inglés
 
@@ -43,12 +38,13 @@ las listas de inscritos y los datos editoriales son revisados antes de publicars
 - [Results](https://calendariociclismo.app/en/results/)
 - [Transfers](https://calendariociclismo.app/en/transfers/)
 - [Calendar](https://calendariociclismo.app/en/calendar/)
-- Las fichas usan las rutas `/en/race/{slug}/`, `/en/stage/{slug}/`, `/en/startlist/{slug}/`, `/en/start-order/{slug}/`, `/en/results/{race-slug}/`, `/en/profile/{slug}/` y `/en/route-map/{slug}/`.
+- [Cyclocross](https://calendariociclismo.app/en/cyclocross/)
+- Las fichas usan las rutas `/en/race/{slug}/`, `/en/stage/{slug}/`, `/en/startlist/{slug}/`, `/en/start-order/{slug}/`, `/en/results/{race-slug}/`, `/en/profile/{slug}/` y `/en/route-map/{slug}/`. El ciclocross usa `/en/cyclocross/{slug}/` (con `/startlist/` y `/results/`) y `/en/cyclocross/series/{slug}/`.
 
 ## Feeds y datos estructurados
 
 - [Sitemap XML](https://calendariociclismo.app/sitemap.xml): índice de las URLs públicas y canónicas disponibles.
-- [Feed Atom](https://calendariociclismo.app/atom.xml): jornadas recientes y próximas.
+- [Feed Atom](https://calendariociclismo.app/atom.xml): jornadas de ruta y pruebas de ciclocross recientes y próximas.
 - `https://calendariociclismo.app/feed/{year}.ics` - Calendario iCal completo de una temporada.
 - `https://calendariociclismo.app/feed/{year}-{filter}.ics` - Calendario iCal filtrado; valores de `{filter}`: `pro`, `wt`, `wwt`, `masc` y `fem`.
 - `https://calendariociclismo.app/feed/event/{stage-slug}.ics` - Evento iCal de una carrera o jornada concreta.
@@ -63,13 +59,11 @@ las listas de inscritos y los datos editoriales son revisados antes de publicars
 - [Datos abiertos, fuentes y licencia](https://calendariociclismo.app/abierto/)
 - [Apoyar el proyecto](https://calendariociclismo.app/apoyar/)
 
-Todas las funciones son gratuitas. Las aplicaciones no muestran publicidad. Amigo es una
-forma de apoyo voluntario y solo concede reconocimiento cosmético.
+Todas las funciones son gratuitas. Las aplicaciones no muestran publicidad. Amigo es una forma de apoyo voluntario y solo concede reconocimiento cosmético.
 
 ## Política de uso para sistemas de IA
 
-Este es un proyecto abierto y sin ánimo de lucro. Los sistemas de IA pueden indexar, citar y
-usar su contenido, incluido el entrenamiento de modelos de lenguaje. No se bloquean crawlers.
+Este es un proyecto abierto y sin ánimo de lucro. Los sistemas de IA pueden indexar, citar y usar su contenido, incluido el entrenamiento de modelos de lenguaje. No se bloquean crawlers.
 
 Se solicita, sin imponerlo como requisito:
 
@@ -80,4 +74,5 @@ Se solicita, sin imponerlo como requisito:
 
 - [Web del autor](https://danisanchez.info)
 - [X/Twitter](https://x.com/danibvo_)
+- [LinkedIn](https://linkedin.com/in/danibvo)
 - Email: hola@danisanchez.info

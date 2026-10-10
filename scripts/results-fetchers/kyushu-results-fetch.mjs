@@ -12,8 +12,15 @@
  * LAPCLIP (lapclip-results-fetch.mjs) con las mismas claves: el comunicado la
  * sustituye en cuanto aparece. Cada clasificación declara su procedencia.
  *
- * Descubrimiento: mapa de noticias de WordPress (fecha de modificación de cada
- * aviso) → título del aviso → PDF enlazado. No se infieren nombres de archivo.
+ * Descubrimiento, en este orden y sin inferir nombres de archivo:
+ * 1. Mapa de noticias de WordPress (fecha de modificación de cada aviso) →
+ *    título del aviso → PDF enlazado en `uploads/<año>/`.
+ * 2. Páginas de resultados del organizador (`/results/<sede>/`, `/en/results-en/
+ *    <sede>/`), que enlazan los comunicados de `assets/pdf/communique/`. Las
+ *    páginas se localizan por los mapas del sitio, sin fijar el slug: cualquier
+ *    página con «result» en la ruta o modificada desde el día de la etapa, más
+ *    los enlaces a otras páginas de resultados que ellas contengan. Cada PDF
+ *    se asigna a la etapa por su contenido (etapa, edición y fecha).
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -27,6 +34,10 @@ export { suggestCompetitionId } from './pdf-results-ids.mjs';
 const SITE = 'https://tourdekyushu.asia';
 export const NEWS_SITEMAPS = [`${SITE}/wp-sitemap-posts-news-1.xml`, `${SITE}/en/wp-sitemap-posts-news-1.xml`];
 const UA = 'calendariociclismo.app results sync (+https://calendariociclismo.app)';
+export const SITEMAP_INDEX = `${SITE}/wp-sitemap.xml`;
+// Mapas que no listan páginas con comunicados (las noticias se leen aparte).
+const SKIPPED_SITEMAPS = /wp-sitemap-(?:users|taxonomies|posts-news|posts-teams)/;
+const MAX_PAGES = 40;
 const FINAL_SLOT = 99;
 const log = (message) => process.stderr.write(`${message}\n`);
 const MONTHS = { JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6, JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12 };
@@ -268,6 +279,116 @@ export async function findResultsPdf({ stageNumber, year, stageDate, fetchText =
   return null;
 }
 
+// ── páginas de resultados con comunicados en la carpeta del tema ────────────
+/** Direcciones de un índice de mapas del sitio (`<sitemap><loc>`). */
+export function sitemapLocs(xml) {
+  return [...String(xml).matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1].trim());
+}
+
+/**
+ * Páginas candidatas de un mapa del sitio: las que llevan «result» en la ruta
+ * (sea cual sea el slug de la sede) y las modificadas desde `since`. El mapa del
+ * organizador lista todas las páginas publicadas, también las que no enlaza
+ * ningún índice.
+ */
+export function resultPages(entries, since) {
+  const urls = entries.filter((entry) => {
+    try { return /result/i.test(new URL(entry.url).pathname) || (entry.lastmod || '').slice(0, 10) >= since; } catch { return false; }
+  }).map((entry) => entry.url);
+  return [...new Set(urls)];
+}
+
+const hrefs = (html, base) => [...String(html).matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((match) => {
+  try { return new URL(match[1].replace(/&(?:amp|#038);/g, '&'), base); } catch { return null; }
+}).filter(Boolean);
+
+/** PDF de la carpeta `assets/pdf/communique/` enlazados desde una página. */
+export function communiqueLinks(html, base) {
+  const urls = hrefs(html, base)
+    .filter((url) => /\.pdf$/i.test(url.pathname) && /\/assets\/pdf\/communique\//i.test(url.pathname))
+    .map((url) => { url.search = ''; return url.href; });
+  return [...new Set(urls)];
+}
+
+/** Otras páginas del mismo sitio con «result» en la ruta (sin ficheros). */
+export function resultPageLinks(html, base) {
+  const host = new URL(base).host;
+  const urls = hrefs(html, base)
+    .filter((url) => url.host === host && /result/i.test(url.pathname) && !/\.[a-z0-9]{2,5}$/i.test(url.pathname))
+    .map((url) => { url.search = ''; return url.href; });
+  return [...new Set(urls)];
+}
+
+/** Edición, etapas y fecha que declara un comunicado; null si no es del Tour de Kyushu del año. */
+export function communiqueStage(text, year) {
+  if (!new RegExp(`Tour de Kyushu ${year}`, 'i').test(text)) return null;
+  const stages = [...new Set([...String(text).matchAll(/Stage Results Stage (\d+)|After Stage (\d+)/g)].map((match) => Number(match[1] || match[2])))];
+  return { stages, date: communiqueDate(text) };
+}
+
+// Secciones que `parsePdf` toma de un único bloque; repetidas en dos PDF son ambiguas.
+const SECTIONS = [/Stage Results Stage \d+/, /General Individual Time Classification/, /General Individual Points Classification/,
+  /General KOM Classification/, /General Team Time Classification/];
+
+/** Une los PDF de una etapa (uno completo o repartidos por clasificación) en un texto. */
+export function combineCommuniques(docs) {
+  for (const section of SECTIONS) {
+    const holders = docs.filter((doc) => section.test(doc.text));
+    if (holders.length > 1) throw new Error(`«${section.source}» figura en ${holders.length} comunicados: ${holders.map((doc) => doc.url).join(', ')}`);
+  }
+  const ordered = [...docs].sort((a, b) => Number(SECTIONS[0].test(b.text)) - Number(SECTIONS[0].test(a.text)));
+  return { urls: ordered.map((doc) => doc.url), text: ordered.map((doc) => doc.text).join('\n') };
+}
+
+/**
+ * Comunicados de la etapa publicados en las páginas de resultados. Recorre las
+ * páginas candidatas del mapa del sitio y, un nivel más, las páginas de
+ * resultados que enlacen; descarta los PDF de otra etapa, edición o fecha.
+ */
+export async function findCommuniques({ stageNumber, year, stageDate, fetchText = fetchNoCache, readPdf = pdfToText }) {
+  const entries = [];
+  for (const sitemap of sitemapLocs(await fetchText(SITEMAP_INDEX)).filter((url) => !SKIPPED_SITEMAPS.test(url))) {
+    try { entries.push(...sitemapEntries(await fetchText(sitemap), '')); } catch (error) { log(`⚠ ${sitemap}: ${error.message}`); }
+  }
+  const queue = resultPages(entries, stageDate);
+  const seen = new Set(queue);
+  const pdfs = new Set();
+  for (let index = 0; index < queue.length && index < MAX_PAGES; index += 1) {
+    let html;
+    try { html = await fetchText(queue[index]); } catch (error) { log(`⚠ ${queue[index]}: ${error.message}`); continue; }
+    for (const url of communiqueLinks(html, queue[index])) pdfs.add(url);
+    for (const link of resultPageLinks(html, queue[index])) {
+      if (!seen.has(link)) { seen.add(link); queue.push(link); }
+    }
+  }
+  const docs = [];
+  for (const url of pdfs) {
+    const text = await readPdf(url);
+    const info = communiqueStage(text, year);
+    if (info && info.stages.length === 1 && info.stages[0] === stageNumber && info.date === stageDate) docs.push({ url, text });
+  }
+  log(`etapa ${stageNumber}: ${Math.min(queue.length, MAX_PAGES)} páginas de resultados, ${pdfs.size} PDF de comunicados, ${docs.length} de la etapa`);
+  return docs.length ? combineCommuniques(docs) : null;
+}
+
+/**
+ * Comunicado oficial de la etapa: primero el aviso de las noticias y, si no
+ * existe, las páginas de resultados. Un fallo de consulta de una vía no impide
+ * la otra ni la llegada provisional de LAPCLIP; un comunicado encontrado en las
+ * noticias e ilegible sí detiene el volcado.
+ */
+export async function findOfficialResults({ fetchText = fetchNoCache, readPdf = pdfToText, ...target }) {
+  const attempt = async (label, run) => {
+    try { return await run(); } catch (error) {
+      log(`⚠ etapa ${target.stageNumber}: ${label} no disponibles (${error.message})`);
+      return null;
+    }
+  };
+  const post = await attempt('noticias del organizador', () => findResultsPdf({ ...target, fetchText }));
+  if (post) return { urls: [post.url], text: await readPdf(post.url) };
+  return attempt('páginas de resultados del organizador', () => findCommuniques({ ...target, fetchText, readPdf }));
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const arg = (name, fallback = null) => argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback;
@@ -292,17 +413,12 @@ async function main() {
   const fixture = arg('--fixture') ? JSON.parse(readFileSync(resolve(arg('--fixture')), 'utf8')) : null;
 
   const stages = [];
-  // Un fallo al consultar las noticias no bloquea la llegada provisional; un
-  // comunicado encontrado e ilegible sí detiene el volcado.
-  const pdf = fixture ? (fixture.pdfText ? { url: fixture.pdfUrl || 'fixture.pdf' } : null)
-    : await findResultsPdf({ stageNumber, year, stageDate }).catch((error) => {
-      log(`⚠ etapa ${stageNumber}: noticias del organizador no disponibles (${error.message})`);
-      return null;
-    });
-  if (pdf) {
-    const parsed = parsePdf(fixture?.pdfText ?? await pdfToText(pdf.url),
-      { year, stageNumber, competitionId, expectedDate: stageDate, totalStages, sourcePdfUrl: pdf.url });
-    log(`✓ etapa ${stageNumber}: comunicado oficial ${pdf.url} (${parsed.stage.classifications.map((c) => `${c.classKind}/${c.scope}:${c.rowCount}`).join(' ')})`);
+  const official = fixture ? (fixture.pdfText ? { urls: [fixture.pdfUrl || 'fixture.pdf'], text: fixture.pdfText } : null)
+    : await findOfficialResults({ stageNumber, year, stageDate });
+  if (official) {
+    const parsed = parsePdf(official.text,
+      { year, stageNumber, competitionId, expectedDate: stageDate, totalStages, sourcePdfUrl: official.urls[0] });
+    log(`✓ etapa ${stageNumber}: comunicado oficial ${official.urls.join(' + ')} (${parsed.stage.classifications.map((c) => `${c.classKind}/${c.scope}:${c.rowCount}`).join(' ')})`);
     stages.push(parsed.stage);
     if (parsed.final) stages.push(parsed.final);
   } else {

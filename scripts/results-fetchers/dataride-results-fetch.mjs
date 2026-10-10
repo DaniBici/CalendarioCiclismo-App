@@ -299,6 +299,22 @@ export function normalizeDataRideResultValue(value) {
   return s;
 }
 
+// Puntos y montaña (también metas volantes) publican en ResultValue una cantidad de
+// puntos, no un tiempo. La UCI la envía a veces con decimal ("19.0"): parseResultValue
+// la tomaba por tiempo del ganador y fixDisguisedGaps convertía el resto en huecos
+// ("+0:13"). Se conserva el entero ("19") y se anulan timeText y gapText, igual que en
+// el resto de carreras. Un decimal distinto de cero se respeta tal cual.
+const POINTS_BASED_KINDS = new Set(['points', 'kom', 'sprint']);
+export function normalizePointsRows(rows, classKind) {
+  if (!POINTS_BASED_KINDS.has(classKind)) return rows;
+  return rows.map((row) => {
+    const m = /^(\d+)(?:\.(\d+))?$/.exec(clean(row.resultValue));
+    if (!m) return row;
+    const fraction = m[2] && /[1-9]/.test(m[2]) ? `.${m[2].replace(/0+$/, '')}` : '';
+    return { ...row, resultValue: `${m[1]}${fraction}`, timeText: null, gapText: null };
+  });
+}
+
 // ResultValue: "9:27:40" (tiempo del 1º) | "+32" | "+35:09" | "+43:59" (gaps) | "" (DNF)
 //   → { timeText, gapText }: el ganador tiene timeText; el resto gapText.
 function parseResultValue(v, rank) {
@@ -618,7 +634,7 @@ async function main() {
         take: 300, skip: 0, page: 1, pageSize: 300,
       });
       const rows = fixPressFormattedAbsolute(fixInvertedAbsoluteGaps(fixDisguisedGaps(
-        ((resRes.json && resRes.json.data) || []).map(normalizeRow)
+        normalizePointsRows(((resRes.json && resRes.json.data) || []).map(normalizeRow), classKind)
           // (saneo 2026-06-11) etapa cancelada: la UCI publica UNA fila-marcador
           // "Race Cancelled" que acababa enlazada a una ficha fantasma
           // 'race-cancelled' (Murcia E2, Setmana Valenciana E3 2026). Se filtra:

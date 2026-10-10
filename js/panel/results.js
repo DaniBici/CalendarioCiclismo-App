@@ -323,8 +323,8 @@ function _ruSyncPolicyHtml(rd, race, link) {
   const stageLabel = rd.stageNumber == null ? 'esta carrera' : `esta etapa (${rd.stageNumber === 0 ? 'prólogo' : 'etapa ' + rd.stageNumber})`;
   const scopeOptions = resultSyncScopeOptionsVisible(race)
     ? `<div class="u-row u-gap-060 u-wrap">
-        <label><input type="radio" name="ru-sync-scope" value="race" ${defaultScope === 'race' ? 'checked' : ''}> Toda la carrera</label>
-        <label><input type="radio" name="ru-sync-scope" value="day" ${defaultScope === 'day' ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
+        <label class="ru-sync-option"><input type="radio" name="ru-sync-scope" value="race" ${defaultScope === 'race' ? 'checked' : ''}><span>Toda la carrera</span></label>
+        <label class="ru-sync-option"><input type="radio" name="ru-sync-scope" value="day" ${defaultScope === 'day' ? 'checked' : ''}><span>Solo ${esc(stageLabel)}</span></label>
       </div>`
     : '';
   return `<div class="ru-sync-policy u-mt-065">
@@ -332,8 +332,8 @@ function _ruSyncPolicyHtml(rd, race, link) {
     <div class="ru-sync-box">
       ${scopeOptions}
       <div class="u-row u-gap-055 u-wrap u-items-end${scopeOptions ? ' u-mt-050' : ''}">
-        <label> <span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" class="u-w-700"></label>
-        <label> <span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" class="u-w-700"></label>
+        <label class="ru-sync-field"><span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" class="ru-sync-time"></label>
+        <label class="ru-sync-field"><span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" class="ru-sync-time"></label>
         <button type="button" class="btn btn--primary ru-sync-save btn--compact">Guardar ventana</button>
       </div>
     </div>
@@ -504,8 +504,8 @@ function _ruOpenManualLink(rd, race) {
   if (!panel) return;
   panel.style.display = 'block';
   panel.innerHTML = `<div class="u-row u-gap-050 u-items-center u-wrap">
-    <input type="number" id="ruManualComp" placeholder="competitionId" min="1" class="u-w-950">
-    <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" class="u-w-1100"
+    <input type="number" id="ruManualComp" placeholder="competitionId" min="1" class="u-input-bordered u-w-950">
+    <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" class="u-input-bordered u-w-1100"
       title="Solo para Campeonatos Nacionales: race.Id de DataRide de la prueba dentro de la competición. Vacío = competición entera.">
     <button type="button" class="btn btn--primary ru-manual-save u-fs-1 u-py-0 u-px-060">Guardar enlace</button>
   </div>`;

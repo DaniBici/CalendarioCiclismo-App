@@ -190,19 +190,8 @@ def static_entries():
     return entries
 
 
-def road_sections(data):
-    """Entradas de carretera por sección, en el orden del sitemap completo.
-
-    Todas dependen solo de su carrera: el grupo canónico incluye el raceId."""
-    races, racedays = data["races"], data["racedays"]
-    _indexable_race_ids = {r["id"] for r in races}
-    race_ids_with_startlist = set(t.get("raceId") for t in data["startlist_teams"] if t.get("raceId"))
-    racedays_by_race = {}
-    for rd in racedays:
-        rid = rd.get("raceId")
-        if rid:
-            racedays_by_race.setdefault(rid, []).append(rd)
-
+def alias_masters(racedays):
+    """Slug maestro de cada jornada: las que comparten grupo canónico usan el más corto."""
     grouped = {}
     for rd in racedays:
         slug = rd.get("slug")
@@ -223,6 +212,23 @@ def road_sections(data):
         master_slugs.add(master)
         for s in unique:
             canonical_slug_by_slug[s] = master
+    return canonical_slug_by_slug, master_slugs, alias_groups
+
+
+def road_sections(data):
+    """Entradas de carretera por sección, en el orden del sitemap completo.
+
+    Todas dependen solo de su carrera: el grupo canónico incluye el raceId."""
+    races, racedays = data["races"], data["racedays"]
+    _indexable_race_ids = {r["id"] for r in races}
+    race_ids_with_startlist = set(t.get("raceId") for t in data["startlist_teams"] if t.get("raceId"))
+    racedays_by_race = {}
+    for rd in racedays:
+        rid = rd.get("raceId")
+        if rid:
+            racedays_by_race.setdefault(rid, []).append(rd)
+
+    canonical_slug_by_slug, master_slugs, alias_groups = alias_masters(racedays)
 
     sections = {name: [] for name in ("competicion", "inscritos", "jornada", "perfil",
                                       "mapa", "orden", "resultados")}

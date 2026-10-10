@@ -1,4 +1,4 @@
-import { esc, formatTimeUser } from '../shared.js';
+import { esc, formatTimeUser, rdLocation } from '../shared.js';
 import { getLang } from '../i18n.js';
 import { formatDurationSeconds, hasValidTimeLimit } from '../services/race-presentation.js';
 
@@ -9,7 +9,14 @@ export function stageMetricsHtml(day, { hideNeutralStart = false } = {}) {
   // Mismo formato que el resto de la web: decimales del idioma y desnivel
   // positivo redondeado a la decena, con millares también con cuatro cifras.
   const gain = day.elevationProfile?.elevationGain;
+  const start = rdLocation(day, 'startLocation');
+  const finish = rdLocation(day, 'finishLocation');
+  const sameStartFinish = !finish || finish === start;
+  const route = start && sameStartFinish
+    ? [[en ? 'Start and finish' : 'Salida y llegada', start]]
+    : [start ? [en ? 'Start' : 'Salida', start] : null, finish ? [en ? 'Finish' : 'Llegada', finish] : null];
   const metrics = [
+    ...route,
     day.distanceKm ? [en ? 'Distance' : 'Distancia', `${Number(day.distanceKm).toLocaleString(locale)} km`] : null,
     gain != null ? [en ? 'Elevation gain' : 'Desnivel', `+${(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`] : null,
     day.neutralStartTimeUtc && !hideNeutralStart ? [en ? 'Neutral start' : 'Salida neutralizada', formatTimeUser(day.neutralStartTimeUtc)?.display] : null,

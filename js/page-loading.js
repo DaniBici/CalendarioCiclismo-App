@@ -17,11 +17,16 @@
 //  .loading dentro (la página pintó contenido, vacío o error), se desvanece.
 //  Fallback duro a los 12 s por si una petición muere sin repintar.
 //
+//  Las pantallas de ciclocross no llevan perfil: el recorrido altimétrico es de
+//  carretera. Solo muestran el rótulo y «Cargando…» (isCyclocrossPage).
+//
 //  Los perfiles son REALES (etapas reina de GV 2026 en la BD, horneados aquí
 //  para que la pantalla de carga no dependa de la red; simplificados con
 //  Douglas-Peucker). En cada carga se sortea uno. Para añadir/cambiar uno:
 //  volcar elevationProfile.points como [km, alt] + distance/min/max/caption.
 // ─────────────────────────────────────────────────────────────────
+
+import { cyclocrossHome } from './services/today-season.js';
 
 const PROFILES = [
   { caption: "Feltre → Alleghe · Giro 2026 · 150,8 km · 5.000 m+",
@@ -66,6 +71,18 @@ function isEnglish() {
   return p.startsWith('/en/') || p === '/en';
 }
 
+// Ciclocross: sus rutas y, tras el cierre de la temporada de carretera, la home
+// sin `?date=` (que pinta la agenda de Ciclocross).
+function isCyclocrossPage() {
+  const { pathname: p, search } = window.location;
+  if (p.startsWith('/ciclocross') || p.startsWith('/en/cyclocross')) return true;
+  if (p !== '/' && p !== '/index.html' && p !== '/en/' && p !== '/en' && p !== '/en/index.html') return false;
+  if (new URLSearchParams(search).has('date')) return false;
+  const now = new Date();
+  const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return cyclocrossHome(key);
+}
+
 function profilePathD(prof) {
   const span = prof.maxAlt - prof.minAlt;
   return prof.points.map(([km, alt], i) => {
@@ -86,18 +103,23 @@ function loadingSubject(en) {
 
 function buildOverlay() {
   const en = isEnglish();
-  const prof = PROFILES[Math.floor(Math.random() * PROFILES.length)];
-  const lineD = profilePathD(prof);
-  const fillD = `${lineD} L${PROF_W},${PROF_H} L0,${PROF_H} Z`;
   const el = document.createElement('div');
   el.className = 'page-loading';
   el.setAttribute('role', 'status');
   el.setAttribute('aria-label', en ? 'Loading' : 'Cargando');
-  el.innerHTML =
+  const brand =
     '<div class="page-loading__brand">' +
       `<p class="page-loading__title">${escapeText(loadingSubject(en))}</p>` +
       `<p class="page-loading__msg">${en ? 'Loading…' : 'Cargando…'}</p>` +
-    '</div>' +
+    '</div>';
+  if (isCyclocrossPage()) {
+    el.innerHTML = brand;
+    return el;
+  }
+  const prof = PROFILES[Math.floor(Math.random() * PROFILES.length)];
+  const lineD = profilePathD(prof);
+  const fillD = `${lineD} L${PROF_W},${PROF_H} L0,${PROF_H} Z`;
+  el.innerHTML = brand +
     '<div class="page-loading__profile"><div class="page-loading__svgwrap">' +
     `<svg viewBox="0 0 ${PROF_W} ${PROF_H}" preserveAspectRatio="none" aria-hidden="true">` +
       `<path class="page-loading__fill" d="${fillD}"/>` +
@@ -119,6 +141,7 @@ function startAnimation(overlay) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const line  = overlay.querySelector('.page-loading__line');
   const rider = overlay.querySelector('.page-loading__rider');
+  if (!line || !rider) return () => {};   // ciclocross: sin perfil
   const len   = line.getTotalLength();
   if (reduced) {
     // Perfil estático completo, sin punto ni bucle.

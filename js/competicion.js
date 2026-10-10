@@ -8,7 +8,7 @@ import { supabase, stageLabel, countryFlag, formatTimeUser,
          resolveTypeBadges, setMeta, setMetaProperty, initPhTooltip,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
          startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
-         articuloNombre, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair,
+         articuloNombre, conArticulo, originalNameDistinto, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair,
          embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
@@ -388,7 +388,7 @@ function updateSeoCompeticion(race, days) {
 
   const isEn  = getLang() === 'en';
   const name  = (isEn && race.nameEn) || race.name || '';
-  const origName = race.originalName || '';
+  const origName = originalNameDistinto(name, race.originalName);
   const nameWithOrig = origName ? `${name} (${origName})` : name;
   const year  = race.year || new Date().getFullYear();
   const art   = articuloNombre(name);
@@ -420,7 +420,14 @@ function updateSeoCompeticion(race, days) {
     ? sorted.find(d => !d.isRestDay && d.slug) || first
     : null;
 
-  const title       = `${name} ${year} - ${t('seo.siteName')}`;
+  // Etapas y km totales para la descripción. Espejo de gen_og_pages.py.
+  const stageDays = sorted.filter(d => !d.isRestDay);
+  const totalKm   = Math.round(stageDays.reduce((acc, d) => acc + (Number(d.distanceKm) || 0), 0));
+  const title       = isOneDay || isEn
+    ? `${name} ${year} - ${t('seo.siteName')}`
+    : `${name} ${year}: etapas y recorrido - ${t('seo.siteName')}`;
+  const artNameEs   = conArticulo(name, nameWithOrig, art);
+  const artNameCap  = artNameEs.charAt(0).toUpperCase() + artNameEs.slice(1);
   // EN: paridad con race_description_en de tools/site/gen_og_pages.py.
   const enStart = first ? (multiMonth ? seoDayMonth(first.dateKey, 'en') : String(Number(first.dateKey.slice(8, 10)))) : '';
   const enEnd   = last ? seoLongDate(last.dateKey, 'en') : '';
@@ -431,8 +438,10 @@ function updateSeoCompeticion(race, days) {
           ? `${name} ${year} runs from ${enStart} to ${enEnd}. See the route, stages and how to watch on TV and online streaming.`
           : `Route, stages and how to watch ${name} ${year} on TV and online streaming.`)
     : isOneDay
-    ? `${art.charAt(0).toUpperCase() + art.slice(1)} ${nameWithOrig} se disputa el ${fechaFin}. Consulta el recorrido y cómo ver por TV y online streaming.`
-    : `${art.charAt(0).toUpperCase() + art.slice(1)} ${nameWithOrig} se disputa del ${fechaInicio} al ${fechaFin}. Consulta el recorrido, etapas y cómo ver por TV y online streaming.`;
+    ? `${artNameCap} se disputa el ${fechaFin}. Consulta el recorrido y cómo ver por TV y online streaming.`
+    : stageDays.length > 1 && totalKm > 0
+      ? `${artNameCap} se disputa del ${fechaInicio} al ${fechaFin}. Consulta las ${stageDays.length} etapas y ${totalKm} km de recorrido, sus perfiles y cómo ver por TV y online streaming.`
+      : `${artNameCap} se disputa del ${fechaInicio} al ${fechaFin}. Consulta el recorrido, etapas y cómo ver por TV y online streaming.`;
   const keywords    = `${BASE_KW}, ${name}, ${name} ${year}${origName ? ', ' + origName : ''}${ciudadSalida ? ', ' + ciudadSalida : ''}${ciudadLlegada ? ', ' + ciudadLlegada : ''}`;
 
   document.title = title;

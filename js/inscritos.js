@@ -6,7 +6,7 @@ import { teamHeaderColors } from './team-appearance.js';
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
          raceName as getRaceName, enBase,
-         seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
+         seoLongDate, seoDayMonth, articuloNombre, conArticulo, originalNameDistinto, raceSearchName, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          isNoTeamPlaceholderTeam, setRaceRobots, setHreflangPair } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
@@ -14,17 +14,6 @@ import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPd
 import { setupRiderTooltips } from './rider-tooltip.js';
 
 // ── SEO helpers ──────────────────────────────────────────────────────
-function articuloNombre(name) {
-  const firstWord = (name || '').trim().split(/\s+/)[0].toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const masculinos = [
-    'tour', 'giro', 'gran', 'grande', 'campeonato', 'criterium', 'critérium',
-    'circuito', 'circuit', 'grand', 'trofeo', 'trophee', 'trophée',
-    'memorial', 'premio', 'prix', 'open', 'paris', 'eschborn'
-  ];
-  return masculinos.includes(firstWord) ? 'el' : 'la';
-}
-
 function buildFechaParentesis(race, lang) {
   const sd = race.startDate || '';
   const ed = race.endDate   || '';
@@ -107,7 +96,7 @@ async function init() {
 
   // Update page title & SEO
   const raceName = getRaceName(race) || t('race.unknown');
-  const origName = race.originalName || '';
+  const origName = originalNameDistinto(raceName, race.originalName);
   const nameWithOrig = origName ? `${raceName} (${origName})` : raceName;
   const year = race.year || new Date().getFullYear();
   const art = articuloNombre(raceName);
@@ -120,9 +109,15 @@ async function init() {
     ? t('startlist.provisional')
     : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
   const siteName = t('seo.siteName');
-  const title = `${inscritosLabel} - ${raceName} ${fechaParentesis} - ${siteName}`;
   const provisionalNote = race.startlistProvisional ? t('startlist.provisionalNote') : '';
   const isFemale = race.gender === 'female';
+  // ES: «Vuelta a España 2026: dorsales y corredores inscritos». Paridad con gen_og_pages.py.
+  const riderPhraseEs = isFemale ? 'corredoras inscritas' : 'corredores inscritos';
+  const titleTailEs = race.startlistProvisional ? 'lista provisional de inscritos' : `dorsales y ${riderPhraseEs}`;
+  const title = _isEn
+    ? `${inscritosLabel} - ${raceName} ${fechaParentesis} - ${siteName}`
+    : `${raceSearchName(race, raceName)} ${year}: ${titleTailEs} - ${siteName}`;
+  const nameConArt = conArticulo(raceName, nameWithOrig, art);
   let description;
   if (_isEn) {
     description = (totalRiders > 0 && totalTeams > 0)
@@ -131,12 +126,12 @@ async function init() {
         ? `Startlist with ${totalRiders} riders for ${raceName} ${fechaParentesis}${provisionalNote}. Dorsals and participants.`
         : `Startlist of teams and riders for ${raceName} ${fechaParentesis}${provisionalNote}. Dorsals and participants.`;
   } else {
-    const riderPhrase = isFemale ? 'corredoras inscritas' : 'corredores inscritos';
+    const riderPhrase = riderPhraseEs;
     description = (totalRiders > 0 && totalTeams > 0)
-      ? `Lista de ${totalTeams} equipos y ${totalRiders} ${riderPhrase} en ${art} ${nameWithOrig} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`
+      ? `Lista de ${totalTeams} equipos y ${totalRiders} ${riderPhrase} en ${nameConArt} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`
       : totalRiders > 0
-        ? `Lista de ${totalRiders} ${riderPhrase} en ${art} ${nameWithOrig} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`
-        : `Lista de equipos y ${riderPhrase} en ${art} ${nameWithOrig} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`;
+        ? `Lista de ${totalRiders} ${riderPhrase} en ${nameConArt} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`
+        : `Lista de equipos y ${riderPhrase} en ${nameConArt} ${fechaParentesis}${provisionalNote}. Dorsales y participantes.`;
   }
 
   // Keywords: mismas de competición + específicas de inscritos

@@ -149,9 +149,11 @@ export function seoDayMonth(dateKey, lang = _seoLang()) {
   return lang === 'en' ? `${d} ${mo}` : `${d} de ${mo}`;
 }
 
-// Artículo para el nombre de una carrera: «el Tour…» / «la Vuelta…».
-// Femenino por defecto (la mayoría de clásicas); masculinos por primera palabra.
-// Paridad: articulo_nombre() en .github/workflows/og-pages.yml.
+// Artículo para el nombre de una carrera: «el Tour…», «la Vuelta…», «los Juegos…».
+// Femenino por defecto («la París-Tours», «la Milán-San Remo»: clásica);
+// masculinos por primera palabra o por patrón. Devuelve 'el' | 'la' | 'los' | 'las'.
+// Paridad: articulo_nombre() en tools/site/gen_og_pages.py. Única heurística de
+// jornada, competición, inscritos, orden de salida, perfil, mapa y resultados.
 export function articuloNombre(name) {
   const norm = (name || '').trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -159,13 +161,63 @@ export function articuloNombre(name) {
   const masculinos = [
     'tour', 'giro', 'gran', 'grande', 'campeonato', 'criterium',
     'circuito', 'circuit', 'grand', 'trofeo', 'trophee',
-    'memorial', 'premio', 'prix', 'open', 'paris', 'eschborn', 'o', 'gp'
+    'memorial', 'premio', 'prix', 'open', 'paris', 'eschborn', 'o', 'gp',
+    'chrono', 'omloop', 'kuurne-bruselas-kuurne'
   ];
+  // Plurales: «los Juegos del Mediterráneo», «los Cuatro Días de Dunkerque».
+  if (firstWord === 'juegos' || /^(dos|tres|cuatro|cinco|seis|siete) dias\b/.test(norm)) return 'los';
   if (masculinos.includes(firstWord)) return 'el';
-  // «X Tour» (UAE Tour, Renewi Tour, Alpes Isère Tour…): masculino aunque
-  // la palabra clave no vaya primera.
-  if (/\btour\b/.test(norm)) return 'el';
+  // «X Tour» (UAE Tour, Renewi Tour…), «X Omloop» (EPZ Omloop van Borsele),
+  // «X GP» / «X Grand Prix» (Rhodes GP, Orlen Nations Grand Prix) y
+  // «Grote Prijs» / «Velika Nagrada» (gran premio): masculino aunque la
+  // palabra clave no vaya primera.
+  if (/\b(tour|omloop)\b|\b(gp|grand prix)$|^(grote prijs|velika nagrada)\b/.test(norm)) return 'el';
   return 'la';
+}
+
+// Nombres que ya empiezan por artículo («La Vuelta», «Il Lombardia»): la
+// descripción no antepone otro («de la La Vuelta»). Paridad: lleva_articulo/
+// con_articulo/de_articulo en tools/site/gen_og_pages.py. `art` fuerza el
+// artículo cuando la página usa otra heurística que articuloNombre.
+function llevaArticulo(name) {
+  const first = (name || '').trim().toLowerCase().split(/\s+/)[0];
+  return ['la', 'el', 'las', 'los', 'il'].includes(first);
+}
+
+export function conArticulo(name, label = name, art) {
+  return llevaArticulo(name) ? label : `${art || articuloNombre(name)} ${label}`;
+}
+
+// Nombre original para mostrar entre paréntesis, o '' si repite el nombre propio
+// («Il Lombardia (Il Lombardia)»). Se repite cuando, sin tildes, mayúsculas ni
+// signos, el original es igual al nombre o está contenido en él. Paridad:
+// nombre_original_distinto() en tools/site/gen_og_pages.py.
+const claveNombre = (text) => String(text || '').toLowerCase().normalize('NFD')
+  .replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, '');
+
+export function originalNameDistinto(name, original) {
+  const orig = String(original || '').trim();
+  const key = claveNombre(orig);
+  return !key || claveNombre(name).includes(key) ? '' : orig;
+}
+
+const DE_ARTICULO = { el: 'del', la: 'de la', los: 'de los', las: 'de las' };
+
+export function deArticulo(name, art) {
+  if (llevaArticulo(name)) return 'de';
+  return DE_ARTICULO[art || articuloNombre(name)] || 'de la';
+}
+
+// Nombre con el que se busca la carrera cuando difiere del nombre de marca.
+// Clave: slug sin sufijo de año. Paridad: NOMBRE_BUSQUEDA en gen_og_pages.py.
+const NOMBRE_BUSQUEDA = {
+  'la-vuelta': 'Vuelta a España',
+  'la-vuelta-femenina': 'Vuelta a España Femenina',
+};
+
+export function raceSearchName(race, fallbackName) {
+  const base = String(race?.slug || '').replace(/-\d{4}$/, '');
+  return NOMBRE_BUSQUEDA[base] || fallbackName || race?.name || '';
 }
 
 // ── Helpers de hora ──────────────────────────────────────────────

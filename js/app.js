@@ -438,10 +438,10 @@ function updateSeoDay(dateKey, raceDays) {
   // Valores evergreen — espejo exacto del HTML estático (`index.html` / `en/index.html`).
   // Se reescriben explícitamente por si una navegación previa en la misma sesión los tocó.
   // Título EN propio: con el mismo título que la home ES, Google agrupaba /en/ con /.
-  const title = isEn ? 'Pro Cycling Races Today: Schedule, TV and Streaming - Calendario Ciclismo App' : 'Calendario Ciclismo App';
+  const title = isEn ? 'Pro Cycling Races Today: Schedule, TV and Streaming - Calendario Ciclismo App' : 'Calendario Ciclismo App: calendario ciclista con horarios, TV y recorridos';
   const description = isEn
-    ? 'All professional cycling races with schedule, route, profile and how to watch on TV and streaming.'
-    : 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
+    ? 'All professional cycling races with schedule, route, profile, standings and how to watch on TV and streaming.'
+    : 'Calendario de ciclismo profesional: todas las carreras con horarios, recorrido, perfil, clasificaciones y cómo ver por TV y streaming. Una idea de Dani Sánchez.';
 
   document.title = title;
   setMeta('description', description);

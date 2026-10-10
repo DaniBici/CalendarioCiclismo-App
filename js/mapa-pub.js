@@ -7,7 +7,7 @@
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
-         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots,
+         seoLongDate, deArticulo, startFinishLabels, setRaceRobots,
          embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
@@ -155,7 +155,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
          : sn === 0   ? `Route map of the prologue of ${racePart}`
          :              `Route map of stage ${sn} of ${racePart}`;
   } else {
-    const deArt = articuloNombre(name) === 'el' ? 'del' : 'de la';
+    const deArt = deArticulo(name);
     head = sn == null ? `Mapa del recorrido de ${racePart}`
          : sn === 0   ? `Mapa del recorrido del prólogo ${deArt} ${racePart}`
          :              `Mapa del recorrido de la ${sn}ª etapa ${deArt} ${racePart}`;

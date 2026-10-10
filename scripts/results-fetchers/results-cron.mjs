@@ -566,17 +566,13 @@ async function main() {
           AND ${AUTOMATIC_ACQUISITION}
           AND rr.rank = 1 AND COALESCE(rr.irm, '') = ''
       )`;
-      // Una clasificación sintética (PDF o cronometrador) puede haber dejado un
-      // ganador válido antes de que DataRide publique la oficial. MAIN_COVERED la
-      // considera cubierta por diseño, pero con source='uci' debe seguir entrando:
-      // el upsert oficial purga la gemela negativa aunque no esté bloqueada.
-      // Acotamos la excepción a la carrera que sigue en su ventana configurada;
-      // una fuente que no sea UCI conserva el cierre estricto habitual.
-      const UCI_OFFICIAL_REPLACEMENT_PENDING = `l."source" = 'uci' AND EXISTS (
-        SELECT 1 FROM public.race_uci_stages s
-        WHERE s."raceId" = l."raceId" AND s."eventId" < 0
-          AND COALESCE(s."rowCount",0) > 0
-      )`;
+      // DataRide publica la llegada de la jornada antes que sus clasificaciones
+      // complementarias (puntos, montaña, jóvenes) y puede sustituir después una
+      // llegada sintética (PDF o cronometrador) con ganador válido: con ganador ya
+      // volcado, la jornada sigue observándose dentro de la ventana. El upsert usa
+      // --skip-existing y solo escribe las clasificaciones nuevas; el oficial
+      // purga la gemela negativa aunque no esté bloqueada.
+      const UCI_STAGE_REOBSERVED = `l."source" = 'uci'`;
       // Última JORNADA, no solo máximo stageNumber: en 3A/3B ambos comparten el 3,
       // pero la clasificación final solo pertenece al sector B. dateKey y horas
       // ordenan los sectores igual que el índice A/B usado por el upsert.
@@ -622,7 +618,7 @@ async function main() {
            AND now() <= (${CONFIGURED_STOP_AT_SQL})
            AND (d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
              - (${CONFIGURED_POLL_INTERVAL_MINUTES_SQL}) * interval '1 minute')
-           AND (NOT (${MAIN_COVERED}) OR l."source" IN (${sqlStringList(COVERED_STAGE_REFRESH_SOURCES)}) OR (${UCI_OFFICIAL_REPLACEMENT_PENDING})
+           AND (NOT (${MAIN_COVERED}) OR l."source" IN (${sqlStringList(COVERED_STAGE_REFRESH_SOURCES)}) OR (${UCI_STAGE_REOBSERVED})
              OR (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_RACE_DAY} AND NOT (${FINAL_COVERED})))
          ORDER BY l."raceId", d."estimatedFinishTimeUtc" DESC
          LIMIT $1`, [LIMIT]);
@@ -1159,7 +1155,7 @@ async function main() {
     // startlist. Los cronometradores conservan sus nombres como texto transitorio.
     if (shouldSeedStartlist(t.sl, kind, t.resultsOnly)) upArgs.push('--seed-startlist');
     if (shouldResolveBibsByName(kind, t.resultsOnly)) upArgs.push('--resolve-bibs-by-name');
-    if (SKIP_EXISTING && !refreshesCoveredStage(kind)) {
+    if ((SKIP_EXISTING || (CONFIGURED && kind === 'uci' && t.stageCovered)) && !refreshesCoveredStage(kind)) {
       upArgs.push('--skip-existing');
       // SportSoft Live consolida bonificaciones tras el orden de meta. Cada
       // re-volcado refresca lastSyncedAt, por lo que el umbral cubre toda la

@@ -8,7 +8,7 @@ import { supabase, broadcastRegionBadgeLabel, formatTime, formatTimeUser, getUse
          resolveTypeBadges, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
          raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
-         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots, setHreflangPair,
+         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, articuloNombre, conArticulo, deArticulo, originalNameDistinto, raceSearchName, trapFocus, setRaceRobots, setHreflangPair,
          embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
@@ -436,17 +436,6 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
 }
 
 // ── SEO dinámico — jornada ────────────────────────────────────────
-function articuloJornada(name) {
-  const firstWord = (name || '').trim().split(/\s+/)[0].toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const masculinos = [
-    'tour', 'giro', 'gran', 'grande', 'campeonato', 'criterium', 'critérium',
-    'circuito', 'circuit', 'grand', 'trofeo', 'trophee', 'trophée',
-    'memorial', 'premio', 'prix', 'open', 'paris', 'eschborn'
-  ];
-  return masculinos.includes(firstWord) ? 'el' : 'la';
-}
-
 function ordinalEtapa(n) {
   const ord = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª',
                '11ª','12ª','13ª','14ª','15ª','16ª','17ª','18ª','19ª','20ª','21ª'];
@@ -458,13 +447,15 @@ function updateSeoJornada(rd, race) {
   const _seoIsEn = getLang() === 'en';
 
   const raceNameStr = raceName(race) || '';
-  const origName   = race.originalName || '';
+  const origName   = originalNameDistinto(raceNameStr, race.originalName);
   const raceNameWithOrig = origName ? `${raceNameStr} (${origName})` : raceNameStr;
   const raceYear   = race.year  || '';
   const isOneDay   = race.raceFormat === 'one_day';
   const stageNum   = (rd.stageNumber !== null && rd.stageNumber !== undefined) ? parseInt(rd.stageNumber) : null;
-  const art        = articuloJornada(raceNameStr);
-  const artCap     = art.charAt(0).toUpperCase() + art.slice(1);
+  const art        = articuloNombre(raceNameStr);
+  const raceConArt = conArticulo(raceNameStr, raceNameWithOrig, art);
+  const raceConArtCap = raceConArt.charAt(0).toUpperCase() + raceConArt.slice(1);
+  const raceDeArt  = deArticulo(raceNameStr, art);
 
   const startLoc   = rdLocation(rd, 'startLocation');
   const finishLoc  = rdLocation(rd, 'finishLocation');
@@ -493,7 +484,11 @@ function updateSeoJornada(rd, race) {
     const route = sameOrOne
       ? startLoc
       : `${startLoc} › ${finishLoc}`;
-    title = `${raceNameStr}, ${stageLabelStr}: ${route} - ${t('seo.siteName')}`;
+    // «Etapa 20 del Tour de Francia 2026: A › B · 172,1 km»: orden y año de la consulta.
+    const searchName = raceSearchName(race, raceNameStr);
+    const head = `${stageLabelStr ? stageLabelStr + ' ' + raceDeArt + ' ' : ''}${searchName}${raceYear ? ' ' + raceYear : ''}`;
+    const kmTitle = km ? ` · ${String(km).replace('.', ',')} km` : '';
+    title = `${head}${route ? ': ' + route : ''}${kmTitle} - ${t('seo.siteName')}`;
   }
 
   // ── DESCRIPCIÓN ──
@@ -515,19 +510,18 @@ function updateSeoJornada(rd, race) {
     const rutaStr = sameOrOne
       ? `con salida y meta en ${startLoc}`
       : `con salida en ${startLoc} y meta en ${finishLoc}`;
-    const fechaStr = fechaLarga ? ` (${fechaLarga})` : '';
+    // Con nombre original ya entre paréntesis, la fecha va entre comas (paridad con gen_og_pages.py).
+    const fechaStr = fechaLarga ? (origName ? `, ${fechaLarga},` : ` (${fechaLarga})`) : '';
     const recorridoStr = km
       ? `cubre ${Number(km).toLocaleString('es-ES')} km${rutaStr ? ` ${rutaStr}` : ''}`
       : rutaStr ? `se disputa ${rutaStr}` : 'se disputa';
     if (isOneDay) {
-      description = `${artCap} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `${raceConArtCap}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     } else if (stageNum === 0) {
-      const deArt = art === 'el' ? 'del' : 'de la';
-      description = `El prólogo ${deArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `El prólogo ${raceDeArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     } else {
-      const deArt = art === 'el' ? 'del' : 'de la';
       const ordinal = stageNum !== null ? ordinalEtapa(stageNum) : '';
-      description = `La ${ordinal} etapa ${deArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `La ${ordinal} etapa ${raceDeArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     }
   }
 

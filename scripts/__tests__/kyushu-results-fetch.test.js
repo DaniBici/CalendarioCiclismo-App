@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parsePdf, resultsPdfFromPost, riderLine, seconds, sitemapEntries } from '../results-fetchers/kyushu-results-fetch.mjs';
+import {
+  combineCommuniques, communiqueLinks, communiqueStage, findCommuniques, findOfficialResults, parsePdf, resultPageLinks,
+  resultPages, resultsPdfFromPost, riderLine, seconds, sitemapEntries, sitemapLocs, SITEMAP_INDEX,
+} from '../results-fetchers/kyushu-results-fetch.mjs';
 
 // Comunicado sintético con la maquetación de pdftotext -layout de los comisarios.
 const communique = (stage, date = '11 Oct 2026') => `
@@ -101,5 +104,81 @@ describe('kyushu-results-fetch', () => {
     const xml = '<urlset><url><loc>https://tourdekyushu.asia/news/1/</loc><lastmod>2026-10-10T20:48:28+09:00</lastmod></url>'
       + '<url><loc>https://tourdekyushu.asia/news/2/</loc><lastmod>2026-10-11T14:18:18+09:00</lastmod></url></urlset>';
     expect(sitemapEntries(xml, '2026-10-11').map((entry) => entry.url)).toEqual(['https://tourdekyushu.asia/news/2/']);
+  });
+
+  describe('páginas de resultados con comunicados en la carpeta del tema', () => {
+    const SITE = 'https://tourdekyushu.asia';
+    const DIR = `${SITE}/manager/wp-content/themes/tourdekyushu/assets/pdf/communique`;
+    const urlset = (...items) => `<urlset>${items.map(([loc, lastmod]) => `<url><loc>${loc}</loc><lastmod>${lastmod}</lastmod></url>`).join('')}</urlset>`;
+    const page = (...pdfs) => `<html>${pdfs.map((pdf) => `<a href="${pdf}">PDF</a>`).join('')}</html>`;
+    const split = (text, from, to) => text.slice(text.indexOf(from), to ? text.indexOf(to) : undefined);
+    const stageText = communique(1, '10 Oct 2026');
+
+    it('elige páginas por la ruta o por la fecha, sin fijar el slug de la sede', () => {
+      const entries = sitemapEntries(urlset(
+        [`${SITE}/results/`, '2026-10-09T15:39:59+09:00'],
+        [`${SITE}/results/rareza-xyz/`, '2026-10-01T00:00:00+09:00'],
+        [`${SITE}/en/results-en/saga-fukuoka/`, '2026-10-10T20:00:00+09:00'],
+        [`${SITE}/etapa-uno-clasificaciones/`, '2026-10-10T21:30:00+09:00'],
+        [`${SITE}/about/`, '2026-03-01T00:00:00+09:00'],
+      ), '');
+      expect(resultPages(entries, '2026-10-10')).toEqual([
+        `${SITE}/results/`, `${SITE}/results/rareza-xyz/`, `${SITE}/en/results-en/saga-fukuoka/`, `${SITE}/etapa-uno-clasificaciones/`,
+      ]);
+      expect(sitemapLocs('<sitemapindex><sitemap><loc>https://a/x.xml</loc></sitemap><sitemap><loc>https://a/y.xml</loc></sitemap></sitemapindex>'))
+        .toEqual(['https://a/x.xml', 'https://a/y.xml']);
+    });
+
+    it('extrae solo los PDF de la carpeta de comunicados y los enlaces a otras páginas de resultados', () => {
+      const html = `<a href="${DIR}/Stage1_C02.pdf?v=3">a</a><a href="/manager/wp-content/themes/tourdekyushu/assets/pdf/communique/Stage1_C03.pdf">b</a>
+        <a href="${SITE}/manager/wp-content/themes/tourdekyushu/assets/img/stage/saga-finishmap.pdf">c</a>
+        <a href="/en/results-en/oita/">d</a><a href="/en/results-en/oita/#top">d</a><a href="https://example.com/results/x/">e</a>
+        <a href="/manager/wp-content/themes/tourdekyushu/assets/img/results/bg.png">f</a><a href="/stage-en/oita/">g</a>`;
+      expect(communiqueLinks(html, `${SITE}/results/oita/`)).toEqual([`${DIR}/Stage1_C02.pdf`, `${DIR}/Stage1_C03.pdf`]);
+      expect(resultPageLinks(html, `${SITE}/results/oita/`)).toEqual([`${SITE}/en/results-en/oita/`]);
+    });
+
+    it('asigna cada PDF a su etapa por el contenido y rechaza secciones duplicadas', () => {
+      expect(communiqueStage(stageText, 2026)).toEqual({ stages: [1], date: '2026-10-10' });
+      expect(communiqueStage(stageText, 2025)).toBeNull();
+      const llegada = split(stageText, 'COMMUNIQUE No.4-1-1', 'COMMUNIQUE No.4-2-1');
+      const resto = split(stageText, 'COMMUNIQUE No.4-2-1');
+      const docs = [{ url: 'general.pdf', text: ` Tour de Kyushu 2026\n${resto}` }, { url: 'llegada.pdf', text: ` Tour de Kyushu 2026\n${llegada}` }];
+      const joined = combineCommuniques(docs);
+      expect(joined.urls).toEqual(['llegada.pdf', 'general.pdf']);
+      expect(parsePdf(joined.text, { ...options, expectedDate: '2026-10-10', stageNumber: 1 }).stage.classifications.map((item) => item.classKind))
+        .toEqual(['stage', 'gc', 'points', 'kom', 'youth', 'teams']);
+      expect(() => combineCommuniques([...docs, { url: 'llegada-bis.pdf', text: llegada }])).toThrow(/llegada-bis\.pdf/);
+    });
+
+    const site = (pdfs) => {
+      const pages = {
+        [SITEMAP_INDEX]: `<sitemapindex><sitemap><loc>${SITE}/wp-sitemap-posts-page-1.xml</loc></sitemap>`
+          + `<sitemap><loc>${SITE}/wp-sitemap-users-1.xml</loc></sitemap></sitemapindex>`,
+        [`${SITE}/wp-sitemap-posts-page-1.xml`]: urlset([`${SITE}/results/`, '2026-10-09T15:39:59+09:00'], [`${SITE}/contacto/`, '2026-01-01T00:00:00+09:00']),
+        [`${SITE}/results/`]: '<a href="/results/nagasaki/">Nagasaki</a><a href="/results/tramo-uno-resultados/">Etapa 1</a>',
+        [`${SITE}/results/nagasaki/`]: page(`${DIR}/Sasebo_C02.pdf`),
+        [`${SITE}/results/tramo-uno-resultados/`]: page(...Object.keys(pdfs)),
+      };
+      return {
+        fetchText: async (url) => { if (url in pages) return pages[url]; throw new Error(`HTTP 404 en ${url}`); },
+        readPdf: async (url) => pdfs[url] ?? `Mynavi Tour de Kyushu 2026\nCOMMUNIQUE No.2-1   09 Oct 2026\nStage Results Exhibition Sasebo`,
+      };
+    };
+
+    it('encuentra el comunicado en una página con un nombre imprevisto', async () => {
+      const { fetchText, readPdf } = site({ [`${DIR}/Etapa1_Final.pdf`]: stageText });
+      const target = { stageNumber: 1, year: 2026, stageDate: '2026-10-10', fetchText, readPdf };
+      expect(await findCommuniques(target)).toMatchObject({ urls: [`${DIR}/Etapa1_Final.pdf`] });
+      expect(await findCommuniques({ ...target, stageNumber: 2, stageDate: '2026-10-11' })).toBeNull();
+      expect(await findCommuniques({ ...target, stageDate: '2026-10-11' })).toBeNull();
+    });
+
+    it('recurre a las páginas de resultados si las noticias no tienen el aviso', async () => {
+      const { fetchText, readPdf } = site({ [`${DIR}/Etapa1_Final.pdf`]: stageText });
+      const target = { stageNumber: 1, year: 2026, stageDate: '2026-10-10', fetchText, readPdf };
+      // Sin mapa de noticias en el sitio simulado: la consulta de noticias falla y se usa la otra vía.
+      expect((await findOfficialResults(target)).urls).toEqual([`${DIR}/Etapa1_Final.pdf`]);
+    });
   });
 });

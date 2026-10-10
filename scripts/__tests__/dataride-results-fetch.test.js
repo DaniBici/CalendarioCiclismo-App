@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
+import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizePointsRows, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
   from '../results-fetchers/dataride-results-fetch.mjs';
 import { normalizeUciLicense } from '../results-fetchers/uci-license.mjs';
 
@@ -255,5 +255,18 @@ describe('fixPressFormattedAbsolute — tiempos absolutos en notación de prensa
     expect(fixPressFormattedAbsolute(teamRows, true)).toEqual(teamRows);
     const noWinner = [pRow(1, null), pRow(2, "3h 01'56\"")];
     expect(fixPressFormattedAbsolute(noWinner, false)).toEqual(noWinner);
+  });
+});
+
+describe('puntos y montaña con decimal', () => {
+  const row = (rank, resultValue) => normalizeRow({ Rank: String(rank), Bib: String(rank), ResultValue: resultValue });
+  it('conserva el entero y no los toma por tiempo ni hueco', () => {
+    const rows = fixDisguisedGaps(normalizePointsRows([row(1, '19.0'), row(2, '13.0'), row(3, '8.0')], 'points'), false);
+    expect(rows.map(r => [r.resultValue, r.timeText, r.gapText])).toEqual([['19', null, null], ['13', null, null], ['8', null, null]]);
+  });
+  it('respeta un decimal distinto de cero y no toca clasificaciones por tiempo', () => {
+    expect(normalizePointsRows([row(1, '2.50')], 'kom')[0].resultValue).toBe('2.5');
+    const gc = [row(1, '3:00:02')];
+    expect(normalizePointsRows(gc, 'gc')).toBe(gc);
   });
 });

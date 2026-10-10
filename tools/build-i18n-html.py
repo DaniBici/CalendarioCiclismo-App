@@ -198,7 +198,7 @@ def apply_translations(html: str) -> str:
 # og:description toma `description` si no se indican; twitter:description toma
 # og:description.
 # `jsonld` son sustituciones literales dentro del JSON-LD del maestro.
-HOME_DESC_EN = "All professional cycling races with schedule, route, profile and how to watch on TV and streaming."
+HOME_DESC_EN = "All professional cycling races with schedule, route, profile, standings and how to watch on TV and streaming."
 PAGE_SEO_EN = {
     "index.html": {
         "title": "Pro Cycling Races Today: Schedule, TV and Streaming - Calendario Ciclismo App",
@@ -260,13 +260,14 @@ def patch_seo_meta(html: str, src_rel: str) -> str:
 PRERENDER_EN = {
     "index.html": """
       <h1>Calendario Ciclismo: every professional race with TV and streaming</h1>
-      <p>Calendario Ciclismo is the complete guide to men's and women's professional cycling. Each day lists the races under way with start and finish times, route, stage profile, startlist and every TV channel and streaming platform where they can be followed live, with specific coverage for Spain.</p>
+      <p>Calendario Ciclismo is the complete guide to men's and women's professional cycling. Each day lists the races under way with start and finish times, route, stage profile, startlist and every TV channel and streaming platform where they can be followed live, with specific coverage for Spain. Results and standings are published as each race finishes.</p>
       <p>It covers the three Grand Tours (Tour de France, Giro d'Italia and Vuelta a España), the five Monuments (Milan-San Remo, Tour of Flanders, Paris-Roubaix, Liège-Bastogne-Liège and Il Lombardia), every UCI WorldTour and UCI Women's WorldTour event, the UCI ProSeries and the classics of the continental calendar, as well as national, world and European championships.</p>
       <h2>Main sections</h2>
       <ul>
         <li><a href="/en/">Today</a>: today's races with schedules and where to watch them.</li>
         <li><a href="/en/calendar/?view=month">Monthly calendar</a>: every race of the month.</li>
         <li><a href="/en/calendar/?view=season">Season calendar</a>: every race of the year, filterable by category and country.</li>
+        <li><a href="/en/results/">Latest results</a>: full stage and classic results, with winners, general classification, points, mountains and youth, and the UCI team ranking.</li>
         <li><a href="/en/subscription/">Calendar subscription</a>: iCal feeds for Apple, Google and Outlook.</li>
         <li><a href="/en/about/">About</a>: the project, created and edited by Dani Sánchez.</li>
       </ul>

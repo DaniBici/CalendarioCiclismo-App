@@ -29,9 +29,14 @@ BLOCKS = {
     "og-results": ("archived_seasons.py", "results_routes.py"),
     "og-extras": ("archived_seasons.py",),
     "og-cx": ("archived_seasons.py", "cx_calendar.py"),
-    "sitemap": ("gen_sitemap.py", "archived_seasons.py", "cx_calendar.py", "results_routes.py"),
+    "sitemap": ("gen_sitemap.py", "archived_seasons.py", "cx_calendar.py", "results_routes.py",
+                "gen_asset_canonicals.py"),
     "feeds": ("gen_feeds.py",),
 }
+# Generadores que completan un bloque tras su generador principal (BLOCKS[b][0]).
+# Se regeneran enteros también en la ampliación incremental.
+EXTRA_GENERATORS = {"sitemap": ("gen_asset_canonicals.py",)}
+ASSET_CANONICALS = "asset-canonicals.json"
 OG_FAMILIES = {
     "og-races": ("competicion", "en/race"),
     "og-stages": ("jornada", "en/stage"),
@@ -245,7 +250,8 @@ def allowed_file(block, name):
     if name in SOURCE_INDEXES or name.startswith("/") or ".." in Path(name).parts:
         return False
     if block == "sitemap":
-        return name in ("sitemap.xml", "atom.xml") or re.fullmatch(r"sitemap-[1-9][0-9]*\.xml", name) is not None
+        return (name in ("sitemap.xml", "atom.xml", ASSET_CANONICALS)
+                or re.fullmatch(r"sitemap-[1-9][0-9]*\.xml", name) is not None)
     if block == "feeds":
         return name.endswith(".ics") and name.startswith(("feed/", "en/feed/"))
     return block in OG_FAMILIES and name.endswith("/index.html") and any(
@@ -256,7 +262,7 @@ def complete_files(block, files, day):
     if block == "sitemap":
         parts = sorted((name for name in files if name.startswith("sitemap-") and name.endswith(".xml")),
                        key=lambda name: int(name[8:-4]) if re.fullmatch(r"sitemap-[1-9][0-9]*\.xml", name) else 0)
-        return (set(files) == {"sitemap.xml", "atom.xml", *parts}
+        return (set(files) == {"sitemap.xml", "atom.xml", ASSET_CANONICALS, *parts}
                 and parts == [f"sitemap-{index}.xml" for index in range(1, len(parts) + 1)]
                 and bool(parts))
     if block == "feeds":
@@ -346,6 +352,19 @@ def verify_sitemap(payload, files):
     if missing:
         raise ValueError(f"Alternativas sin entrada propia en sitemap: {sorted(missing)[:5]}")
     return total
+
+
+def verify_asset_canonicals(payload):
+    """Mapa ruta de PDF → URL canónica absoluta del sitio, no vacío."""
+    mapping = json.loads((payload / ASSET_CANONICALS).read_text(encoding="utf-8"))
+    if not isinstance(mapping, dict) or len(mapping) < 100:
+        raise ValueError("Mapa de canónicos de assets incompleto")
+    for path, canonical in mapping.items():
+        if (not path.startswith("/") or not path.lower().endswith(".pdf")
+                or not isinstance(canonical, str)
+                or not canonical.startswith("https://calendariociclismo.app/")):
+            raise ValueError(f"Entrada inválida en {ASSET_CANONICALS}: {path}")
+    return len(mapping)
 
 
 def archive_output(payload, files, archive):
@@ -562,6 +581,8 @@ def extend_generated_block(block, archive, metadata, state):
     extract_archive(archive, metadata["files"], payload)
     subprocess.run([sys.executable, str(ROOT / "tools/site" / BLOCKS[block][0]),
                     "--stage-slugs", ",".join(state["stage_slugs"])], cwd=payload, check=True)
+    for extra in EXTRA_GENERATORS.get(block, ()):
+        subprocess.run([sys.executable, str(ROOT / "tools/site" / extra)], cwd=payload, check=True)
     files = inventory(payload)
     if (not files or not all(allowed_file(block, name) for name in files)
             or not complete_files(block, files, state["day"])):
@@ -613,6 +634,8 @@ def run_block(block):
         if block in OG_FAMILIES:
             command += ["--family", block[3:]]
         subprocess.run(command, cwd=payload, check=True)
+        for extra in EXTRA_GENERATORS.get(block, ()):
+            subprocess.run([sys.executable, str(ROOT / "tools/site" / extra)], cwd=payload, check=True)
         names = file_names(payload)
         if (not names or not all(allowed_file(block, name) for name in names)
                 or not complete_files(block, names, state["day"])):
@@ -693,6 +716,7 @@ def verify():
                 print(f"SEO {block} reutilizado: {metadata['seo']['html']} HTML")
         elif block == "sitemap":
             verify_sitemap(ROOT / "_site", metadata["files"])
+            verify_asset_canonicals(ROOT / "_site")
             ElementTree.parse(ROOT / "_site" / "atom.xml")
         else:
             current = int(state["day"][:4])

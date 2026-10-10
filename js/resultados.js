@@ -24,7 +24,7 @@ import { arrowHtml, installScrollRail } from './scroll-rail.js';
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceName as getRaceName, enBase, findMatchingTeam, normalizeTeamName, teamLinkUrl,
          buildRaceHero, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl, loadRaceTechnicalGuide, withRaceTechnicalGuide,
-         isNoTeamPlaceholderTeam, setRaceRobots,
+         isNoTeamPlaceholderTeam, setRaceRobots, raceSearchName, deArticulo, seoLongDateWeekday, seoDayMonth,
          embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
 import { getLang, initI18n } from './i18n.js';
@@ -100,6 +100,57 @@ function stagePathLabel(stageNumber, isEn, suffix = '') {
   if (stageNumber === 0) return isEn ? 'Prologue' : 'Prólogo';
   if (stageNumber != null) return isEn ? `Stage ${stageNumber}${suffix}` : `Etapa ${stageNumber}${suffix}`;
   return isEn ? 'Final classification' : 'Clasificación final';
+}
+
+// Título SEO de la página de resultados. Espejo del bloque RESULTADOS de
+// tools/site/gen_og_pages.py: «clasificación y resultados» por delante (las
+// consultas dicen más «clasificación» que «resultado»), sin sufijo de marca y
+// sin aviso de datos pendientes: la misma cadena sirve con y sin clasificación.
+function resultsSeoTitle(race, raceNameStr, stageNumber, suffix, isEn) {
+  const hero = `${isEn ? raceNameStr : raceSearchName(race, raceNameStr)} ${race.year || ''}`.trim();
+  if (race.raceFormat === 'one_day') {
+    return isEn ? `${hero} results and classification` : `Clasificación y resultados ${hero}`;
+  }
+  if (stageNumber == null) {
+    return isEn ? `${hero} final classification and results` : `Clasificación final y resultados ${hero}`;
+  }
+  if (isEn) return `${hero} ${stageNumber === 0 ? 'prologue' : `stage ${stageNumber}${suffix}`} results and classification`;
+  return `Clasificación y resultados ${stageNumber === 0 ? 'prólogo' : `etapa ${stageNumber}${suffix}`} ${hero}`;
+}
+
+// Descripción SEO (espejo de gen_og_pages.py): ruta, km y día de la jornada.
+function resultsSeoDescription(race, raceNameStr, raceDay, stageNumber, suffix, isEn) {
+  const hero = `${raceNameStr} ${race.year || ''}`.trim();
+  const start = (isEn && raceDay?.startLocationEn) || raceDay?.startLocation || '';
+  const finish = (isEn && raceDay?.finishLocationEn) || raceDay?.finishLocation || '';
+  const route = start && finish && start !== finish ? `${start} > ${finish}` : (start || finish);
+  const km = raceDay?.distanceKm ? `${isEn ? raceDay.distanceKm : String(raceDay.distanceKm).replace('.', ',')} km` : '';
+  const routeKm = [route, km].filter(Boolean).join(', ');
+  const lang = isEn ? 'en' : 'es';
+  const day = raceDay?.dateKey
+    ? (() => {
+        const weekday = seoLongDateWeekday(raceDay.dateKey, lang).split(',')[0];
+        return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${seoDayMonth(raceDay.dateKey, lang)}`;
+      })()
+    : '';
+  const tail = `${day ? ` ${day}.` : ''}`;
+  const paren = routeKm ? ` (${routeKm})` : '';
+  if (race.raceFormat === 'one_day') {
+    return isEn
+      ? `Classification and results of the ${hero}${paren}: full results and winner.${tail}`
+      : `Clasificación ${deArticulo(raceNameStr)} ${hero}${paren}: resultados completos y ganador.${tail}`;
+  }
+  if (stageNumber == null) {
+    return isEn
+      ? `Final classification of the ${hero}: GC, points, KOM, youth and teams.`
+      : `Clasificación final ${deArticulo(raceNameStr)} ${hero}: general, puntos, montaña, jóvenes y equipos.`;
+  }
+  if (isEn) {
+    const stage = stageNumber === 0 ? 'the prologue' : `stage ${stageNumber}${suffix}`;
+    return `Classification and results for ${stage} of the ${hero}${paren}: stage results, GC, points, KOM and youth.${tail}`;
+  }
+  const stage = stageNumber === 0 ? 'del prólogo' : `de la ${suffix ? `etapa ${stageNumber}${suffix}` : `${stageNumber}ª etapa`}`;
+  return `Clasificación ${stage} ${deArticulo(raceNameStr)} ${hero}${paren}: resultados de etapa, general, puntos, montaña y jóvenes.${tail}`;
 }
 
 // segundos (enteros) → tiempo absoluto en NOTACIÓN DE PRENSA: 20'52" (sub-hora;
@@ -362,10 +413,7 @@ async function init(i18nReady = Promise.resolve()) {
   // línea ~446) antes de los `return` de más abajo — si no, esta categoría de
   // páginas (adelantadas, aún sin datos) queda invisible en GA4.
   const logPendingView = (stageNumberForTitle, suffixForTitle = '') => {
-    const heroTitle = [getRaceName(race) || '', race.year || ''].filter(Boolean).join(' ');
-    const stageLabel = stagePathLabel(stageNumberForTitle, _isEn, suffixForTitle);
-    const titleStage = race.raceFormat === 'one_day' ? '' : ` · ${stageLabel}`;
-    document.title = _isEn ? `Results - ${heroTitle}${titleStage}` : `Resultados - ${heroTitle}${titleStage}`;
+    document.title = resultsSeoTitle(race, getRaceName(race) || '', stageNumberForTitle, suffixForTitle, _isEn);
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
   };
 
@@ -601,20 +649,14 @@ async function init(i18nReady = Promise.resolve()) {
   const contextAssets = withRaceTechnicalGuide(stageAssets || [],technicalGuide);
   // ── SEO / cabecera ─────────────────────────────────────────────────
   const raceNameStr = getRaceName(race) || '';
-  const year = race.year || '';
   const stageLabel = stagePathLabel(activeStageNumber, _isEn, activeSuffix);
-  const heroTitle = [raceNameStr, year].filter(Boolean).join(' ');
-  // En pruebas de un día NO hay etapas → el sufijo "· Clasificación final" es
-  // redundante y se omite del título (igual que en el subtítulo de la cabecera).
-  const titleStage = race.raceFormat === 'one_day' ? '' : ` · ${stageLabel}`;
-  const pageTitle = _isEn
-    ? `Results - ${heroTitle}${titleStage}`
-    : `Resultados - ${heroTitle}${titleStage}`;
+  const pageTitle = resultsSeoTitle(race, raceNameStr, activeStageNumber, activeSuffix, _isEn);
   document.title = pageTitle;
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
-  setMeta('description', _isEn
-    ? `Official results for ${heroTitle} - ${stageLabel}: stage classification, GC, points, KOM and youth.`
-    : `Resultados oficiales de ${heroTitle} - ${stageLabel}: clasificación de etapa, general, puntos, montaña y jóvenes.`);
+  // La jornada cancelada conserva la descripción del HTML estático (avisa de la cancelación).
+  if (!raceDay?.isCancelledDay) {
+    setMeta('description', resultsSeoDescription(race, raceNameStr, raceDay, activeStageNumber, activeSuffix, _isEn));
+  }
   setMetaProperty('og:title', pageTitle);
 
   const esOrigin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : 'https://calendariociclismo.app';

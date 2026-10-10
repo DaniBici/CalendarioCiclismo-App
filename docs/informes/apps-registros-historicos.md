@@ -88,3 +88,5 @@ comprobación visual en el dispositivo queda pendiente de desbloquear el PIN.
 **Contador efectivo (2026-10-09, Android 5.0.14 sin modo ciclocross):** la rama `android-5-0-14` fija `versionCode` en **643** con `versionName` **5.0.14**, por encima de la **642** de la 5.0.15 en `main`. La 5.0.15 de `main` debe subir a **644** o más.
 
 **Contador efectivo (2026-10-09, iOS 5.0.14 con las vistas de jornada):** la rama `apps-5-0-14` fija `CURRENT_PROJECT_VERSION` en **1475** con marketing **5.0.14**, sobre la **1474** sin modo ciclocross. Xcode Cloud asigna su propio número de build: comprobar el contador antes de la subida. La 5.0.15 de `main` debe subir a **1476** o más.
+
+**Requisito de SDK (2026-10-09):** toda build de iOS que se distribuya debe compilarse en local con Xcode 27.1 RC o con el Xcode oficial con el SDK de iOS 27.1, para que el iPhone Duo pueda usar la app. Aplica a la 5.0.15 y siguientes.

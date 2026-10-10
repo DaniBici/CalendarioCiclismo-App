@@ -2327,9 +2327,17 @@ input[type="color"].u-color-dot {
 /* La jornada aporta sus propios márgenes, cabecera y pestañas. */
 .cc-drawer__body:has(> #editorArea) { padding: 0; }
 .cc-drawer__body > .editor-area { overflow: visible; }
-.cc-drawer__body .editor-topbar,
-.cc-drawer__body .editor-tabs { padding-inline: var(--drawer-inset); }
-.cc-drawer__body .editor-content { max-width: none; padding-inline: 1.25rem; }
+.cc-drawer__body .editor-topbar { padding-inline: var(--drawer-inset); }
+.cc-drawer__body .editor-content { --editor-gutter: 1.25rem; max-width: none; padding-inline: var(--editor-gutter); padding-top: 0; }
+/* Las pestañas viven dentro de .editor-content: se extienden a sangre sobre su
+   relleno, como la cabecera, y alinean la primera con el borde de las secciones
+   (el porcentaje se resuelve contra .editor-content). Dejan aire sobre el
+   panel que sigue. */
+.cc-drawer__body .editor-tabs {
+  margin-inline: calc(-1 * var(--editor-gutter));
+  margin-bottom: 1rem;
+  padding-inline: max(var(--editor-gutter), calc((100% - var(--editor-content-width)) / 2 + var(--editor-gutter)));
+}
 .cc-drawer__body .editor-section {
   width: 100%;
   max-width: var(--editor-content-width);
@@ -2411,7 +2419,7 @@ input[type="color"].u-color-dot {
   .cc-drawer__title { font-size: var(--fs-4); }
   .cc-drawer__body { padding: 0.75rem; }
   .cc-drawer__body .editor-tabs { top: 0; }
-  .cc-drawer__body .editor-content { padding-inline: 0.75rem; }
+  .cc-drawer__body .editor-content { --editor-gutter: 0.75rem; }
   .cc-drawer__body .field-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
   .team-editor-layout { grid-template-columns: minmax(0, 1fr); }
   .team-editor-preview { position: static; }
@@ -3800,6 +3808,24 @@ label.panel-field-heading {
 }
 /* — Resultados: origen, ventana de volcado y selectores (results*.js) — */
 .ru-sync-box { margin-top: 0.55rem; padding: 0.6rem; background: var(--bg); border-radius: var(--radius); font-size: var(--fs-2); }
+/* Ámbito (radios) y horas de la ventana de volcado: control propio, etiqueta
+   sobre el campo y la misma superficie que el resto de campos del panel. */
+.ru-sync-option { display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; color: var(--text); }
+.ru-sync-option input[type="radio"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
+.ru-sync-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.ru-sync-time {
+  width: 7rem;
+  padding: 0.4rem 0.55rem;
+  font-family: var(--font-body);
+  font-size: var(--fs-2);
+  background: var(--bg-input);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  color-scheme: light dark;
+}
+html.light .ru-sync-time { color-scheme: light; }
+html.dark  .ru-sync-time { color-scheme: dark; }
 .ru-pick-popover { width: 360px; }
 /* Candidato de corredor; --current marca el enlazado */
 .ru-pick-row {
