@@ -747,6 +747,8 @@ html.dark  .date-nav__input { color-scheme: dark; }
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
 }
+/* La última fila cierra contra el borde de la sección: sin filete propio. */
+.asset-row:last-child { border-bottom: 0; }
 .asset-row__type {
   font-family: var(--font-display);
   font-size: var(--fs-3);
