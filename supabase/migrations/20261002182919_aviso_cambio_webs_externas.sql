@@ -1,9 +1,7 @@
 -- aviso_cambio_webs_externas
 --
 -- Aviso de cambio de CC hacia webs externas que generan sus páginas en un
--- build y leen los datos de CC por la API pública. Primer destino: las webs
--- classicacampdemorvedre.com y clubciclistaestivella.com (proyecto Supabase
--- webs-ccm-cce, edge function aviso-cc). Diseño y operación:
+-- build y leen los datos de CC por la API pública. Diseño y operación:
 -- docs/runbooks/aviso-cambio-webs-externas.md.
 --
 -- Flujo:
@@ -20,13 +18,13 @@
 --      el estado HTTP de net._http_response y reprograma hasta tres intentos
 --      si falla.
 --
--- Estado al aplicar: destino webs-ccm-cce con enabled = false. La detección
+-- Estado al aplicar: destino externo con enabled = false. La detección
 -- marca pendientes, pero no se envía nada hasta activarlo y crear en Vault el
 -- secreto compartido (nombre en vault_secret_name). El secreto no figura en el
 -- repositorio.
 --
 -- Contrato del envío: POST <url>, cuerpo {"cc_carrera_id": "<raceId>"},
--- cabeceras Content-Type: application/json y x-aviso-cc-secreto: <secreto>.
+-- cabeceras Content-Type: application/json y x-aviso-secreto: <secreto>.
 
 -- ── Destinos ────────────────────────────────────────────────────────────────
 CREATE TABLE private.change_notice_endpoints (
@@ -285,7 +283,7 @@ BEGIN
       body := jsonb_build_object('cc_carrera_id', r.race_id),
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-aviso-cc-secreto', v_secret),
+        'x-aviso-secreto', v_secret),
       timeout_milliseconds := 10000
     );
 
@@ -374,14 +372,14 @@ CREATE TRIGGER change_notice_route_gpx_del AFTER DELETE ON storage.objects
 
 -- ── Datos iniciales (envío desactivado) ─────────────────────────────────────
 INSERT INTO private.change_notice_endpoints (id, url, vault_secret_name, enabled, note)
-VALUES ('webs-ccm-cce',
-        'https://fybnlsxnqmpsliehiuih.supabase.co/functions/v1/aviso-cc',
-        'aviso_cc_webs_ccm_cce',
+VALUES ('destino-externo',
+        'https://example.invalid/aviso',
+        'aviso_destino_externo',
         false,
-        'classicacampdemorvedre.com y clubciclistaestivella.com (proyecto webs-ccm-cce); llama a webs.aviso_cc(cc_carrera_id)');
+        'Destino externo');
 
 INSERT INTO private.change_notice_races (endpoint_id, race_id, note) VALUES
-  ('webs-ccm-cce', 'FoJNjtj1ex8AemXhlGmo', 'Clàssica Camp de Morvedre 2026'),
-  ('webs-ccm-cce', '6e08f4f2-2d37-4093-9929-d1df1e82e627', 'Clàssica Camp de Morvedre 2025');
+  ('destino-externo', 'FoJNjtj1ex8AemXhlGmo', 'Clàssica Camp de Morvedre 2026'),
+  ('destino-externo', '6e08f4f2-2d37-4093-9929-d1df1e82e627', 'Clàssica Camp de Morvedre 2025');
 
 SELECT cron.schedule('change-notice-tick', '* * * * *', 'SELECT private.change_notice_tick();');
