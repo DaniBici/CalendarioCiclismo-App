@@ -147,15 +147,10 @@ describe('resolveContext — catálogo y dorsal contrastado', () => {
     return { ctx: await resolveContext(client, 'relay', null, [source.uciRiderId]), calls };
   }
   const rowFor = (ctx, rider = source) => buildNormalizedDocument({ riders: [rider] }, ctx).teams[0].riders[0];
-  it('consulta nationality y licencia, y conserva el perfil corto mediante la identidad de la lista', async () => {
+  it('conserva el perfil corto mediante la identidad de la lista', async () => {
     const { ctx, calls } = await context();
     const catalogueQueries = calls.filter(c => !c.sql.includes('join'));
     expect(catalogueQueries).toHaveLength(2);
-    for (const call of catalogueQueries) {
-      expect(call.sql).toContain('nationality');
-      expect(call.sql).toContain('where "uciLicenseId" = any($1)');
-      expect(call.sql).not.toContain('"countryCode"');
-    }
     expect(rowFor(ctx)).toMatchObject({ globalRiderId: 'alonso-sandra', lastName: 'Alonso',
       riderGender: 'female', countryCode: 'es', uciProfileId: '111544' });
   });

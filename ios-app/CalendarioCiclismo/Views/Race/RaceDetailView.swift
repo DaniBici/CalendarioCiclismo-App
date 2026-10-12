@@ -226,7 +226,7 @@ struct RaceDetailView: View {
                             return LocaleService.t("Dorsales", "Startlist")
                         }()
                         raceDocChip(
-                            icon: "person.2",
+                            icon: LogoCyclistIcon.name,
                             label: startlistLabel
                         ) {
                             showStartlist = true

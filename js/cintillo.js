@@ -12,19 +12,13 @@ import { supabase, toDateKey, jornadaUrl, raceUrl, startlistUrl, startOrderUrl }
 import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
 
-// Color de fondo de las entradas custom (sin carrera de la que heredar color):
-// el azul de acento del sitio.
+// Color de los iconos de los destinos sin logotipo (Fichajes, Temporada): el
+// azul de acento del sitio. La franja no lleva tinte de carrera, como en las
+// apps.
 const _customAccent = '#1a73e8';
 
-function _hexToRgba(hex, a) {
-  const h = (hex || '').replace('#', '');
-  if (h.length < 6) return `rgba(136,136,136,${a})`;
-  return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
-}
-
-function _buildGcSlide({ href, logoUrl, iconSvg, name, detail, colorHex }) {
+function _buildGcSlide({ href, logoUrl, iconSvg, name, detail }) {
   return {
-    bg: _hexToRgba(colorHex, 0.16),
     link: `<a class="giro-countdown__link" href="${href}">
       ${iconSvg
           ? iconSvg
@@ -62,14 +56,17 @@ function _buildHighlightAutoDetail(h, rd, isEn) {
 }
 
 /**
- * @param {'road'|'cx'} [scope] Sección del cintillo. «Hoy» y el resto de
- * superficies de carretera usan `road`; la agenda de Ciclocross usa `cx`. Cada
- * scope tiene sus propias entradas editoriales y no ve las del otro.
+ * @param {'road'|'cx'|Array<'road'|'cx'>} [scope] Sección del cintillo. «Hoy»
+ * y el resto de superficies de carretera usan `road`; la agenda de Ciclocross
+ * usa `cx`. Cada scope tiene sus propias entradas editoriales y no ve las del
+ * otro. Con varias secciones (Ciclocross mientras es la home, sin Hoy de
+ * carretera visible), el cintillo es único: las entradas de cada sección por
+ * `position`, en el orden de la lista.
  */
 export async function initCintillo(scope = 'road') {
   const el = document.getElementById('giroCountdown');
   if (!el) return;
-  if (scope !== 'cx') scope = 'road';
+  const scopes = [...new Set([scope].flat().map(s => s === 'cx' ? 'cx' : 'road'))];
 
   const _isEn = getLang() === 'en';
 
@@ -81,12 +78,13 @@ export async function initCintillo(scope = 'road') {
     supabase
       .from('today_highlights')
       .select('*')
-      .eq('scope', scope)
+      .in('scope', scopes)
       .or(`visibleFrom.is.null,visibleFrom.lte.${new Date().toISOString()}`)
       .or(`visibleUntil.is.null,visibleUntil.gte.${new Date().toISOString()}`)
       .order('position', { ascending: true }),
     initI18n(),
   ]);
+  if (highlights && scopes.length > 1) highlights.sort((a, b) => scopes.indexOf(a.scope) - scopes.indexOf(b.scope) || a.position - b.position);
 
   if (hlErr || !highlights || highlights.length === 0) return;
 
@@ -116,7 +114,7 @@ export async function initCintillo(scope = 'road') {
   }
   // La jornada lleva su carrera embebida (nombre/logo si solo viene raceDayId):
   // todas las lecturas salen en un único round-trip.
-  const RACE_COLUMNS = 'id, name, nameEn, logoUrl, colorHex, slug, slugEn, hideFlag, countryCode, startlistImportedAt';
+  const RACE_COLUMNS = 'id, name, nameEn, logoUrl, slug, slugEn, hideFlag, countryCode, startlistImportedAt';
   const [racesRes, rdsRes, cxRes, cxTournamentsRes, visibleRes] = await Promise.all([
     raceIds.size
       ? supabase.from('races').select(RACE_COLUMNS).in('id', [...raceIds])
@@ -125,7 +123,7 @@ export async function initCintillo(scope = 'road') {
       ? supabase.from('race_days').select(`id, raceId, slug, slugEn, date, stageNumber, startLocation, finishLocation, race:races(${RACE_COLUMNS})`).in('id', [...raceDayIds])
       : Promise.resolve({ data: [] }),
     cxIds.length?Promise.resolve(supabase.from('cx_races').select(CX_AGENDA_SELECT).eq('editorialStatus','published').in('id',cxIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
-    cxTournamentIds.length?Promise.resolve(supabase.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,colorHex,logoUrl').in('id',cxTournamentIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
+    cxTournamentIds.length?Promise.resolve(supabase.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,logoUrl').in('id',cxTournamentIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
     visibleQuery?Promise.resolve(visibleQuery).catch(()=>({data:null})):Promise.resolve({data:null}),
   ]);
   const visibleTournamentIds=visibleRes.data?new Set(visibleRes.data.map(row=>row.tournamentId)):null;
@@ -168,7 +166,6 @@ export async function initCintillo(scope = 'road') {
         logoUrl: h.customLogo || null,
         name,
         detail,
-        colorHex: _customAccent,
       }));
       return;
     }
@@ -190,7 +187,6 @@ export async function initCintillo(scope = 'road') {
         iconSvg: `<svg class="giro-countdown__logo" viewBox="0 0 24 24" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
         name,
         detail,
-        colorHex: _customAccent,
       }));
       return;
     }
@@ -208,7 +204,6 @@ export async function initCintillo(scope = 'road') {
         logoUrl: h.customLogo || null,
         name,
         detail,
-        colorHex: _customAccent,
       }));
       return;
     }
@@ -244,7 +239,6 @@ export async function initCintillo(scope = 'road') {
       logoUrl: h.customLogo || race.logoUrl,
       name: rawName,
       detail,
-      colorHex: race.colorHex,
     }));
   });
 
@@ -253,13 +247,12 @@ export async function initCintillo(scope = 'road') {
   const multi = slides.length > 1;
   el.innerHTML = `<div class="giro-card">${multi ? arrowHtml('prev', _isEn ? 'Previous item' : 'Entrada anterior') : ''}<div class="giro-text-area"></div>${multi ? arrowHtml('next', _isEn ? 'Next item' : 'Entrada siguiente') : ''}</div>`;
   el.hidden = false;
-  const card = el.querySelector('.giro-card'), area = el.querySelector('.giro-text-area');
+  const area = el.querySelector('.giro-text-area');
   const prev = el.querySelector('[data-direction="prev"]'), next = el.querySelector('[data-direction="next"]');
   let current = 0, manual = false, hovered = false, timer;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const go = index => {
     current = Math.max(0, Math.min(slides.length - 1, index));
-    card.style.background = `linear-gradient(${slides[current].bg},${slides[current].bg}),var(--bg-card)`;
     area.innerHTML = slides[current].link;
     if (multi) { prev.disabled = current === 0; next.disabled = current === slides.length - 1; }
   };

@@ -450,21 +450,17 @@ function updateSeoCompeticion(race, days) {
   setMetaProperty('og:title', title);
   setMetaProperty('og:description', description);
 
-  // og:image: imagen OG compuesta con logo de la carrera
-  const DEFAULT_OG_IMAGE = 'https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png';
-  const OG_WORKER = 'https://og.calendariociclismo.app';
-  const ogImage = (race.logoUrl && race.logoUrl.startsWith('https://assets.calendariociclismo.app/'))
-    ? `${OG_WORKER}/?logo=${encodeURIComponent(race.logoUrl)}&title=${encodeURIComponent(name + ' ' + year)}`
-    : DEFAULT_OG_IMAGE;
+  // og:image: imagen única de la marca
+  const ogImage = 'https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg';
   setMetaProperty('og:image', ogImage);
-  setMetaProperty('og:image:alt', `${name} ${year}`);
+  setMetaProperty('og:image:alt', 'Calendario Ciclismo');
 
   // Twitter Card
   setMeta('twitter:card', 'summary_large_image');
   setMeta('twitter:title', title);
   setMeta('twitter:description', description);
   setMeta('twitter:image', ogImage);
-  setMeta('twitter:image:alt', `${name} ${year}`);
+  setMeta('twitter:image:alt', 'Calendario Ciclismo');
 
   // ── Canonical + og:url ──
   // Un día → canonical a la jornada (contenido real); resto → /competicion/.

@@ -20,7 +20,6 @@ graph TB
         RS[Fuentes oficiales de resultados\nHTML / JSON / PDF]
         R2[Cloudflare R2\nAssets estáticos]
         VPS[Hetzner VPS\nnginx + resultados + ránking UCI + emisiones]
-        WK2[Worker og\nOpenGraph images]
         GHA[GitHub Actions\nCI / pre-render / feeds iCal / sitemap]
         FCM[Firebase / APNs\nPush Notifications]
     end
@@ -37,7 +36,6 @@ graph TB
     R2 --> VPS
     RS --> VPS
     VPS --> DB
-    WK2 --> SB
     GHA --> SB
     GHA --> WEB
     EF --> FCM
@@ -181,7 +179,7 @@ calendario-ciclismo/
 | R2 API keys | Supabase Edge Function `r2-upload` | Supabase Dashboard → Edge Functions → Secrets |
 | `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/results.env` (`0640`, fuera del repo) + copia de recuperación privada |
 | `BROADCASTS_DATABASE_URL` del rol `cc_broadcasts_login` | Sincronizador de emisiones del VPS | `/etc/calendario-ciclismo/broadcasts.env` (`0600`, fuera del repo) |
-| `aviso_cc_webs_ccm_cce` (secreto compartido) | Aviso de cambio a las webs de la Clàssica y del club (`private.change_notice_tick`) | Supabase Vault de CC + secreto de la edge function `aviso-cc` de `webs-ccm-cce` |
+| Secreto compartido de cada destino del aviso de cambio | Aviso de cambio a webs externas (`private.change_notice_tick`) | Supabase Vault de CC + secreto de la función receptora del destino |
 
 ## Decisiones de arquitectura
 
@@ -241,11 +239,10 @@ calendario-ciclismo/
 
 ### Aviso de cambio a webs externas
 
-- Las webs que reproducen datos de CC en un build estático
-  (`classicacampdemorvedre.com`, `clubciclistaestivella.com`) reciben un POST
-  desde la base de CC cuando cambia una carrera vigilada: disparadores por
-  sentencia marcan una cola en `private` y `pg_cron` la envía agrupada con
-  `pg_net`.
+- Las webs externas que reproducen datos de CC en un build estático reciben
+  un POST desde la base de CC cuando cambia una carrera vigilada:
+  disparadores por sentencia marcan una cola en `private` y `pg_cron` la envía
+  agrupada con `pg_net`.
 - Motivo: esas webs solo publican con actualizaciones y no consultan CC fuera
   del build.
 - Diseño, contrato y operación: `docs/runbooks/aviso-cambio-webs-externas.md`.

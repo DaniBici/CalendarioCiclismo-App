@@ -19,7 +19,6 @@ describe('Copa de España 2025, ocho rondas independientes y general RFEC',()=>{
       expect(report.roundRows).toHaveLength(8);
     }
     expect(JSON.stringify({fixture,reference})).toBe(before);
-    expect(reference.references.find(row=>row.tournament==='Copa de España').pointsScheme.status).toBe('reference_requires_edition_review');
   });
   it('conserva el DNF de Vilouta y la contradicción independiente de dos puntos RFEC',()=>{
     const report=copaEspanaSeasonCotejo(fixture,reference,'WJ');

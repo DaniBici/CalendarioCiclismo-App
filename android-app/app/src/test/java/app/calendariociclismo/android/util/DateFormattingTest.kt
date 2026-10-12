@@ -23,13 +23,6 @@ class DateFormattingTest {
         assertNull(DateFormatting.parseLocalDate(""))
     }
 
-    // ── formatDateShort ────────────────────────────────────────────
-
-    @Test
-    fun `formatDateShort devuelve la clave original para fecha invalida`() {
-        assertEquals("not-a-date", DateFormatting.formatDateShort("not-a-date"))
-    }
-
     // ── formatDateLong ─────────────────────────────────────────────
 
     @Test

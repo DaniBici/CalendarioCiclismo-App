@@ -230,6 +230,18 @@ enum DateFormatting {
         return f.string(from: date)
     }
 
+    /// Última lectura de una clasificación en hora local: "11 oct, 06:22" /
+    /// "11 Oct, 06:22", en el idioma del contenido. Paridad con la web
+    /// (`showPublication` en js/resultados.js) y Android.
+    static func formatResultsSyncedAt(_ isoString: String, timeZone: TimeZone = .current) -> String? {
+        guard let date = parseISO(isoString) else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "d MMM, HH:mm"
+        f.timeZone = timeZone
+        f.locale = contentLocale
+        return f.string(from: date).replacingOccurrences(of: ".", with: "")
+    }
+
     /// Convierte un ISO string a segundos desde epoch.
     static func timestampToSeconds(_ isoString: String) -> Double? {
         guard let date = parseISO(isoString) else { return nil }

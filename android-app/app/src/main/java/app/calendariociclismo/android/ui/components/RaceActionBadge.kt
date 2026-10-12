@@ -33,18 +33,18 @@ import app.calendariociclismo.android.ui.theme.neutralLinkBadgeColor
  * Etiqueta de acción de las tarjetas (Dorsales, Orden de salida, accesos de
  * ciclocross). `primaryAction` es la etiqueta neutra de enlace (texto
  * principal sobre gris al 8 %); `neutral`, la informativa (texto atenuado). El
- * acento queda solo para la selección (`selected`). Con `iconOnly` se muestra
- * solo el icono y la etiqueta queda para accesibilidad.
+ * acento queda solo para la selección (`selected`). Con la etiqueta vacía se
+ * muestra solo el icono.
  */
 @Composable
-fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, iconOnly: Boolean = false) {
+fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false) {
     val primary = MaterialTheme.colorScheme.primary
     val colors = when {
         primaryAction -> neutralLinkBadgeColor()
         neutral -> neutralBadgeColor()
         else -> BadgeColor(primary.copy(alpha = if (selected == true) 0.18f else 0.10f), primary)
     }
-    val showsText = label.isNotEmpty() && !(iconOnly && icon != null)
+    val showsText = label.isNotEmpty()
     CCBadgeSurface(
         colors = colors,
         onClick = onClick,

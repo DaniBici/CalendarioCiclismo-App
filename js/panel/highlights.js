@@ -168,7 +168,7 @@ function _onHighlightRaceSearch() {
   }, 150);
 }
 
-async function _selectHighlightRace(race) {
+export async function _selectHighlightRace(race) {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent()) return;
   const request = ++editor.raceRequest;
@@ -490,7 +490,7 @@ function _setHighlightBusy(editor, busy) {
   }
 }
 
-async function openHighlightEditor(highlight) {
+export async function openHighlightEditor(highlight) {
   // Reset
   const editor = { id: highlight?.id || crypto.randomUUID(), isNew: !highlight,
     position: highlight?.position ?? (_highlightsCache || []).reduce((mx, h) => Math.max(mx, h.position || 0), -1) + 1,
@@ -575,7 +575,7 @@ async function openHighlightEditor(highlight) {
   }
 }
 
-async function saveHighlight() {
+export async function saveHighlight() {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent() || editor.busy || editor.loading) return;
   const status = document.getElementById('highlightSaveStatus');
@@ -694,7 +694,7 @@ async function saveHighlight() {
   }
 }
 
-async function deleteHighlight() {
+export async function deleteHighlight() {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent() || editor.isNew || editor.busy || editor.loading) return;
   if (!await confirmDialog('¿Eliminar este destacado del cintillo?', { danger: true })) return;

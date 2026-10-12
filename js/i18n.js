@@ -29,6 +29,7 @@ const LOCALES = {
       "estimatedEnd": "Final estimado: {time}",
       "loadError": "No se pudo cargar el calendario.",
       "back": "Agenda de ciclocross",
+      "bibShort": "Dor.",
       "rider": "Corredor",
       "team": "Equipo",
       "time": "Tiempo",
@@ -135,6 +136,7 @@ const LOCALES = {
       // imprimía la clave cruda ("stage.stageCancelledBadge").
       stageCancelledBadge: 'Cancelada', stageCancelledTooltip: 'Etapa cancelada',
       noExtraInfoSoon: 'Por ahora sin información extra', noExtraInfo: 'Sin información extra',
+      noStages: 'Etapas aún no publicadas', noRaces: 'Carreras aún no publicadas',
       previous: 'Etapa anterior', next: 'Etapa siguiente',
       viewAll: 'Ver todas las etapas', summary: 'Resumen',
       pickStage: 'Elegir etapa',
@@ -179,7 +181,7 @@ const LOCALES = {
     tv: {
       title: 'Televisión', reviveRace: 'Revive', reviveStage: 'Revive', reviveRaceTitle: 'Revive la carrera', reviveStageTitle: 'Revive la etapa',
       localTimezone: 'Horarios en tu hora local ({tz})', madridLabel: 'Madrid: {time}',
-      noInfo: 'Sin información de TV', noTvRegion: 'No hay TV en tu región', fullStage: 'Íntegra', live: 'En directo',
+      noInfo: 'Sin información de TV', noBroadcast: 'No hay televisión', noTvRegion: 'No hay TV en tu región', fullStage: 'Íntegra', live: 'En directo',
       filterAll: 'Todas', filterMine: 'Mi región',
       status: { pending: 'Sin confirmar', none: 'Sin TV', unavailable_es: 'No TV España' },
     },

@@ -394,8 +394,10 @@ class CyclocrossTest {
         assertEquals(listOf(YearMonth.of(2027, 8), YearMonth.of(2027, 9)), CyclocrossLogic.offlineMonths(LocalDate.parse("2027-05-12")))
         val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
         state.open("2026-27")
-        assertEquals(CyclocrossLogic.months("2026-27").toSet(), remote.monthCalls.toSet())
-        assertEquals(7, remote.monthCalls.size)
+        // Hoy no lee los siete meses: un índice de la temporada y el día mostrado.
+        assertTrue(remote.monthCalls.isEmpty())
+        assertEquals(1, remote.indexCalls)
+        assertEquals(listOf("2026-09-12", "2027-01-30"), remote.dayCalls)
         assertEquals("2027-01-30", state.dateKey)
     }
 
@@ -471,7 +473,7 @@ class CyclocrossTest {
         assertFalse(state.canGoNext)
     }
 
-    @Test fun `recarga descarga la temporada y las rondas y conserva el dia`() = runBlocking {
+    @Test fun `recarga descarga el indice, el dia y las rondas y conserva el dia`() = runBlocking {
         val remote = FakeRemote(race)
         val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), remote), { LocalDate.parse("2026-09-12") })
         state.open("2026-27")
@@ -479,27 +481,32 @@ class CyclocrossTest {
         state.navigateTo("2027-01-31")
         remote.seasonRounds = mapOf(race.id to CxRound(2, 5))
         state.refresh()
-        assertEquals(14, remote.monthCalls.size)
+        assertTrue(remote.monthCalls.isEmpty())
+        assertEquals(2, remote.indexCalls)
+        assertEquals("2027-01-31", remote.dayCalls.last())
         assertEquals(2, remote.roundsCalls)
         assertEquals(CxRound(2, 5), state.rounds[race.id])
         assertEquals("2027-01-31", state.dateKey)
         assertNull(state.error)
     }
 
-    @Test fun `latido recarga la temporada solo en hoy con mangas pendientes`() = runBlocking {
+    @Test fun `latido recarga el dia mostrado solo en hoy con mangas pendientes`() = runBlocking {
         val remote = FakeRemote(race)
         val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), remote), { LocalDate.parse("2027-01-31") })
         state.open("2026-27")
         val at = Instant.parse("2027-01-31T10:00:00Z")
         assertTrue(state.hasPendingToday(at))
         state.refreshSilently(at)
-        assertEquals(14, remote.monthCalls.size)
+        assertEquals(2, remote.dayCalls.size)
         remote.rows = listOf(race.copy(categories = race.categories.map { it.copy(resultsStatus = "official") }))
         state.refreshSilently(at)
-        assertEquals(21, remote.monthCalls.size)
+        assertEquals(3, remote.dayCalls.size)
         assertFalse(state.hasPendingToday(at))
         state.refreshSilently(at)
-        assertEquals(21, remote.monthCalls.size)
+        assertEquals(3, remote.dayCalls.size)
+        // El latido no vuelve a leer el índice de la temporada.
+        assertEquals(1, remote.indexCalls)
+        assertTrue(remote.monthCalls.isEmpty())
         remote.rows = listOf(race)
         state.refresh()
         state.navigateTo("2027-01-30")
@@ -542,10 +549,17 @@ class CyclocrossTest {
         var rows = listOf(race)
         var failure: Exception? = null
         val monthCalls = mutableListOf<YearMonth>()
+        var indexCalls = 0
+        val dayCalls = mutableListOf<String>()
         var seasonRounds: Map<String, CxRound> = emptyMap()
         var roundsFailure: Exception? = null
         var roundsCalls = 0
         override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> { monthCalls.add(month); failure?.let { throw it }; return rows }
+        override suspend fun cxSeasonIndex(season: String): List<CxRace> { indexCalls++; failure?.let { throw it }; return rows }
+        override suspend fun cxDay(season: String, dateKey: String): List<CxRace> {
+            dayCalls.add(dateKey); failure?.let { throw it }
+            return rows.filter { dateKey in CyclocrossLogic.dates(it) }
+        }
         override suspend fun cxNextDate(season: String, date: String): String? { failure?.let { throw it }; return "2027-01-30" }
         override suspend fun cxDetail(id: String): CxDetail? { failure?.let { throw it }; return CxDetail(race) }
         override suspend fun cxRaceForSlug(slug: String): CxRace? { failure?.let { throw it }; return race }

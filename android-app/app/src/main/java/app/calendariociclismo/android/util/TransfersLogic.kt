@@ -111,6 +111,7 @@ object TransfersLogic {
     /** PRW es la clave persistida para la categoría PTW (Women's ProTeam). */
     private val feedCategoryRank = mapOf("WT" to 0, "PT" to 1, "WWT" to 2, "PRW" to 3, "PTW" to 3)
 
+    /** Clave de orden alfabético: sin mayúsculas ni diacríticos (Á ordena junto a A). */
     private fun alphabeticalKey(value: String): String = Normalizer
         .normalize(value, Normalizer.Form.NFD)
         .replace("\\p{M}+".toRegex(), "")
@@ -208,7 +209,7 @@ object TransfersLogic {
     /** Equipos de una división, alfabético. */
     fun divisionTeams(seasons: List<TeamSeason>, division: String): List<TeamSeason> =
         seasons.filter { it.category == division }
-            .sortedBy { (it.name ?: "").lowercase() }
+            .sortedBy { alphabeticalKey(it.name.orEmpty()) }
 
     /** Fila de la sección "continúan". */
     data class StayingRow(
@@ -265,7 +266,7 @@ object TransfersLogic {
         // Fin de contrato / llegadas → alfabético por apellido.
         fun riderKey(x: RiderTransfer): String {
             val r = ridersById[x.riderId]
-            return "${r?.lastName.orEmpty()} ${r?.firstName.orEmpty()}".lowercase()
+            return alphabeticalKey("${r?.lastName.orEmpty()} ${r?.firstName.orEmpty()}")
         }
         // Llegan (fichajes): primero los CONFIRMADOS, luego los rumores; dentro
         // de cada grupo, alfabético por apellido.
@@ -282,7 +283,7 @@ object TransfersLogic {
         // alfabético por nombre del equipo; los retiros al final.
         val catRank = mapOf("WT" to 0, "WWT" to 1, "PT" to 2, "PRW" to 3)
         fun depName(x: RiderTransfer): String =
-            (x.toTeamId?.let { teamNameById[it] } ?: x.toTeamName.orEmpty()).lowercase()
+            alphabeticalKey(x.toTeamId?.let { teamNameById[it] } ?: x.toTeamName.orEmpty())
         fun depRetire(x: RiderTransfer): Int = if (x.type == "retirement") 1 else 0
         fun depCat(x: RiderTransfer): Int =
             if (x.type == "retirement") 99
@@ -318,7 +319,7 @@ object TransfersLogic {
             // como desempate.
             .sortedWith(
                 compareByDescending<StayingRow> { it.contractUntil ?: 0 }
-                    .thenBy { "${it.rider.lastName.orEmpty()} ${it.rider.firstName.orEmpty()}".lowercase() }
+                    .thenBy { alphabeticalKey("${it.rider.lastName.orEmpty()} ${it.rider.firstName.orEmpty()}") }
             )
 
         // En duda: la ficha de la plantilla manda; si el corredor ya no está en
@@ -329,7 +330,7 @@ object TransfersLogic {
             .map { t -> DoubtRow(rider = byId[t.riderId], riderId = t.riderId, contractUntil = byId[t.riderId]?.contractUntil) }
             .sortedBy {
                 val r = it.rider
-                if (r != null) "${r.lastName.orEmpty()} ${r.firstName.orEmpty()}".lowercase() else it.riderId.lowercase()
+                alphabeticalKey(if (r != null) "${r.lastName.orEmpty()} ${r.firstName.orEmpty()}" else it.riderId)
             }
 
         return TeamDetail(staying = staying, doubtful = doubtful, contractEnds = contractEnds, arrivals = arrivals, departures = departures)

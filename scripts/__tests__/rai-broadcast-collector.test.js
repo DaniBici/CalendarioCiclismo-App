@@ -76,7 +76,7 @@ describe('sustitución RAI en la misma fila', () => {
   async function apply(existing, observation) {
     const calls = [];
     const client = { query: async (sql, params) => {
-      calls.push([sql, params]);
+      calls.push([sql, params ?? []]);
       if (sql.includes('SELECT observed_at')) return { rows: [{ observed_at: '2026-09-01' }] };
       if (sql.includes('WHERE source=$1 AND external_event_id=$2 FOR UPDATE')) return { rows: [{ primary_broadcast_id: existing.id, last_applied: [existing] }] };
       if (sql.includes('FROM public.broadcasts WHERE id = ANY')) return { rows: [existing] };
@@ -85,27 +85,44 @@ describe('sustitución RAI en la misma fila', () => {
     const result = await applyOne(client, observation, { raceDayId: 'day' }, { broadcasts: [existing] });
     return { result, calls };
   }
+  // Las escrituras se identifican por la forma de sus parámetros, no por su SQL:
+  // la actualización de una emisión recibe sus 9 campos gestionados, la
+  // confirmación de TV recibe solo el id de la jornada y el registro de la
+  // observación (11 parámetros) lleva el estado resultante de las emisiones.
+  const broadcastUpdates = (calls) => calls.filter(([, params]) => params.length === 9);
+  const tvConfirmations = (calls) => calls.filter(([, params]) => params.length === 1 && params[0] === day.raceDayId);
+  const recordedObservation = (calls) => {
+    const [, params] = calls.find(([, values]) => values.length === 11);
+    return { status: params[7], after: JSON.parse(params[9]) };
+  };
   const live = { id: 'rai', raceDayId: 'day', channel: 'RAI Sport', country: 'IT', startTimeUtc: '2026-08-30T12:00:00Z',
     url: 'https://www.raiplay.it/dirette/raisport', note: null, sortOrder: 5, showInRevive: false, automationLocked: false };
   const highlights = normalizedObservation(parseRaiVideo({ ...video, name: 'Ciclismo Giro della Toscana Highlights', form: 'Clip' }, { now: new Date('2026-09-05') }));
   it('reemplaza el directo con highlights y no crea otra fila ni confirma TV en directo', async () => {
     const { result, calls } = await apply(live, highlights);
     expect(result).toBe('applied_update');
-    const update = calls.find(([sql]) => sql.includes('UPDATE public.broadcasts'));
-    expect(update[1]).toEqual(['rai', 'RAI / RaiPlay', 'IT', null, highlights.broadcastUrl, 'Resumen.', 5, true, false]);
-    expect(calls.some(([sql]) => sql.includes('INSERT INTO public.broadcasts') || sql.includes('UPDATE public.race_days'))).toBe(false);
+    expect(broadcastUpdates(calls)).toHaveLength(1);
+    expect(broadcastUpdates(calls)[0][1]).toEqual(['rai', 'RAI / RaiPlay', 'IT', null, highlights.broadcastUrl, 'Resumen.', 5, true, false]);
+    const { status, after } = recordedObservation(calls);
+    expect(status).toBe('applied_update');
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ id: 'rai', channel: 'RAI / RaiPlay', startTimeUtc: null, url: highlights.broadcastUrl, note: 'Resumen.', showInRevive: true });
+    expect(tvConfirmations(calls)).toHaveLength(0);
   });
   it('una pasada de parrilla posterior conserva los highlights', async () => {
     const existing = { ...live, channel: 'RAI / RaiPlay', startTimeUtc: null, url: highlights.broadcastUrl, note: 'Resumen.', showInRevive: true };
     const { result, calls } = await apply(existing, classifyRaiObservation(parseSchedule()[0], day));
     expect(result).toBe('unchanged');
-    expect(calls.some(([sql]) => sql.includes('UPDATE public.broadcasts') || sql.includes('UPDATE public.race_days'))).toBe(false);
+    expect(recordedObservation(calls).status).toBe('unchanged');
+    expect(broadcastUpdates(calls)).toHaveLength(0);
+    expect(tvConfirmations(calls)).toHaveLength(0);
   });
   it('un diferido posterior no sustituye un directo ya emitido', async () => {
     const delayed = { ...classifyRaiObservation(parseSchedule()[1], day), startTimeUtc: '2026-08-31T23:05:00.000Z' };
     const { result, calls } = await apply(live, delayed);
     expect(result).toBe('unchanged');
-    expect(calls.some(([sql]) => sql.includes('UPDATE public.broadcasts'))).toBe(false);
+    expect(recordedObservation(calls).status).toBe('unchanged');
+    expect(broadcastUpdates(calls)).toHaveLength(0);
   });
   it('antes de la salida, un directo reclasificado como diferido actualiza la fila', async () => {
     const future = { ...live, startTimeUtc: '2099-09-09T12:00:00Z' };

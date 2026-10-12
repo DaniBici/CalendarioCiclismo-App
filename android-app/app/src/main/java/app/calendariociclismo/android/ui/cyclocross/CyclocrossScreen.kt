@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -30,6 +31,7 @@ import androidx.compose.ui.layout.layoutId
 import app.calendariociclismo.android.ui.today.TodayHighlightsBanner
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -53,8 +56,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Settings
 import app.calendariociclismo.android.util.CxAgendaFilter
+import app.calendariociclismo.android.util.CxAgendaTV
+import app.calendariociclismo.android.util.RegionDetector
+import app.calendariociclismo.android.util.openExternalUrl
+import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
+import androidx.compose.material.icons.filled.Tv
 import app.calendariociclismo.android.util.CxCategoryCardState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -163,7 +171,7 @@ private fun cxFilter(raw: String?): CxAgendaFilter = CxAgendaFilter.entries.firs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedSeason: String? = null, tournamentName: String? = null, tournamentLogo: String? = null) {
+fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedSeason: String? = null, tournamentName: String? = null, tournamentLogo: String? = null, showSettingsShortcut: Boolean = false, roadTodayVisible: Boolean = true) {
     val app = rememberApp()
     val state = remember(tournamentId) { CyclocrossAgendaState(app.cxRepository, tournamentId = tournamentId) }
     val season = state.season
@@ -221,7 +229,7 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             val dates = races.flatMap { CyclocrossLogic.dates(it) }.distinct().sorted().filter { it.startsWith(month.toString()) }
             for (date in dates) {
                 add(AgendaRow.Day(date))
-                for (race in CyclocrossLogic.racesOn(races, date)) add(AgendaRow.Race(race, date))
+                for (race in CyclocrossLogic.racesOn(races, date, state.featured)) add(AgendaRow.Race(race, date))
             }
         }
     }
@@ -240,6 +248,9 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     }
     LaunchedEffect(season) { state.loadRounds() }
     LaunchedEffect(state.dateKey) { if (state.navigated) savedDay = state.dateKey }
+    // Hoy carga el día mostrado, como Hoy de carretera: al cambiar de día se
+    // piden sus documentos y emisiones sin pantalla de carga.
+    LaunchedEffect(state.dateKey, state.loaded) { if (tournamentId == null) state.showDay() }
     // Latido de Hoy (cada minuto y al volver a primer plano): auto-avance de
     // medianoche y, si se muestra hoy con mangas sin resultados ni
     // cancelación, nueva descarga silenciosa de la temporada.
@@ -287,12 +298,31 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                     CCHeaderMark()
                     Text(stringResource(R.string.tab_cyclocross), style = MaterialTheme.typography.titleMedium)
                 }
+            }, actions = {
+                // Mientras Hoy de carretera está oculta, su acceso a Ajustes
+                // pasa a esta cabecera, con la misma presentación.
+                if (showSettingsShortcut) IconButton(
+                    onClick = {
+                        haptic(Haptics.Event.Navigation)
+                        nav.navigate(Routes.SETTINGS) { launchSingleTop = true }
+                    },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = LocaleHolder.t("Ajustes", "Settings"),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             })
         }
     }) { padding ->
         val base = Modifier.padding(padding).consumeWindowInsets(padding)
         Column(if (tournamentId != null) base.windowInsetsPadding(WindowInsets.statusBars) else base) {
-            if (tournamentId == null) TodayHighlightsBanner(navController = nav, scope = "cx")
+            // Con Hoy de carretera oculta, cintillo único: entradas de
+            // Ciclocross seguidas de las de carretera.
+            if (tournamentId == null) TodayHighlightsBanner(navController = nav, scopes = if (roadTodayVisible) listOf("cx") else listOf("cx", "road"))
             else CCCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     RaceCompetitionIdentity(tournamentName.orEmpty(), tournamentLogo, null, hideFlag = true, onBack = { nav.popBackStack() })
@@ -523,7 +553,7 @@ private fun CxDayAgenda(
     val currentOnSwipe by rememberUpdatedState(onSwipe)
     val dateKey = state.dateKey
     val races = state.races
-    val dayRaces = CyclocrossLogic.racesOn(races, dateKey)
+    val dayRaces = state.dayRaces
     val nextRaceDay = CyclocrossLogic.nextRaceDay(CyclocrossLogic.raceDays(races), dateKey)
     Box(
         modifier = modifier
@@ -613,24 +643,28 @@ private fun CxTournamentGeneralContent(
 @Composable
 internal fun CxCategoryBox(
     label: String,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     fillWidth: Boolean = false,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(CCRadius.Control),
-        color = if (selected) neutralFillPressed else neutralFill,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = modifier
-            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier.widthIn(min = 40.dp))
-            .height(CxCategoryBoxHeight)
-            .semantics { this.selected = selected },
-    ) {
+    val boxModifier = modifier
+        .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier.widthIn(min = 40.dp))
+        .height(CxCategoryBoxHeight)
+        .semantics { this.selected = selected }
+    val shape = RoundedCornerShape(CCRadius.Control)
+    val color = if (selected) neutralFillPressed else neutralFill
+    val content: @Composable () -> Unit = {
         Box(Modifier.padding(horizontal = if (fillWidth) 5.dp else 8.dp), contentAlignment = Alignment.Center) {
             Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
+    }
+    // Sin acción propia, la caja forma parte de un objetivo táctil mayor (la
+    // columna de categoría de la agenda).
+    if (onClick == null) {
+        Surface(shape = shape, color = color, contentColor = MaterialTheme.colorScheme.onSurface, modifier = boxModifier, content = content)
+    } else {
+        Surface(onClick = onClick, shape = shape, color = color, contentColor = MaterialTheme.colorScheme.onSurface, modifier = boxModifier, content = content)
     }
 }
 
@@ -674,12 +708,13 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
             Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, title = {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        // Paridad web: nombre, badge de clase y hamburguesa de
-                        // torneo en la primera línea. Una sola línea con puntos
-                        // suspensivos para que todas las tarjetas midan igual.
+                        // Paridad web: nombre y hamburguesa de torneo en la
+                        // primera línea, torneo · ronda · sede en la segunda y
+                        // la fila de badges (clase, TV, Dorsales) en la tercera.
+                        // Cada línea es única, con puntos suspensivos, para que
+                        // todas las tarjetas midan igual.
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(modifier = Modifier.weight(1f, fill = false), text = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name, style = CCText.S16, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
                             // Hamburguesa compartida con Hoy: acceso directo al torneo.
                             if (showTournamentLink && race.tournament != null) RaceCompetitionButton(LocaleHolder.t("Ver torneo", "View series"), openTournament)
                         }
@@ -689,6 +724,7 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
                             round = CxPresentation.roundLabel(round),
                             venue = race.venue?.takeIf { it != race.name },
                         )
+                        CxCardBadges(race, date, clock, english, onStartlist = if (openRace) { code -> open("inscritos-$code") } else null)
                     }
                 }, details = {
                     val onOpen: (String?) -> Unit = { if (openRace) open(it) else showPlaceholder = true }
@@ -697,12 +733,12 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
                     if (badges) {
                         FlowRow(Modifier.padding(top = 3.dp).heightIn(min = CxCategoryBoxHeight + CxStatusRowHeight), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             for (category in categories) CxCategoryActions(race, category, clock,
-                                compact = true, onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
+                                compact = true, onProgramme = { onOpen(category.category) }, onResults = { onOpen("resultados-${category.category}") })
                         }
                     } else {
                         Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             for (category in categories) CxCategoryActions(race, category, clock,
-                                expanded = true, modifier = Modifier.weight(1f), onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
+                                expanded = true, modifier = Modifier.weight(1f), onProgramme = { onOpen(category.category) }, onResults = { onOpen("resultados-${category.category}") })
                         }
                     }
                 })
@@ -775,7 +811,7 @@ internal fun CxMetaLine(tournament: String?, round: String?, venue: String?, sty
 }
 
 @Composable
-internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instant, selected: Boolean = false, compact: Boolean = false, expanded: Boolean = false, modifier: Modifier = Modifier, onProgramme: () -> Unit, onStartlist: () -> Unit, onResults: () -> Unit) {
+internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instant, selected: Boolean = false, compact: Boolean = false, expanded: Boolean = false, modifier: Modifier = Modifier, onProgramme: () -> Unit, onResults: () -> Unit) {
     val phase = CxPresentation.categoryCardState(race, category, clock)
     val description = cxCategoryName(category.category)
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -786,17 +822,66 @@ internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instan
             // Con horarios: la caja solo lleva el código (mismo ancho, menos
             // alta); hora o copa se muestran debajo, fuera de la caja, con la
             // tipografía de salida/meta de Hoy en Carretera.
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    CxCategoryBox(category.category, onProgramme,
-                        selected = selected, fillWidth = expanded,
-                        modifier = (if (expanded) Modifier.weight(1f) else Modifier).semantics { contentDescription = description })
-                    if (phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) CxLinkBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group)
-                }
-                CxCategorySchedule(phase, category, onResults)
+            // Los dorsales se enlazan desde la fila de badges de la tarjeta.
+            // Caja y fila de estado forman un único objetivo táctil que abre
+            // la categoría (sus resultados, con la copa): ninguna zona de la
+            // columna cae en la tarjeta.
+            Column(
+                Modifier
+                    .then(if (expanded) Modifier.fillMaxWidth() else Modifier)
+                    .clip(RoundedCornerShape(CCRadius.Control))
+                    .clickable(role = Role.Button, onClick = if (phase == CxCategoryCardState.RESULTS) onResults else onProgramme),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CxCategoryBox(category.category, null,
+                    selected = selected, fillWidth = expanded,
+                    modifier = Modifier.semantics { contentDescription = description })
+                CxCategorySchedule(phase, category)
             }
         }
-        if (compact && phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) CxLinkBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group)
+    }
+}
+
+/**
+ * Fila de badges de la tarjeta, como la de Hoy de carretera: clase, TV
+ * ([CxPresentation.agendaBroadcast]) y Dorsales
+ * ([CxPresentation.agendaStartlistCategory], solo en tarjetas que abren la
+ * ficha). Se reevalúa con el reloj de la vista. Una sola línea: la tarjeta
+ * conserva la altura única.
+ */
+@Composable
+private fun CxCardBadges(race: CxRace, date: String, clock: Instant, english: Boolean, onStartlist: ((String) -> Unit)?) {
+    val tv = CxPresentation.agendaBroadcast(race, date, CxPresentation.regionBroadcasts(race.broadcasts, RegionDetector.allowedBroadcastGroups()), clock)
+    val startlist = onStartlist?.let { CxPresentation.agendaStartlistCategory(race, date, clock) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
+        tv?.let { CxAgendaTVBadge(it) }
+        if (startlist != null && onStartlist != null) RaceActionBadge(
+            label = stringResource(R.string.today_startlist_badge),
+            icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
+            primaryAction = true,
+            onClick = { onStartlist(startlist.category) },
+        )
+    }
+}
+
+/** Badge de TV de la tarjeta con la superficie y los colores del de Hoy de
+ *  carretera: hora de la primera emisión, «En directo» o «TV». */
+@Composable
+private fun CxAgendaTVBadge(tv: CxAgendaTV) {
+    val context = LocalContext.current
+    val colors = tvStatusBadgeColor(status = "confirmed_time", hasBroadcasts = true, isTvLive = tv.live)
+    val label = when {
+        tv.live -> stringResource(R.string.tv_badge_live)
+        else -> tv.firstStartUtc?.let(DateFormatting::formatTimeLocal) ?: stringResource(R.string.tv_badge_tv)
+    }
+    CCBadgeSurface(
+        colors = colors,
+        onClick = { openExternalUrl(context, tv.url) },
+        modifier = Modifier.semantics { contentDescription = listOfNotNull(tv.broadcast.channel, label).joinToString(", ") },
+    ) {
+        Icon(Icons.Filled.Tv, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+        Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, color = colors.foreground, maxLines = 1)
     }
 }
 
@@ -809,12 +894,13 @@ private val CxStatusRowHeight = 24.dp
 
 /** Hora, copa, espera o cancelación bajo la caja de categoría, fuera de ella. */
 @Composable
-private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory, onResults: () -> Unit) {
+private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory) {
     Box(Modifier.fillMaxWidth().heightIn(min = CxStatusRowHeight), contentAlignment = Alignment.Center) {
     when (phase) {
-        // Copa compacta: misma altura contenida que el horario que acompaña,
-        // sin el objetivo táctil de 48 dp del IconButton ni colchón extra.
-        CxCategoryCardState.RESULTS -> ResultsTrophyAction(onClick = onResults, contentDescription = stringResource(R.string.cx_results))
+        // Copa compacta: misma altura contenida que el horario que acompaña;
+        // la acción es la de la columna de categoría.
+        CxCategoryCardState.RESULTS -> Icon(Icons.Outlined.EmojiEvents, contentDescription = stringResource(R.string.cx_results),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         CxCategoryCardState.AWAITING -> WaitingResultsIndicator()
         CxCategoryCardState.CANCELLED -> CxCancelledCross()
         CxCategoryCardState.TIME -> Text(category.startTimeUtc?.let(DateFormatting::formatTimeLocal) ?: "-",

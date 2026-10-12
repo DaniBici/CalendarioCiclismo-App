@@ -208,7 +208,7 @@ function renderTeamRoster() {
 }
 
 // Actualización de fechas del vínculo habitual por su identidad real.
-async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnEl, affiliationId) {
+export async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnEl, affiliationId) {
   if (!panelState._rosterTeamId) return;
   const row = _rosterRows.find(r => r.id === affiliationId);
   // Las fechas de prueba se mantienen con la RPC documentada y su evidencia.
@@ -241,7 +241,7 @@ async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnE
 // borrar la afiliación de este corredor a este equipo del año (sea simple o con
 // fechas). El trigger inverso deriva currentTeamId (→ NULL si era su afiliación
 // activa y no queda otra). NUNCA se escribe currentTeamId a mano.
-async function removeRiderFromTeam(riderId, riderGender, { orphan = false, affiliationId } = {}) {
+export async function removeRiderFromTeam(riderId, riderGender, { orphan = false, affiliationId } = {}) {
   if (!panelState._rosterTeamId) return;
   const row = _rosterRows.find(r => r.id === affiliationId);
   if (!row || row.readOnly) return;

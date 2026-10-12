@@ -528,3 +528,22 @@ actor CacheManager {
         }
     }
 }
+
+/// Cómo presentan Mes y Temporada una entrada de caché antes de que responda la
+/// red. Solo la falta de conexión o un fallo de la petición rotulan los datos
+/// como offline.
+enum CachePresentation: Equatable {
+    /// Primera carga de la pantalla con red: pantalla de carga hasta la
+    /// respuesta remota, aunque haya caché.
+    case waitForNetwork
+    /// Cambio de mes o de año dentro de la pantalla con red: caché inmediata,
+    /// sin rótulo, mientras la red refresca.
+    case silent
+    /// Sin red: caché inmediata con el banner de sin conexión.
+    case offline
+
+    static func resolve(isOnline: Bool, isInitialLoad: Bool) -> CachePresentation {
+        guard isOnline else { return .offline }
+        return isInitialLoad ? .waitForNetwork : .silent
+    }
+}

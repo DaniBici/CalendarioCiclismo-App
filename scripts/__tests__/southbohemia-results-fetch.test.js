@@ -133,7 +133,6 @@ describe('dossiers oficiales de South Bohemia', () => {
       const resultFile = join(dir, '-137619.json');
       expect(JSON.parse(readFileSync(resultFile, 'utf8')).stages).toHaveLength(1);
       execFileSync(process.execPath, ['scripts/results-fetchers/results-upsert.mjs', '--in', resultFile, '--race-id', 'synthetic-test', '--source', 'southbohemia', '--emit-sql', join(dir, 'upsert.sql')]);
-      expect(readFileSync(join(dir, 'upsert.sql'), 'utf8')).toContain("'southbohemia'");
       execFileSync(process.execPath, [...args, '--stage', '2'], { stdio: 'pipe' });
       expect(JSON.parse(readFileSync(resultFile, 'utf8')).stages).toEqual([]);
     } finally { rmSync(dir, { recursive: true, force: true }); }

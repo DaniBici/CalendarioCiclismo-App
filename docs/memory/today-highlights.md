@@ -11,6 +11,13 @@ columna `scope` (`road`/`cx`) separa ambas fuentes editoriales. La vista Hoy y
 el resto de superficies de carretera leen `road`; la agenda de Ciclocross lee
 `cx`. Las apps guardan un dismiss por sección.
 
+**Cintillo único en el modo ciclocross (2026-10-19 a 2026-12-31):** mientras
+Ciclocross ocupa la home (web, `cyclocrossHome`) o Hoy de carretera está oculta
+(apps 5.1, `RoadTodayAvailability`), la agenda de Ciclocross muestra un solo
+cintillo con las entradas `cx` seguidas de las `road`, cada grupo por
+`position`, con el dismiss de Ciclocross en web e iOS. Desde el 1-1-2027 cada vista vuelve a
+leer solo su sección.
+
 Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.
 
 ## Tabla Supabase
@@ -59,7 +66,7 @@ o añade entradas en el panel, el hash cambia y el cintillo reaparece automátic
 |------------|----------------------------------------------------------|
 | Web        | `localStorage.cc_giro_dismissed_hash`                    |
 | iOS        | `UserDefaults.standard["cc_giro_dismissed_hash"]` (road) / `…_cx` (Ciclocross) |
-| Android    | `SharedPreferences("today_highlights_prefs")["dismissed_hash"]` (road) / `…_cx` (Ciclocross) |
+| Android    | Sin dismiss desde la 4.4 (la clave `today_highlight_dismiss` quedó sin uso) |
 
 ## Sin seed inicial
 
@@ -72,7 +79,9 @@ que un admin añade entradas desde el panel.
 - Swipe horizontal manual (drag) cambia de slide y pausa el avance automático.
 - Indicador de página (dots) en la base.
 - Botón X (top-right) para dismiss.
-- Color de fondo deriva de `race.colorHex` con opacidad ~16%.
+- Fondo neutro, sin tinte de carrera (web, iOS y Android). El color de marca
+  solo tiñe el icono de los destinos sin logotipo; en la web, el azul de acento
+  `#1a73e8`.
 
 ## Resolución del destino → URL/Navegación
 

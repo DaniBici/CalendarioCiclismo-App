@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -173,7 +174,7 @@ fun ResultsFeedScreen(navController: NavController) {
     val activeSection = chosenSection?.takeIf { it in sectionsLayout.sections } ?: sectionsLayout.initial
     // Pestaña Ciclocross: meses de la temporada en curso con la caché de
     // CyclocrossRepository.
-    val cxState = remember { CyclocrossAgendaState(app.cxRepository) }
+    val cxState = remember { CyclocrossAgendaState(app.cxRepository, seasonWide = true) }
     val cxPullRefreshState = rememberPullToRefreshState()
     var cxOpened by remember { mutableStateOf(false) }
     var rankingGender by rememberSaveable { mutableStateOf(RankingGender.Male) }
@@ -193,7 +194,8 @@ fun ResultsFeedScreen(navController: NavController) {
     suspend fun reload() {
         if (state !is FeedState.Ready) state = FeedState.Loading
         try {
-            val entries = app.repository.loadResultsFeedWindow(fromKey, todayKey)
+            // Fecha de hoy en cada lectura: la pantalla puede cruzar la medianoche.
+            val entries = app.repository.loadResultsFeedWindow(fromKey, DateFormatting.todayKey())
             currentCoroutineContext().ensureActive()
             // Commit único: el repositorio ya entrega ganadores y líderes resueltos.
             state = FeedState.Ready(entries)
@@ -238,20 +240,46 @@ fun ResultsFeedScreen(navController: NavController) {
             app.analytics.logScreenView("uci_team_ranking")
             reloadRanking()
         }
-        if (activeSection == ResultsSection.CYCLOCROSS && !cxOpened) {
-            cxOpened = true
-            app.analytics.logScreenView("results_feed_cx")
-            cxState.open(cxState.season)
-            // Manga n/total de la línea secundaria (misma fuente que la agenda CX).
-            cxState.loadRounds()
+        if (activeSection == ResultsSection.CYCLOCROSS) {
+            if (!cxOpened) {
+                cxOpened = true
+                app.analytics.logScreenView("results_feed_cx")
+            }
+            if (cxState.loaded) {
+                // Ya abierta: al volver a la sección se recarga sin indicador,
+                // como el feed de carretera al entrar en la pantalla.
+                cxState.refreshQuietly()
+            } else {
+                // Si el cambio de sección cortó una apertura, se repite.
+                // La manga n/total de la línea secundaria llega con las filas.
+                cxState.open(cxState.season)
+            }
         }
     }
-    // Primer plano: reevalúa las pestañas. Ciclocross se refresca como el feed
-    // de carretera, con el gesto de recarga.
+    // Primer plano: reevalúa las pestañas y recarga la sección visible, también
+    // Ciclocross, que además tiene su latido de 60 s. La primera entrada en
+    // RESUMED ya la cubren las cargas de apertura.
     val lifecycleOwner = LocalLifecycleOwner.current
+    val currentSection by rememberUpdatedState(activeSection)
     LaunchedEffect(lifecycleOwner) {
+        var firstResume = true
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             sectionsLayout = ResultsSections.layout()
+            if (firstResume) {
+                firstResume = false
+            } else {
+                when (currentSection) {
+                    ResultsSection.ROAD -> if (state is FeedState.Ready) reload()
+                    ResultsSection.CYCLOCROSS -> cxState.refreshQuietly()
+                    ResultsSection.RANKING -> Unit
+                }
+            }
+            // Latido de 60 s con la pantalla en primer plano: Ciclocross
+            // descarga solo los meses de la ventana de 14 días.
+            while (true) {
+                delay(60_000)
+                if (currentSection == ResultsSection.CYCLOCROSS) cxState.refreshQuietly(recentOnly = true)
+            }
         }
     }
     LaunchedEffect(rankingRefreshing) {

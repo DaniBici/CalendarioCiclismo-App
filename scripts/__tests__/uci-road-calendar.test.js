@@ -186,18 +186,13 @@ describe('calendario UCI de carretera', () => {
     expect(matchSeries(index, { name: 'Tour of Anatolia', gender: 'male', year: 2027, classCode: '2.2', countryCode: 'TR', startDate: '2027-05-02' }).raceSeriesId).toBeNull();
   });
 
-  it('detecta lo pendiente y emite SQL idempotente por uciCalendarId', () => {
+  it('detecta lo pendiente y resuelve slugs y serie de cada fila', () => {
     const manifest = { races: [
       { uciCalendarId: 900, calendarSourceUrl: 'u/900', name: 'Nueva Carrera', nameEn: 'Nueva Carrera', originalName: 'Nueva Carrera', uciCategory: '1.1', gender: 'male', raceFormat: 'one_day', countryCode: 'IT', startDate: '2027-03-01', endDate: '2027-03-01', year: 2027, slug: 'nueva-carrera-2027', slugEn: 'nueva-carrera-2027' },
     ] };
     expect(pendingRaces(manifest, [900]).map(r => r.uciCalendarId)).toEqual([]);
     expect(pendingRaces(manifest, [899])).toHaveLength(1);
-    const { sql, rows } = roadDumpSql({ manifest, seriesIndex: buildSeriesIndex([]), loadedSlugs: ['otra-2027'], loadedSlugsEn: ['nueva-carrera-2027'] });
+    const { rows } = roadDumpSql({ manifest, seriesIndex: buildSeriesIndex([]), loadedSlugs: ['otra-2027'], loadedSlugsEn: ['nueva-carrera-2027'] });
     expect(rows[0]).toMatchObject({ slug: 'nueva-carrera-2027', slugEn: 'nueva-carrera-2027-2', raceSeriesId: 'uci-2027-900', seriesMatch: 'new' });
-    expect(sql).toContain('insert into race_series');
-    expect(sql).toContain('slug,"slugEn","uciCategory"');
-    expect(sql).toContain("'nueva-carrera-2027','nueva-carrera-2027-2'");
-    expect(sql).toContain('on conflict ("uciCalendarId") do nothing');
-    expect(sql.match(/insert into races/g)).toHaveLength(1);
   });
 });

@@ -51,7 +51,7 @@ const STATUS_LABELS={pending:'Pendiente',provisional:'Provisional',official:'Ofi
 let ctx,view,activeTab,renderVersion=0,roadRailOrder=[];
 let seasonKey=currentSeason(),races=[],tournaments=[],teams=[];
 let commonRaces=[];
-let agendaDateKey=cxPanelAgendaDate(madridDateKey(new Date()));let activeRaceId=null;
+let agendaDateKey=cxPanelAgendaDate(madridDateKey(new Date()));
 // Sentido de la última navegación de la agenda; null si el usuario eligió la fecha.
 let agendaSkipDirection=0;
 const raceFilters={search:'',country:'',category:null,sort:'cat'};
@@ -71,7 +71,7 @@ const option=(value,label,selected)=>`<option value="${esc(value)}" ${value===se
 const options=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const select=(name,label,values,selected,required=false)=>`<label class="field cx-field">${esc(label)}<select name="${name}" ${required?'required':''}>${values.map(v=>Array.isArray(v)?option(v[0],v[1],selected):option(v,v,selected)).join('')}</select></label>`;
 const logoField=value=>{const id=`cx-logo-${crypto.randomUUID()}`;return `<div class="field cx-field cx-logo-field"><label for="${id}">URL del logo</label><div class="field-upload-wrap"><input id="${id}" name="logoUrl" type="url" value="${esc(value)}" placeholder="Pega la URL de una imagen (https://…)" autocomplete="off" spellcheck="false"></div><div class="cx-logo-preview"><span data-logo-image></span><small data-logo-state role="status"></small><button class="btn btn--ghost" data-logo-clear type="button">Quitar</button></div></div>`;};
-function wireLogoField(form) {
+export function wireLogoField(form) {
   const input=form.querySelector('[name=logoUrl]'),preview=form.querySelector('[data-logo-image]'),state=form.querySelector('[data-logo-state]');
   ctx.attachInlineUpload?.(input,'logo');
   const refreshLogo=()=>{
@@ -210,6 +210,53 @@ function agendaList(root,dateKey,rows,section='identity') {
   const group=document.createElement('div');group.className='panel-list';
   for(const race of dayRaces)group.append(agendaItem(race,dateKey,section,rounds));
   if(group.children.length)root.append(group);else root.innerHTML='<p class="panel-catalog-empty">No hay jornadas para este día.</p>';
+  if(section==='identity'&&group.children.length)void mountCxFeatured(group);
+}
+// Destacadas (cx_race_featured): corona de la agenda de carretera, sin límite
+// ni regla automática. La prueba marcada encabeza su día en la vista Hoy de
+// Ciclocross y en la pestaña Ciclocross de Resultados (web y apps).
+const CROWN_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5L3 7Z"/><path d="M5 22h14"/></svg>';
+async function mountCxFeatured(group) {
+  const items=[...group.querySelectorAll('.sidebar-item[data-race-id]')];
+  const message=document.createElement('p');message.className='sidebar-featured-status';message.setAttribute('role','status');message.hidden=true;group.before(message);
+  const report=text=>{message.textContent=text;message.hidden=!text;};
+  let selected=new Set(),busy=true;
+  const buttons=items.map(item=>{
+    item.classList.add('sidebar-item--feature-selectable');
+    const button=document.createElement('button');button.type='button';button.className='sidebar-featured-crown';button.disabled=true;button.innerHTML=CROWN_SVG;
+    item.prepend(button);
+    button.addEventListener('click',async event=>{
+      event.stopPropagation();
+      if(busy||!group.isConnected)return;
+      const raceId=item.dataset.raceId,isFeatured=!selected.has(raceId);
+      busy=true;paint();report('');
+      try{
+        const {error}=isFeatured
+          ?await ctx.supabase.from('cx_race_featured').upsert({cxRaceId:raceId,updatedAt:new Date().toISOString()})
+          :await ctx.supabase.from('cx_race_featured').delete().eq('cxRaceId',raceId);
+        if(error)throw error;
+        if(isFeatured)selected.add(raceId);else selected.delete(raceId);
+      }catch(error){report(`No se pudo guardar: ${error.message}`);}
+      finally{busy=false;paint();}
+    });
+    return {item,button};
+  });
+  function paint() {
+    for(const {item,button} of buttons) {
+      const active=selected.has(item.dataset.raceId),action=active?'Quitar destacada':'Destacar la prueba';
+      button.setAttribute('aria-pressed',String(active));
+      button.setAttribute('aria-label',`${action}: ${item.dataset.raceName}`);
+      button.title=`${action} · ${item.dataset.raceName}`;
+      button.disabled=busy;
+    }
+  }
+  paint();
+  try{
+    const {data,error}=await ctx.supabase.from('cx_race_featured').select('cxRaceId').in('cxRaceId',items.map(item=>item.dataset.raceId));
+    if(error)throw error;
+    selected=new Set((data||[]).map(row=>row.cxRaceId));busy=false;
+  }catch(error){report(`No se pudieron cargar las coronas: ${error.message}`);}
+  if(group.isConnected)paint();
 }
 // Ficha de agenda con la presentación de la web: torneo, manga y lugar; clase;
 // y la rejilla de categorías con su hora de España, el trofeo o el aspa.
@@ -226,8 +273,8 @@ function agendaCategoriesHtml(race,dateKey) {
   return `<div class="cx-category-times" style="--cx-category-count:${categories.length}">${cells}</div>`;
 }
 function agendaItem(race,dateKey,section,rounds) {
-  const item=document.createElement('button');item.type='button';item.className='sidebar-item sidebar-item--cx';item.dataset.raceId=race.id;
-  if(race.id===activeRaceId)item.classList.add('active');
+  // Contenedor con rol de botón: admite dentro la corona de destacadas.
+  const item=document.createElement('div');item.setAttribute('role','button');item.tabIndex=0;item.className='sidebar-item sidebar-item--cx';item.dataset.raceId=race.id;item.dataset.raceName=race.name;
   const tournament=tournaments.find(t=>t.id===race.tournamentId);
   const round=rounds.get(race.id);
   const sub=[tournament?esc(tournament.name):'',round&&round.total>1?`${round.n}/${round.total}`:'',race.venue&&race.venue!==race.name?esc(race.venue):''].filter(Boolean).join(' · ');
@@ -235,9 +282,9 @@ function agendaItem(race,dateKey,section,rounds) {
   item.innerHTML=`<span class="sidebar-item__flag cx-agenda-logo"><span data-logo></span>${ctx.countryFlag?.(race.countryCode)||''}</span><div class="sidebar-item__info"><div class="sidebar-item__name">${esc(race.name)}</div>${sub?`<div class="sidebar-item__stage">${sub}</div>`:''}<div class="sidebar-item__badges">${badges}</div>${agendaCategoriesHtml(race,dateKey)}</div>`;
   const logo=cxLogoImage(race,tournament);if(logo)item.querySelector('[data-logo]').replaceWith(logo);else item.querySelector('[data-logo]').remove();
   item.onclick=()=>void editRace(race,section);
+  item.onkeydown=event=>{if(event.target===item&&(event.key==='Enter'||event.key===' ')){event.preventDefault();void editRace(race,section);}};
   return item;
 }
-function markAgendaActive() {for(const node of document.querySelectorAll('#cxView .sidebar-item[data-race-id]'))node.classList.toggle('active',node.dataset.raceId===activeRaceId);}
 function catalogRaceList() {
   const model=panelCatalogModel(races.filter(r=>cxDateInSeason(r.seasonKey,r.dateKey)),{categoryOf:r=>r.class,categoryOrder:CX_CLASSES,selectedCategory:raceFilters.category,...raceFilters});
   raceFilters.category=model.selectedCategory;view.querySelector('[data-class]').value=model.selectedCategory||'';
@@ -307,6 +354,25 @@ function cxOriginHtml(link,lastDumpAt) {
         title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">▶ Volcar esta carrera</button>
     </div></div>`;
 }
+// ACN Timing (cronometraje del organizador): resultados provisionales sin pasar por DataRide.
+function cxAcnTarget(value) {
+  const match=/#\/events\/(\d+)\/ctx\/([^/?#]+)/.exec(String(value||''));
+  return match?{eventId:match[1],ctx:match[2]}:null;
+}
+function cxAcnHtml(link) {
+  if(!link)return `<div class="ru-origin u-mt-050"><div class="ru-origin__state">Cronometraje <strong>ACN Timing</strong> sin enlazar — publica resultados provisionales antes que DataRide (HG Cross, Exact Cross).</div>
+    <div class="u-row u-gap-050 u-items-center u-wrap u-mt-045">
+      <input type="url" data-acn-url placeholder="https://www.acn-timing.com/?lng=EN#/events/…/ctx/…" class="u-w-1200">
+      <button type="button" class="btn btn--primary cru-acn-link btn--compact">Enlazar ACN</button></div></div>`;
+  return `<div class="ru-origin u-mt-050">
+    <div class="ru-origin__state">Cronometraje: <a href="https://www.acn-timing.com/?lng=EN#/events/${esc(link.eventId)}/ctx/${esc(link.ctx)}/cms" target="_blank" rel="noopener">ACN Timing ↗</a>
+      <span class="u-c-dim"> · evento ${esc(link.eventId)} · ${link.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
+    ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
+    <div class="u-row u-mt-045 u-wrap">
+      <button type="button" class="btn btn--ghost cru-acn-toggle btn--compact">${link.syncEnabled?'Desactivar recogida':'Activar recogida'}</button>
+      <button type="button" class="btn btn--ghost cru-acn-unlink btn--compact u-c-danger">Desenlazar ACN</button>
+    </div></div>`;
+}
 // Las ventanas CX son minutos relativos al final estimado de cada manga, no horas absolutas.
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
@@ -322,12 +388,13 @@ function cxSyncPolicyHtml(link) {
       </div></div></div>`;
 }
 async function resultsView(root,race,categories) {
-  const [links,rows]=await Promise.all([cxQuery(ctx.supabase.from('cx_race_uci_links').select('*').eq('raceId',race.id)),cxAllRows(ctx.supabase,'cx_results','*',{raceId:race.id})]);
+  const [links,rows,timingLinks]=await Promise.all([cxQuery(ctx.supabase.from('cx_race_uci_links').select('*').eq('raceId',race.id)),cxAllRows(ctx.supabase,'cx_results','*',{raceId:race.id}),
+    cxQuery(ctx.supabase.from('cx_race_timing_links').select('*').eq('raceId',race.id)).catch(()=>[])]);
   if(!root.isConnected)return;
-  const link=links[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
+  const link=links[0],timingLink=timingLinks[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
   const render=()=>resultsView(root,race,categories);
   const byCategory=new Map(categories.map(c=>[c.category,c]));
-  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
+  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}${cxAcnHtml(timingLink)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
     return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);
@@ -348,6 +415,21 @@ async function resultsView(root,race,categories) {
       try{await cxQuery(ctx.supabase.from('cx_race_uci_links').upsert({raceId:race.id,disciplineId:3,competitionId,seasonId,uciRaceId,updatedAt:new Date().toISOString()},{onConflict:'raceId'}));ctx.showToast('Enlace guardado','success');await render();}
       catch(error){save.disabled=false;errorAt(root,error);}
     };
+  });
+  root.querySelector('.cru-acn-link')?.addEventListener('click',async event=>{
+    const button=event.currentTarget,target=cxAcnTarget(root.querySelector('[data-acn-url]').value);
+    if(!target){errorAt(root,new Error('Pega la URL del visor de ACN Timing con «/events/…/ctx/…».'));return;}
+    button.disabled=true;
+    try{await cxQuery(ctx.supabase.from('cx_race_timing_links').upsert({raceId:race.id,provider:'acn',eventId:target.eventId,ctx:target.ctx,syncEnabled:true,updatedAt:new Date().toISOString()},{onConflict:'raceId'}));ctx.showToast('Enlace ACN guardado','success');await render();}
+    catch(error){button.disabled=false;errorAt(root,error);}
+  });
+  root.querySelector('.cru-acn-toggle')?.addEventListener('click',async()=>{
+    try{await cxQuery(ctx.supabase.from('cx_race_timing_links').update({syncEnabled:!timingLink.syncEnabled,updatedAt:new Date().toISOString()}).eq('raceId',race.id));await render();}
+    catch(error){errorAt(root,error);}
+  });
+  root.querySelector('.cru-acn-unlink')?.addEventListener('click',async()=>{
+    try{if(await confirmDialog({title:'Quitar enlace ACN Timing',message:'Se conserva la carrera y sus resultados.',confirmText:'Quitar'})){await cxQuery(ctx.supabase.from('cx_race_timing_links').delete().eq('raceId',race.id));await render();}}
+    catch(error){errorAt(root,error);}
   });
   root.querySelector('.cru-unlink')?.addEventListener('click',async()=>{
     try{if(await confirmDialog({title:'Quitar enlace DataRide',message:'Se conserva la carrera y sus resultados.',confirmText:'Quitar'})){await cxQuery(ctx.supabase.from('cx_race_uci_links').delete().eq('raceId',race.id));await render();}}
@@ -441,9 +523,8 @@ async function editRace(existing=null,section='identity',presetDate=null,{duplic
       for(const category of race.cx_race_categories||[])for(const key of ['resultsStatus','resultsSourceUrl','resultsLockedAt','bonusSourceUrl','resultsEvidence'])delete category[key];
     }
     const categories=race.cx_race_categories||[];
-    activeRaceId=race.id||null;markAgendaActive();
     const openSection=duplicate?'identity':section;
-    const handle=ctx.openDrawer({title:'Jornada',onClose:()=>{handle.body.classList.remove('cx-jornada-drawer');if(handle.isCurrent()){activeRaceId=null;markAgendaActive();}},render:body=>{
+    const handle=ctx.openDrawer({title:'Jornada',onClose:()=>handle.body.classList.remove('cx-jornada-drawer'),render:body=>{
       body.classList.add('cx-jornada-drawer');
       body.innerHTML=`<div class="editor-area">${panelEditorTopbarHtml({name:race.name||'Nueva jornada',flagHtml:ctx.countryFlag?.(race.countryCode)||'',date:race.dateKey,published:Boolean(race.id)&&race.editorialStatus==='published',updated:race.updatedAt?new Date(race.updatedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}):'',actionsHtml:`${race.id?`<a class="btn btn--ghost" href="/ciclocross/${esc(race.slug)}/" target="_blank" rel="noopener">Ver ↗</a><button type="button" class="btn btn--ghost" data-dorsals>Dorsales</button><button type="button" class="btn btn--danger" data-delete-race>Borrar</button><button type="button" class="btn btn--ghost" data-duplicate>Duplicar</button>`:''}<button type="button" class="btn btn--ghost" data-draft hidden>Borrador</button><button type="button" class="btn btn--primary" data-save-section>Actualizar</button>`})}<div class="editor-content">${panelEditorTabsHtml(EDITOR_TABS.map(([key,label])=>({key,label,disabled:!race.id&&key!=='identity'})),{attribute:'section'})}<div class="cx-editor-body"></div></div></div>`;
     }});
@@ -675,8 +756,8 @@ async function rowsForm(root,race,categories,section,{category:selectedCategory=
       const rows=await cxAllRows(ctx.supabase,startlist?'cx_startlist_riders':'cx_results','*',{raceId:race.id,category});rows.sort((a,b)=>a.sortOrder-b.sortOrder);
       if(version!==paintVersion||!target.isConnected)return;
       const cat=categories.find(c=>c.category===category),tournament=tournaments.find(t=>t.id===race.tournamentId),mode=tournament?.pointsScheme?.categories?.[category]?.mode;
-      target.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('sourceUrl','Fuente oficial',startlist?'':cat?.resultsSourceUrl,'url','required')}${!startlist?`${select('status','Publicación',[['provisional','Provisional'],['official','Oficial'],['pending','Pendiente']],cat?.resultsStatus==='pending'?'provisional':cat?.resultsStatus)}${input('bonusSourceUrl','Fuente oficial de bonos en segundos',cat?.bonusSourceUrl,'url')}${input('adjustmentSourceUrl','Fuente de ajustes en puntos',cat?.resultsEvidence?.adjustmentSourceUrl,'url')}${input('adjustmentReason','Motivo del ajuste en puntos',cat?.resultsEvidence?.adjustmentReason)}${select('rankScope','Puestos de la categoría',[['','Sin comprobación específica'],['officialCategory','Puestos oficiales de esta categoría']],cat?.resultsEvidence?.rankScope||'')}${input('categoryClassificationSourceUrl','Clasificación oficial específica de categoría',cat?.resultsEvidence?.categoryClassificationSourceUrl,'url')}${checkbox('lockAutomatic','Proteger frente al volcado automático',cat?.resultsLockedAt?true:!rows.length)}`:''}</div>${!startlist?`<label class="btn btn--ghost">Extraer texto de PDF<input type="file" data-pdf accept="application/pdf" hidden></label>${textarea('source','Tabla de resultados','','rows="7"')}<button class="btn btn--ghost" data-parse type="button">Preparar resultados</button>`:''}<button class="btn btn--ghost" data-add-row type="button">Añadir corredor</button><div class="cx-table-wrap" data-editable></div>${actions(startlist?'Preparar importación':'Guardar resultados')}<div data-prepared></div></form>`;
-      const form=target.querySelector('form');boxSection(form,startlist?'Inscritos':'Clasificación',[form.querySelector('.cx-grid')]);
+      target.innerHTML=`<form class="cx-form"><div class="cx-grid">${!startlist?`${input('sourceUrl','Fuente oficial',cat?.resultsSourceUrl,'url','required')}${select('status','Publicación',[['provisional','Provisional'],['official','Oficial'],['pending','Pendiente']],cat?.resultsStatus==='pending'?'provisional':cat?.resultsStatus)}${input('bonusSourceUrl','Fuente oficial de bonos en segundos',cat?.bonusSourceUrl,'url')}${input('adjustmentSourceUrl','Fuente de ajustes en puntos',cat?.resultsEvidence?.adjustmentSourceUrl,'url')}${input('adjustmentReason','Motivo del ajuste en puntos',cat?.resultsEvidence?.adjustmentReason)}${select('rankScope','Puestos de la categoría',[['','Sin comprobación específica'],['officialCategory','Puestos oficiales de esta categoría']],cat?.resultsEvidence?.rankScope||'')}${input('categoryClassificationSourceUrl','Clasificación oficial específica de categoría',cat?.resultsEvidence?.categoryClassificationSourceUrl,'url')}${checkbox('lockAutomatic','Proteger frente al volcado automático',cat?.resultsLockedAt?true:!rows.length)}`:''}</div>${!startlist?`<label class="btn btn--ghost">Extraer texto de PDF<input type="file" data-pdf accept="application/pdf" hidden></label>${textarea('source','Tabla de resultados','','rows="7"')}<button class="btn btn--ghost" data-parse type="button">Preparar resultados</button>`:''}<button class="btn btn--ghost" data-add-row type="button">Añadir corredor</button><div class="cx-table-wrap" data-editable></div>${actions(startlist?'Preparar importación':'Guardar resultados')}<div data-prepared></div></form>`;
+      const form=target.querySelector('form');if(startlist)form.querySelector('.cx-grid').remove();else boxSection(form,'Clasificación',[form.querySelector('.cx-grid')]);
       if(!startlist){
         const advanced=document.createElement('details');advanced.className='editor-section editor-section--advanced';advanced.innerHTML='<summary class="editor-section__header"><span class="editor-section__title">Bonos y evidencia</span></summary><div class="editor-section__body"></div>';
         const keys=['bonusSourceUrl','adjustmentSourceUrl','adjustmentReason','rankScope','categoryClassificationSourceUrl'];
@@ -695,7 +776,7 @@ async function rowsForm(root,race,categories,section,{category:selectedCategory=
         const wrap=form.querySelector('[data-editable]');
         wrap.innerHTML=`${edited.length?'':`<p>${startlist?'No hay inscritos en esta categoría.':'No hay resultados en esta categoría.'}</p>`}${edited.length?`<table class="ru-edit-table"><thead><tr>${fields.map(([key,label])=>`<th ${!startlist&&['isoCode2','timeSeconds','bonusSeconds','bonusPoints'].includes(key)?'data-extra-field hidden':''}>${label}</th>`).join('')}<th></th></tr></thead><tbody>${edited.map((row,i)=>`<tr class="ru-row" data-index="${i}">${fields.map(([key,label])=>`<td ${!startlist&&['isoCode2','timeSeconds','bonusSeconds','bonusPoints'].includes(key)?'data-extra-field hidden':''}>${key==='globalRiderId'?`<select data-key="${key}" aria-label="${label}">${option('','Sin ficha',row[key]||'')}${riders.map(r=>option(r.id,`${r.lastName} ${r.firstName} · ${r.nationality||'—'}`,row[key])).join('')}</select>`:key==='teamId'?`<select data-key="${key}" aria-label="${label}">${option('','Sin equipo',row[key]||'')}${teams.map(t=>option(t.id,`${t.uciCode} · ${t.name}`,row[key])).join('')}</select>`:`<input class="ru-in" data-key="${key}" aria-label="${label}" value="${esc(row[key])}" ${['rank','timeSeconds','bonusSeconds','bonusPoints'].includes(key)?'inputmode="numeric"':''}>`}</td>`).join('')}<td><button type="button" class="btn btn--ghost" data-remove-row>Quitar</button>${!row.globalRiderId&&(profileLevel===2||onCreateProfile)?'<button type="button" class="btn btn--ghost" data-create-profile>Crear ficha CX</button>':''}</td></tr>`).join('')}</tbody></table>`:''}`;
         wrap.querySelectorAll('[data-remove-row]').forEach(button=>button.onclick=()=>{readRows();edited.splice(Number(button.closest('tr').dataset.index),1);draw();});
-        wrap.querySelectorAll('[data-create-profile]').forEach(button=>button.onclick=()=>{readRows();const index=Number(button.closest('tr').dataset.index),row=edited[index];if(onCreateProfile){onCreateProfile({rows:edited,fields:dataOf(form),index,category});return;}editRider({gender:cxGender(category),firstName:row.firstName||'',lastName:row.lastName||'',nationality:row.countryCode||row.isoCode2||null,source:form.elements.sourceUrl.value||'manual',verified:false},{level:2,onSaved:profile=>{riders.push(profile);row.globalRiderId=profile.id;if(startlist)row.teamId=profile.currentTeamId;draw();}});});
+        wrap.querySelectorAll('[data-create-profile]').forEach(button=>button.onclick=()=>{readRows();const index=Number(button.closest('tr').dataset.index),row=edited[index];if(onCreateProfile){onCreateProfile({rows:edited,fields:dataOf(form),index,category});return;}editRider({gender:cxGender(category),firstName:row.firstName||'',lastName:row.lastName||'',nationality:row.countryCode||row.isoCode2||null,source:form.elements.sourceUrl?.value||'manual',verified:false},{level:2,onSaved:profile=>{riders.push(profile);row.globalRiderId=profile.id;if(startlist)row.teamId=profile.currentTeamId;draw();}});});
         form.querySelector('[data-add-row]').onclick=()=>{readRows();edited.push({});draw();};
         if(form.querySelector('[data-result-extras]')?.checked)wrap.querySelectorAll('[data-extra-field]').forEach(cell=>cell.hidden=false);
       }
@@ -729,9 +810,9 @@ async function rowsForm(root,race,categories,section,{category:selectedCategory=
         readRows();const evidence=get(form);delete evidence.source;
         if(!edited.length && (startlist || evidence.status!=='pending'))throw new Error('Una tabla vacía solo permite borrar resultados y marcar la categoría como pendiente.');
         if(!edited.length && !await confirmDialog({title:'Borrar resultados',message:`Se borran los resultados de ${category} y su publicación pasa a pendiente.`,confirmText:'Borrar resultados'}))return;
-        let normalized=edited.length?parseCxRows(JSON.stringify(edited),startlist?'startlist':'results'):[];if(!startlist)normalized=resolveCxPanelResultRows(normalized,riders,startlistRows);evidence.sourceUrl=cxUrl(evidence.sourceUrl,{optional:false});
+        let normalized=edited.length?parseCxRows(JSON.stringify(edited),startlist?'startlist':'results'):[];if(!startlist){normalized=resolveCxPanelResultRows(normalized,riders,startlistRows);evidence.sourceUrl=cxUrl(evidence.sourceUrl,{optional:false});}
         if(startlist){
-          const prepared=await cxRpc(ctx.supabase,'cx_prepare_startlist_import',{p_race_id:race.id,p_category:category,p_document:{sourceUrl:evidence.sourceUrl,rows:normalized}});
+          const prepared=await cxRpc(ctx.supabase,'cx_prepare_startlist_import',{p_race_id:race.id,p_category:category,p_document:{rows:normalized}});
           const result=form.querySelector('[data-prepared]');result.innerHTML=`<p>${prepared.rows.length} inscritos; ${prepared.matched} fichas enlazadas; ${prepared.unmatched} sin ficha.</p><button class="btn btn--primary" type="button" data-apply-list>Aplicar lista preparada</button>`;
           result.querySelector('button').onclick=async event=>{event.target.disabled=true;try{const applied=await cxRpc(ctx.supabase,'cx_apply_startlist_import',{p_import_id:prepared.importId});result.innerHTML=`<p>Aplicados ${applied.rows} inscritos.</p>`;await refresh();}catch(error){errorAt(form,error);event.target.disabled=false;}};
         }else{

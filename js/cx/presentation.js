@@ -133,7 +133,7 @@ export function cxUsesCategoryBadges(race,dateKey=null,at=new Date()) {
   return categories.length>0&&categories.every(c=>!c.startTimeUtc&&cxCategoryCardState(race,c,at)==='time');
 }
 const CX_TOURNAMENT_COLORS = Object.freeze({worldCup:'#8B173D',superprestige:'#FFC600',x2o:'#00A8C7',copaEspana:'#D71920',exactCross:'#E6342A',coupeFrance:'#0055A4',swissCup:'#D52B1E',czechCup:'#E87524',nationalTrophy:'#6B3FA0',uscx:'#233C78',giroRegioni:'#E94B8A',tacaPortugal:'#008657'});
-export function cxTournamentColor(tournament) {
+function cxTournamentColor(tournament) {
   if(!tournament)return null;
   if(/^#[0-9a-f]{6}$/i.test(tournament.colorHex||''))return tournament.colorHex;
   const identity=`${tournament.slug||''} ${tournament.name||''}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -176,10 +176,12 @@ function cxAgendaTime(race,dateKey=null) {
   }
   return Infinity;
 }
+// Las destacadas (`featured`, corona del panel) encabezan su día; entre ellas
+// y en el resto rige el orden canónico.
 function cxCompareRaces(a,b,dateKey=null) {
   const classOrder=r=>{const index=CX_CLASSES.indexOf(r.class);return index<0?CX_CLASSES.length:index;};
   const order=classOrder(a)-classOrder(b);
-  return order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
+  return Number(!!b.featured)-Number(!!a.featured)||order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
 }
 // Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera.
 // Todos · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
@@ -369,4 +371,31 @@ export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibl
   const revive=collect(rows,row=>visible.has(row)&&!liveRows.has(row)&&units.some(unit=>unit.finished&&applies(row,unit.code)&&replay(row,unit)),(_,url)=>url);
   const media=collect(valid(videos),row=>units.some(unit=>applies(row,unit.code)),(_,url)=>url);
   return {tv,revive,videos:media,liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category)};
+}
+// Badge de TV de la tarjeta de Agenda, entre las emisiones visibles en la
+// región del usuario (llegan ya filtradas). Muestra la hora de la primera
+// emisión del día hasta que empieza; desde entonces, «En directo» mientras
+// quede alguna categoría del día en directo (sin resultados, sin cancelación y
+// antes de su conclusión estimada). El enlace va a la primera emisión y, al
+// alcanzarse la hora de otra posterior de una categoría aún en directo, a la
+// última que ha empezado. Sin horas, la primera por orden. Devuelve la fila
+// enlazada con `firstStartUtc` (hora de la primera) y `live`.
+export function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) {
+  const categories=cxCategories(race,dateKey);
+  if(race.isCancelled||!categories.length||!visibleBroadcasts?.length)return null;
+  const results=categories.filter(c=>['official','provisional'].includes(c.resultsStatus)).map(c=>({category:c.category}));
+  const {tv}=cxRaceMedia(race,categories,visibleBroadcasts,[],{results,at});
+  if(!tv.length)return null;
+  const time=row=>{const value=Date.parse(row.startTimeUtc);return Number.isFinite(value)?value:Infinity;};
+  const earliest=rows=>rows.reduce((best,row)=>!best||time(row)<time(best)?row:best,null);
+  const first=earliest(cxRaceMedia(race,categories,visibleBroadcasts,[],{at:0}).tv)||earliest(tv);
+  const now=new Date(at).getTime(),live=time(first)<=now;
+  const current=tv.filter(row=>time(row)<=now).reduce((best,row)=>!best||time(row)>=time(best)?row:best,null)||earliest(tv);
+  return {...current,firstStartUtc:first.startTimeUtc??null,live};
+}
+// Badge de dorsales de la tarjeta de Agenda: primera categoría del día con
+// lista cargada que aún no tiene resultados ni está cancelada.
+export function cxAgendaStartlistCategory(race,dateKey,at=new Date()) {
+  if(race.isCancelled)return null;
+  return cxCategories(race,dateKey).find(c=>c.startlistImportedAt&&!['results','cancelled'].includes(cxCategoryCardState(race,c,at)))||null;
 }

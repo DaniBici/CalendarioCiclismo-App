@@ -328,9 +328,11 @@ Cuando una jornada tiene `hasElevationProfile = true` (perfil SVG web disponible
 
 Banner "Sin conexión" (`OfflineBanner.swift` línea 3 / equivalente Android).
 
+**Cuándo aparece en iOS.** Hoy lo oculta mientras la red está en vuelo (`isNetworkLoading`). Mes y Temporada aplican `CachePresentation.resolve(isOnline:isInitialLoad:)`: sin conexión muestran la caché con banner; con red, la primera carga de la pantalla espera a la respuesta remota con la pantalla de carga visible desde el primer fotograma (`LoadingView(revealsImmediately: true)`, permanencia mínima `LoadingTiming.minShow`), y los cambios de mes o de año posteriores muestran la caché sin rótulo mientras la red refresca. Si la petición falla y hay contenido, se muestra con banner. Una petición cancelada no activa el banner.
+
 ### Auto-recarga al recuperar conectividad
 
-- **iOS:** `.onChange(of: network.isOnline)` → `loadDay(refresh: true)` si `isFromCache || isUncachedOffline || error != nil`.
+- **iOS:** `.onChange(of: network.isOnline)` → `loadDay(refresh: true)` si `isFromCache || isUncachedOffline || error != nil`; Mes (`loadMonth(force: true)`) y Temporada (`loadSeason()`) con `isFromCache || isUncachedOffline`.
 - **Android:** `LaunchedEffect` colecta `NetworkMonitor.online(context)`; flag `wasOffline`; `vm.refresh()` si `error != null || data == null` (TodayScreen).
 
 ## Pagers paginados — diferir logos y banderas (iOS + Android)

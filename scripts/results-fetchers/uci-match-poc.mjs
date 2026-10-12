@@ -33,6 +33,7 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { eventKindFromText, eventKindsConflict, ourEventKind } from './uci-event-kind.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -323,6 +324,12 @@ async function main() {
     const ourG = ourWomen ? 'female' : 'male';
     cands = cands.filter((u) => u.gender == null || u.gender === ourG);
     cands = cands.filter((u) => !u.junior); // nuestras carreras nunca son junior
+
+    // 2.b) filtro de TIPO de prueba: una contrarreloj y una línea del mismo campeonato
+    //      comparten fecha, país, clase y género; DataRide las publica como competiciones
+    //      distintas ("… WE ITT"). Descartar la competición cuyo tipo declarado difiere.
+    const ourKind = ourEventKind({ names: [r.nameEn, r.originalName, r.name] });
+    cands = cands.filter((u) => !eventKindsConflict(ourKind, eventKindFromText(u.c.CompetitionName)));
 
     // 3) score por GÉNERO → clase → nombre, ordenar. El género (cuando es
     //    inequívoco y coincide) manda sobre el nombre: separa correctamente las

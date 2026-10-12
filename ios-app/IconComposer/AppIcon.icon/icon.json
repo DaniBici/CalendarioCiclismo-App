@@ -1,1 +1,49 @@
-{"fill":{"solid":"extended-srgb:0.10196,0.45098,0.90980,1.00000"},"groups":[{"layers":[{"image-name":"01-calendar.svg","name":"01-calendar"},{"image-name":"02-cyclist.svg","name":"02-cyclist"}],"shadow":{"kind":"neutral","opacity":0.6},"translucency":{"enabled":true,"value":0.2}}],"supported-platforms":{"circles":["watchOS"],"squares":"shared"}}
+{
+  "fill": {
+    "solid": "extended-srgb:0.50196,0.32157,0.20392,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "01-calendar.svg",
+          "name": "01-calendar"
+        },
+        {
+          "image-name": "02-cyclist.svg",
+          "name": "02-cyclist"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.6
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.2
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "00-fondo-barro.png",
+          "name": "00-fondo-barro"
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

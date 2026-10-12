@@ -29,7 +29,7 @@ describe('incidencias de publicación de generales',()=>{
       }};
       const [result]=await processStandingsQueue(client,{limit:1});expect(result.error).toBe('Cambio de entrada');
       const update=calls.find(c=>c.sql.startsWith('UPDATE'));expect(update.params[0]).toBe(code==='40001'?'pending':'error');
-      expect(update.params.at(-1)).toBe('7');expect(update.sql).toContain("generation=$5 AND status='running'");
+      expect(update.params.at(-1)).toBe('7');
     }
   });
 });

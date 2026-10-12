@@ -191,6 +191,11 @@ export const CONFIGURED_POLL_INTERVAL_MINUTES_SQL = `CASE
     ELSE 5
   END
 END`;
+// Margen frente al desfase del timer (RandomizedDelaySec, cola manual y enlazador
+// previos): el intento anterior puede haberse registrado a :08 y el tick siguiente
+// llegar a :02. Sin margen, el intervalo de 1 min se cumplía uno de cada dos ticks.
+const CONFIGURED_POLL_DUE_SQL = `(d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
+  - ((${CONFIGURED_POLL_INTERVAL_MINUTES_SQL}) * interval '1 minute' - interval '30 seconds'))`;
 const CONFIGURED_START_AT_SQL = `CASE
   WHEN d."resultsSyncStartAt" IS NOT NULL
     THEN d."resultsSyncStartAt"
@@ -492,7 +497,7 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 COALESCE((SELECT min(d2."dateKey") FROM race_days d2
@@ -587,7 +592,7 @@ async function main() {
       )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 d."dateKey" AS "scheduledDate",
@@ -616,8 +621,7 @@ async function main() {
            AND l."source" NOT IN (${sqlStringList(MANUAL_RESULT_SOURCES)})
            AND now() >= (${CONFIGURED_START_AT_SQL})
            AND now() <= (${CONFIGURED_STOP_AT_SQL})
-           AND (d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
-             - (${CONFIGURED_POLL_INTERVAL_MINUTES_SQL}) * interval '1 minute')
+           AND ${CONFIGURED_POLL_DUE_SQL}
            AND (NOT (${MAIN_COVERED}) OR l."source" IN (${sqlStringList(COVERED_STAGE_REFRESH_SOURCES)}) OR (${UCI_STAGE_REOBSERVED})
              OR (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_RACE_DAY} AND NOT (${FINAL_COVERED})))
          ORDER BY l."raceId", d."estimatedFinishTimeUtc" DESC
@@ -712,7 +716,7 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
@@ -760,7 +764,7 @@ async function main() {
   if (DRY) {
     for (const t of targets) {
       const src = t.source === 'tissot' && t.tissotCode ? `tissot:${t.tissotCode}`
-        : t.source === 'matsport' && t.matsportCode ? `matsport:${t.matsportCode}`
+        : t.source === 'matsport' && t.matsportCode ? `matsport:${t.matsportCode}${t.matsportStage != null ? `#${t.matsportStage}` : ''}`
         : t.source === 'raceresult' && t.raceresultCode ? `raceresult:${t.raceresultCode}`
         : t.source === 'sts' && t.stsCode ? `sts:${t.stsCode}`
         : t.source === 'domtel' && t.domtelCode ? `domtel:${t.domtelCode}`
@@ -844,9 +848,14 @@ async function main() {
       fc = await run(TISSOT_FETCH, ['--competition', tissotComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY, ...tissotEventArgs, ...fetchStageArgs]);
     } else if (kind === 'matsport') {
       // 'matsport' (101): comp id {year}_{code} ("2026_PYF"); competitionId sintético negativo.
+      // Competición multiprueba (Chrono des Nations): matsportStage selecciona la
+      // etapa de Matsport que es esta carrera y se trata como prueba de un día; con
+      // él no se pasa --stage (el fetcher lo ignora). Sin él, la rama no cambia.
       const matsportComp = `${t.year}_${t.matsportCode}`;
-      srcLabel = ` ← matsport:${matsportComp}`;
-      fc = await run(MATSPORT_FETCH, ['--competition', matsportComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY, ...fetchStageArgs]);
+      const matsportStageArgs = t.matsportStage != null
+        ? ['--matsport-stage', String(t.matsportStage)] : [];
+      srcLabel = ` ← matsport:${matsportComp}${t.matsportStage != null ? `#${t.matsportStage}` : ''}`;
+      fc = await run(MATSPORT_FETCH, ['--competition', matsportComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY, ...matsportStageArgs, ...(t.matsportStage != null ? [] : fetchStageArgs)]);
     } else if (kind === 'raceresult') {
       // 'raceresult' (108): API JSON de my.raceresult.com; raceresultCode = eventId numérico.
       srcLabel = ` ← raceresult:${t.raceresultCode}`;

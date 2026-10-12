@@ -1,10 +1,5 @@
 import SwiftUI
 
-private enum ResultsFeedSection {
-    case latest
-    case ranking
-}
-
 private enum UciRankingGender: String {
     case male
     case female
@@ -25,6 +20,10 @@ private struct UciRankingExplanationItem: Identifiable {
 /// color de carrera), logo + bandera, "Etapa N · km · desnivel"
 /// + badge de tipo solo para contrarrelojes, y el ganador con trofeo. Cada fila
 /// abre su clasificación propia mediante `ResultsRoute`.
+///
+/// Pestañas según `ResultsFeedTabs`: durante la temporada de ciclocross se
+/// añade la de resultados CX (`CxResultsFeedModel`), con filas que abren la
+/// ficha CX en sus resultados.
 struct ResultsFeedView: View {
     @State private var entries: [FeedEntry] = []
     @State private var isLoading = true
@@ -38,7 +37,11 @@ struct ResultsFeedView: View {
     @State private var feedGeneration = 0
     /// Push por valor a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
-    @State private var activeSection = ResultsFeedSection.latest
+    @State private var tabLayout: ResultsFeedTabLayout
+    @State private var activeSection: ResultsFeedTab
+    @State private var cxModel = CxResultsFeedModel()
+    /// Push por valor a la ficha CX, en su sección de resultados.
+    @State private var cxRoute: CxDestination?
     @State private var rankingGender = UciRankingGender.male
     @State private var rankingRows: [UciTeamRankingRow] = []
     @State private var isRankingLoading = false
@@ -47,13 +50,33 @@ struct ResultsFeedView: View {
     @State private var localeService = LocaleService.shared
     @State private var contentWidth: CGFloat = 0
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    /// La pantalla está en primer plano de la pila (no cubierta por otra
+    /// pestaña ni por un push): solo entonces el regreso de la app recarga.
+    @State private var isVisible = false
+
+    init() {
+        let layout = ResultsFeedTabs.layout()
+        _tabLayout = State(initialValue: layout)
+        _activeSection = State(initialValue: layout.initial)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             sectionSelector
             Group {
                 switch activeSection {
-                case .latest:
+                case .cyclocross:
+                    if let error = cxModel.error, !cxModel.hasLoaded {
+                        ErrorView(message: error) {
+                            Task { await cxModel.load() }
+                        }
+                    } else if !cxModel.hasLoaded {
+                        LoadingView(branded: true, title: localeService.t("Ciclocross", "Cyclocross"))
+                    } else {
+                        cxList
+                    }
+                case .road:
                     if isLoading && entries.isEmpty {
                         LoadingView(branded: true, title: localeService.t("Últimos resultados", "Latest results"))
                     } else if let error, entries.isEmpty {
@@ -97,6 +120,13 @@ struct ResultsFeedView: View {
         .navigationDestination(item: $resultsRoute) { route in
             ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
         }
+        .navigationDestination(item: $cxRoute) { destination in
+            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+        }
+        // Enlaces por valor de la ficha CX (rondas de la general, torneo).
+        .navigationDestination(for: CxDestination.self) { destination in
+            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+        }
         .alert(item: $rankingExplanation) { item in
             Alert(
                 title: Text(item.title),
@@ -105,8 +135,63 @@ struct ResultsFeedView: View {
             )
         }
         .task { await load() }
+        // Pestaña Ciclocross: la primera vez se carga; cada vez que vuelve a
+        // aparecer (otra pestaña de la app, regreso de una ficha) o se
+        // selecciona se recarga sin pantalla de carga, como el feed de
+        // carretera con `.task { load() }`.
+        .task(id: activeSection == .cyclocross) {
+            guard activeSection == .cyclocross else { return }
+            if cxModel.hasLoaded {
+                await cxModel.refresh(forceRounds: false)
+            } else {
+                await cxModel.load()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            let layout = ResultsFeedTabs.layout()
+            if layout != tabLayout {
+                tabLayout = layout
+                if !layout.tabs.contains(activeSection) { activeSection = layout.initial }
+            }
+            // Regreso a primer plano con esta pantalla visible: la sección
+            // activa se actualiza, también en ciclocross.
+            guard isVisible else { return }
+            Task { await refreshActiveSection() }
+        }
+        // Latido de 60 s con la pestaña Ciclocross a la vista: solo descarga
+        // los meses de la ventana mostrada, como el sondeo de 60 s de la web.
+        .task(id: cxHeartbeatActive) {
+            guard cxHeartbeatActive else { return }
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                if cxModel.hasLoaded { await cxModel.refresh(forceRounds: false, windowOnly: true) }
+            }
+        }
         .onAppear {
+            isVisible = true
             AnalyticsService.shared.logScreenView("results_feed")
+        }
+        .onDisappear { isVisible = false }
+    }
+
+    /// Ciclocross seleccionado, pantalla visible y app en primer plano.
+    private var cxHeartbeatActive: Bool {
+        activeSection == .cyclocross && isVisible && scenePhase == .active
+    }
+
+    private func tabLabel(_ tab: ResultsFeedTab) -> String {
+        switch tab {
+        case .cyclocross:
+            return localeService.t("Ciclocross", "Cyclocross")
+        case .road:
+            return tabLayout.includesCyclocross
+                ? localeService.t("Carretera", "Road")
+                : localeService.t("Últimos resultados", "Latest results")
+        case .ranking:
+            return tabLayout.includesCyclocross
+                ? localeService.t("Ránking UCI", "UCI Ranking")
+                : localeService.t("Ránking UCI", "UCI ranking")
         }
     }
 
@@ -120,10 +205,9 @@ struct ResultsFeedView: View {
                 set: { selectSection($0) }
             )
         ) {
-            Text(localeService.t("Últimos resultados", "Latest results"))
-                .tag(ResultsFeedSection.latest)
-            Text(localeService.t("Ránking UCI", "UCI ranking"))
-                .tag(ResultsFeedSection.ranking)
+            ForEach(tabLayout.tabs) { tab in
+                Text(tabLabel(tab)).tag(tab)
+            }
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, 16)
@@ -131,7 +215,7 @@ struct ResultsFeedView: View {
         .padding(.bottom, 12)
     }
 
-    private func selectSection(_ section: ResultsFeedSection) {
+    private func selectSection(_ section: ResultsFeedTab) {
         guard section != activeSection else { return }
         Haptics.play(.selection)
         activeSection = section
@@ -236,6 +320,78 @@ struct ResultsFeedView: View {
                 stageNumber: entry.stageNumber,
                 stageSuffix: entry.stageSuffix.isEmpty ? nil : entry.stageSuffix
             )
+        }
+    }
+
+    // MARK: - Ciclocross
+
+    private var cxList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                let columns = AdaptiveLayoutPolicy.feedColumns(
+                    width: max(0, contentWidth - 32),
+                    isRegular: horizontalSizeClass == .regular
+                )
+                let days = cxModel.visibleDays
+                if days.isEmpty {
+                    EmptyStateView(
+                        icon: "trophy",
+                        title: localeService.t("Sin resultados", "No results"),
+                        subtitle: cxModel.days.isEmpty
+                            ? localeService.t("No hay resultados de ciclocross en esta temporada", "No cyclocross results this season")
+                            : localeService.t("No hay resultados de ciclocross en este periodo", "No cyclocross results in this period")
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 320)
+                } else {
+                    ForEach(days) { day in
+                        Text(DateFormatting.formatDateLongContent(day.date))
+                            .ccFont(.s13, weight: .semibold)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, day.id == days.first?.id ? 0 : 10)
+                            .accessibilityAddTraits(.isHeader)
+                        // Tarjetas de altura propia: en dos columnas, cada
+                        // una pasa a la columna más corta, sin huecos.
+                        CxMasonryLayout(columns: columns, spacing: 8) {
+                            ForEach(day.entries) { entry in
+                                cxRow(entry)
+                            }
+                        }
+                    }
+                }
+                // Como en carretera: 14 días de inicio y la opción de ampliar.
+                if cxModel.canLoadMore {
+                    HStack {
+                        Spacer()
+                        Button {
+                            Haptics.play(.primaryAction)
+                            cxModel.loadMore()
+                        } label: {
+                            Text(localeService.t("Cargar más resultados", "Load more results"))
+                                .ccFont(.s14, weight: .semibold)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+        .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.width
+        } action: { width in
+            contentWidth = width
+        }
+        .refreshable { await cxModel.refresh() }
+    }
+
+    private func cxRow(_ entry: CxResultsFeedEntry) -> some View {
+        CxFeedRowView(entry: entry, round: cxModel.rounds[entry.race.id]) {
+            Haptics.play(.navigation)
+            cxRoute = CxDestination(raceId: entry.race.id, anchor: entry.resultsAnchor)
         }
     }
 
@@ -369,6 +525,18 @@ struct ResultsFeedView: View {
     }
 
     // MARK: - Carga
+
+    /// Recarga la sección visible sin pantalla de carga.
+    private func refreshActiveSection() async {
+        switch activeSection {
+        case .cyclocross:
+            if cxModel.hasLoaded { await cxModel.refresh(forceRounds: false) }
+        case .road:
+            await load()
+        case .ranking:
+            break
+        }
+    }
 
     private func load() async {
         feedGeneration &+= 1
@@ -589,6 +757,141 @@ private struct UciRankingRowView: View {
             .padding(.vertical, ResultsTableMetrics.rowVerticalPadding)
             .frame(minHeight: 35)
             .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Mampostería del feed CX
+
+/// Columnas independientes: cada tarjeta, en orden de lectura, va a la
+/// columna más corta (a igualdad, la de la izquierda). Las tarjetas conservan
+/// su altura propia y las columnas no dejan huecos verticales.
+private struct CxMasonryLayout: Layout {
+    var columns: Int
+    var spacing: CGFloat
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (frames: [CGRect], height: CGFloat) {
+        let count = max(1, columns)
+        let columnWidth = max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
+        var heights = Array(repeating: CGFloat(0), count: count)
+        var frames: [CGRect] = []
+        for subview in subviews {
+            let column = heights.indices.min { heights[$0] < heights[$1] } ?? 0
+            let height = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
+            frames.append(CGRect(x: CGFloat(column) * (columnWidth + spacing), y: heights[column], width: columnWidth, height: height))
+            heights[column] += height + spacing
+        }
+        let tallest = heights.max() ?? 0
+        return (frames, subviews.isEmpty ? 0 : max(0, tallest - spacing))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.replacingUnspecifiedDimensions().width
+        return CGSize(width: width, height: arrange(width: width, subviews: subviews).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = arrange(width: bounds.width, subviews: subviews).frames
+        for (subview, frame) in zip(subviews, frames) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height)
+            )
+        }
+    }
+}
+
+// MARK: - Fila del feed CX
+
+/// Fila de una prueba CX con la presentación de la fila destacada del feed
+/// de carretera: logo y bandera, nombre, torneo · manga · sede y, bajo el
+/// separador, una línea por categoría con su ganador o ganadora.
+private struct CxFeedRowView: View {
+    let entry: CxResultsFeedEntry
+    /// Manga n/total del torneo, con la regla de la tarjeta de Hoy de
+    /// Ciclocross: se omite con un total de una sola prueba.
+    var round: CxRound? = nil
+    let onTap: () -> Void
+
+    private var race: CxRace { entry.race }
+
+    private var subtitle: String {
+        var parts: [String] = []
+        if let tournament = race.tournament {
+            parts.append(LocaleService.t(tournament.name, tournament.nameEn ?? tournament.name))
+        }
+        if let round, round.total > 1 {
+            parts.append("\(round.n)/\(round.total)")
+        }
+        if let venue = race.venue?.trimmingCharacters(in: .whitespaces), !venue.isEmpty,
+           venue != CyclocrossPresentation.name(race) {
+            parts.append(venue)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            CCCard {
+                ZStack(alignment: .trailing) {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(spacing: 3) {
+                            RaceLogo(CyclocrossPresentation.logo(race), size: 36)
+                            CountryFlag(countryCode: race.countryCode, width: 18)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(CyclocrossPresentation.name(race))
+                                .ccFont(.s16, weight: .semibold)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .ccFont(.s13)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+
+                            Divider().padding(.vertical, 2)
+                            ForEach(entry.winners, id: \.category) { item in
+                                HStack(spacing: 6) {
+                                    Text(item.category)
+                                        .ccFont(.s12, weight: .semibold)
+                                        .foregroundStyle(.secondary)
+                                        .frame(minWidth: 24, alignment: .leading)
+                                    Text(item.winner).ccFont(.s12).lineLimit(1)
+                                }
+                            }
+                        }
+
+                        Spacer(minLength: 16)
+                    }
+
+                    RaceCardChevron()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityHint(LocaleService.t(
+            "Pulsa dos veces para ver los resultados",
+            "Double tap to view results"
+        ))
+    }
+
+    private var accessibilityText: String {
+        var parts: [String] = [CyclocrossPresentation.name(race)]
+        if !subtitle.isEmpty { parts.append(subtitle) }
+        for item in entry.winners {
+            parts.append("\(CyclocrossPresentation.category(item.category)): \(item.winner)")
+        }
+        return parts.joined(separator: ", ")
     }
 }
 

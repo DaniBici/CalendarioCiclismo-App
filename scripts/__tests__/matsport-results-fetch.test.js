@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { irmOf, normGap, normAbsTime, normPoints, mapRows }
+import { irmOf, normGap, normAbsTime, normPoints, mapRows, matsportIdSeed }
   from '../results-fetchers/matsport-results-fetch.mjs';
 
 // Datos verificados contra la API en vivo el 2026-07-17:
@@ -196,5 +196,19 @@ describe('--suggest-id — competitionId sintético', () => {
     // Valor en producción. Si cambia, se duplican los IDs ya volcados desde esta fuente.
     const out = execFileSync(process.execPath, ['scripts/results-fetchers/matsport-results-fetch.mjs', '--competition', '2026_PYF', '--suggest-id'], { encoding: 'utf8' });
     expect(out.trim()).toBe('-451');
+  });
+
+  it('--matsport-stage cambia la semilla: cada prueba de la multiprueba tiene su competitionId', () => {
+    const run = (extra = []) => execFileSync(process.execPath, ['scripts/results-fetchers/matsport-results-fetch.mjs', '--competition', '2026_HER', '--suggest-id', ...extra], { encoding: 'utf8' }).trim();
+    const ids = [run(), run(['--matsport-stage', '5']), run(['--matsport-stage', '6']), run(['--matsport-stage', '7'])];
+    expect(new Set(ids).size).toBe(4);
+    expect(ids.every((id) => /^-\d+$/.test(id))).toBe(true);
+  });
+});
+
+describe('matsportIdSeed', () => {
+  it('sin etapa conserva la semilla histórica; con etapa añade #etapa', () => {
+    expect(matsportIdSeed('2026_PYF')).toBe('matsport:2026_PYF');
+    expect(matsportIdSeed('2026_HER', 7)).toBe('matsport:2026_HER#7');
   });
 });

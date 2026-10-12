@@ -4,6 +4,7 @@ import {
   absText, gapText, irmCode, classifyTissot, mapTimeRows, mapPointsRows,
   expandTeamTimeTrial, parseEventAbsolute, mapEventRows,
   tissotIdSeed, tissotIdBase, buildMultiEventStages, selectFinishedLiveRows,
+  isSingleRaceCompetition, singleRaceSpec,
 } from '../results-fetchers/tissot-results-fetch.mjs';
 
 // Formatos verificados contra la API en vivo del Tour Auvergne-Rhône-Alpes 2026
@@ -355,5 +356,18 @@ describe('Relevo MultiEvents — clasificación final visible y tiempos absoluto
   });
   it('rechaza equipos sin miembros para no publicar filas individuales sin dorsal', () => {
     expect(() => build([{ rank: 1, team: { name: 'ITALY' }, value: '51:32.28' }])).toThrow('sin miembros');
+  });
+});
+
+describe('Prueba de un día por la rama de etapas (París-Tours)', () => {
+  it('solo SingleRace con una etapa se emite sin stageNumber', () => {
+    expect(isSingleRaceCompetition({ type: 'SingleRace' }, [{ number: 1 }])).toBe(true);
+    expect(isSingleRaceCompetition({ type: 'StageRace' }, [{ number: 1 }])).toBe(false);
+    expect(isSingleRaceCompetition({ type: 'SingleRace' }, [{ number: 1 }, { number: 2 }])).toBe(false);
+  });
+
+  it('la clasificación de tiempos pasa a gc «General Classification»', () => {
+    const spec = singleRaceSpec(classifyTissot('Time', 'stage'));
+    expect(spec).toMatchObject({ classKind: 'gc', scope: 'stage', eventName: 'General Classification', time: true });
   });
 });

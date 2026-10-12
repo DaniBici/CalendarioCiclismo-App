@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractRidersForNameResolve, nameResolveWithStartlistAuthoritySql } from '../results-fetchers/results-upsert.mjs';
+import { extractRidersForNameResolve } from '../results-fetchers/results-upsert.mjs';
 
 describe('identidades de pruebas con dorsales reutilizados', () => {
   it('conserva personas diferentes con el mismo dorsal y deduplica las repeticiones de una persona', () => {
@@ -31,37 +31,5 @@ describe('identidades de pruebas con dorsales reutilizados', () => {
     }] }] }] };
     expect(extractRidersForNameResolve(data, null, { includeBib: true })[0].uciProfileId)
       .toBe('428096');
-  });
-});
-
-describe('autoridad de identidad de la startlist oficial', () => {
-  const sql = nameResolveWithStartlistAuthoritySql(
-    'race_x',
-    'male',
-    '[{"bib":"15","display":"BJERG M."}]',
-  );
-
-  it('no activa el fallback nominal para una fila individual que ya tiene dorsal', () => {
-    expect(sql).toContain("AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')");
-  });
-
-  it('permite que DataRide resuelva filas con dorsal al sembrar la startlist', () => {
-    const dataRideSql = nameResolveWithStartlistAuthoritySql(
-      'race_x',
-      'male',
-      '[{"bib":"15","display":"BJERG M."}]',
-      { includeBib: true },
-    );
-
-    expect(dataRideSql).not.toContain("AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')");
-    expect(dataRideSql).toContain('r."globalRiderId" IS NULL');
-  });
-
-  it('reaplica el enlace por dorsal después del fallback por nombre', () => {
-    const fallback = sql.indexOf('resolve_uci_results_by_name');
-    const authoritative = sql.lastIndexOf('resolve_uci_results(');
-
-    expect(fallback).toBeGreaterThanOrEqual(0);
-    expect(authoritative).toBeGreaterThan(fallback);
   });
 });

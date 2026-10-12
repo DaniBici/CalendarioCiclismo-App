@@ -24,7 +24,11 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     &&cxDateInSeason(race.seasonKey,manga.dateKey||race.dateKey);}catch{}
   if(!validSeason||race.editorialStatus!=='published'||race.isCancelled||manga.isCancelled||!CATEGORIES.has(manga.category)
     ||manga.raceId!==race.id||(manga.dateKey||race.dateKey)<race.dateKey||(manga.dateKey||race.dateKey)>(race.endDateKey||race.dateKey))return skip('Carrera/manga fuera de alcance');
-  if(!link||link.raceId!==race.id||link.disciplineId!==3||!Number.isSafeInteger(link.competitionId)||link.competitionId<=0
+  const acnLink=link?.provider==='acn';
+  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':'Enlace DataRide CX inválido',true);
+  if(acnLink){
+    if(!/^[1-9]\d{5,19}$/.test(String(link.eventId??''))||!link.ctx)return skip('Enlace ACN CX inválido',true);
+  }else if(link.disciplineId!==3||!Number.isSafeInteger(link.competitionId)||link.competitionId<=0
     ||!Number.isSafeInteger(link.seasonId)||link.seasonId<=0)return skip('Enlace DataRide CX inválido',true);
   if(manga.resultsLockedAt)return skip('Resultados protegidos por revisión administrativa');
   if(manual)return {due:true,reason:'Solicitud administrativa: omite ventana y cadencia'};

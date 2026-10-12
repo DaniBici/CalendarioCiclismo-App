@@ -25,6 +25,18 @@ Esto es clave para contenido recién creado: la página estática la genera `bui
 
 **Defensa en og-pages.yml:** `git add competicion/ jornada/ inscritos/ perfil/` aborta con `bash -eo pipefail` si alguna ruta no existe. Por eso `os.makedirs("perfil", exist_ok=True)` se ejecuta antes del bucle.
 
+## Imagen OG única
+
+Todas las páginas (HTML estáticos, `js/competicion.js`, `js/jornada.js`, `js/inscritos.js`, `tools/site/gen_og_pages.py`) declaran `og:image` y `twitter:image` con una sola imagen: `https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg` (1200 × 630, JPG de unos 80 KB, bajo el límite de ~300 KB de WhatsApp y Telegram). La constante vive en `DEFAULT_OG_IMAGE` de `gen_og_pages.py` y `gen_sitemap.py`; los tres scripts del navegador la repiten literal.
+
+- **Sustituye** a `og-default.png` y al Worker `og.calendariociclismo.app`, que componía el logo de cada carrera con satori. La composición caía siempre al redirect a `og-default.png` (los logos de carrera son `.webp`, formato que satori no decodifica; causa probable, no verificada). El Worker, `workers/og/` y `deploy-og-worker.yml` se retiraron del repositorio y el dominio `og.calendariociclismo.app` se eliminó de Cloudflare junto con el Worker `calendario-og` (2026-10-11).
+- **Composición:** perfil de altimetría de etapa a todo el ancho con un punto con resplandor y sombra, fondo plano `#10141c`, logotipo horizontal oficial (`logo-combinado.png`) y `calendariociclismo.app` en Google Sans. El gráfico sin texto lo genera ImageGen; el logotipo y la URL se componen con la fuente real mediante `tools/og/componer.py`.
+- **Binarios:** el arte de ImageGen y el JPG final viven en Drive, `Archivos de trabajo/Imagen OG/`, registrados en el manifiesto de binarios de diseño. Regenerar: `python3 tools/og/componer.py arte-oscuro.png calendario-ciclismo.jpg`.
+- **Zona segura:** X cubre con el titular la franja inferior de la tarjeta. El gráfico se sube 90 px y deja los 136 px finales vacíos; no colocar contenido por debajo de y = 494.
+- **Caché de las redes:** el nombre nuevo del fichero obliga a recachear. Un cambio posterior de la imagen exige otro nombre.
+- **Texto alternativo:** `og:image:alt` y `twitter:image:alt` valen «Calendario Ciclismo» en todas las páginas (`DEFAULT_OG_IMAGE_ALT` en `gen_og_pages.py`; literal en los tres scripts del navegador y en los HTML estáticos). `about/` y `en/about/` conservan su foto de Dani, con su propio alt. Describen la imagen, no la página.
+- **Atom:** `media:thumbnail` de los feeds usa el logo de la carrera (`logoUrl`) y, sin él, esta imagen.
+
 ## Generador: `og-pages.yml`
 
 Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inline.
@@ -32,7 +44,7 @@ Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inlin
 ### Lo que incluye `og_page()` por página
 
 - `<title>`, `<meta description>`, canonical, OG + Twitter cards completas.
-- `og:image:alt` / `twitter:image:alt` / `og:locale=es_ES`.
+- `og:image:alt` / `twitter:image:alt` (fijo: «Calendario Ciclismo») / `og:locale=es_ES`.
 - `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">`.
 - Excepción: las carreras con `races.year` entre 2020 y 2025 llevan `noindex, follow` (ver sección «Temporadas archivadas»).
 - `hreflang="es"` + `hreflang="x-default"` hacia el canonical y `hreflang="en"` con `en_url=` cuando existe la gemela EN.
@@ -115,7 +127,7 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
 
 - **Criterio:** `races.year` (temporada UCI), no `startDate`: hay carreras de temporada 2021-2025 que empiezan en octubre del año anterior.
-- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos, sin prueba que compare los dos; `js/__tests__/archived-season-robots.test.js` fija solo el rango de `isArchivedSeason` y se actualiza con él.
+- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; ninguna prueba compara los dos ni fija el rango.
 - **Estático:** `og_page()`/`og_page_en()` aceptan `robots=` (por defecto el `index, follow, …` de siempre). Las 14 llamadas de carrera (competición, jornada, inscritos, orden de salida, perfil, mapa y resultados, ES y EN) pasan `robots=race_robots(race)`. Ciclocross y el resto de páginas usan el valor por defecto.
 - **SPA:** competición, jornada, inscritos, orden de salida, perfil, mapa y resultados llaman a `setRaceRobots(race)` junto al canonical, lo que cubre las URLs con query string y la navegación interna.
 - **Sitemap:** `gen_sitemap.py` descarta esas carreras antes de construir entradas (competición, inscritos, jornadas, perfiles, mapas, órdenes de salida y resultados).

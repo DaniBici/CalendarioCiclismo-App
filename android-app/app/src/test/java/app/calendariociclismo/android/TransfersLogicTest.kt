@@ -238,6 +238,30 @@ class TransfersLogicTest {
     }
 
     @Test
+    fun accentedInitialSortsWithItsBaseLetter() {
+        // Á ordena junto a A (no después de Z), en llegadas y en «continúan».
+        val riders = mapOf(
+            "r1" to RiderProfile(id = "r1", firstName = "Héctor", lastName = "Álvarez"),
+            "r2" to RiderProfile(id = "r2", firstName = "A", lastName = "Zabala"),
+            "r3" to RiderProfile(id = "r3", firstName = "B", lastName = "Alonso"),
+        )
+        val moves = listOf(
+            transfer("alvarez", "r1", type = "transfer", status = "confirmed", to = "team_a"),
+            transfer("zabala", "r2", type = "transfer", status = "confirmed", to = "team_a"),
+            transfer("alonso", "r3", type = "transfer", status = "confirmed", to = "team_a"),
+        )
+        val detail = TransfersLogic.teamDetail(moves, emptyList(), "team_a", ridersById = riders)
+        assertEquals(listOf("alonso", "alvarez", "zabala"), detail.arrivals.map { it.id })
+
+        val roster = listOf(
+            rider("r2", "Zabala"), rider("r1", "Álvarez"), rider("r3", "Alonso"),
+            rider("r4", "Éder"), rider("r5", "Eguía"),
+        )
+        val staying = TransfersLogic.teamDetail(emptyList(), roster, "team_a").staying
+        assertEquals(listOf("r3", "r1", "r4", "r5", "r2"), staying.map { it.rider.id })
+    }
+
+    @Test
     fun contractEndsSortedAlphabeticallyByLastName() {
         val riders = mapOf(
             "r1" to RiderProfile(id = "r1", firstName = "A", lastName = "Zeta"),

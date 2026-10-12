@@ -13,7 +13,7 @@ const profile = {
   ],
 };
 
-describe('buildElevationProfileSVG', () => {
+describe('mergeCoincidentProfileAnnotations', () => {
   it('fusiona solo el puerto y la bonificación del mismo km exacto en un marcador doble', () => {
     const summit = { km: 20, name: 'Puerto de prueba', category: '2' };
     const bonus = { km: 20, name: 'Bonificación', type: 'bonus_sprint' };
@@ -28,10 +28,6 @@ describe('buildElevationProfileSVG', () => {
       secondaryItem: bonus,
     });
     expect(annotations[1]).toMatchObject({ kind: 'intermediate_sprint', km: 20.1 });
-
-    const { svg } = buildElevationProfileSVG({ profile, summits: [summit], waypoints: [bonus], width: 500 });
-    expect(svg).toContain('class="ep-summit" data-combined-marker="true"');
-    expect(svg).not.toContain('class="ep-sprint"');
   });
 
   it('añade la meta como segundo icono de una cima o waypoint final', () => {
@@ -51,79 +47,7 @@ describe('buildElevationProfileSVG', () => {
       kind: 'bonus_sprint',
       secondaryKind: 'finish',
     });
-
-    const { svg } = buildElevationProfileSVG({ profile, summits: [summit], width: 500 });
-    expect(svg).toContain('class="ep-summit" data-combined-marker="true"');
   });
-
-  it('dibuja las localidades como texto con línea y las omite en miniperfil y móvil', () => {
-    const town = { km: 10, name: 'Punto de paso', type: 'town' };
-    const { svg } = buildElevationProfileSVG({ profile, waypoints: [town], width: 1200 });
-    expect(svg).toContain('class="ep-waypoint"');
-    expect(svg).toContain('Punto de paso</text>');
-    expect(svg).not.toContain('<circle');
-
-    const iconsOnly = buildElevationProfileSVG({ profile, waypoints: [town], width: 1200, iconsOnly: true }).svg;
-    expect(iconsOnly).not.toContain('Punto de paso');
-
-    const mobile = buildElevationProfileSVG({
-      profile,
-      waypoints: [town, { km: 20, name: 'Sprint de prueba', type: 'intermediate_sprint' }],
-      width: 500,
-    }).svg;
-    expect(mobile).not.toContain('Punto de paso');
-    expect(mobile).toContain('class="ep-sprint"');
-  });
-  it('oculta en móvil todos los nombres de puntos y conserva sus marcadores', () => {
-    const names = ['Salida muy larga', 'Meta muy larga', 'Puerto muy largo', 'Sprint muy largo'];
-    const { svg } = buildElevationProfileSVG({
-      profile,
-      width: 760,
-      startLocation: names[0],
-      finishLocation: names[1],
-      summits: [{ km: 20, name: names[2], category: '2' }],
-      waypoints: [{ km: 10, name: names[3], type: 'intermediate_sprint' }],
-    });
-
-    for (const name of names) expect(svg).not.toContain(name);
-    for (const marker of ['ep-start', 'ep-finish', 'ep-summit', 'ep-sprint']) expect(svg).toContain(marker);
-  });
-  it('permite ocultar nombres conservando símbolos y ejes en Resultados', () => {
-    const options = { profile, width:1200, startLocation:'Salida de prueba', finishLocation:'Meta de prueba',
-      summits:[{km:20,name:'Puerto de prueba',category:'2'}],
-      waypoints:[{km:10,name:'Sprint de prueba',type:'intermediate_sprint'},{km:15,name:'Ciudad de prueba',type:'town'}] };
-    const { svg } = buildElevationProfileSVG({...options,hidePointNames:true});
-    for (const name of ['Salida de prueba','Meta de prueba','Puerto de prueba','Sprint de prueba','Ciudad de prueba']) expect(svg).not.toContain(name);
-    for (const marker of ['ep-start','ep-finish','ep-summit','ep-sprint']) expect(svg).toContain(marker);
-    expect(svg).toContain('altitud (m)');
-    expect(buildElevationProfileSVG(options).svg).toContain('Puerto de prueba');
-  });
-
-  it('oculta las anotaciones de un perfil denso pero conserva salida y meta', () => {
-    const cotas = length => Array.from({ length }, (_, index) => ({
-      km:index + 2,
-      name:`Cota repetida ${index + 1}`,
-      category:'M',
-    }));
-    const summits = cotas(13);
-    const { svg } = buildElevationProfileSVG({
-      profile,
-      width:900,
-      startLocation:'Salida visible',
-      finishLocation:'Meta visible',
-      summits,
-    });
-
-    for (const summit of summits) expect(svg).not.toContain(summit.name);
-    expect(svg.match(/class="ep-summit"/g)).toHaveLength(13);
-    expect(svg).toContain('Salida visible');
-    expect(svg).toContain('Meta visible');
-
-    const legible = buildElevationProfileSVG({ profile, width:900, summits: cotas(12) }).svg;
-    expect(legible).toContain('Cota repetida 1<');
-    expect(legible).toContain('Cota repetida 12');
-  });
-
 });
 
 

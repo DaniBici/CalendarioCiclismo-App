@@ -1020,6 +1020,19 @@ struct StageDetailView: View {
             }
             return LocaleService.t("Televisión", "TV")
         }()
+        // Solo Live texto: sin emisiones ni estado de TV pendiente o confirmado,
+        // el panel indica que no hay televisión en lugar de quedarse vacío.
+        let noTelevisionText: String? = {
+            guard liveTextAsset != nil, !isRevive, visibleBroadcasts.isEmpty, !hasHiddenBroadcasts else { return nil }
+            let status = rd.tvStatus
+            if status == nil || status == "none" {
+                return LocaleService.t("No hay televisión", "No TV coverage")
+            }
+            if status == "unavailable_es" {
+                return LocaleService.t("No TV España", "No TV in Spain")
+            }
+            return nil
+        }()
         let single = visibleBroadcasts.count <= 1
         let columnCount = single ? 1 : columns
 
@@ -1052,6 +1065,13 @@ struct StageDetailView: View {
             } content: {
                 if visibleBroadcasts.isEmpty && hasHiddenBroadcasts && !showAllBroadcasts {
                     Text(localeService.t("No hay TV en tu región", "No TV in your region"))
+                        .ccFont(.s14)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                }
+                if let noTelevisionText {
+                    Text(noTelevisionText)
                         .ccFont(.s14)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
@@ -1237,7 +1257,7 @@ struct StageDetailView: View {
                         ? LocaleService.t("Lista provisional", "Provisional Startlist")
                         : LocaleService.t("Dorsales", "Startlist")
                     NavigationLink(destination: StartlistView(raceId: race.id)) {
-                        ActionStripTile(icon: "person.2", label: startlistLabel)
+                        ActionStripTile(icon: LogoCyclistIcon.name, label: startlistLabel)
                     }
                     .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View Provisional Startlist") : LocaleService.t("Ver dorsales", "View Startlist"))
                 }
@@ -1900,6 +1920,17 @@ struct ActionStripTile: View {
     /// Destaca la celda («Clasificaciones») con el texto en acento y negrita.
     var highlighted = false
 
+    /// Ancho fijo de la celda en el carril con desplazamiento y mínimo de la que
+    /// reparte el ancho.
+    static let minimumWidth: CGFloat = 100
+
+    @Environment(\.actionStripStretches) private var stretches
+
+    private var maximumWidth: CGFloat? {
+        if stretches { return .infinity }
+        return highlighted ? nil : Self.minimumWidth
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             Group {
@@ -1909,6 +1940,8 @@ struct ActionStripTile: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 17, height: 17)
+                } else if icon == LogoCyclistIcon.name {
+                    LogoCyclistIcon(size: 17)
                 } else {
                     Image(systemName: icon)
                         .font(.subheadline)
@@ -1922,8 +1955,13 @@ struct ActionStripTile: View {
                 .truncationMode(.tail)
         }
         // La celda destacada ("Clasificaciones") se ensancha con su etiqueta;
-        // el resto conserva el ancho fijo de la tira.
-        .frame(minWidth: 100, maxWidth: highlighted ? nil : 100, minHeight: 60, maxHeight: 60)
+        // el resto conserva el ancho fijo de la tira, salvo en una tira que
+        // reparte el ancho (`ResultsFittingRail`): ancho ideal mínimo y
+        // flexible, para que `ViewThatFits` valore la suma de mínimos.
+        .frame(minWidth: Self.minimumWidth,
+               idealWidth: stretches ? Self.minimumWidth : nil,
+               maxWidth: maximumWidth,
+               minHeight: 60, maxHeight: 60)
         .padding(.horizontal, highlighted ? 8 : 0)
         .background(AppTheme.cardBackgroundHover)
         .overlay(alignment: .trailing) {

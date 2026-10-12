@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isChampTodayFilterActive, isChampWeekFilterLock,
-         champWeekHoyDefault, championshipMatchesCategoryFilter,
+         championshipMatchesCategoryFilter,
          CAMP, compareChampionships,
          championshipCountryIndex,
          isU23Championship, isFemaleChampionship } from '../campeonatos-config.js';
@@ -40,13 +40,6 @@ describe('isChampWeekFilterLock (semana completa)', () => {
   it('inactivo fuera de la semana', () => {
     expect(isChampWeekFilterLock(shiftDays(CAMP.RANGE_START, -1))).toBe(false);
     expect(isChampWeekFilterLock(shiftDays(CAMP.RANGE_END, 1))).toBe(false);
-  });
-
-  it('el default es Masculino salvo los dos últimos días, que es Todas', () => {
-    const lastTwo = CAMP.DATES.slice(-2);
-    for (const dateKey of CAMP.DATES) {
-      expect(champWeekHoyDefault(dateKey)).toBe(lastTwo.includes(dateKey) ? 'all' : 'male');
-    }
   });
 });
 

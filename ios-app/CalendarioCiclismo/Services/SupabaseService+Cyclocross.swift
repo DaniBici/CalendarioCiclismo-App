@@ -4,6 +4,12 @@ import Supabase
 @MainActor
 protocol CxRemote {
     func cxMonth(season: String, month: CxMonth) async throws -> [CxRace]
+    /// Índice ligero de la temporada completa (sin documentos ni emisiones):
+    /// días con carreras, filtros y numeración de la agenda de Hoy.
+    func cxSeasonIndex(season: String) async throws -> [CxRace]
+    /// Carreras con alguna categoría el `dateKey`, con las columnas completas
+    /// de la agenda (documentos y emisiones incluidos).
+    func cxDay(season: String, dateKey: String) async throws -> [CxRace]
     func cxTournamentNextDate(season: String, date: String, tournamentId: String) async throws -> String?
     func cxDetail(id: String) async throws -> CxDetail?
     func cxRaceForSlug(_ slug: String) async throws -> CxRace?
@@ -19,9 +25,25 @@ protocol CxRemote {
     func cxTournamentHasRaces(tournamentId: String, excluding classes: [String]) async throws -> Bool
     /// Torneos de `tournamentIds` con alguna carrera publicada fuera de `classes`.
     func cxTournamentIdsWithRaces(_ tournamentIds: [String], excluding classes: [String]) async throws -> Set<String>
+    /// Pruebas destacadas (`cx_race_featured`): tabla pequeña, leída completa.
+    func cxFeaturedRaceIds() async throws -> Set<String>
 }
 
 extension CxRemote {
+    /// Respaldo para implementaciones que solo consultan por mes.
+    func cxSeasonIndex(season: String) async throws -> [CxRace] {
+        var seen = Set<String>()
+        var races: [CxRace] = []
+        for month in CyclocrossAgendaModel.seasonMonths(season) {
+            for race in try await cxMonth(season: season, month: month) where seen.insert(race.id).inserted { races.append(race) }
+        }
+        return races
+    }
+    func cxDay(season: String, dateKey: String) async throws -> [CxRace] {
+        guard let year = Int(dateKey.prefix(4)), let month = Int(dateKey.dropFirst(5).prefix(2)) else { throw CxRepositoryError.invalidMonth }
+        return try await cxMonth(season: season, month: CxMonth(year: year, month: month))
+            .filter { CyclocrossLogic.dates($0).contains(dateKey) }
+    }
     func cxTournamentNextDate(season: String, date: String, tournamentId: String, excluding classes: [String]) async throws -> String? {
         try await cxTournamentNextDate(season: season, date: date, tournamentId: tournamentId)
     }
@@ -37,6 +59,7 @@ extension CxRemote {
     func cxTournamentForSlug(_ slug: String) async throws -> CxTournament? { throw URLError(.notConnectedToInternet) }
     func cxSeasonRounds(season: String) async throws -> [String: CxRound] { throw URLError(.notConnectedToInternet) }
     func cxTournamentStandings(tournamentId: String, season: String) async throws -> CxTournamentStandings { throw URLError(.notConnectedToInternet) }
+    func cxFeaturedRaceIds() async throws -> Set<String> { throw URLError(.notConnectedToInternet) }
 }
 
 private struct CxDateEntry: Decodable, Sendable {
@@ -58,7 +81,48 @@ extension SupabaseService: CxRemote {
         "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
+        // Badge de TV de la tarjeta (`CyclocrossPresentation.agendaBroadcast`).
+        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)"
+    }
+
+    /// Columnas del índice: las de la agenda sin documentos ni emisiones.
+    private var cxIndexColumns: String {
+        "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+        "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
+    }
+
+    func cxSeasonIndex(season: String) async throws -> [CxRace] {
+        let months = CyclocrossAgendaModel.seasonMonths(season)
+        guard let first = months.first, let last = months.last else { throw CxRepositoryError.invalidMonth }
+        var rows: [CxRace] = []
+        var offset = 0
+        while true {
+            let page: [CxRace] = try await client.from("cx_races").select(cxIndexColumns)
+                .eq("seasonKey", value: season).eq("editorialStatus", value: "published")
+                .lte("dateKey", value: last.lastDate)
+                .or("dateKey.gte.\(first.firstDate),endDateKey.gte.\(first.firstDate)")
+                .order("dateKey").order("id").range(from: offset, to: offset + 999).execute().value
+            rows.append(contentsOf: page)
+            if page.count < 1000 { return rows }
+            offset += 1000
+        }
+    }
+
+    func cxDay(season: String, dateKey: String) async throws -> [CxRace] {
+        let rows: [CxRace] = try await client.from("cx_races").select(cxAgendaColumns)
+            .eq("seasonKey", value: season).eq("editorialStatus", value: "published")
+            .lte("dateKey", value: dateKey)
+            .or("dateKey.eq.\(dateKey),endDateKey.gte.\(dateKey)")
+            .order("dateKey").order("id").execute().value
+        return rows.filter { CyclocrossLogic.dates($0).contains(dateKey) }
+    }
+
+    func cxFeaturedRaceIds() async throws -> Set<String> {
+        struct Row: Decodable, Sendable { let cxRaceId: String }
+        let rows: [Row] = try await client.from("cx_race_featured").select("cxRaceId").execute().value
+        return Set(rows.map(\.cxRaceId))
     }
 
     func cxMonth(season: String, month: CxMonth) async throws -> [CxRace] {

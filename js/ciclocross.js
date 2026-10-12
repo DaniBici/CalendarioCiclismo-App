@@ -1,14 +1,15 @@
 import {initCintillo} from './cintillo.js';
-import {waitingResultsHtml,resultsTrophyHtml} from './services/race-presentation.js';
+import {cyclocrossHome} from './services/today-season.js';
+import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml} from './services/race-presentation.js';
 import {dateNavigationButton} from './components/date-navigation.js';
 import {initDaySwipe} from './components/day-swipe.js';
 import {cxLogoImage} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
-import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed,announce} from './shared.js';
+import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed,announce,filterBroadcastsByRegion} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxCategoryTiming} from './cx/timing.js';
 import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
+import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxAgendaBroadcast,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
 import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
 import {cxTournamentDescription} from './cx/tournament-seo.js';
@@ -45,6 +46,7 @@ if(tournament) {
 const tournamentMode=!!tournamentId;
 let season=tournament?.seasonKey||cxSeason(),months=cxSeasonMonths(season),version=0,busy=false;
 const renderedCategories=new Map();
+const badgeMarkup=new WeakMap();
 let seasonRounds=null;
 // Las rondas de la temporada se piden desde el inicio (cxSeasonRounds guarda la
 // promesa por temporada); el pintado las espera solo si aún no han llegado.
@@ -131,6 +133,25 @@ function refreshTiming() {
     const stateCell=node.querySelector('.cx-category-state');if(!stateCell)continue;
     stateCell.innerHTML=scheduleHtml(pair[0],pair[1],true);
   }
+  // TV y dorsales cambian con la hora: directo, conclusión y resultados.
+  for(const node of list.querySelectorAll('[data-cx-badges]')) {
+    const entry=renderedCategories.get(`badges:${node.dataset.cxBadges}`);
+    const html=entry&&badgesHtml(...entry);
+    if(html!=null&&html!==badgeMarkup.get(node)){node.innerHTML=html;badgeMarkup.set(node,html);}
+  }
+}
+// Badge de TV de la Agenda (cxAgendaBroadcast): hora de la primera emisión
+// del día en la región del usuario y «En directo» desde que empieza hasta que
+// concluyen todas las categorías; enlaza a la última emisión ya iniciada.
+function tvBadgeHtml(race,date) {
+  const row=cxAgendaBroadcast(race,date,filterBroadcastsByRegion(race.cx_broadcasts||[]));
+  if(!row)return '';
+  const label=row.live?t('tv.live'):row.firstStartUtc?cxTime(row.firstStartUtc,locale):'TV';
+  return `<a class="badge badge--tv badge--tv-link${row.live?' badge--tv--live':''}" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(row.channel||'')}">${tvIconHtml} ${esc(label)}</a>`;
+}
+function badgesHtml(race,date,open) {
+  const startlist=open?cxAgendaStartlistCategory(race,date):null;
+  return `${tvBadgeHtml(race,date)}${startlist?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,lang,'startlist',startlist.category))}">${startlistCyclistHtml} <span class="badge__text">${esc(t('stage.startlistLabel'))}</span></a>`:''}`;
 }
 function card(race,date) {
   const url=cxRaceUrl(race,lang),color=cxColor(race);
@@ -140,6 +161,7 @@ function card(race,date) {
   const placeholder=cxRacePlaceholder(race),open=!placeholder;
   const href=open?`<a href="${esc(url)}">`:'<span>',hrefEnd=open?'</a>':'</span>';
   const categories=cxCategories(race,date),badges=cxUsesCategoryBadges(race,date);
+  renderedCategories.set(`badges:${race.id}:${date}`,[race,date,open]);
   const tournament=race.cx_tournaments,tournamentUrl=tournament&&!tournamentId?cxTournamentUrl(tournament,lang):null;
   const round=cxRoundBadge(seasonRounds?.get(race.id));
   const menu=tournamentUrl?overviewButtonHtml(esc(tournamentUrl),esc(cxRaceName(tournament,lang))):'';
@@ -168,7 +190,7 @@ function card(race,date) {
     logo:`<div class="race-card__logo"><span data-cx-logo-race="${esc(race.id)}"></span><span>${countryFlag(race.countryCode)}</span></div>`,
     name:`${href}${esc(cxRaceName(race,lang))}${hrefEnd}${menu}`,
     sub:meta,
-    badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span>`,
+    badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span><span class="cx-card-badges" data-cx-badges="${esc(`${race.id}:${date}`)}">${badgesHtml(race,date,open)}</span>`,
     metaBlock:categoriesHtml,
   });
   return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(url)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
@@ -455,5 +477,7 @@ window.addEventListener('pagehide',()=>clearInterval(timingInterval));window.add
 document.addEventListener('visibilitychange',refreshTiming);
 startTiming();
 if(tournamentId)window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/ciclocross/',label:t('cx.back')});
-if(!tournamentId)initCintillo('cx');
+// Mientras Ciclocross es la home (Hoy de carretera fuera del menú), su
+// cintillo es único: entradas de Ciclocross seguidas de las de carretera.
+if(!tournamentId)initCintillo(cyclocrossHome(today())?['cx','road']:'cx');
 await open();

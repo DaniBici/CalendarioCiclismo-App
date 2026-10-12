@@ -3,6 +3,7 @@
 ## Orden manual
 
 - **DB:** `broadcasts` con columna `sortOrder` (INTEGER NOT NULL DEFAULT 0).
+- **Valores:** posición 0, 1, 2… dentro de la jornada, sin huecos ni negativos ni múltiplos de 10. El panel guarda `acc.length`; el sincronizador del VPS renumera al insertar (`placeBroadcasts`). Normalizado en datos el 2026-10-12 (923 jornadas; 149 reordenadas con emisor español, EITB, Eurosport y TNT primero).
 - **Regla crítica:** el panel DEBE cargar broadcasts con `.order('sortOrder', ascending: true)` al abrir el editor.
 - **Guardado seguro en `saveRaceDay` (`js/panel/jornada-save.js`):** leer IDs antiguas → `INSERT` nuevas (UUIDs frescas) → `DELETE` antiguas por ID. Nunca `DELETE` antes del `INSERT` (si la INSERT falla, se pierden los datos). Mismo patrón para `assets`.
 - **Canal opcional al guardar:** descartar solo filas completamente vacías. Un canal vacío con solo hora o nota es válido ("Por confirmar").

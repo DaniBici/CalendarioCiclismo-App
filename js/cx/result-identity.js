@@ -9,6 +9,13 @@ const aliasKeys=rider=>String(rider?.otherNames||'').split(',').map(tokenKey).fi
 const riderNameKeys=rider=>[nameKey(`${rider.firstName} ${rider.lastName}`),nameKey(`${rider.lastName} ${rider.firstName}`)];
 const matchesAlias=(rider,value)=>{const key=tokenKey(value);return Boolean(key)&&aliasKeys(rider).includes(key);};
 
+// ID UCI de licencia (11 dígitos) → uciProfileId de la ficha: str(int(id[2:9])).
+const uciProfileIdOf = value => {
+  const id = String(value ?? '').replace(/\s+/g, '');
+  const profile = /^\d{11}$/.test(id) ? String(Number(id.slice(2, 9))) : '';
+  return profile && profile !== '0' ? profile : null;
+};
+
 export function resolveCxResultIdentity(row, riders) {
   const compatible = rider => (!row.isoCode2 || !rider.nationality || row.isoCode2 === rider.nationality)
     && (!row.birthDate || !rider.birthDate || row.birthDate === rider.birthDate
@@ -18,6 +25,12 @@ export function resolveCxResultIdentity(row, riders) {
     const explicit = riders.find(rider => rider.id === row.globalRiderId);
     if (!explicit || !compatible(explicit)) throw new Error('Ficha explícita ajena al catálogo/género CX o incompatible con país/nacimiento');
     return { id: explicit.id, candidates: [explicit.id], reason: explicit.verified ? 'explicit' : 'explicit_unverified' };
+  }
+  // El ID UCI identifica a la persona aunque la fuente escriba el nombre en otro orden o con otra grafía.
+  const profileId = uciProfileIdOf(row.uciLicenseId);
+  if (profileId) {
+    const byLicense = riders.filter(rider => rider.verified === true && compatible(rider) && String(rider.uciProfileId ?? '') === profileId);
+    if (byLicense.length === 1) return { id: byLicense[0].id, candidates: [byLicense[0].id], reason: 'verified_uci_id' };
   }
   const display = nameKey(row.riderDisplay);
   const candidates = riders.filter(rider => rider.verified === true && compatible(rider) && (row.firstName && row.lastName

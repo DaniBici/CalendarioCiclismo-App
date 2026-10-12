@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -216,6 +217,16 @@ object DateFormatting {
         val instant = parseIso(isoString) ?: return null
         val fmt = DateTimeFormatter.ofPattern("HH:mm", LOCALE_ES).withZone(zone)
         return fmt.format(instant)
+    }
+
+    /** Última lectura de una clasificación en hora local: "11 oct, 06:22" /
+     *  "11 Oct, 06:22", en el idioma del CONTENIDO. Paridad con la web
+     *  (`showPublication` en js/resultados.js) e iOS. */
+    fun formatResultsSyncedAt(isoString: String, zone: ZoneId = ZoneId.systemDefault()): String? {
+        val instant = runCatching { OffsetDateTime.parse(isoString).toInstant() }.getOrNull()
+            ?: parseIso(isoString) ?: return null
+        val fmt = DateTimeFormatter.ofPattern("d MMM, HH:mm", contentLocale).withZone(zone)
+        return fmt.format(instant).replace(".", "")
     }
 
     /** ISO → segundos epoch (Double) para comparaciones de orden. */

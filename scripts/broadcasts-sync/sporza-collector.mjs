@@ -260,7 +260,7 @@ export async function collectSporza({ dateKey, fetcher = fetch, diagnostics = nu
   return observations;
 }
 
-function sporzaDateKeyFromLabel(label, todayKey) {
+export function sporzaDateKeyFromLabel(label, todayKey) {
   const text = stripHtml(label);
   if (/^vandaag/i.test(text)) return todayKey;
   const match = text.match(/\b(\d{1,2})\s+([a-z]+)\s+(20\d{2})\b/i);
@@ -270,7 +270,7 @@ function sporzaDateKeyFromLabel(label, todayKey) {
   return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : null;
 }
 
-function sporzaRowField(rowHtml, className) {
+export function sporzaRowField(rowHtml, className) {
   return stripHtml(rowHtml.match(new RegExp(`<[^>]+class="[^"]*\\b${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'i'))?.[1]);
 }
 

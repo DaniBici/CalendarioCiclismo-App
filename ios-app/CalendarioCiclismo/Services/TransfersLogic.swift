@@ -101,6 +101,17 @@ enum TransfersLogic {
         x.type == "transfer" && (x.toTeamId != nil || (x.toTeamName != nil && x.toTeamName != unknownDest))
     }
 
+    /// Orden alfabético de nombres de corredor y de equipo: no distingue
+    /// mayúsculas ni diacríticos (Á ordena junto a A) y conserva la ñ como
+    /// letra propia en castellano. Equivale a `localeCompare('es', { sensitivity:
+    /// 'base' })` de `js/fichajes.js`.
+    static func alphabeticallyPrecedes(_ a: String, _ b: String) -> Bool {
+        a.compare(
+            b, options: [.caseInsensitive, .diacriticInsensitive],
+            range: nil, locale: Locale(identifier: "es")
+        ) == .orderedAscending
+    }
+
     /// PRW es la clave persistida para la categoría PTW (Women's ProTeam).
     private static let feedCategoryRank = ["WT": 0, "PT": 1, "WWT": 2, "PRW": 3, "PTW": 3]
 
@@ -208,7 +219,7 @@ enum TransfersLogic {
     /// Equipos de una división, alfabético.
     static func divisionTeams(_ seasons: [TeamSeason], division: String) -> [TeamSeason] {
         seasons.filter { $0.category == division }
-            .sorted { ($0.name ?? "").lowercased() < ($1.name ?? "").lowercased() }
+            .sorted { alphabeticallyPrecedes($0.name ?? "", $1.name ?? "") }
     }
 
     /// Fila de la sección "continúan".
@@ -264,16 +275,14 @@ enum TransfersLogic {
         // de cada grupo, alfabético por apellido.
         func arrivalName(_ x: RiderTransfer) -> String {
             let r = ridersById[x.riderId]
-            return "\(r?.lastName ?? "") \(r?.firstName ?? "")".lowercased()
+            return "\(r?.lastName ?? "") \(r?.firstName ?? "")"
         }
-        func arrivalKey(_ x: RiderTransfer) -> (Int, String) {
-            (x.status == "rumor" ? 1 : 0, arrivalName(x))
-        }
+        func arrivalGroup(_ x: RiderTransfer) -> Int { x.status == "rumor" ? 1 : 0 }
         let arrivals = marketTransfers.filter { $0.type == "transfer" && $0.toTeamId == teamId }
             .sorted { a, b in
-                let ka = arrivalKey(a), kb = arrivalKey(b)
-                if ka.0 != kb.0 { return ka.0 < kb.0 }
-                return ka.1 < kb.1
+                let ga = arrivalGroup(a), gb = arrivalGroup(b)
+                if ga != gb { return ga < gb }
+                return alphabeticallyPrecedes(arrivalName(a), arrivalName(b))
             }
         let allDepartures = marketTransfers.filter {
             ($0.type == "transfer" || $0.type == "retirement") && $0.fromTeamId == teamId
@@ -282,10 +291,10 @@ enum TransfersLogic {
         // apellido); el resto (fichaje con destino o retirada) se marcha.
         func riderKey(_ x: RiderTransfer) -> String {
             let r = ridersById[x.riderId]
-            return "\(r?.lastName ?? "") \(r?.firstName ?? "")".lowercased()
+            return "\(r?.lastName ?? "") \(r?.firstName ?? "")"
         }
         let contractEnds = allDepartures.filter { isContractEnd($0) }
-            .sorted { riderKey($0) < riderKey($1) }
+            .sorted { alphabeticallyPrecedes(riderKey($0), riderKey($1)) }
         // Se marchan: por categoría del destino (WT→WWT→PT→PRW→resto), luego
         // alfabético por nombre del equipo; los retiros al final.
         let catRank = ["WT": 0, "WWT": 1, "PT": 2, "PRW": 3]
@@ -294,14 +303,14 @@ enum TransfersLogic {
             let cat = x.toTeamId.flatMap { categoryByTeamId[$0] }
             let rank = cat.flatMap { catRank[$0] } ?? 90
             let name = x.toTeamId.flatMap { teamNameById[$0] } ?? (x.toTeamName ?? "")
-            return (0, rank, name.lowercased())
+            return (0, rank, name)
         }
         let departures = allDepartures.filter { !isContractEnd($0) }
             .sorted { a, b in
                 let ka = depKey(a), kb = depKey(b)
                 if ka.0 != kb.0 { return ka.0 < kb.0 }
                 if ka.1 != kb.1 { return ka.1 < kb.1 }
-                return ka.2 < kb.2
+                return alphabeticallyPrecedes(ka.2, kb.2)
             }
         // Renovación más reciente por corredor (transfers llega en orden desc).
         // Las EN DUDA van a su propio bucket: no anotan contrato ni "continúan".
@@ -337,9 +346,9 @@ enum TransfersLogic {
                 if a.contractUntil != b.contractUntil {
                     return (a.contractUntil ?? 0) > (b.contractUntil ?? 0)
                 }
-                let ka = "\(a.rider.lastName ?? "") \(a.rider.firstName ?? "")".lowercased()
-                let kb = "\(b.rider.lastName ?? "") \(b.rider.firstName ?? "")".lowercased()
-                return ka < kb
+                let ka = "\(a.rider.lastName ?? "") \(a.rider.firstName ?? "")"
+                let kb = "\(b.rider.lastName ?? "") \(b.rider.firstName ?? "")"
+                return alphabeticallyPrecedes(ka, kb)
             }
 
         // En duda: la ficha de la plantilla manda; si el corredor ya no está en
@@ -353,7 +362,7 @@ enum TransfersLogic {
             .sorted { a, b in
                 let ka = a.rider.map { "\($0.lastName ?? "") \($0.firstName ?? "")" } ?? a.riderId
                 let kb = b.rider.map { "\($0.lastName ?? "") \($0.firstName ?? "")" } ?? b.riderId
-                return ka.lowercased() < kb.lowercased()
+                return alphabeticallyPrecedes(ka, kb)
             }
 
         return TeamDetail(staying: staying, doubtful: doubtful, contractEnds: contractEnds, arrivals: arrivals, departures: departures)

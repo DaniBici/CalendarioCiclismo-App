@@ -387,10 +387,10 @@ async function init(i18nReady = Promise.resolve()) {
   // los dos sitios. NO se vuelcan dos veces (es solo presentación: mismas filas por
   // id de clasificación). Si la etapa ya trae una clasificación del mismo tipo
   // (p. ej. su 'gc' del día), manda la final (es la oficial del último día).
+  const lastRacedDay = racedWithStage.filter(d=>!d.isCancelledDay).at(-1);
   {
     const finalStages = stagesByNum.get('final');
-    const lastDay = racedWithStage.filter(d=>!d.isCancelledDay).at(-1);
-    const lastNum = lastDay ? keyForDay(lastDay) : null;
+    const lastNum = lastRacedDay ? keyForDay(lastRacedDay) : null;
     if (finalStages?.length && lastNum && stagesByNum.has(lastNum)) {
       const finalKinds = new Set(finalStages.map(s => s.classKind));
       const kept = stagesByNum.get(lastNum).filter(s => !finalKinds.has(s.classKind));
@@ -499,12 +499,16 @@ async function init(i18nReady = Promise.resolve()) {
   let raceDayId = activeStages.find(s => s.raceDayId)?.raceDayId
     || dayByKey.get(activeKey)?.id
     || ((allRaceDays || []).length === 1 ? allRaceDays[0].id : null);
+  // Columna derecha (perfil + datos): la clasificación final de una vuelta no
+  // tiene jornada propia y muestra la de la última etapa disputada. Cabecera,
+  // botones, SEO y detección CRI/CRE siguen usando solo raceDayId.
+  const contextDayId = raceDayId || (activeKey === 'final' ? lastRacedDay?.id : null) || null;
   const RD_COLS = '*';
-  // Jornada activa y assets dependen solo del raceDayId: salen a la vez que
+  // Jornada de contexto y assets dependen solo de su id: salen a la vez que
   // los equipos canónicos de la startlist.
   const stageDayRequest = Promise.all([
-    raceDayId ? supabase.from('race_days').select(RD_COLS).eq('id', raceDayId).maybeSingle() : Promise.resolve({ data: null }),
-    raceDayId ? supabase.from('assets').select('*').eq('raceDayId', raceDayId) : Promise.resolve({ data: [] }),
+    contextDayId ? supabase.from('race_days').select(RD_COLS).eq('id', contextDayId).maybeSingle() : Promise.resolve({ data: null }),
+    contextDayId ? supabase.from('assets').select('*').eq('raceDayId', contextDayId) : Promise.resolve({ data: [] }),
   ]);
   {
     const { data: slRiders } = slRidersResponse;
@@ -644,9 +648,11 @@ async function init(i18nReady = Promise.resolve()) {
   // Cada clasificación keepForWeb arrastra su raceDayId; de él salen la ruta
   // (salida › meta), la distancia y el tipo (CRI/CRE), como en orden-salida.
   const [{ data: rdRow }, { data: stageAssets, error: assetsError }] = await stageDayRequest;
-  let raceDay = rdRow || null;
+  let contextDay = rdRow || null;
+  let raceDay = raceDayId ? contextDay : null;
   if (assetsError) throw assetsError;
   const contextAssets = withRaceTechnicalGuide(stageAssets || [],technicalGuide);
+  const actionAssets = raceDayId ? contextAssets : withRaceTechnicalGuide([],technicalGuide);
   // ── SEO / cabecera ─────────────────────────────────────────────────
   const raceNameStr = getRaceName(race) || '';
   const stageLabel = stagePathLabel(activeStageNumber, _isEn, activeSuffix);
@@ -707,7 +713,7 @@ async function init(i18nReady = Promise.resolve()) {
     race,
     rd: raceDay || { id: raceDayId, slug: raceDay?.slug, slugEn: raceDay?.slugEn },
     view: 'resultados',
-    assets:contextAssets, hasStartlist:!!race.startlistImportedAt,
+    assets:actionAssets, hasStartlist:!!race.startlistImportedAt,
     style: 'margin:0 auto 0.85rem', standalone: true,
   });
 
@@ -725,7 +731,7 @@ async function init(i18nReady = Promise.resolve()) {
   // Las pestañas solo si hay >1 clasificación (un día → 1 sola, sin pestañas).
   // El filtro por equipo (slot a la derecha) lo rellena renderClassification;
   // la barra se emite si hay pestañas O si la clasif activa es individual.
-  html += `<div class="res-layout${raceDay ? ' res-layout--context' : ''}"><div class="res-main">`;
+  html += `<div class="res-layout${contextDay ? ' res-layout--context' : ''}"><div class="res-main">`;
   const hasTabs = activeStages.length > 1;
   const activeIsIndividual = !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
   if (hasTabs || activeIsIndividual) {
@@ -756,15 +762,15 @@ async function init(i18nReady = Promise.resolve()) {
 
   // Contenedor de la tabla (se rellena por renderClassification).
   html += `<div class="res-publication" id="resPublication" aria-live="polite"></div><div class="res-table-wrap" id="resTableWrap"></div></div>`;
-  if (raceDay) {
-    html += stageContextHtml(raceDay, 'resProfile');
+  if (contextDay) {
+    html += stageContextHtml(contextDay, 'resProfile');
   }
   html += '</div>';
 
   content.innerHTML = html;
   syncResultsRaceHeaderHeight(content.querySelector(':scope > .race-header'));
   syncStickyHeight('--res-tabs-h', content.querySelector('.res-tabs-bar'));
-  if (raceDay) mountStageProfile(document.getElementById('resProfile'), { day:raceDay,race,assets:contextAssets,hidePointNames:true });
+  if (contextDay) mountStageProfile(document.getElementById('resProfile'), { day:contextDay,race,assets:contextAssets,hidePointNames:true });
   content.querySelectorAll('.res-tabs__scroll, #resStages').forEach(shell => installScrollRail(shell));
 
   // El selector de etapas ocupa siempre una sola línea. En vueltas largas la
@@ -1449,7 +1455,7 @@ async function init(i18nReady = Promise.resolve()) {
     (stages || []).map(row => pick(row, STAGE_PROBE_COLUMNS)).sort(),
     day ? pick(day, DAY_PROBE_COLUMNS) : null,
   ]);
-  let lastProbe = probeKey(stagesAll, raceDay);
+  let lastProbe = probeKey(stagesAll, contextDay);
   const needsRefresh = () => isNearToday(race.startDate, race.endDate)
     || activeStages.some(row => row.publicationStatus === 'provisional' || row.updating);
   let refreshing=false;
@@ -1459,7 +1465,7 @@ async function init(i18nReady = Promise.resolve()) {
     try {
       const [stageProbe, dayProbe] = await Promise.all([
         supabase.from('race_uci_stages').select(STAGE_PROBE_COLUMNS).eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
-        raceDayId ? supabase.from('race_days').select(DAY_PROBE_COLUMNS).eq('id',raceDayId).maybeSingle() : Promise.resolve({ data: null }),
+        contextDayId ? supabase.from('race_days').select(DAY_PROBE_COLUMNS).eq('id',contextDayId).maybeSingle() : Promise.resolve({ data: null }),
       ]);
       if(stageProbe.error || dayProbe.error) throw stageProbe.error || dayProbe.error;
       const nextProbe = probeKey(stageProbe.data, dayProbe.data);
@@ -1467,15 +1473,14 @@ async function init(i18nReady = Promise.resolve()) {
       const [stageResult,configResult,dayResult]=await Promise.all([
         supabase.from('race_uci_stages').select('*').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
         supabase.from('race_classifications').select('*').eq('raceId',raceId),
-        raceDayId ? supabase.from('race_days').select('*').eq('id',raceDayId).maybeSingle() : Promise.resolve({data:null}),
+        contextDayId ? supabase.from('race_days').select('*').eq('id',contextDayId).maybeSingle() : Promise.resolve({data:null}),
       ]);
       if(stageResult.error || configResult.error || dayResult.error) throw stageResult.error || configResult.error || dayResult.error;
       const latest=stageResult.data || [];
       const nextInventory=classificationInventory(configResult.data || [],latest);
       configByKind.clear(); nextInventory.forEach(row=>configByKind.set(row.classKind,row));
       let currentRows=latest.filter(row=>keyForStage(row)===activeKey);
-      const lastDay=racedWithStage.filter(d=>!d.isCancelledDay).at(-1);
-      if(lastDay && keyForDay(lastDay)===activeKey) {
+      if(lastRacedDay && keyForDay(lastRacedDay)===activeKey) {
         const final=latest.filter(row=>keyForStage(row)==='final');
         currentRows=currentRows.filter(row=>!final.some(f=>f.classKind===row.classKind)).concat(final);
       }
@@ -1500,9 +1505,10 @@ async function init(i18nReady = Promise.resolve()) {
       if(fresh) await renderClassification(fresh,{refresh:true});
       if(dayResult.data) {
         const nextDay=dayResult.data;
-        if(JSON.stringify([nextDay.elevationProfile,nextDay.profileSummits,nextDay.profileWaypoints,nextDay.distanceKm])!==JSON.stringify([raceDay?.elevationProfile,raceDay?.profileSummits,raceDay?.profileWaypoints,raceDay?.distanceKm])) mountStageProfile(document.getElementById('resProfile'),{day:nextDay,race,assets:contextAssets,hidePointNames:true});
-        raceDay=nextDay;
-        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(raceDay));
+        if(JSON.stringify([nextDay.elevationProfile,nextDay.profileSummits,nextDay.profileWaypoints,nextDay.distanceKm])!==JSON.stringify([contextDay?.elevationProfile,contextDay?.profileSummits,contextDay?.profileWaypoints,contextDay?.distanceKm])) mountStageProfile(document.getElementById('resProfile'),{day:nextDay,race,assets:contextAssets,hidePointNames:true});
+        contextDay=nextDay;
+        if(raceDayId) raceDay=nextDay;
+        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(contextDay));
       }
       lastProbe = nextProbe;
     } catch { showPublication(displayedStage||activeClass,true); }

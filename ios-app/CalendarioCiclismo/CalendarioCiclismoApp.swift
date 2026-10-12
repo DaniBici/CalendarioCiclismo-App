@@ -238,9 +238,12 @@ struct CalendarioCiclismoApp: App {
         let today = DateFormatting.todayKey()
         let year = Int(today.prefix(4)) ?? 2026
         await withTaskGroup { group in
-            group.addTask {
-                guard let data = try? await SupabaseService.shared.loadDayComplete(dateKey: today) else { return }
-                await CacheManager.shared.save(data, forKey: CacheManager.dayKey(today))
+            // Con Hoy de carretera retirada no hay día que precargar.
+            if RoadTodayAvailability.isVisible(today: today) {
+                group.addTask {
+                    guard let data = try? await SupabaseService.shared.loadDayComplete(dateKey: today) else { return }
+                    await CacheManager.shared.save(data, forKey: CacheManager.dayKey(today))
+                }
             }
             group.addTask {
                 guard let races = try? await SupabaseService.shared.racesByYear(year) else { return }

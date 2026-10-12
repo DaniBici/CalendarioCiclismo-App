@@ -20,6 +20,7 @@ struct MonthView: View {
     @State private var pageWidth: CGFloat = 0
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     @State private var localeService = LocaleService.shared
+    @State private var network = NetworkMonitor.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -94,7 +95,7 @@ struct MonthView: View {
             }
 
             if viewModel.isLoading && viewModel.allRaceDays.isEmpty {
-                LoadingView(branded: true, title: localeService.t("Calendario", "Calendar"))
+                LoadingView(branded: true, title: localeService.t("Calendario", "Calendar"), revealsImmediately: true)
             } else if viewModel.isUncachedOffline {
                 VStack(spacing: 16) {
                     EmptyStateView(
@@ -201,6 +202,13 @@ struct MonthView: View {
             Task { await viewModel.loadMonth() }
         }
         .task { await viewModel.loadMonth() }
+        .onChange(of: network.isOnline) { _, isOnline in
+            // Al recuperar la conexión se retira el banner y el aviso de mes
+            // no guardado: el mes se vuelve a pedir sin acción del usuario.
+            guard isOnline, !viewModel.isLoading,
+                  viewModel.isFromCache || viewModel.isUncachedOffline else { return }
+            Task { await viewModel.loadMonth(force: true) }
+        }
         .onChange(of: viewModel.isLoading) { _, newValue in
             if !newValue && !viewModel.allRaceDays.isEmpty {
                 AccessibilityAnnouncement.announce(LocaleService.t("\(viewModel.title(forMonth: currentMonthIndex + 1)) cargado", "\(viewModel.title(forMonth: currentMonthIndex + 1)) loaded"))

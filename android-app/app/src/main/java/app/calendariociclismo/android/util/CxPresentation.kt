@@ -30,6 +30,12 @@ data class CxMediaUnit(val code: String?, val cancelled: Boolean, val hasResults
     val finished: Boolean get() = hasResults || cancelled
 }
 enum class CxCategoryCardState { TIME, AWAITING, RESULTS, CANCELLED }
+/**
+ * Badge de TV de la tarjeta de la agenda: emisión enlazada ([broadcast] y su
+ * [url] validada), hora de la primera emisión del día ([firstStartUtc]) y
+ * estado en directo ([live]). Espejo de `cxAgendaBroadcast` (web).
+ */
+data class CxAgendaTV(val broadcast: CxBroadcast, val url: String, val firstStartUtc: String?, val live: Boolean)
 
 /**
  * Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera:
@@ -418,6 +424,53 @@ object CxPresentation {
             val hasResults = category.resultsStatus in listOf("official", "provisional") && detail.results.any { it.category == category.category }
             val concluded = concludedAt(race, category)?.let { at >= it } ?: false
             CxMediaUnit(category.category, race.isCancelled || category.isCancelled, hasResults, concluded)
+        }
+    }
+
+    /** Emisiones visibles en la región del usuario (`filterBroadcastsByRegion`). */
+    fun regionBroadcasts(rows: List<CxBroadcast>, allowedGroups: Set<String>): List<CxBroadcast> =
+        rows.filter { RaceLogic.broadcastMatchesRegion(it.country, allowedGroups) }
+
+    /**
+     * Badge de TV de la tarjeta de la agenda entre las emisiones [visible] (ya
+     * filtradas por región) que aplican a las categorías de [dateKey]. Muestra
+     * la hora de la primera emisión del día hasta que empieza; desde entonces,
+     * «En directo» mientras quede alguna categoría del día en directo (sin
+     * resultados, sin cancelación y antes de [concludedAt]). Después no hay
+     * badge. El enlace va a la primera emisión y, al alcanzarse la hora de
+     * otra posterior de una categoría aún en directo, a la última que ha
+     * empezado. Sin horas, la primera por orden. Espejo de `cxAgendaBroadcast`.
+     */
+    fun agendaBroadcast(race: CxRace, dateKey: String, visible: List<CxBroadcast>, at: Instant): CxAgendaTV? {
+        val categories = CyclocrossLogic.categoriesOn(race, dateKey)
+        if (race.isCancelled || categories.isEmpty() || visible.isEmpty()) return null
+        val rows = visible.mapNotNull { row -> link(row.url)?.let { row to it } }
+            .sortedWith(compareBy<Pair<CxBroadcast, String>> { it.first.sortOrder }.thenBy { it.first.id })
+        fun rowsFor(codes: Set<String>) = rows
+            .filter { (row) -> codes.isNotEmpty() && (row.category.isNullOrEmpty() || row.category in codes) }
+            .distinctBy { (row, url) -> listOf(row.category.orEmpty(), url, row.country ?: "ALL", row.channel.orEmpty()) }
+        val open = categories.filterNot { it.isCancelled }
+        val live = open.filter { category ->
+            category.resultsStatus !in listOf("official", "provisional") && concludedAt(race, category)?.let { at < it } != false
+        }
+        val tv = rowsFor(live.map { it.category }.toSet())
+        if (tv.isEmpty()) return null
+        fun time(row: CxBroadcast): Instant = CyclocrossLogic.parseInstant(row.startTimeUtc) ?: Instant.MAX
+        fun earliest(list: List<Pair<CxBroadcast, String>>) = list.minByOrNull { time(it.first) }
+        val first = earliest(rowsFor(open.map { it.category }.toSet())) ?: earliest(tv)!!
+        val started = tv.filter { time(it.first) <= at }
+        // A igualdad de hora, la posterior en el orden (criterio de la web).
+        val current = started.lastOrNull { time(it.first) == started.maxOf { row -> time(row.first) } } ?: earliest(tv)!!
+        return CxAgendaTV(current.first, current.second, first.first.startTimeUtc, time(first.first) <= at)
+    }
+
+    /** Badge de dorsales de la tarjeta de la agenda: primera categoría del día
+     *  con lista cargada sin resultados ni cancelación. Espejo de
+     *  `cxAgendaStartlistCategory`. */
+    fun agendaStartlistCategory(race: CxRace, dateKey: String, at: Instant): CxCategory? {
+        if (race.isCancelled) return null
+        return CyclocrossLogic.categoriesOn(race, dateKey).firstOrNull {
+            it.startlistImportedAt != null && categoryCardState(race, it, at) !in setOf(CxCategoryCardState.RESULTS, CxCategoryCardState.CANCELLED)
         }
     }
 

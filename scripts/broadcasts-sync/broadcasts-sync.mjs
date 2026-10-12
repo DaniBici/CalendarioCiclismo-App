@@ -5,7 +5,7 @@ import {
   HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
   RTVE_LIVES_URL, RTVE_VUELTA_SCHEDULE_URL, RTVE_VUELTA_VIDEOS_URL,
   contentHash, dateKeyInZone, fold,
-  desiredBroadcasts, hboSharedEventVariants, matchObservation, newBroadcastRow, normalizedObservation, parseHboCatalog,
+  desiredBroadcasts, hboSharedEventVariants, matchObservation, newBroadcastRow, normalizedObservation, placeBroadcasts, parseHboCatalog,
   parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveRaceHintMatch,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveVueltaExternalEventId,
 } from './broadcasts-sync-core.mjs';
@@ -690,9 +690,22 @@ export async function applyOne(client, observation, match, context) {
         link = createdLinks[0];
       }
       if (adoption.status === 'none') {
+      const { rows: dayCurrent } = await client.query(
+        `SELECT id, channel, country, "sortOrder" FROM public.broadcasts
+          WHERE "raceDayId"=$1 ORDER BY "sortOrder", id FOR UPDATE`,
+        [match.raceDayId],
+      );
+      const additions = desired.map((item, index) => ({ id: `new:${index}`, tier: item.insertSortOrder ?? -30 }));
+      const finalOrder = placeBroadcasts(dayCurrent, additions);
+      for (const existing of dayCurrent) {
+        const position = finalOrder.indexOf(existing.id);
+        if (position !== existing.sortOrder) {
+          await client.query(`UPDATE public.broadcasts SET "sortOrder"=$2 WHERE id=$1`, [existing.id, position]);
+        }
+      }
       const inserted = [];
-      for (const item of desired) {
-        const row = newBroadcastRow(match.raceDayId, item);
+      for (const [index, item] of desired.entries()) {
+        const row = newBroadcastRow(match.raceDayId, item, finalOrder.indexOf(additions[index].id));
         await client.query(
           `INSERT INTO public.broadcasts
             (id,"raceDayId",channel,country,"startTimeUtc",url,note,"sortOrder","showInRevive",translations)

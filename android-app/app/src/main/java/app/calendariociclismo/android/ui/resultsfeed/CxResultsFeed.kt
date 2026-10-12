@@ -61,7 +61,7 @@ internal fun CxResultsContent(
     onRetry: () -> Unit,
     onEntryTap: (CxResultsFeedLogic.Entry) -> Unit,
 ) {
-    val days by remember(state) { derivedStateOf { CxResultsFeedLogic.days(state.races, state.season) } }
+    val days by remember(state) { derivedStateOf { CxResultsFeedLogic.days(state.races, state.season, state.featured) } }
     // Como en carretera: 14 días hasta hoy y «Cargar más» amplía otros 14.
     var windowStart by rememberSaveable { mutableStateOf(LocalDate.now().minusDays(CX_WINDOW_DAYS - 1L).toString()) }
     val visible = days.filter { it.date >= windowStart }
@@ -80,7 +80,7 @@ internal fun CxResultsContent(
                 Text(stringResource(R.string.action_retry))
             }
         }
-        !state.loaded -> RouteLoadingView(
+        !state.loaded || !state.roundsReady -> RouteLoadingView(
             message = stringResource(R.string.loading),
             title = LocaleHolder.t("Ciclocross", "Cyclocross"),
         )

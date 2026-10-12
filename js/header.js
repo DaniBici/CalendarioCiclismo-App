@@ -9,10 +9,8 @@
 //  el parse del documento pero ANTES de DOMContentLoaded. Por eso el cableado
 //  de theme.js (theme toggle) y de
 //  lang-switch.js, que se enganchan en DOMContentLoaded, encuentran el header
-//  ya inyectado. El único cableado inmediato del repo es el botón "Apps"
-//  (apps-modal.js corre como script clásico al pie y enlaza #navAppsBtn al
-//  vuelo, cuando el header aún no existe), así que de ese botón se encarga
-//  este módulo: lo enlaza a window.openAppsModal (ya definido para entonces).
+//  ya inyectado. Por el mismo motivo js/cookie-consent.js (también en
+//  DOMContentLoaded) encuentra ya montado el pie que construye footer.js.
 //
 //  Parámetros (atributos del placeholder):
 //    data-back   → presente: muestra el botón "← Volver" (href = home).
@@ -23,6 +21,7 @@
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
 import { cyclocrossHome } from './services/today-season.js';
+import { buildFooter } from './footer.js';
 
 const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
@@ -33,6 +32,11 @@ const BACK_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" s
 // El hueco de la flecha existe siempre (invisible en Hoy): la marca y el menú
 // no cambian de posición al pasar de una sección a otra.
 const BACK_PLACEHOLDER = '<span class="back-btn back-btn--placeholder" id="backBtn" aria-hidden="true"></span>';
+
+// Menú de la cabecera móvil: abre el panel con Apoyar, idioma y tema.
+const MENU_ICON =
+  '<svg class="header-menu-btn__open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>' +
+  '<svg class="header-menu-btn__close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 const PRIMARY_ICONS = {
   // Mismo vector que la pestaña Hoy de Android: Icons.Filled.CalendarToday.
@@ -46,7 +50,6 @@ const PRIMARY_ICONS = {
   about: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg>',
   support: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>',
-  apps: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
 };
 
 const STRINGS = {
@@ -57,8 +60,8 @@ const STRINGS = {
     aboutHref: '/about/', aboutText: 'Acerca de mí',
     openHref: '/abierto/', openText: 'Datos abiertos',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
-    appsText: 'Apps', appsLabel: 'Abrir opciones de apps',
     themeTitle: 'Cambiar tema',
+    menuLabel: 'Menú',
     viewsAria: 'Vistas',
     skipText: 'Saltar al contenido',
     today:  { href: '/',              text: 'Hoy' },
@@ -74,8 +77,8 @@ const STRINGS = {
     aboutHref: '/en/about/', aboutText: 'About me',
     openHref: '/en/open/', openText: 'Open Data',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
-    appsText: 'Apps', appsLabel: 'Open app options',
     themeTitle: 'Change theme',
+    menuLabel: 'Menu',
     viewsAria: 'Views',
     skipText: 'Skip to content',
     today:  { href: '/en/',           text: 'Home' },
@@ -128,20 +131,22 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Destinos secundarios en el pie: tras el copyright, en la misma fila que
-// Calendario iCal y Gestión de cookies (js/cookie-consent.js la completa).
-function buildFooterNav(s) {
-  const footer = document.querySelector('.site-footer');
-  if (!footer || footer.querySelector('.footer-link--about')) return;
-  let actions = footer.querySelector('.site-footer__actions');
-  if (!actions) {
-    actions = document.createElement('p');
-    actions.className = 'site-footer__actions';
-    footer.appendChild(actions);
-  }
-  actions.insertAdjacentHTML('afterbegin',
-    `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
-    `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>`);
+// Panel del menú móvil: se cierra con Escape (devuelve el foco al botón), al
+// pulsar fuera y al pasar a un ancho en el que las acciones van en línea.
+function wireMenu(el) {
+  const btn = el.querySelector('#headerMenuBtn');
+  if (!btn) return;
+  const setOpen = (open) => {
+    el.classList.toggle('site-header--menu-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  const isOpen = () => btn.getAttribute('aria-expanded') === 'true';
+  btn.addEventListener('click', () => setOpen(!isOpen()));
+  document.addEventListener('click', (e) => { if (isOpen() && !el.contains(e.target)) setOpen(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen()) { setOpen(false); btn.focus(); }
+  });
+  window.matchMedia('(min-width: 601px)').addEventListener('change', (e) => { if (e.matches) setOpen(false); });
 }
 
 function buildHeader(el) {
@@ -163,20 +168,20 @@ function buildHeader(el) {
     '<div class="site-header__inner">' +
       backBtn +
       `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text">Calendario Ciclismo</span></a>` +
-      // Cluster de utilidades, SIEMPRE visible: Apps · apoyar ·
-      // idioma (slider, lo inyecta lang-switch.js) · tema.
-      '<div class="header-actions">' +
-        `<button class="nav-apps-btn" id="navAppsBtn" type="button" aria-label="${s.appsLabel}"><span class="header-action-icon">${PRIMARY_ICONS.apps}</span><span>${s.appsText}</span></button>` +
-        '<span class="header-actions__divider" aria-hidden="true"></span>' +
+      // Cluster de utilidades: apoyar · idioma (slider, lo inyecta
+      // lang-switch.js) · tema. En móvil vive en el panel del menú; las apps
+      // viven en el pie (footer.js).
+      '<div class="header-actions" id="headerActions">' +
         `<a class="header-support-link" href="${s.supportHref}" aria-label="${s.supportText}" target="_blank" rel="noopener"><span class="header-action-icon">${PRIMARY_ICONS.support}</span><span>${s.supportText}</span></a>` +
         `<button class="theme-toggle" type="button" title="${s.themeTitle}" aria-label="${s.themeTitle}"></button>` +
       '</div>' +
+      `<button class="header-menu-btn" id="headerMenuBtn" type="button" aria-expanded="false" aria-controls="headerActions" aria-label="${s.menuLabel}">${MENU_ICON}</button>` +
     '</div>';
 
   // Cinco destinos fijos (cuatro con la home cedida a Ciclocross): en
   // escritorio comparten fila con la marca y las acciones; en móvil forman la
-  // barra inferior, sin desplazamiento. «Acerca de mí» y «Datos abiertos»
-  // viven en el pie (buildFooterNav).
+  // barra inferior, sin desplazamiento. El resto de destinos (Acerca de mí,
+  // Datos abiertos, apps) viven en el pie (footer.js).
   const primaryItems = CX_HOME
     ? ['cyclocross', 'results', 'transfers', 'calendar']
     : ['today', 'results', 'transfers', 'cyclocross', 'calendar'];
@@ -194,16 +199,10 @@ function buildHeader(el) {
     document.documentElement.style.setProperty('--site-header-h', `${sticky ? el.getBoundingClientRect().height : 0}px`);
   });
   measureHeader.observe(el);
-  buildFooterNav(s);
+  buildFooter(lang, s, primaryItems, LOGO_SVG);
+  wireMenu(el);
 
   ensureSkipTarget();
-
-  // Botón "Apps": apps-modal.js (script clásico al pie) ya corrió y dejó
-  // window.openAppsModal, pero no pudo enlazar el botón (aún no existía).
-  const appsBtn = el.querySelector('#navAppsBtn');
-  if (appsBtn && typeof window.openAppsModal === 'function') {
-    appsBtn.addEventListener('click', window.openAppsModal);
-  }
 }
 
 // API para que una página controle el botón "← Volver" del header EN RUNTIME,

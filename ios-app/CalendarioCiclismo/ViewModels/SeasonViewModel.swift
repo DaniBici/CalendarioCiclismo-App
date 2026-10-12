@@ -10,7 +10,9 @@ final class SeasonViewModel {
     var races: [Race] = []
     /// Challenges del año (`challenge_groups`): sus pruebas se agrupan en una fila.
     var challengeGroups: [ChallengeGroup] = []
-    var isLoading = false
+    /// Arranca en `true`: la primera imagen es la pantalla de carga, no una
+    /// temporada vacía.
+    var isLoading = true
     var error: String?
     var activeFilter: Constants.CategoryFilter = .all
     var activeCountry: String = "all"
@@ -37,6 +39,16 @@ final class SeasonViewModel {
     var cacheAgeLabel: String?
     /// Indica que la temporada no está cacheada y no hay conexión para descargarla.
     var isUncachedOffline = false
+    /// Año cuyas carreras muestra la pantalla; la vista lo observa para situar el
+    /// mes visible al publicarse una temporada nueva sin pasar por la carga.
+    private(set) var displayedYear: Int?
+    /// Año descargado de la red en esta pantalla; evita recargarlo al volver a
+    /// ella.
+    private var loadedYear: Int?
+    /// `true` tras la primera carga de esta pantalla: los cambios de año
+    /// posteriores muestran la caché de inmediato en lugar de la pantalla de
+    /// carga.
+    private var hasCompletedInitialLoad = false
 
     /// Años disponibles para el selector.
     var availableYears: [Int] {
@@ -140,52 +152,107 @@ final class SeasonViewModel {
         }
     }
 
-    func loadSeason() async {
-        isLoading = true
+    /// Carga la temporada del año seleccionado.
+    ///
+    /// Primera carga de la pantalla (o `force`) con red: pantalla de carga
+    /// hasta la respuesta remota, aunque haya caché. Cambios de año posteriores
+    /// con red: caché inmediata sin rótulo mientras la red refresca. Sin red:
+    /// caché con banner. El banner también aparece cuando la petición falla y
+    /// hay contenido, y nunca mientras la red está en vuelo.
+    func loadSeason(force: Bool = false) async {
+        let requestedYear = year
+        guard force || loadedYear != requestedYear else { return }
+        let startedAt = Date()
+        let isInitialLoad = force || !hasCompletedInitialLoad
         error = nil
         isUncachedOffline = false
 
-        // Limpiar datos de la temporada anterior para no mostrar datos obsoletos
-        races = []
-        challengeGroups = []
-        isFromCache = false
-        cacheAgeLabel = nil
-
         let cache = CacheManager.shared
-        let cacheKey = CacheManager.seasonKey(year)
-        let challengesKey = CacheManager.seasonChallengesKey(year)
+        let cacheKey = CacheManager.seasonKey(requestedYear)
+        let challengesKey = CacheManager.seasonChallengesKey(requestedYear)
 
-        // 1. Cargar desde caché primero
-        if let cachedChallenges: [ChallengeGroup] = await cache.load([ChallengeGroup].self, forKey: challengesKey) {
-            challengeGroups = cachedChallenges
-        }
-        if let cached: [Race] = await cache.load([Race].self, forKey: cacheKey) {
-            races = cached
-            isFromCache = true
-            cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
-            isLoading = false
-        }
-
-        // 2. Intentar actualizar desde red
-        // Challenges y carreras son independientes: salen a la vez.
-        let service = SupabaseService.shared
-        async let groupsReq = try? service.challengeGroups(year: year)
-        async let racesReq = service.racesByYear(year)
-        // Sin challenges la temporada se muestra igual, con las pruebas sueltas.
-        if let groups = await groupsReq {
-            challengeGroups = groups
-            await cache.save(groups, forKey: challengesKey)
-        }
-        do {
-            races = try await racesReq
+        // La caché se lee antes de tocar el estado: un cambio de año con caché
+        // no pasa por la pantalla de carga ni por una temporada vacía.
+        let cachedChallenges: [ChallengeGroup]? = await cache.load([ChallengeGroup].self, forKey: challengesKey)
+        let cachedRaces: [Race]? = await cache.load([Race].self, forKey: cacheKey)
+        guard requestedYear == year else { return }
+        let presentation = CachePresentation.resolve(
+            isOnline: NetworkMonitor.shared.isOnline,
+            isInitialLoad: isInitialLoad
+        )
+        switch (cachedRaces, presentation) {
+        case let (cachedRaces?, .silent):
+            races = cachedRaces
+            challengeGroups = cachedChallenges ?? []
             isFromCache = false
             cacheAgeLabel = nil
-            await cache.save(races, forKey: cacheKey)
+            displayedYear = requestedYear
+            isLoading = false
+        case let (cachedRaces?, .offline):
+            races = cachedRaces
+            challengeGroups = cachedChallenges ?? []
+            isFromCache = true
+            cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
+            guard requestedYear == year else { return }
+            displayedYear = requestedYear
+            isLoading = false
+        default:
+            races = []
+            challengeGroups = []
+            isFromCache = false
+            cacheAgeLabel = nil
+            isLoading = true
+        }
+        let showsLoader = isLoading
+
+        // Challenges y carreras son independientes: salen a la vez.
+        let service = SupabaseService.shared
+        async let groupsReq = try? service.challengeGroups(year: requestedYear)
+        async let racesReq = service.racesByYear(requestedYear)
+        // Sin challenges la temporada se muestra igual, con las pruebas sueltas.
+        let groups = await groupsReq
+        do {
+            let loadedRaces = try await racesReq
+            guard requestedYear == year else { return }
+            if showsLoader {
+                // Una respuesta inmediata no deja la pantalla de carga en un
+                // parpadeo: se mantiene su permanencia mínima.
+                await LoadingTiming.holdImmediate(since: startedAt)
+                guard requestedYear == year else { return }
+            }
+            if let groups {
+                challengeGroups = groups
+                await cache.save(groups, forKey: challengesKey)
+            }
+            races = loadedRaces
+            isFromCache = false
+            cacheAgeLabel = nil
+            loadedYear = requestedYear
+            displayedYear = requestedYear
+            await cache.save(loadedRaces, forKey: cacheKey)
         } catch {
+            guard requestedYear == year else { return }
+            if Task.isCancelled || error is CancellationError {
+                // El usuario salió de la pantalla con la red en vuelo: no hay
+                // constancia de falta de conexión.
+                loadedYear = nil
+                isLoading = false
+                return
+            }
+            if races.isEmpty, let cachedRaces {
+                races = cachedRaces
+                challengeGroups = cachedChallenges ?? []
+                displayedYear = requestedYear
+            }
             if races.isEmpty {
                 isUncachedOffline = true
+            } else {
+                isFromCache = true
+                cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
+                loadedYear = nil
             }
         }
+        hasCompletedInitialLoad = true
         isLoading = false
     }
 

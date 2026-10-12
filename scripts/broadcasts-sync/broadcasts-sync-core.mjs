@@ -249,7 +249,7 @@ export function isMontoneraEligible(title, subtitle) {
   ].some((pattern) => pattern.test(race));
 }
 
-function hboCatalogEvents(html) {
+export function hboCatalogEvents(html) {
   const data = html.match(/<script\b[^>]*\bid="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)?.[1];
   if (!data) return [];
   const events = [];
@@ -789,10 +789,37 @@ export function desiredBroadcasts(observation) {
   }];
 }
 
-export function newBroadcastRow(raceDayId, desired) {
+// `insertSortOrder` es solo la prioridad de colocación de un alta (menor, antes);
+// nunca se guarda. `broadcasts."sortOrder"` es siempre la posición 0, 1, 2… de la
+// emisión dentro de su jornada.
+export function broadcastTier(row) {
+  const channel = row.channel || '';
+  if (row.country === 'ALL' && /youtube/i.test(channel)) return -40;
+  if (row.channel === 'Eurosport (HBO Max)') return -20;
+  if (row.channel === 'TNT Sports (HBO Max)') return -10;
+  if (row.country === 'ES' && /rtve|teledeporte|tdp/i.test(channel)) return -30;
+  if (row.country === 'ES' && /^(eitb|etb)/i.test(channel)) return -25;
+  return 0;
+}
+
+// Devuelve los ids de la jornada en su orden final: las filas existentes
+// conservan su orden relativo y cada alta se coloca antes de la primera fila de
+// prioridad posterior (o al final si no hay ninguna).
+export function placeBroadcasts(existing, additions) {
+  const list = [...existing]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || String(a.id).localeCompare(String(b.id)))
+    .map((row) => ({ id: row.id, tier: broadcastTier(row) }));
+  for (const addition of additions) {
+    const index = list.findIndex((item) => item.tier > addition.tier);
+    list.splice(index === -1 ? list.length : index, 0, { id: addition.id, tier: addition.tier });
+  }
+  return list.map((item) => item.id);
+}
+
+export function newBroadcastRow(raceDayId, desired, sortOrder) {
   return {
     id: randomUUID(), raceDayId, channel: desired.channel, country: desired.country,
     startTimeUtc: desired.startTimeUtc, url: desired.url, note: desired.note || null,
-    sortOrder: desired.insertSortOrder, showInRevive: desired.showInRevive === true, translations: {},
+    sortOrder, showInRevive: desired.showInRevive === true, translations: {},
   };
 }

@@ -325,6 +325,12 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
           ${tvLabel}
         </span>
       </div>`;
+    } else if (!_tvStatus) {
+      // Solo Live texto: sin emisiones ni estado de TV, el panel indica que no
+      // hay televisión en lugar de quedarse con la cabecera y la lista vacía.
+      html += `<div class="info-row">
+        <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noBroadcast')}</span>
+      </div>`;
     }
 
     html += `</div></section>`;
@@ -552,24 +558,19 @@ function updateSeoJornada(rd, race) {
   setMetaPropJ('og:title', title);
   setMetaPropJ('og:description', description);
 
-  // og:image: imagen OG compuesta con logo de la carrera
-  const DEFAULT_OG_IMAGE = 'https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png';
-  const OG_WORKER = 'https://og.calendariociclismo.app';
-  const ogTitle = title.replace(` - ${t('seo.siteName')}`, '');
-  const ogImage = (race.logoUrl && race.logoUrl.startsWith('https://assets.calendariociclismo.app/'))
-    ? `${OG_WORKER}/?logo=${encodeURIComponent(race.logoUrl)}&title=${encodeURIComponent(ogTitle)}`
-    : DEFAULT_OG_IMAGE;
+  // og:image: imagen única de la marca
+  const ogImage = 'https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg';
   setMetaPropJ('og:image', ogImage);
   setMetaPropJ('og:image:width',  '1200');
   setMetaPropJ('og:image:height', '630');
-  setMetaPropJ('og:image:alt', ogTitle);
+  setMetaPropJ('og:image:alt', 'Calendario Ciclismo');
 
   // Twitter Card
   setMetaJ('twitter:card', 'summary_large_image');
   setMetaJ('twitter:title', title);
   setMetaJ('twitter:description', description);
   setMetaJ('twitter:image', ogImage);
-  setMetaJ('twitter:image:alt', ogTitle);
+  setMetaJ('twitter:image:alt', 'Calendario Ciclismo');
 
   // ── Canonical + og:url ──
   const _canonIsEn = getLang() === 'en';

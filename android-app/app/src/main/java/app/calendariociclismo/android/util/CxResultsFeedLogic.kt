@@ -21,8 +21,9 @@ object CxResultsFeedLogic {
         category.resultsStatus in publishedStatuses && ResultsFeedLogic.cleanWinner(category.winnerName).isNotBlank()
 
     /** Días con resultados, del más reciente al más antiguo; dentro de cada
-     *  día, el orden de la agenda CX ([CyclocrossLogic.racesOn]). */
-    fun days(races: List<CxRace>, season: String): List<Day> {
+     *  día, el orden de la agenda CX ([CyclocrossLogic.racesOn]), con las
+     *  destacadas ([featured]) primero. */
+    fun days(races: List<CxRace>, season: String, featured: Set<String> = emptySet()): List<Day> {
         val listed = races.filter { it.seasonKey == season && CxPresentation.listedInAgenda(it) }.distinctBy { it.id }
         val byDate = linkedMapOf<String, MutableList<Entry>>()
         for (race in listed) {
@@ -33,7 +34,7 @@ object CxResultsFeedLogic {
         }
         return byDate.keys.sortedDescending().map { date ->
             val entries = byDate.getValue(date)
-            val order = CyclocrossLogic.racesOn(entries.map { it.race }, date).map { it.id }
+            val order = CyclocrossLogic.racesOn(entries.map { it.race }, date, featured).map { it.id }
             Day(date, entries.sortedBy { order.indexOf(it.race.id) })
         }
     }

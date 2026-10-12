@@ -244,6 +244,31 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(detail.arrivals.map(\.id), ["confAlfa", "confBeta", "rumZeta"])
     }
 
+    func test_accentedInitialSortsWithItsBaseLetter() {
+        // Á ordena junto a A (no después de Z), en llegadas y en «continúan».
+        let riders = [
+            "r1": TransferRider(id: "r1", firstName: "Héctor", lastName: "Álvarez", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r2": TransferRider(id: "r2", firstName: "A", lastName: "Zabala", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r3": TransferRider(id: "r3", firstName: "B", lastName: "Alonso", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r4": TransferRider(id: "r4", firstName: "C", lastName: "Éder", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r5": TransferRider(id: "r5", firstName: "D", lastName: "Eguía", nationality: nil, currentTeamId: nil, contractUntil: nil),
+        ]
+        let moves = [
+            transfer(id: "alvarez", riderId: "r1", type: "transfer", status: "confirmed", to: "team_a"),
+            transfer(id: "zabala", riderId: "r2", type: "transfer", status: "confirmed", to: "team_a"),
+            transfer(id: "alonso", riderId: "r3", type: "transfer", status: "confirmed", to: "team_a"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [], teamId: "team_a", ridersById: riders)
+        XCTAssertEqual(detail.arrivals.map(\.id), ["alonso", "alvarez", "zabala"])
+
+        let roster = [
+            rider("r2", last: "Zabala"), rider("r1", last: "Álvarez"), rider("r3", last: "Alonso"),
+            rider("r4", last: "Éder"), rider("r5", last: "Eguía"),
+        ]
+        let staying = TransfersLogic.teamDetail(transfers: [], roster: roster, teamId: "team_a").staying
+        XCTAssertEqual(staying.map(\.rider.id), ["r3", "r1", "r4", "r5", "r2"])
+    }
+
     func test_contractEndsSortedAlphabeticallyByLastName() {
         let riders = [
             "r1": TransferRider(id: "r1", firstName: "A", lastName: "Zeta", nationality: nil, currentTeamId: nil, contractUntil: nil),

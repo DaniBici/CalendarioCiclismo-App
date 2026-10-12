@@ -258,7 +258,7 @@ function _slApplyAutomaticRiderMatch(riderEl, rider) {
 
 // Al salir del nombre o del apellido, busca dentro de la plantilla del equipo.
 // Una respuesta pendiente no puede reemplazar una edición posterior.
-async function _slAutoMatchRiderByTeam(riderEl) {
+export async function _slAutoMatchRiderByTeam(riderEl) {
   if (!riderEl || riderEl.dataset.globalRiderId) return null;
   const teamEl = riderEl.closest('.sl-edit-team');
   const teamId = teamEl?.dataset.teamId || '';

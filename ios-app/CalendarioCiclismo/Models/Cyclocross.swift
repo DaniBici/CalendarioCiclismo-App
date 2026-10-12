@@ -179,6 +179,9 @@ struct CxRace: Codable, Sendable, Identifiable {
     let assets: [CxAsset]?
     let tournament: CxTournament?
     let categories: [CxCategory]
+    /// Emisiones de la prueba en la consulta de la agenda (badge de TV de la
+    /// tarjeta). Nil en la ficha, que las lee aparte, y en cachés anteriores.
+    var broadcasts: [CxBroadcast]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, nameEn, slug, slugEn, seasonKey, dateKey, endDateKey
@@ -187,6 +190,7 @@ struct CxRace: Codable, Sendable, Identifiable {
         case assets
         case tournament = "cx_tournaments"
         case categories = "cx_race_categories"
+        case broadcasts = "cx_broadcasts"
     }
 }
 

@@ -5,20 +5,34 @@ struct CxCached<T> {
     let offline: Bool
 }
 
+extension CxCached: Sendable where T: Sendable {}
+
 @MainActor
 protocol CxStore {
     func month(_ key: String) async -> [CxRace]?
     func saveMonth(_ races: [CxRace], key: String) async
     func knownMonths() async -> [String]
+    /// Índice de temporada y carreras de un día (Hoy de Ciclocross): no
+    /// figuran entre los meses conocidos.
+    func today(_ key: String) async -> [CxRace]?
+    func saveToday(_ races: [CxRace], key: String) async
     func detail(_ id: String) async -> CxDetail?
     func saveDetail(_ detail: CxDetail) async
     func detailId(forSlug slug: String) async -> String?
     func allDetails() async -> [CxDetail]
 }
 
+extension CxStore {
+    func today(_ key: String) async -> [CxRace]? { await month(key) }
+    func saveToday(_ races: [CxRace], key: String) async { await saveMonth(races, key: key) }
+}
+
 @MainActor
 struct CxDiskStore: CxStore {
     let cache: CacheManager
+
+    func today(_ key: String) async -> [CxRace]? { await cache.load([CxRace].self, forKey: "cx_today:" + key) }
+    func saveToday(_ races: [CxRace], key: String) async { await cache.save(races, forKey: "cx_today:" + key) }
 
     func month(_ key: String) async -> [CxRace]? { await cache.load([CxRace].self, forKey: "cx_month:" + key) }
     func knownMonths() async -> [String] { await cache.load([String].self, forKey: "cx_month_index") ?? [] }
@@ -83,6 +97,56 @@ final class CyclocrossRepository {
         }
     }
 
+    /// Carreras del índice local de la temporada en curso.
+    private func currentSeasonIndexRaces() async -> [CxRace] {
+        let today = CyclocrossAgendaModel.todayKey()
+        let month = CxMonth(year: Int(today.prefix(4)) ?? 2000, month: Int(today.dropFirst(5).prefix(2)) ?? 1)
+        return await store.today("index:" + month.season) ?? []
+    }
+
+    /// Índice ligero de la temporada: lectura local.
+    func cachedIndex(season: String) async -> CxCached<[CxRace]>? {
+        guard let rows = await store.today("index:" + season) else { return nil }
+        return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: true)
+    }
+
+    /// Índice ligero de la temporada (días con carreras, filtros y
+    /// numeración); ante un fallo de red conserva la última copia local.
+    func seasonIndex(season: String) async throws -> CxCached<[CxRace]> {
+        guard CyclocrossAgendaModel.seasonMonths(season).isEmpty == false else { throw CxRepositoryError.invalidMonth }
+        do {
+            let rows = try await remote.cxSeasonIndex(season: season)
+            await store.saveToday(rows, key: "index:" + season)
+            return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: false)
+        } catch {
+            if Task.isCancelled || error is CancellationError { throw error }
+            if let cached = await cachedIndex(season: season) { return cached }
+            throw error
+        }
+    }
+
+    /// Carreras de un día guardadas localmente.
+    func cachedDay(season: String, dateKey: String) async -> CxCached<[CxRace]>? {
+        guard CyclocrossLogic.dateInSeason(dateKey, season: season),
+              let rows = await store.today("day:" + season + ":" + dateKey) else { return nil }
+        return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: true)
+    }
+
+    /// Carreras con alguna categoría el `dateKey`, con documentos y
+    /// emisiones; ante un fallo de red conserva la copia local del día.
+    func day(season: String, dateKey: String) async throws -> CxCached<[CxRace]> {
+        guard CyclocrossLogic.dateInSeason(dateKey, season: season) else { throw CxRepositoryError.invalidMonth }
+        do {
+            let rows = try await remote.cxDay(season: season, dateKey: dateKey)
+            await store.saveToday(rows, key: "day:" + season + ":" + dateKey)
+            return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: false)
+        } catch {
+            if Task.isCancelled || error is CancellationError { throw error }
+            if let cached = await cachedDay(season: season, dateKey: dateKey) { return cached }
+            throw error
+        }
+    }
+
     func cachedDetail(id: String) async -> CxCached<CxDetail>? {
         guard let value = await store.detail(id), CyclocrossLogic.raceInSeason(value.race) else { return nil }
         return CxCached(data: value, offline: true)
@@ -108,6 +172,7 @@ final class CyclocrossRepository {
             for key in await store.knownMonths() {
                 if let race = await store.month(key)?.first(where: { $0.slug == slug || $0.slugEn == slug }) { return race.id }
             }
+            if let race = await currentSeasonIndexRaces().first(where: { $0.slug == slug || $0.slugEn == slug }) { return race.id }
             throw error
         }
     }
@@ -161,6 +226,21 @@ final class CyclocrossRepository {
         return value
     }
 
+    /// Última lectura correcta de las destacadas en la sesión.
+    private var featuredCache: Set<String>?
+
+    /// Pruebas destacadas. Un fallo conserva la última lectura de la sesión o,
+    /// sin ella, ninguna (orden canónico); nunca interrumpe la carga.
+    func featuredRaceIds() async -> Set<String> {
+        do {
+            let value = try await remote.cxFeaturedRaceIds()
+            featuredCache = value
+            return value
+        } catch {
+            return featuredCache ?? []
+        }
+    }
+
     /// Siguiente fecha con pruebas del torneo; sin conexión, la caché por mes.
     func nextDate(season: String, date: String, tournamentId: String) async throws -> String? {
         do {
@@ -186,11 +266,11 @@ final class CyclocrossRepository {
 
     func artworkURLs() async -> Set<URL> {
         var urls = Set<URL>()
-        for key in await store.knownMonths() {
-            for race in await store.month(key) ?? [] {
-                for value in [race.logoUrl, race.tournament?.logoUrl].compactMap({ $0 }) {
-                    if let url = URL(string: value) { urls.insert(url) }
-                }
+        var races: [CxRace] = await currentSeasonIndexRaces()
+        for key in await store.knownMonths() { races.append(contentsOf: await store.month(key) ?? []) }
+        for race in races {
+            for value in [race.logoUrl, race.tournament?.logoUrl].compactMap({ $0 }) {
+                if let url = URL(string: value) { urls.insert(url) }
             }
         }
         for detail in await store.allDetails() {

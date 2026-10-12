@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -1084,8 +1087,16 @@ private fun OfficialSettingsIcon(
     drawable: Int,
     backgroundColor: Color,
     size: androidx.compose.ui.unit.Dp,
+    backgroundDrawable: Int? = null,
 ) {
     Surface(color = backgroundColor, shape = RoundedCornerShape(CCRadius.Surface), modifier = Modifier.size(size)) {
+        // Fondo de mapa de bits del icono adaptativo: se muestra su zona visible
+        // de 72 dp (de 108), donde está encajado el arte.
+        if (backgroundDrawable != null) {
+            Image(painter = painterResource(backgroundDrawable), contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = 1.5f, scaleY = 1.5f))
+        }
         Icon(painter = painterResource(drawable), contentDescription = null,
             tint = Color.Unspecified, modifier = Modifier.fillMaxSize())
     }
@@ -1187,9 +1198,10 @@ private fun AdFreeSection(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconChoice(
                 LocaleHolder.t("Original", "Original"),
-                Color(0xFF1A73E8),
+                Color(0xFF805234),
                 R.drawable.ic_launcher_foreground,
                 supporterIcon == "default",
+                backgroundDrawable = R.drawable.ic_launcher_mud_background,
             ) { onIcon(PremiumService.SupporterIcon.DEFAULT) }
             if (isFounder) {
                 IconChoice(
@@ -1264,6 +1276,7 @@ private fun RowScope.IconChoice(
     backgroundColor: Color,
     drawable: Int,
     selected: Boolean,
+    backgroundDrawable: Int? = null,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1277,7 +1290,7 @@ private fun RowScope.IconChoice(
             modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            OfficialSettingsIcon(drawable, backgroundColor, 42.dp)
+            OfficialSettingsIcon(drawable, backgroundColor, 42.dp, backgroundDrawable)
             Text(label, style = MaterialTheme.typography.labelSmall)
             if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
         }

@@ -139,6 +139,9 @@ data class CxRace(
     val assets: List<CxAsset> = emptyList(),
     @SerialName("cx_tournaments") val tournament: CxTournament? = null,
     @SerialName("cx_race_categories") val categories: List<CxCategory> = emptyList(),
+    /** Emisiones de la prueba en la consulta de la agenda (badge de TV de la
+     *  tarjeta); la ficha las lee aparte en [CxDetail.broadcasts]. */
+    @SerialName("cx_broadcasts") val broadcasts: List<CxBroadcast> = emptyList(),
 )
 
 @Serializable

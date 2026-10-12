@@ -16,15 +16,24 @@ data class ResultsSectionsLayout(
 )
 
 /**
- * Regla de pestañas de Resultados: Últimos resultados y Ránking UCI, con la
- * de carretera inicial. La pestaña Ciclocross queda fuera de la 5.0.14 y
- * vuelve con la 5.0.15, junto con Hoy de carretera oculta. Espejo de iOS.
+ * Regla de pestañas de Resultados según la fecha civil local:
+ * - Hoy de carretera oculta ([RoadTodayAvailability]): Ciclocross, Carretera
+ *   y Ránking UCI, con Ciclocross inicial.
+ * - Desde que Hoy vuelve (1 de enero de 2027): Últimos resultados y Ránking
+ *   UCI, como antes del cambio.
+ * Espejo de la regla de la web y de iOS.
  */
 object ResultsSections {
-    @Suppress("UNUSED_PARAMETER")
-    fun layout(today: LocalDate = LocalDate.now()): ResultsSectionsLayout = ResultsSectionsLayout(
-        listOf(ResultsSection.ROAD, ResultsSection.RANKING),
-        ResultsSection.ROAD,
-        roadLabelShort = false,
-    )
+    fun layout(today: LocalDate = LocalDate.now()): ResultsSectionsLayout = when {
+        !RoadTodayAvailability.isVisible(today) -> ResultsSectionsLayout(
+            listOf(ResultsSection.CYCLOCROSS, ResultsSection.ROAD, ResultsSection.RANKING),
+            ResultsSection.CYCLOCROSS,
+            roadLabelShort = true,
+        )
+        else -> ResultsSectionsLayout(
+            listOf(ResultsSection.ROAD, ResultsSection.RANKING),
+            ResultsSection.ROAD,
+            roadLabelShort = false,
+        )
+    }
 }

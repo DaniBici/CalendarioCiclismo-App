@@ -295,7 +295,7 @@ export function attachInlineUpload(input, tipo) {
   // Crear input file oculto y botón visible
   const fileIn = document.createElement('input');
   fileIn.type   = 'file';
-  // Mismos formatos que UPLOAD_TYPES; la función se evalúa aislada en pruebas.
+  // Mismos formatos que UPLOAD_TYPES.
   fileIn.accept = tipo === 'profile' ? 'image/jpeg,image/png'
     : tipo === 'logo' ? 'image/jpeg,image/png,image/webp'
       : 'image/jpeg,image/png,image/webp,application/pdf';

@@ -83,8 +83,11 @@ export function normalizeCxDataRideRows(sourceRows) {
     const rankFromText = /^\d+$/.test(clean(raw.Rank)) && positiveId(raw.Rank) ? Number(raw.Rank) : null;
     const rank = rankNumber || rankFromText;
     const stateText = clean(raw.Irm || (STATES.has((value || '').toUpperCase()) ? value : '')).toUpperCase();
-    const state = stateText || (/^(?:-?\s*\d+|@\s*\d+)\s+LAPS?$/i.test(value || '') ? 'LAP' : null);
-    const explicitGap = value?.startsWith('+');
+    // Algunos cronometradores teclean las vueltas perdidas como «+1 LAP» sin
+    // Irm (Marín 2026): son vueltas, no una diferencia de tiempo.
+    const plusLap = /^\+\s*([1-9]\d*)\s+LAPS?$/i.exec(value || '');
+    const state = stateText || (plusLap || /^(?:-?\s*\d+|@\s*\d+)\s+LAPS?$/i.test(value || '') ? 'LAP' : null);
+    const explicitGap = value?.startsWith('+') && !plusLap;
     const split = normalized.firstName && normalized.lastName
       ? { firstName: normalized.firstName, lastName: normalized.lastName }
       : splitCxDisplayName(normalized.riderDisplay || clean(raw.DisplayName) || clean(raw.IndividualDisplayName));
@@ -94,7 +97,8 @@ export function normalizeCxDataRideRows(sourceRows) {
     // Cero, fracciones y valores sin Irm=LAP no acreditan vueltas perdidas.
     const lapValue = state === 'LAP' ? clean(value).replace(/^['"]+|['"]+$/g, '').replace(/^@\s*/, '').trim() : '';
     const lapDeficit = /^-\s*([1-9]\d*)$/.exec(lapValue) || /^[1-9]\d*$/.test(lapValue) ? Number(lapValue.replace(/^-/, '')) : null;
-    const lapGap = state === 'LAP' && /LAP/i.test(value || '') ? value
+    const lapGap = state === 'LAP' && plusLap ? `-${plusLap[1]} LAP`
+      : state === 'LAP' && /LAP/i.test(value || '') ? value
       : state === 'LAP' && lapDeficit != null ? `-${lapDeficit} LAP` : null;
     // Solo LAP conserva puesto. DataRide publica a veces DNF/DNS con la posición
     // de listado en Rank (Blue Ridge 2026): el estado sustituye al puesto y

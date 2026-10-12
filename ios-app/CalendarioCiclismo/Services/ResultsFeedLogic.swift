@@ -368,3 +368,91 @@ enum ResultsFeedLogic {
         }
     }
 }
+
+// MARK: - Pestañas de Resultados
+
+/// Pestañas de la sección Resultados.
+enum ResultsFeedTab: String, Identifiable {
+    case cyclocross, road, ranking
+    var id: String { rawValue }
+}
+
+/// Pestañas visibles, en orden, y la seleccionada al abrir.
+struct ResultsFeedTabLayout: Equatable {
+    let tabs: [ResultsFeedTab]
+    let initial: ResultsFeedTab
+    /// Con la pestaña Ciclocross, la de carretera se rotula «Carretera».
+    var includesCyclocross: Bool { tabs.contains(.cyclocross) }
+}
+
+/// Regla de pestañas de Resultados por fecha. Espejo de la web y de Android.
+///  · Hoy de carretera oculta (`RoadTodayAvailability`): Ciclocross,
+///    Carretera y Ránking UCI, con Ciclocross por defecto.
+///  · Desde que Hoy vuelve (1 de enero de 2027): Últimos resultados y Ránking
+///    UCI, como antes del cambio.
+enum ResultsFeedTabs {
+    static func layout(today: String = DateFormatting.todayKey()) -> ResultsFeedTabLayout {
+        if !RoadTodayAvailability.isVisible(today: today) {
+            return ResultsFeedTabLayout(tabs: [.cyclocross, .road, .ranking], initial: .cyclocross)
+        }
+        return ResultsFeedTabLayout(tabs: [.road, .ranking], initial: .road)
+    }
+}
+
+// MARK: - Resultados de ciclocross
+
+/// Ganador o ganadora de una categoría CX.
+struct CxResultsFeedWinner: Equatable {
+    let category: String
+    let winner: String
+}
+
+/// Prueba CX en un día del feed, con las categorías de ese día que ya
+/// tienen ganador publicado (orden ME, WE, MU, WU, MJ, WJ).
+struct CxResultsFeedEntry: Identifiable {
+    let date: String
+    let race: CxRace
+    let winners: [CxResultsFeedWinner]
+    var id: String { date + ":" + race.id }
+    /// Ancla de la ficha: resultados de la primera categoría con ganador.
+    var resultsAnchor: String? { winners.first.map { "resultados-" + $0.category } }
+}
+
+struct CxResultsFeedDay: Identifiable {
+    let date: String
+    let entries: [CxResultsFeedEntry]
+    var id: String { date }
+}
+
+enum CxResultsFeedLogic {
+    /// Días con resultados de la temporada `season`, en cronología inversa.
+    /// Una prueba con categorías en días distintos aparece en cada día con
+    /// las categorías de ese día; dentro del día rige el orden de la agenda
+    /// CX. Solo cuentan las categorías con resultados (oficiales o
+    /// provisionales) y ganador; las pruebas canceladas o ocultas por idioma
+    /// no figuran. Las destacadas (`featured`) encabezan su día.
+    static func days(races: [CxRace], season: String, featured: Set<String> = []) -> [CxResultsFeedDay] {
+        var racesByDate: [String: [CxRace]] = [:]
+        var winnersByEntry: [String: [CxResultsFeedWinner]] = [:]
+        var seen = Set<String>()
+        for race in races where race.seasonKey == season && CyclocrossPresentation.listedInAgenda(race) {
+            guard seen.insert(race.id).inserted else { continue }
+            for date in CyclocrossLogic.dates(race) {
+                let winners = CyclocrossLogic.categories(on: date, race: race).compactMap { category -> CxResultsFeedWinner? in
+                    guard !category.isCancelled,
+                          CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus) else { return nil }
+                    let name = (category.winnerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    return name.isEmpty ? nil : CxResultsFeedWinner(category: category.category, winner: name)
+                }
+                guard !winners.isEmpty else { continue }
+                racesByDate[date, default: []].append(race)
+                winnersByEntry[date + ":" + race.id] = winners
+            }
+        }
+        return racesByDate.keys.sorted(by: >).map { date in
+            CxResultsFeedDay(date: date, entries: CyclocrossLogic.races(on: date, races: racesByDate[date] ?? [], featured: featured).map { race in
+                CxResultsFeedEntry(date: date, race: race, winners: winnersByEntry[date + ":" + race.id] ?? [])
+            })
+        }
+    }
+}

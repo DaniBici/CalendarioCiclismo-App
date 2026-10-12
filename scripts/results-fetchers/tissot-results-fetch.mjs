@@ -164,6 +164,8 @@ const CLASS_IDX = {
   'points/stage': 7, 'kom/stage': 8, 'youth/stage': 9, 'teams/stage': 10,
   'other/stage': 11, 'other/overall': 12,
 };
+// Nombres de la clasificación final (pseudo-etapa sin número), por classKind.
+const FINAL_NAMES = { gc: 'General Classification', points: 'Points Classification', kom: 'Mountain Classification', youth: 'Youth Classification', teams: 'Teams Classification' };
 const synthRaceId = (slot) => -(ID_BASE * 10000 + slot * 100);
 const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
@@ -467,6 +469,21 @@ async function get(path) {
   try { return await res.json(); } catch { return null; }
 }
 
+// Prueba de un día servida por la rama de etapas: Tissot la publica como
+// `type: SingleRace` con una única etapa y sin `rankings/overall`. En el resto de
+// fuentes una prueba de un día no tiene stageNumber (clasificación `gc` final): es la
+// forma que enlazan la web, el panel y las apps (`raceId#final`). Emitirla como
+// «etapa 1» deja la clasificación sin enlazar con la jornada (stageNumber NULL).
+export function isSingleRaceCompetition(comp, stageList) {
+  return clean(comp?.type) === 'SingleRace' && Array.isArray(stageList) && stageList.length === 1;
+}
+// Especificación de una clasificación de la etapa única al contrato de un día:
+// la de tiempos pasa a `gc` «General Classification»; el resto conserva su tipo.
+export function singleRaceSpec(spec) {
+  const classKind = spec.classKind === 'stage' ? 'gc' : spec.classKind;
+  return { ...spec, classKind, scope: 'stage', eventName: FINAL_NAMES[classKind] || spec.eventName };
+}
+
 function buildClassification(slot, spec, rows) {
   const winner = rows.find((r) => r.rank === 1);
   return {
@@ -670,6 +687,7 @@ async function main() {
   const stageList = (await get(`/competitions/${COMP}/stages`)) || [];
   if (!stageList.length) { log('⚠️  0 etapas en Tissot'); }
 
+  const singleRace = isSingleRaceCompetition(comp, stageList);
   const stages = [];
   let lastOveralls = null;   // generales de la última etapa procesada (para la pseudo-final)
 
@@ -700,6 +718,7 @@ async function main() {
     const classifications = [];
     const overallsOfStage = [];
     for (const [view, rankings] of [['stage', stageRk], ['overall', overallRk]]) {
+      if (singleRace && view === 'overall') continue;   // la etapa única ya es la clasificación final
       for (const rk of rankings) {
         if (!Array.isArray(rk.results) || rk.results.length === 0) continue;   // placeholders vacíos
         const spec = classifyTissot(rk.rankingType, view);
@@ -730,7 +749,9 @@ async function main() {
             continue;
           }
         }
-        const cl = buildClassification(stageNumber, spec, rows);
+        const cl = singleRace
+          ? buildClassification(FINAL_SLOT, singleRaceSpec(spec), rows)
+          : buildClassification(stageNumber, spec, rows);
         cl.publication = { provider:effectiveProvider, format:effectiveProvider==='uci'?'uci':'progressive' };
         if (view === 'stage' && spec.classKind === 'stage' && teamShaped) {
           const winner = rk.results.filter(row => row.rank === 1 && !irmCode(row.value));
@@ -747,10 +768,10 @@ async function main() {
     if (!classifications.length) continue;
 
     stages.push({
-      uciRaceId: synthRaceId(stageNumber),
-      stageNumber,
-      stageName: clean(st.name) || `Stage ${stageNumber}`,
-      isFinalClassification: false,
+      uciRaceId: synthRaceId(singleRace ? FINAL_SLOT : stageNumber),
+      stageNumber: singleRace ? null : stageNumber,
+      stageName: singleRace ? 'Final Classification' : (clean(st.name) || `Stage ${stageNumber}`),
+      isFinalClassification: singleRace,
       dateKey: clean(st.start).slice(0, 10) || null,
       raceType: clean(st.type) === 'TTT' ? 'TTT' : clean(st.type) === 'ITT' ? 'ITT' : 'IRR',
       startLocation: null,
@@ -765,7 +786,6 @@ async function main() {
   // procesado la última etapa (status 'Previous' O 'Live' con la E final ya disputada),
   // también con --stage <última>: sus overall SON las definitivas.
   if (lastOveralls && lastOveralls.stageNumber === maxStageNumber) {
-    const FINAL_NAMES = { gc: 'General Classification', points: 'Points Classification', kom: 'Mountain Classification', youth: 'Youth Classification', teams: 'Teams Classification' };
     const classifications = lastOveralls.overalls.map(({ spec, rows }) => buildClassification(
       FINAL_SLOT,
       { ...spec, scope: 'stage', eventName: FINAL_NAMES[spec.classKind] || spec.eventName },

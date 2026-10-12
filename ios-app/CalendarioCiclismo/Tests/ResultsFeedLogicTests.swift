@@ -443,4 +443,86 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(ResultsFeedLogic.localizedNationName("Team Visma | Lease a Bike", isEnglish: false), "Team Visma | Lease a Bike")
         XCTAssertEqual(ResultsFeedLogic.localizedNationName("France", isEnglish: true), "France")
     }
+
+    // MARK: - Pestañas de Resultados
+
+    func testPestanasSegunElPeriodo() {
+        let hidden = ResultsFeedTabs.layout(today: "2026-12-31")
+        XCTAssertEqual(hidden.tabs, [.cyclocross, .road, .ranking])
+        XCTAssertEqual(hidden.initial, .cyclocross)
+        let rest = ResultsFeedTabs.layout(today: "2027-01-01")
+        XCTAssertEqual(rest.tabs, [.road, .ranking])
+        XCTAssertEqual(rest.initial, .road)
+        XCTAssertFalse(rest.includesCyclocross)
+        XCTAssertEqual(ResultsFeedTabs.layout(today: "2027-02-28"), rest)
+    }
+
+    // MARK: - Resultados de ciclocross
+
+    private func cxRace(
+        _ id: String,
+        raceClass: String = "C2",
+        season: String = "2026-27",
+        cancelled: Bool = false,
+        categories: [(code: String, date: String, status: String, winner: String?, cancelled: Bool)]
+    ) throws -> CxRace {
+        let rows = categories.enumerated().map { index, category -> [String: Any] in
+            var row: [String: Any] = [
+                "category": category.code, "dateKey": category.date, "sortOrder": index,
+                "isCancelled": category.cancelled, "resultsStatus": category.status,
+                "startTimeUtc": category.date + "T12:00:00Z"
+            ]
+            if let winner = category.winner { row["winnerName"] = winner }
+            return row
+        }
+        let payload: [String: Any] = [
+            "id": id, "name": id, "slug": id, "seasonKey": season,
+            "dateKey": categories.first?.date ?? "2026-11-01", "class": raceClass,
+            "isCancelled": cancelled, "cx_race_categories": rows
+        ]
+        return try JSONDecoder().decode(CxRace.self, from: JSONSerialization.data(withJSONObject: payload))
+    }
+
+    func testFeedCxAgrupaPorDiaYCategoria() throws {
+        let sat = "2026-11-21", sun = "2026-11-22"
+        let twoDays = try cxRace("Dos días", categories: [
+            ("WJ", sun, "official", "Júnior", false),
+            ("ME", sun, "provisional", "Élite", false),
+            ("MU", sun, "pending", nil, false),
+            ("WE", sat, "official", "Élite femenina", false)
+        ])
+        let worldCup = try cxRace("Copa", raceClass: "CDM", categories: [("ME", sun, "official", "Ganador", false)])
+        let races = [
+            twoDays, worldCup, twoDays,
+            try cxRace("Sin ganador", categories: [("ME", sun, "official", " ", false)]),
+            try cxRace("Categoría cancelada", categories: [("ME", sun, "official", "X", true)]),
+            try cxRace("Cancelada", cancelled: true, categories: [("ME", sun, "official", "X", false)]),
+            try cxRace("Otra temporada", season: "2025-26", categories: [("ME", sun, "official", "X", false)])
+        ]
+        let days = CxResultsFeedLogic.days(races: races, season: "2026-27")
+        XCTAssertEqual(days.map(\.date), [sun, sat])
+        XCTAssertEqual(days[0].entries.map(\.race.id), ["Copa", "Dos días"])
+        XCTAssertEqual(days[0].entries[1].winners, [
+            CxResultsFeedWinner(category: "ME", winner: "Élite"),
+            CxResultsFeedWinner(category: "WJ", winner: "Júnior")
+        ])
+        XCTAssertEqual(days[0].entries[1].resultsAnchor, "resultados-ME")
+        XCTAssertEqual(days[1].entries.map(\.race.id), ["Dos días"])
+        XCTAssertEqual(days[1].entries[0].winners.map(\.category), ["WE"])
+    }
+
+    func testFeedCxDestacadasEncabezanSuDia() throws {
+        let sun = "2026-11-22", sat = "2026-11-21"
+        let races = [
+            try cxRace("Copa", raceClass: "CDM", categories: [("ME", sun, "official", "A", false)]),
+            try cxRace("C2", categories: [("ME", sun, "official", "B", false), ("WE", sat, "official", "C", false)]),
+            try cxRace("C1", raceClass: "C1", categories: [("ME", sat, "official", "D", false)])
+        ]
+        let days = CxResultsFeedLogic.days(races: races, season: "2026-27", featured: ["C2"])
+        XCTAssertEqual(days.map(\.date), [sun, sat])
+        XCTAssertEqual(days[0].entries.map(\.race.id), ["C2", "Copa"])
+        XCTAssertEqual(days[1].entries.map(\.race.id), ["C2", "C1"])
+        XCTAssertEqual(CxResultsFeedLogic.days(races: races, season: "2026-27")[0].entries.map(\.race.id), ["Copa", "C2"])
+    }
 }
+

@@ -141,8 +141,12 @@ fun SeasonScreen(
         challengeGroups = runCatching { app.supabaseService.challengeGroups(year) }.getOrElse { emptyList() }
     }
 
+    // Año cuya descarga ha terminado (con o sin éxito): mientras tanto, un año
+    // sin carreras en caché muestra la carga, no «sin carreras».
+    var refreshedYear by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(year) {
         runCatching { app.repository.refreshRacesYear(year) }
+        refreshedYear = year
     }
 
     // Analytics con parámetros
@@ -471,7 +475,7 @@ fun SeasonScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (allRaces.isEmpty()) {
+                        if (allRaces.isEmpty() || (refreshedYear != year && allRaces.none { it.year == year })) {
                             RouteLoadingView(message = stringResource(R.string.loading), title = LocaleHolder.t("Temporada", "Season"))
                         } else {
                             Text(

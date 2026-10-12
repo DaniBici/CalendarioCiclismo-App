@@ -1109,7 +1109,6 @@ const _ACT_STERRATO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" h
 const _ACT_SVGS = {
   website:    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   startlist:  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>',
-  race:       '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>',
   cursor:     '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07 4 4z"/><path d="m13.17 13.17 4.66 4.66"/></svg>',
   startOrder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/></svg>',
   roadbook:   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
@@ -1192,12 +1191,11 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // - Prueba de un día (cualquier vista): "Ir a la carrera" → su jornada única.
   let raceBtn = '';
   if (!isJornada) {
-    const raceIcon = view === 'inscritos' ? _ACT_SVGS.cursor : _ACT_SVGS.race;
     const isStageView = view === 'startOrder' || view === 'perfil' || view === 'resultados' || view === 'mapa';
     if (isOneDay) {
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
       const href = jornadaUrl(rd?.id ? rd : { id: race?.id, slug: race?.slug, slugEn: race?.slugEn, dateKey: rd?.dateKey });
-      raceBtn = `<a class="asset-btn" href="${href}">${raceIcon}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
     } else if (isStageView && rd?.id) {
       // Vuelta por etapas, vista de etapa → jornada de esta etapa.
       const label = isEn ? 'Go to the stage' : 'Ir a la etapa';
@@ -1205,7 +1203,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     } else if (race?.id) {
       // Vuelta por etapas, vista de carrera (inscritos) → competición.
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
-      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${raceIcon}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
     }
   }
 

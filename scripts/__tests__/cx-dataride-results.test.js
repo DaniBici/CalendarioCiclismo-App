@@ -98,6 +98,13 @@ describe('mangas CX y normalización DataRide', () => {
     expect(rows[3]).toMatchObject({ rank: 21, irm: 'LAP', timeSeconds: null });
     expect(rows[4]).toMatchObject({ timeText: '0:45:00', timeSeconds: null });
   });
+  it('lee «+N LAP» tecleado sin Irm como vueltas perdidas y no como diferencia de tiempo', () => {
+    const rows = normalizeCxDataRideRows([sourceRow(1, 1, '0:50:08'), sourceRow(2, 2, '+23'),
+      sourceRow(3, 17, '+1 LAP'), sourceRow(4, 20, '+2 LAPS'), sourceRow(5, 22, '+ 4 laps')]);
+    expect(rows[1]).toMatchObject({ rank: 2, irm: null, gapText: '+23', timeSeconds: '3031' });
+    expect(rows.slice(2).map(row => [row.rank, row.irm, row.timeText, row.gapText, row.timeSeconds]))
+      .toEqual([[17, 'LAP', null, '-1 LAP', null], [20, 'LAP', null, '-2 LAP', null], [22, 'LAP', null, '-4 LAP', null]]);
+  });
   it('retira la posición de listado de un DNF/DNS publicado con Rank numérico (Blue Ridge 2026)', () => {
     const rows = normalizeCxDataRideRows([sourceRow(1, 1, '1:00:26'), sourceRow(2, 25, '-4', { Irm: 'LAP' }),
       sourceRow(3, 26, null, { Irm: 'DNF' }), sourceRow(4, 27, 'DNS')]);

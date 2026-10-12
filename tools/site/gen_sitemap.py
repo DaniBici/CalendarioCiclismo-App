@@ -67,17 +67,7 @@ def add_bilingual(entries, es_url, en_url, lastmod, changefreq, priority):
     entries.append(sitemap_entry(es_url, lastmod, changefreq, priority, en_url=en_url))
     entries.append(sitemap_entry(en_url, lastmod, changefreq, priority, es_url=es_url))
 
-OG_WORKER_URL = "https://og.calendariociclismo.app"
-DEFAULT_OG_IMAGE = "https://assets.calendariociclismo.app/og-default.png"
-
-def og_image_url(logo_url, title=""):
-    from urllib.parse import quote as _q
-    if not logo_url or not logo_url.startswith("http"):
-        return DEFAULT_OG_IMAGE
-    url = f"{OG_WORKER_URL}/?logo={_q(logo_url, safe='')}"
-    if title:
-        url += f"&title={_q(title, safe='')}"
-    return url
+DEFAULT_OG_IMAGE = "https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg"
 
 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 today_d = dt_date.today()
@@ -538,7 +528,7 @@ def road_feed_entries(racedays, race_map, window_start, window_end):
         uci_cat = race.get("uciCategory") or ""
         country = race.get("countryCode") or ""
         logo_url = race.get("logoUrl") or ""
-        thumb_url = og_image_url(logo_url, f"{race_name} {year}") if logo_url else DEFAULT_OG_IMAGE
+        thumb_url = logo_url if logo_url.startswith("http") else DEFAULT_OG_IMAGE
         category_terms = [t for t in [uci_cat, country] if t]
 
         cat_tags = "".join(
@@ -589,7 +579,8 @@ def cx_feed_entries(races,window_start,window_end,feed_updated):
         published = timestamp(race.get("createdAt"))
         terms = ["Ciclocross",race.get("class"),race.get("countryCode")]
         tags = ''.join(f'    <category term="{esc(term)}" label="{esc(term)}"/>\n' for term in terms if term)
-        thumbnail = og_image_url(race.get("logoUrl"),title)
+        logo = race.get("logoUrl") or ""
+        thumbnail = logo if logo.startswith("http") else DEFAULT_OG_IMAGE
         items.append(f'  <entry>\n    <title>{esc(title)}</title>\n'
                      f'    <link href="{esc(url)}" rel="alternate" type="text/html"/>\n'
                      f'    <id>{esc(url)}</id>\n    <updated>{updated}</updated>\n'

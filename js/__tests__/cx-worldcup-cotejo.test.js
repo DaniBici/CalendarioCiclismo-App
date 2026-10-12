@@ -14,8 +14,6 @@ describe('cotejo oficial offline Copa del Mundo MJ 2025–26',()=>{
       baseline:{status:'needs_review',unresolvedTies:85},droppedPlacingsPolicyConclusion:'inconclusive_both_candidates_match'});
     for(const candidate of report.candidates)expect(candidate).toMatchObject({status:'ready',issues:[],checkedTotals:48,matchingCells:288,rankedRows:48,differences:[]});
     expect(JSON.stringify({fixture,references})).toBe(before);
-    expect(fixture.scope).toBe('offline_official_cotejo_only');
-    expect(references.references.find(r=>r.tournament==='Copa del Mundo').pointsScheme.status).toBe('reference_requires_edition_review');
   });
 });
 

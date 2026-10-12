@@ -75,7 +75,16 @@ class SupabaseService : CxRemote {
     private val cxAgendaColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
-        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
+        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)"
+
+    @Serializable
+    private data class CxFeaturedRow(val cxRaceId: String)
+
+    /** Destacadas de ciclocross (corona del panel): tabla pequeña, completa. */
+    override suspend fun cxFeaturedRaceIds(): Set<String> =
+        client.from("cx_race_featured").select(columns = Columns.raw("cxRaceId"))
+            .decodeList<CxFeaturedRow>().map { it.cxRaceId }.toSet()
 
     override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> =
         client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
@@ -88,6 +97,47 @@ class SupabaseService : CxRemote {
             order("dateKey", Order.ASCENDING)
             order("id", Order.ASCENDING)
         }.decodeList()
+
+    /** Columnas del índice: las de la agenda sin documentos ni emisiones. */
+    private val cxIndexColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+        "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
+
+    override suspend fun cxSeasonIndex(season: String): List<CxRace> {
+        val months = app.calendariociclismo.android.util.CyclocrossLogic.months(season)
+        val first = months.first().atDay(1).toString()
+        val last = months.last().atEndOfMonth().toString()
+        val rows = mutableListOf<CxRace>()
+        var offset = 0L
+        while (true) {
+            val page = client.from("cx_races").select(columns = Columns.raw(cxIndexColumns)) {
+                filter {
+                    eq("seasonKey", season)
+                    eq("editorialStatus", "published")
+                    lte("dateKey", last)
+                    or { gte("dateKey", first); gte("endDateKey", first) }
+                }
+                order("dateKey", Order.ASCENDING)
+                order("id", Order.ASCENDING)
+                range(offset, offset + 999)
+            }.decodeList<CxRace>()
+            rows += page
+            if (page.size < 1000) return rows
+            offset += 1000
+        }
+    }
+
+    override suspend fun cxDay(season: String, dateKey: String): List<CxRace> =
+        client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
+            filter {
+                eq("seasonKey", season)
+                eq("editorialStatus", "published")
+                lte("dateKey", dateKey)
+                or { eq("dateKey", dateKey); gte("endDateKey", dateKey) }
+            }
+            order("dateKey", Order.ASCENDING)
+            order("id", Order.ASCENDING)
+        }.decodeList<CxRace>().filter { dateKey in app.calendariociclismo.android.util.CyclocrossLogic.dates(it) }
 
     override suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = ids.distinct().chunked(100).flatMap { batch ->
         client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {

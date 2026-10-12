@@ -10,7 +10,13 @@ final class TodayHighlightsViewModel {
     /// Sección del cintillo: "road" (Hoy y carretera) o "cx" (agenda Ciclocross).
     /// Cada scope tiene su propio contenido editorial y su propio dismiss.
     let scope: String
+    /// Cintillo único de la vista Hoy de Ciclocross mientras Hoy de carretera
+    /// está oculta (`RoadTodayAvailability`): entradas `cx` seguidas de las
+    /// `road`, cada grupo por `position`, con el dismiss de Ciclocross.
+    let includesRoad: Bool
     private var dismissKey: String { scope == "cx" ? "cc_giro_dismissed_hash_cx" : "cc_giro_dismissed_hash" }
+    /// Scopes leídos, en el orden de presentación.
+    private var scopes: [String] { scope == "cx" && includesRoad ? ["cx", "road"] : [scope] }
 
     /// Hash determinista del contenido actual. Si cambia, reaparece el cintillo
     /// aunque el usuario lo hubiera cerrado.
@@ -25,8 +31,9 @@ final class TodayHighlightsViewModel {
         return dismissedHash != contentHash
     }
 
-    init(scope: String = "road") {
+    init(scope: String = "road", includesRoad: Bool = false) {
         self.scope = scope == "cx" ? "cx" : "road"
+        self.includesRoad = includesRoad
         self.dismissedHash = UserDefaults.standard.string(forKey: scope == "cx" ? "cc_giro_dismissed_hash_cx" : "cc_giro_dismissed_hash")
     }
 
@@ -38,13 +45,16 @@ final class TodayHighlightsViewModel {
             // visibleFrom / visibleUntil son TIMESTAMPTZ — comparamos contra "ahora"
             // con precisión al segundo. Filtramos en cliente porque PostgREST con
             // ISO strings + nulls a través de .or() es frágil al escaping.
-            let all: [TodayHighlight] = try await SupabaseService.shared.client
+            let scopes = self.scopes
+            let rows: [TodayHighlight] = try await SupabaseService.shared.client
                 .from("today_highlights")
                 .select()
-                .eq("scope", value: scope)
+                .in("scope", values: scopes)
                 .order("position", ascending: true)
                 .execute()
                 .value
+            // Grupos en el orden de `scopes`; dentro de cada uno, `position`.
+            let all = Self.ordered(rows, scopes: scopes)
             print("[TodayHighlights] fetched \(all.count) total rows")
 
             let now = Date()
@@ -158,6 +168,15 @@ final class TodayHighlightsViewModel {
             print("[TodayHighlights] load() outer catch - \(error)")
             self.items = []
         }
+    }
+
+    /// Entradas agrupadas por scope en el orden de `scopes` (sin scope
+    /// equivale a `road`) y, dentro de cada grupo, por `position`.
+    static func ordered(_ rows: [TodayHighlight], scopes: [String]) -> [TodayHighlight] {
+        func group(_ row: TodayHighlight) -> Int { scopes.firstIndex(of: row.scope ?? "road") ?? scopes.count }
+        return rows.enumerated().sorted { lhs, rhs in
+            (group(lhs.element), lhs.element.position, lhs.offset) < (group(rhs.element), rhs.element.position, rhs.offset)
+        }.map(\.element)
     }
 
     /// Resultado de una petición sin propagar el error, para diagnosticar

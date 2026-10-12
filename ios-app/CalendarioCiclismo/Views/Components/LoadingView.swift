@@ -16,6 +16,20 @@ enum LoadingTiming {
         guard elapsed >= reveal else { return 0 }
         return max(0, reveal + minShow - elapsed)
     }
+
+    /// Permanencia restante de una pantalla de carga visible desde el primer
+    /// instante (`LoadingView(revealsImmediately: true)`): `minShow` completo
+    /// desde que empezó la espera, aunque la respuesta llegue antes.
+    static func remainingImmediateHold(elapsed: TimeInterval) -> TimeInterval {
+        max(0, minShow - elapsed)
+    }
+
+    /// Espera lo que falta de `remainingImmediateHold` desde `start`.
+    static func holdImmediate(since start: Date) async {
+        let hold = remainingImmediateHold(elapsed: Date().timeIntervalSince(start))
+        guard hold > 0 else { return }
+        try? await Task.sleep(for: .seconds(hold))
+    }
 }
 
 /// Vista de estado de carga. La barra superior y la de pestañas quedan
@@ -33,6 +47,10 @@ struct LoadingView: View {
     var showProfile: Bool = true
     /// Qué se está cargando. Con título, `message` se sustituye por «Cargando…».
     var title: String? = nil
+    /// `true` omite la espera de `LoadingTiming.reveal`: el rótulo y el perfil
+    /// se ven desde el primer fotograma. Para pantallas cuya carga es corta y
+    /// que, con la espera, se mostrarían en blanco.
+    var revealsImmediately: Bool = false
 
     @State private var revealed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -65,11 +83,12 @@ struct LoadingView: View {
                 }
             }
         }
-        .opacity(revealed ? 1 : 0)
+        .opacity(revealsImmediately || revealed ? 1 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title.map { "\($0). \(loadingLine)" } ?? loadingLine)
         .task {
+            guard !revealsImmediately else { return }
             try? await Task.sleep(for: .seconds(LoadingTiming.reveal))
             guard !Task.isCancelled else { return }
             if reduceMotion {

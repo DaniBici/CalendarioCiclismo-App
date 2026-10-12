@@ -698,20 +698,27 @@ internal fun ResultsPublicationStatus(
                 )
             }
         }
-        if (!official && !stage.lastSyncedAt.isNullOrBlank()) {
-            Text(
-                (if (LocaleHolder.shouldShowEnglishContent) "Last update: " else "Última actualización: ") +
-                    stage.lastSyncedAt.take(16).replace('T', ' '),
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = CCText.S13,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
+        Spacer(Modifier.weight(1f))
     }
+}
+
+/**
+ * «Última actualización» de una clasificación provisional, en línea propia
+ * bajo el estado: en la fila del filtro de equipos o en la del título no cabe
+ * completa.
+ */
+@Composable
+internal fun ResultsLastUpdate(stage: RaceUciStage) {
+    if (stage.publicationStatus == "official") return
+    val time = stage.lastSyncedAt?.let(DateFormatting::formatResultsSyncedAt) ?: return
+    Text(
+        (if (LocaleHolder.shouldShowEnglishContent) "Last update: " else "Última actualización: ") + time,
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = CCText.S13,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /**

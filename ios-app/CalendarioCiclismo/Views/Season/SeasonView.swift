@@ -23,6 +23,7 @@ struct SeasonView: View {
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     @State private var localeService = LocaleService.shared
     @State private var notifications = NotificationManager.shared
+    @State private var network = NetworkMonitor.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,7 +74,7 @@ struct SeasonView: View {
             }
 
             if viewModel.isLoading {
-                LoadingView(branded: true, title: localeService.t("Temporada", "Season"))
+                LoadingView(branded: true, title: localeService.t("Temporada", "Season"), revealsImmediately: true)
             } else if viewModel.isUncachedOffline {
                 VStack(spacing: 16) {
                     EmptyStateView(
@@ -83,7 +84,7 @@ struct SeasonView: View {
                     )
                     .fixedSize(horizontal: false, vertical: true)
                     Button {
-                        Task { await viewModel.loadSeason() }
+                        Task { await viewModel.loadSeason(force: true) }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
@@ -97,7 +98,7 @@ struct SeasonView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.error {
                 ErrorView(message: error) {
-                    Task { await viewModel.loadSeason() }
+                    Task { await viewModel.loadSeason(force: true) }
                 }
             } else if viewModel.racesByMonth.isEmpty {
                 EmptyStateView(
@@ -176,6 +177,19 @@ struct SeasonView: View {
             }
             notifications.pendingSeasonYear = nil
             await viewModel.loadSeason()
+        }
+        .onChange(of: network.isOnline) { _, isOnline in
+            // Al recuperar la conexión se retira el banner y el aviso de
+            // temporada no guardada: se vuelve a pedir sin acción del usuario.
+            guard isOnline, !viewModel.isLoading,
+                  viewModel.isFromCache || viewModel.isUncachedOffline else { return }
+            Task { await viewModel.loadSeason(force: true) }
+        }
+        .onChange(of: viewModel.displayedYear) { _, _ in
+            // Una temporada publicada desde la caché, sin pasar por la carga,
+            // sitúa el mes visible igual que una descargada.
+            guard !viewModel.isLoading, !viewModel.racesByMonth.isEmpty else { return }
+            currentMonth = bestMonth()
         }
         .onChange(of: viewModel.isLoading) { _, newValue in
             if !newValue && !viewModel.racesByMonth.isEmpty {

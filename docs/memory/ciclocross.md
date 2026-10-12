@@ -64,6 +64,32 @@ Pruebas de JS: calendario y lógica editorial en `js/__tests__/cx-*.test.js`.
 - Go Cross día 1 y 2: horarios cargados; mapas 2024 y guía 2025 rechazados por temporada; sin emisión confirmada para 2026.
 - Levoča: sin horario ni documentos; sus propozície siguen siendo de 2025; pendiente del organizador.
 
+## Emisiones belgas
+
+Reglas de carga en `cc-cx-carreras` (Emisores belgas). Reparto 2026-27 según la
+[veldritkalender de Sporza](https://sporza.be/nl/2026/09/29/wanneer-is-welke-cross-en-welke-wedstrijden-zijn-live-bij-sporza-dit-is-de-complete-veldritkalender-2026-2027~1790685673220/)
+del 29-09-2026; Play Sports confirma Superprestige y Copa del Mundo en su
+oferta 2026-27 ([Telenet](https://press.telenet.be/play-sports-presents-belgiums-most-comprehensive-sports-offering)).
+
+| Prueba (2026-27) | Directo | Sporza |
+| --- | --- | --- |
+| Superprestige Overijse, Middelkerke, Niel, Merksplas, Heusden-Zolder, Gullegem | Play Sports y Pickx+ Sports | Solo resumen |
+| Superprestige Ruddervoorde y Diegem | Sporza | Directo |
+
+Las demás pruebas belgas se consultan en la misma fuente al cargar sus
+emisiones y se añaden a esta tabla.
+
+### Emisiones automáticas
+
+Desde el 2026-10-11 el sincronizador del VPS crea y corrige las filas de HBO Max
+(`Eurosport (HBO Max)` + `TNT Sports (HBO Max)`) y de Sporza de las pruebas CX
+(fuentes `hbo_max_cx` y `sporza_cx`; reglas en el
+[runbook](../runbooks/broadcasts-vps.md#ciclocross-hbo_max_cx-sporza_cx)). Las
+filas de Play Sports y Pickx+ Sports se cargan a mano: su calendario no es
+legible de forma estable. La hora de la fila Sporza es la de emisión del
+esquema de livestreams (HG Cross: 13:30 mujeres, 14:45 hombres), anterior a la
+salida de carrera (13:45 y 15:00).
+
 ## Duración y estados de mangas
 
 Referencia: [UCI Parte V, versión 01.07.2026](https://assets.ctfassets.net/761l7gh5x5an/3X0PPNdbWNAhMGaZzKly8J/c1ffde19720611fa2fddae4e4601845b/5-CRO-20260701-E.pdf), art. 5.1.048, página 16. Revisar su vigencia antes de cada temporada. La duración es aproximada; las vueltas se anuncian al final de la segunda vuelta.

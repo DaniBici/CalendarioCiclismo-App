@@ -17,6 +17,14 @@ import kotlinx.serialization.json.Json
 
 interface CxRemote {
     suspend fun cxMonth(season: String, month: YearMonth): List<CxRace>
+    /** Índice ligero de la temporada (sin documentos ni emisiones): días con
+     *  carreras, filtros y numeración de Hoy. Respaldo por meses. */
+    suspend fun cxSeasonIndex(season: String): List<CxRace> =
+        CyclocrossLogic.months(season).flatMap { cxMonth(season, it) }.distinctBy { it.id }
+    /** Carreras con alguna categoría el [dateKey], con las columnas completas
+     *  de la agenda (documentos y emisiones). Respaldo por mes. */
+    suspend fun cxDay(season: String, dateKey: String): List<CxRace> =
+        cxMonth(season, YearMonth.from(java.time.LocalDate.parse(dateKey))).filter { dateKey in CyclocrossLogic.dates(it) }
     suspend fun cxNextDate(season: String, date: String): String?
     suspend fun cxTournamentNextDate(season: String, date: String, tournamentId: String): String? = throw java.io.IOException("Offline")
     suspend fun cxDetail(id: String): CxDetail?
@@ -31,6 +39,8 @@ interface CxRemote {
     suspend fun cxTournamentHasRaces(tournamentId: String, excluding: List<String>): Boolean = true
     suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = throw java.io.IOException("Offline")
     suspend fun cxTournamentGeneral(tournamentId: String, seasonKey: String): CxTournamentGeneral = throw java.io.IOException("Offline")
+    /** Identificadores de `cx_race_featured`. */
+    suspend fun cxFeaturedRaceIds(): Set<String> = throw java.io.IOException("Offline")
 }
 
 data class CxCached<T>(val data: T, val offline: Boolean = false, val cachedAt: Long)
@@ -55,6 +65,50 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             cachedMonth(season, month) ?: throw error
+        }
+    }
+
+    private fun inSeason(dateKey: String, season: String): Boolean =
+        dateKey.take(7) in CyclocrossLogic.months(season).map(YearMonth::toString)
+
+    /** Índice ligero de la temporada: lectura local. */
+    suspend fun cachedIndex(season: String): CxCached<List<CxRace>>? =
+        dao.month("index:$season")?.let {
+            CxCached(json.decodeFromString<List<CxRace>>(it.payload).filter(CxPresentation::listedInAgenda), true, it.cachedAt)
+        }
+
+    /** Índice ligero de la temporada; sin red conserva la última copia local. */
+    suspend fun seasonIndex(season: String): CxCached<List<CxRace>> {
+        require(CyclocrossLogic.months(season).isNotEmpty())
+        return try {
+            val races = remote.cxSeasonIndex(season)
+            val now = System.currentTimeMillis()
+            dao.saveMonth(CxMonthCacheEntity("index:$season", season, "index", json.encodeToString(races), now))
+            CxCached(races.filter(CxPresentation::listedInAgenda), false, now)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            cachedIndex(season) ?: throw error
+        }
+    }
+
+    /** Carreras de un día guardadas localmente. */
+    suspend fun cachedDay(season: String, dateKey: String): CxCached<List<CxRace>>? =
+        if (!inSeason(dateKey, season)) null else dao.month("day:$season:$dateKey")?.let {
+            CxCached(json.decodeFromString<List<CxRace>>(it.payload).filter(CxPresentation::listedInAgenda), true, it.cachedAt)
+        }
+
+    /** Carreras con alguna categoría el [dateKey], con documentos y emisiones;
+     *  sin red conserva la copia local del día. */
+    suspend fun day(season: String, dateKey: String): CxCached<List<CxRace>> {
+        require(inSeason(dateKey, season))
+        return try {
+            val races = remote.cxDay(season, dateKey)
+            val now = System.currentTimeMillis()
+            dao.saveMonth(CxMonthCacheEntity("day:$season:$dateKey", season, dateKey, json.encodeToString(races), now))
+            CxCached(races.filter(CxPresentation::listedInAgenda), false, now)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            cachedDay(season, dateKey) ?: throw error
         }
     }
 
@@ -115,6 +169,17 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
             if (error is CancellationException) throw error
             roundsCache[season] ?: emptyMap()
         }
+    }
+
+    // Destacadas en memoria: un fallo de lectura conserva el último conjunto
+    // leído o, sin él, deja el orden canónico (conjunto vacío).
+    private var featuredCache: Set<String>? = null
+
+    suspend fun featuredRaceIds(): Set<String> = try {
+        remote.cxFeaturedRaceIds().also { featuredCache = it }
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        featuredCache ?: emptySet()
     }
 
     /** Clasificaciones generales de un torneo; el fallo se propaga. */

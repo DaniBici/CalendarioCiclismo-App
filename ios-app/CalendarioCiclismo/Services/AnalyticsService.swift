@@ -104,7 +104,8 @@ final class ContributionPromptService {
     private init() {}
 
     func recordContentScreenView(_ screenName: String) {
-        guard eligibleScreens.contains(screenName),
+        let home = RoadTodayAvailability.homeScreenName()
+        guard eligibleScreens.contains(screenName) || screenName == home,
               !PremiumService.shared.isSubscribed,
               !PremiumService.shared.legacyPremiumEntitlementActive else { return }
 
@@ -119,7 +120,7 @@ final class ContributionPromptService {
 
         // Solo se presenta al volver a la portada, nunca durante una consulta
         // concreta ni inmediatamente al abrir la app.
-        guard screenName == "today", isEligibleToPresent else { return }
+        guard screenName == home, isEligibleToPresent else { return }
         shouldPresent = true
         AnalyticsService.shared.logEvent("contribution_prompt_view", parameters: [
             "prompt_number": defaults.integer(forKey: Key.promptCount) + 1,
@@ -241,7 +242,8 @@ final class ReviewPromptService {
     }
 
     func recordContentScreenView(_ screenName: String) {
-        guard eligibleScreens.contains(screenName), !shouldRequest else { return }
+        let home = RoadTodayAvailability.homeScreenName()
+        guard eligibleScreens.contains(screenName) || screenName == home, !shouldRequest else { return }
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: Key.firstContentView) == nil {
@@ -254,7 +256,7 @@ final class ReviewPromptService {
 
         shouldRequest = ReviewPromptPolicy.shouldRequest(
             now: Date(),
-            isToday: screenName == "today",
+            isToday: screenName == home,
             firstContentView: defaults.object(forKey: Key.firstContentView) as? Date,
             contentViews: defaults.integer(forKey: Key.contentViews),
             meaningfulAction: defaults.bool(forKey: Key.meaningfulAction),

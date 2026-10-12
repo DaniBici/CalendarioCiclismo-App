@@ -15,3 +15,12 @@ export function cxResultEntries(races) {
     .map(race=>({date,race,categories:cxCategories(race,date).filter(hasWinner)}))
     .filter(entry=>entry.categories.length));
 }
+
+// Recarga de la temporada en el sondeo de 60 s: una importación de resultados
+// posterior a la marca de agua o, sin importaciones, pasados CX_FULL_REFRESH_MS
+// desde la última carga completa (cancelaciones y altas no la modifican).
+export const CX_FULL_REFRESH_MS=5*60_000;
+export function cxFeedNeedsReload({watermark,newest,loadedAt,now}) {
+  if(now-loadedAt>=CX_FULL_REFRESH_MS) return true;
+  return !!newest&&(!watermark||newest>watermark);
+}

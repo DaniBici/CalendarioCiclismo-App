@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bicicleta del logotipo para los enlaces a dorsales: mismo trazo que favicon.svg,
+  la web (startlistCyclistHtml) e iOS (LogoCyclistIcon). Compose la tiñe con el
+  color del contenido.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M15,17.5 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 M2,17.5 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 M14,5 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 M12,17.5 L12,14 L9,11 L13,8 L15,11 L17,11" />
+</vector>

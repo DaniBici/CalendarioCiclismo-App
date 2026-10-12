@@ -496,7 +496,7 @@ async function _loadPushDebugDevices() {
   }
 }
 
-function _clearPushForm() {
+export function _clearPushForm() {
   ++_pushCxRaceRequest;
   const cxRaceSelect = document.getElementById('push-deepLinkCxRace');
   cxRaceSelect.innerHTML = '<option value="">Seleccionar carrera CX</option>';
@@ -561,7 +561,7 @@ function pushPlatformsLabel(platforms) {
   return platforms.map(pushPlatformLabel).join(', ');
 }
 
-function getPushAudienceTarget() {
+export function getPushAudienceTarget() {
   const type = document.getElementById('push-deepLinkType').value;
   if (type === 'cxRace' &&
       document.getElementById('push-deepLinkCxRace').disabled) throw new Error('Espera a que se carguen las carreras de ciclocross.');
@@ -570,7 +570,7 @@ function getPushAudienceTarget() {
   return resolveCxPushTarget({ category: _pushAreaCategory(), deepLink: getComposedDeepLink() });
 }
 
-async function sendPushNotification() {
+export async function sendPushNotification() {
   if (_pushSending) return;
   const errorDiv = document.getElementById('pushSendError');
   let target;

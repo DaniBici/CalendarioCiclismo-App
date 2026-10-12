@@ -170,6 +170,46 @@ describe('preflight de resultados', () => {
     expect(report.warnings.map((w) => w.code)).toEqual(['POINTLESS_ROWS']);
   });
 
+  it('admite un ganador sin tiempo solo con allowWinnerWithoutTime', () => {
+    const normalized = normalizeResultsDocument({
+      raceId: 'eval-winner-timeless',
+      stages: [{
+        stageNumber: null,
+        classifications: [{
+          eventId: -1003, classKind: 'gc', scope: 'stage', eventName: 'Stage Classification',
+          isTeamEvent: false, expectedRowCount: 1,
+          rows: [{ bib: 11, position: 1 }],
+        }],
+      }],
+    });
+
+    expect(errorCodes(validateResultsDocument(normalized))).toContain('INVALID_WINNER_TIME');
+    const report = validateResultsDocument(normalized, { allowWinnerWithoutTime: true });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.map((w) => w.code)).toEqual(['WINNER_WITHOUT_TIME']);
+  });
+
+  it('admite filas posteriores sin valor solo con el ganador sin tiempo', () => {
+    const rows = [{ bib: 11, position: 1 }, { bib: 12, position: 2 }, { bib: 13, position: 3 }];
+    const build = (rowList) => normalizeResultsDocument({
+      raceId: 'eval-order-only',
+      stages: [{
+        stageNumber: null,
+        classifications: [{
+          eventId: -1004, classKind: 'gc', scope: 'stage', eventName: 'Stage Classification',
+          isTeamEvent: false, expectedRowCount: rowList.length, rows: rowList,
+        }],
+      }],
+    });
+
+    const report = validateResultsDocument(build(rows), { allowWinnerWithoutTime: true });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.map((w) => w.code)).toEqual(['WINNER_WITHOUT_TIME', 'ORDER_WITHOUT_TIMES']);
+    expect(errorCodes(validateResultsDocument(build(rows)))).toContain('INVALID_GAP');
+    const withTime = build([{ bib: 11, position: 1, value: "3h40'00\"" }, { bib: 12, position: 2 }]);
+    expect(errorCodes(validateResultsDocument(withTime, { allowWinnerWithoutTime: true }))).toContain('INVALID_GAP');
+  });
+
   it('admite equipos sin diferencias solo con allowGaplessTeams', () => {
     const normalized = normalizeResultsDocument({
       raceId: 'eval-gapless-teams',

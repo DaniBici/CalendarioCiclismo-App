@@ -302,6 +302,7 @@ export function validateResultsDocument(document, {
   allowBibless = false,
   allowPointless = false,
   allowGaplessTeams = false,
+  allowWinnerWithoutTime = false,
 } = {}) {
   const errors = [];
   const warnings = [];
@@ -376,6 +377,9 @@ export function validateResultsDocument(document, {
       let irmStarted = false;
       let pointlessWarned = false;
       let gaplessWarned = false;
+      let winnerTimelessWarned = false;
+      let winnerTimeless = false;
+      let orderOnlyWarned = false;
       let lastRank = 0;
       let lastGap = -1;
       let lastPoints = Number.POSITIVE_INFINITY;
@@ -458,6 +462,15 @@ export function validateResultsDocument(document, {
 
         if (TIME_KINDS.has(classification.classKind)) {
           if (row.rank === 1) {
+            // Fuente que confirma al ganador sin publicar su tiempo: fila sin ningún valor, solo bajo opción explícita.
+            if (allowWinnerWithoutTime && row.timeText == null && row.resultValue == null && row.gapText == null) {
+              winnerTimeless = true;
+              if (!winnerTimelessWarned) {
+                winnerTimelessWarned = true;
+                issue(warnings, 'WINNER_WITHOUT_TIME', rowPath, 'Ganador cargado sin tiempo: la fuente no lo publica.');
+              }
+              return;
+            }
             if (!normalizeAbsoluteTime(row.timeText) || row.gapText != null || clean(row.resultValue) !== clean(row.timeText)) issue(errors, 'INVALID_WINNER_TIME', rowPath, 'El ganador debe llevar tiempo absoluto, el mismo resultValue y gap null.');
           } else if (allowGaplessTeams && classification.classKind === 'teams'
             && row.gapText == null && row.timeText == null && row.resultValue == null) {
@@ -465,6 +478,12 @@ export function validateResultsDocument(document, {
             if (!gaplessWarned) {
               gaplessWarned = true;
               issue(warnings, 'GAPLESS_TEAM_ROWS', classPath, 'Clasificación por equipos cargada solo con el orden: la fuente no publica las diferencias.');
+            }
+          } else if (winnerTimeless && row.gapText == null && row.timeText == null && row.resultValue == null) {
+            // Con el ganador sin tiempo, la fuente publica solo el orden: filas posteriores sin valor.
+            if (!orderOnlyWarned) {
+              orderOnlyWarned = true;
+              issue(warnings, 'ORDER_WITHOUT_TIMES', classPath, 'Clasificación cargada solo con el orden: la fuente no publica tiempos ni diferencias.');
             }
           } else {
             if (row.timeText != null) issue(errors, 'NON_WINNER_ABSOLUTE_TIME', `${rowPath}.timeText`, 'Solo el ganador puede llevar tiempo absoluto.');
@@ -522,14 +541,14 @@ function hasFlag(name) {
 // El contrato del fetcher permite sus IDs oficiales y la ausencia de un total
 // externo; jamás fabrica expectedRowCount a partir del array extraído.
 export function prepareResultsImport(source, { expectedRaceId, inputContract = 'manual', startlist = null,
-  emptyMeansDitto = false, allowNonMonotonicGaps = false, allowBibless = false, allowPointless = false, allowGaplessTeams = false } = {}) {
+  emptyMeansDitto = false, allowNonMonotonicGaps = false, allowBibless = false, allowPointless = false, allowGaplessTeams = false, allowWinnerWithoutTime = false } = {}) {
   if (!['manual', 'fetcher'].includes(inputContract)) throw new Error('inputContract debe ser manual o fetcher.');
   const declared = clean(source?.raceId);
   const input = inputContract === 'fetcher' && !declared ? { ...source, raceId: expectedRaceId } : source;
   const document = normalizeResultsDocument(input, { emptyMeansDitto });
   const report = validateResultsDocument(document, { expectedRaceId, inputContract,
     startlistBibs: startlist ? readStartlistBibs(startlist) : null, startlistRaceId: startlist?.raceId ?? null,
-    allowNonMonotonicGaps, allowBibless, allowPointless, allowGaplessTeams });
+    allowNonMonotonicGaps, allowBibless, allowPointless, allowGaplessTeams, allowWinnerWithoutTime });
   return { document, report };
 }
 
@@ -537,7 +556,7 @@ function main() {
   const input = arg('in');
   const expectedRaceId = arg('race-id');
   if (!input || !expectedRaceId) {
-    process.stderr.write('Uso: node results-preflight.mjs --in <json> --race-id <id> [--startlist <json>] [--empty-means-ditto] [--allow-nonmonotonic-gaps] [--allow-bibless] [--allow-pointless] [--allow-gapless-teams] [--normalized-out <json>]\n');
+    process.stderr.write('Uso: node results-preflight.mjs --in <json> --race-id <id> [--startlist <json>] [--empty-means-ditto] [--allow-nonmonotonic-gaps] [--allow-bibless] [--allow-pointless] [--allow-gapless-teams] [--allow-winner-without-time] [--normalized-out <json>]\n');
     process.exitCode = 2;
     return;
   }
@@ -549,6 +568,7 @@ function main() {
     emptyMeansDitto: hasFlag('empty-means-ditto'),
     allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'), allowBibless: hasFlag('allow-bibless'),
     allowPointless: hasFlag('allow-pointless'), allowGaplessTeams: hasFlag('allow-gapless-teams'),
+    allowWinnerWithoutTime: hasFlag('allow-winner-without-time'),
   });
   const normalizedOut = arg('normalized-out');
   if (normalizedOut && report.ok) writeFileSync(resolve(normalizedOut), `${JSON.stringify(normalized, null, 2)}\n`);

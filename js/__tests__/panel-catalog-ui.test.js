@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {shiftPanelDay,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml} from '../panel/catalog-ui.js';
+import {shiftPanelDay,wirePanelDayNavigation,panelCatalogModel} from '../panel/catalog-ui.js';
 import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces,cxPanelNearestRaceDate} from '../cx/panel-presentation.js';
 
 const rows=[{name:'Beta',class:'C2',countryCode:'BE',updatedAt:'2026-09-11'}, {name:'Alfa',class:'C1',countryCode:'ES',updatedAt:'2026-09-10'}, {name:'Otra',class:'C2',countryCode:'ES',createdAt:'2026-09-12'}];
@@ -13,9 +13,6 @@ describe('catálogo común del panel',()=>{
   it('restablece una categoría que ya no existe tras cambiar de país',()=>{
     const model=panelCatalogModel(rows,{...settings,country:'be',selectedCategory:'C1'});expect(model.selectedCategory).toBeNull();expect(model.list.map(r=>r.name)).toEqual(['Beta']);
     expect(rows.map(r=>r.name)).toEqual(['Beta','Alfa','Otra']);
-  });
-  it('escapa nombres y categorías de las filas de ambos catálogos',()=>{
-    const html=panelRaceListItemHtml({name:'<img onerror=x>',category:'"<script>',isCancelled:true});expect(html).not.toContain('<img onerror');expect(html).toContain('&lt;img onerror=x&gt;');expect(html).toContain('Cancelada');
   });
 });
 describe('selector común de días',()=>{

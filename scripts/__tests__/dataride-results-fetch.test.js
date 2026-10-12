@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizePointsRows, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
+import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, markIncompleteArrivals, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizePointsRows, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
   from '../results-fetchers/dataride-results-fetch.mjs';
 import { normalizeUciLicense } from '../results-fetchers/uci-license.mjs';
 
@@ -268,5 +268,41 @@ describe('puntos y montaña con decimal', () => {
     expect(normalizePointsRows([row(1, '2.50')], 'kom')[0].resultValue).toBe('2.5');
     const gc = [row(1, '3:00:02')];
     expect(normalizePointsRows(gc, 'gc')).toBe(gc);
+  });
+});
+
+describe('llegada incompleta en origen', () => {
+  const placed = n => Array.from({ length: n }, (_, i) => ({ rank: i + 1, bib: String(i + 1), irm: null }));
+  const blank = n => Array.from({ length: n }, (_, i) => ({ rank: null, bib: String(500 + i), irm: null }));
+  const arrival = (rows, extra = {}) => ({ classKind: 'gc', scope: 'stage', isTeamEvent: false, rowCount: rows.length, rows, ...extra });
+
+  it('marca incompleta la llegada con más filas vacías que clasificadas y retira las vacías', () => {
+    const [out] = markIncompleteArrivals([arrival([...placed(17), ...blank(144)])], 'IRR');
+    expect(out.rowCount).toBe(17);
+    expect(out.rows).toHaveLength(17);
+    expect(out.publication).toEqual({ provider: 'uci', format: 'uci', sourceStatus: 'incomplete' });
+  });
+
+  it('cuenta los abandonos como filas con estado', () => {
+    const rows = [...placed(10), ...Array.from({ length: 10 }, () => ({ rank: null, irm: 'DNF' })), ...blank(25)];
+    const [out] = markIncompleteArrivals([arrival(rows, { classKind: 'stage' })], 'IRR');
+    expect(out.rows).toHaveLength(20);
+    expect(out.publication.sourceStatus).toBe('incomplete');
+  });
+
+  it('conserva el cuadro terminado con unas pocas filas sin clasificar', () => {
+    const input = [arrival([...placed(94), ...blank(3)])];
+    expect(markIncompleteArrivals(input, 'IRR')).toEqual(input);
+  });
+
+  it.each(['TTT', 'TTM', '', null])('no toca el tipo de prueba %s', raceType => {
+    const input = [arrival([...placed(5), ...blank(30)])];
+    expect(markIncompleteArrivals(input, raceType)).toEqual(input);
+  });
+
+  it('no toca clasificaciones de puntos, montaña ni equipos', () => {
+    const input = [arrival([...placed(5), ...blank(30)], { classKind: 'kom' }),
+      arrival([...placed(5), ...blank(30)], { isTeamEvent: true })];
+    expect(markIncompleteArrivals(input, 'IRR')).toEqual(input);
   });
 });

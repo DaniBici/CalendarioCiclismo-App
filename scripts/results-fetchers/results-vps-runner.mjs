@@ -12,6 +12,7 @@ import { databaseUrl } from '../db/env.mjs';
 const CRON = fileURLToPath(new URL('./results-cron.mjs', import.meta.url));
 const LIVE_LINKER = fileURLToPath(new URL('./dataride-live-linker.mjs', import.meta.url));
 const CX_LIVE_LINKER = fileURLToPath(new URL('./cx-live-linker.mjs', import.meta.url));
+const CX_ACN_LINKER = fileURLToPath(new URL('./cx-acn-linker.mjs', import.meta.url));
 const BORNAN_STARTLISTS_SYNC = fileURLToPath(new URL('./bornan-startlists-sync.mjs', import.meta.url));
 
 // El timer despierta cada minuto porque las fuentes live lo necesitan. El
@@ -92,6 +93,8 @@ async function main() {
     if(!options.dryRun&&shouldPollLiveLinks()){
       const code=await runLiveLinker(CX_LIVE_LINKER,[]);
       if(code!==0)console.error(`El enlazador live CX terminó con código ${code}`);
+      const acnCode=await runLiveLinker(CX_ACN_LINKER,[]);
+      if(acnCode!==0)console.error(`El enlazador ACN CX terminó con código ${acnCode}`);
     }
     const {runCxResultsRuntime}=await import('./cx-results-cron.mjs');
     await runCxResultsRuntime({dryRun:options.dryRun});return;

@@ -33,13 +33,14 @@ struct TodayHighlightsBanner: View {
 
     init(
         scope: String = "road",
+        includesRoad: Bool = false,
         onTapChampionships: (() -> Void)? = nil,
         onOpenTarget: ((TodayHighlightTarget) -> Void)? = nil
     ) {
         self.scope = scope
         self.onTapChampionships = onTapChampionships
         self.onOpenTarget = onOpenTarget
-        _viewModel = State(initialValue: TodayHighlightsViewModel(scope: scope))
+        _viewModel = State(initialValue: TodayHighlightsViewModel(scope: scope, includesRoad: includesRoad))
     }
 
     @State private var viewModel: TodayHighlightsViewModel

@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
@@ -56,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -398,7 +399,7 @@ private fun RaceDocumentationChips(
         }
         if (hasStartlist) {
             AssetChip(
-                icon = Icons.Outlined.People,
+                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
                 label = when {
                     race.startlistProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
                     race.isFemale -> stringResource(R.string.race_startlist_female)

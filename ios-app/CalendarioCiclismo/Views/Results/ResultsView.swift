@@ -428,6 +428,9 @@ struct ResultsView: View {
                             .padding(.top, 2)
                             .padding(.bottom, 4)
                     }
+                    ResultsLastUpdate(stage: stage)
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
                     if stage.isPendingClassification {
                         EmptyStateView(
                             icon: "hourglass",
@@ -550,7 +553,7 @@ struct ResultsView: View {
                 let provisional = data.race.startlistProvisional == true
                 NavigationLink(destination: StartlistView(raceId: data.race.id)) {
                     ActionStripTile(
-                        icon: "person.2",
+                        icon: LogoCyclistIcon.name,
                         label: provisional
                             ? LocaleService.t("Lista provisional", "Provisional Startlist")
                             : LocaleService.t("Dorsales", "Startlist")

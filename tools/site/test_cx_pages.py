@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def offline_helpers(filename):
     tree = ast.parse((ROOT / filename).read_text())
-    constants = {'BASE_URL','BASE_URL_EN','DEFAULT_OG_IMAGE','OG_WORKER_URL',
+    constants = {'BASE_URL','BASE_URL_EN','DEFAULT_OG_IMAGE','DEFAULT_OG_IMAGE_ALT',
                  'SITE_HEADER_HTML','SITE_HEADER_HTML_EN','SITE_FOOTER_HTML',
                  'SITE_FOOTER_HTML_EN','PRERENDER_STYLE','PRERENDER_LOADING_HTML',
                  'JORNADA_SCRIPT','APP_STYLESHEET','MESES','DIAS_SEMANA','PAIS_ES',

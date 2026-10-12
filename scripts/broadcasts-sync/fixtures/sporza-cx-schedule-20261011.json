@@ -1,0 +1,69 @@
+{
+ "componentType": "calendar",
+ "componentProps": {
+  "date": "2026-10-11",
+  "data": [
+   {
+    "label": "Wielrennen",
+    "items": [
+     {
+      "componentType": "match",
+      "componentProps": {
+       "matchId": 3305641,
+       "sport": "cycling",
+       "status": "NOT_STARTED",
+       "label": "15:00",
+       "ariaLabel": "HG Cross , Veldrijden, Vlak, van Dendermonde naar Dendermonde, vandaag\nom 15:00",
+       "url": "https://sporza.be/nl/sport/wielrennen/~3305641/",
+       "sportApiUrl": "https://api.sporza.be/web/content/cycling/matches/3305641",
+       "competitionName": "Dendermonde",
+       "competition": "HG Cross",
+       "type": "Veldrijden",
+       "typeIcon": "cycling-cyclocross"
+      }
+     },
+     {
+      "componentType": "match",
+      "componentProps": {
+       "matchId": 3305648,
+       "sport": "cycling",
+       "status": "NOT_STARTED",
+       "label": "13:45",
+       "ariaLabel": "HG Cross vrouwen , Veldrijden, Vlak, van Dendermonde naar Dendermonde, vandaag\nom 13:45",
+       "url": "https://sporza.be/nl/sport/wielrennen/~3305648/",
+       "sportApiUrl": "https://api.sporza.be/web/content/cycling/matches/3305648",
+       "competitionName": "Dendermonde (vrouwen)",
+       "competition": "HG Cross vrouwen",
+       "type": "Veldrijden",
+       "typeIcon": "cycling-cyclocross"
+      }
+     },
+     {
+      "componentType": "match",
+      "componentProps": {
+       "matchId": 3305700,
+       "sport": "cycling",
+       "competitionName": "Parijs-Tours",
+       "competition": "Parijs-Tours",
+       "type": "Wegwedstrijd",
+       "url": "https://sporza.be/nl/sport/wielrennen/~3305700/"
+      }
+     }
+    ]
+   },
+   {
+    "label": "Tennis",
+    "items": [
+     {
+      "componentProps": {
+       "matchId": 3351769,
+       "sport": "tennis",
+       "competitionName": "China Open",
+       "url": "https://sporza.be/nl/sport/tennis/~3351769/"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

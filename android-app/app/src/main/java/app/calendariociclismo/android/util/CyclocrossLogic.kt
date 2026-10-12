@@ -134,8 +134,14 @@ object CyclocrossLogic {
         return (0 until count).map { start.plusDays(it) }
     }
 
-    fun racesOn(races: List<CxRace>, date: String): List<CxRace> = races.filter { date in dates(it) }
-        .sortedWith(compareBy<CxRace> { classes.indexOf(it.raceClass).takeIf { index -> index >= 0 } ?: classes.size }
+    /**
+     * Pruebas de [date] en el orden de la agenda: las destacadas ([featured],
+     * `cx_race_featured`) encabezan el día; entre ellas y en el resto rige el
+     * orden canónico (clase, hora de la categoría de mayor rango y nombre).
+     */
+    fun racesOn(races: List<CxRace>, date: String, featured: Set<String> = emptySet()): List<CxRace> = races.filter { date in dates(it) }
+        .sortedWith(compareBy<CxRace> { if (it.id in featured) 0 else 1 }
+            .thenBy { classes.indexOf(it.raceClass).takeIf { index -> index >= 0 } ?: classes.size }
             .thenBy { race -> agendaTime(race, date) }
             .thenBy { it.name.lowercase(Locale.ROOT) })
 

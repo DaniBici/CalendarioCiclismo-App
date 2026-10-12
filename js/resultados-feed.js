@@ -31,7 +31,7 @@ import { getLang, t } from './i18n.js';
 import { cyclocrossHome } from './services/today-season.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
 import { cxSeason, cxRaceName, cxRacePageUrl, cxRoundBadge } from './cx/presentation.js';
-import { cxResultEntries } from './cx/results-feed.js';
+import { cxResultEntries, cxFeedNeedsReload, CX_FULL_REFRESH_MS } from './cx/results-feed.js';
 import { isNonWinnerIrm } from './results/uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
 import { resultFeedEntryKey, sectorSuffixMap } from './services/races.js';
@@ -437,6 +437,15 @@ async function latestResultChange(watermark) {
   return data?.[0]?.updatedAt || null;
 }
 
+// Última importación de resultados de ciclocross (cx_race_categories). La
+// escribe cx_replace_results en cada categoría, también en las correcciones.
+async function latestCxImport() {
+  const { data, error } = await supabase.from('cx_race_categories').select('resultsImportedAt')
+    .not('resultsImportedAt', 'is', null).order('resultsImportedAt', { ascending: false }).limit(1);
+  if (error) throw error;
+  return data?.[0]?.resultsImportedAt || null;
+}
+
 // ── Render de una fila ─────────────────────────────────────────────
 function entryRowHtml(e, isEn, locale) {
   const gcFinalLabel = isEn ? 'Final GC' : 'General final';
@@ -647,9 +656,12 @@ export function renderResultsFeed(content) {
         if (activeView === 'ranking') {
           renderRankingOrLoad();
         } else if (activeView === 'cx') {
-          if (cxEntries) renderCx(cxEntries); else loadCx();
+          // Se pinta lo cargado y se sondea enseguida, como al volver a la
+          // pestaña: no se espera al siguiente ciclo de 60 s.
+          if (cxEntries) { renderCx(cxEntries); refreshCx(); } else loadCx();
         } else if (feedEntries) {
           renderFeed(feedEntries);
+          refreshFeed();
         } else {
           loadFeed();
         }
@@ -956,6 +968,9 @@ export function renderResultsFeed(content) {
   const CX_WINDOW_DAYS = 14;
   const addDays = (key, days) => { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
   let cxRounds = null, cxEntries = null, cxFromKey = addDays(todayKey, -(CX_WINDOW_DAYS - 1)), cxRequest = 0, cxLoading = false;
+  // Sondeo: marca de agua = última importación de resultados leída antes de
+  // descargar la temporada (como `feedWatermark` en carretera).
+  let cxWatermark = null, cxLoadedAt = 0, cxProbing = false;
 
   function renderCx(entries) {
     const visible = entries.filter(e => e.date >= cxFromKey);
@@ -999,9 +1014,14 @@ export function renderResultsFeed(content) {
     }
     try {
       const season = cxSeason();
+      // Antes que las filas: una importación posterior queda por encima de la
+      // marca de agua y la recoge el siguiente sondeo.
+      const imported = await latestCxImport().catch(() => null);
       const [allRows, rounds] = await Promise.all([cxSeasonRows(supabase, season), cxSeasonRounds(supabase, season).catch(() => null)]);
       const rows = allRows.filter(race => cxListedInAgenda(race, _isEn ? 'en' : 'es'));
       if (request !== cxRequest) return;
+      cxWatermark = imported;
+      cxLoadedAt = Date.now();
       cxRounds = rounds;
       const next = cxResultEntries(rows);
       const changed = !cxEntries || JSON.stringify(next) !== JSON.stringify(cxEntries);
@@ -1018,8 +1038,22 @@ export function renderResultsFeed(content) {
       note.querySelector('button').onclick = () => loadCx({ refresh: true });
     } finally { if (request === cxRequest) cxLoading = false; }
   }
+  // Sondeo ligero, como en carretera: la temporada solo se recarga si hubo una
+  // importación de resultados posterior a la última lectura o, como red de
+  // seguridad ante cambios sin importación (cancelaciones, altas), pasados
+  // CX_FULL_REFRESH_MS.
+  async function refreshCx() {
+    if (document.hidden || activeView !== 'cx' || cxLoading || cxProbing || !content.isConnected) return;
+    cxProbing = true;
+    try {
+      const now = Date.now();
+      const stale = !cxEntries || now - cxLoadedAt >= CX_FULL_REFRESH_MS;
+      const newest = stale ? null : await latestCxImport();
+      if (cxFeedNeedsReload({ watermark: cxWatermark, newest, loadedAt: cxLoadedAt, now: Date.now() }) && !cxLoading) loadCx({ refresh: true });
+    } catch { /* Sin red: se conserva el feed visible hasta la siguiente lectura. */ }
+    finally { cxProbing = false; }
+  }
   if (views.includes('cx')) {
-    const refreshCx = () => { if (!document.hidden && activeView === 'cx' && !cxLoading && content.isConnected) loadCx({ refresh: true }); };
     const cxTimer = setInterval(refreshCx, 60000);
     document.addEventListener('visibilitychange', refreshCx);
     window.addEventListener('pagehide', () => { clearInterval(cxTimer); document.removeEventListener('visibilitychange', refreshCx); }, { once: true });

@@ -33,7 +33,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
@@ -76,6 +75,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -1331,7 +1331,7 @@ private fun StageHeaderCard(
                             else -> stringResource(R.string.stage_doc_startlist_male)
                         }
                         AssetChip(
-                            icon = Icons.Filled.Group,
+                            icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
                             label = label,
                             onClick = { navController.navigate(Routes.startlist(race.id)) },
                         )
@@ -2061,6 +2061,16 @@ private fun BroadcastSection(
     else
         selectedBroadcasts
     val showNoRegion = visibleBroadcasts.isEmpty() && hasHiddenBroadcasts && !showAllBroadcasts
+    // Solo Live texto: sin emisiones ni estado de TV pendiente o confirmado, el
+    // panel indica que no hay televisión en lugar de quedarse vacío.
+    val noTelevisionText = when {
+        liveTextUrl == null || hasReviveBroadcast ||
+            visibleBroadcasts.isNotEmpty() || hasHiddenBroadcasts -> null
+        raceDay.tvStatus == null || raceDay.tvStatus == "none" ->
+            stringResource(R.string.stage_broadcast_none)
+        raceDay.tvStatus == "unavailable_es" -> stringResource(R.string.tv_badge_no_tv_spain)
+        else -> null
+    }
 
     val title = if (hasReviveBroadcast) {
         if (race?.isOneDay == true) stringResource(R.string.stage_section_broadcast_revive_one_day)
@@ -2071,7 +2081,7 @@ private fun BroadcastSection(
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val wide = maxWidth >= BroadcastTwoColumnMinWidth
-        val rowCount = visibleBroadcasts.size + if (showNoRegion) 1 else 0
+        val rowCount = visibleBroadcasts.size + if (showNoRegion || noTelevisionText != null) 1 else 0
         val single = rowCount <= 1
         val panelWidth = when {
             !wide || !single -> maxWidth
@@ -2118,6 +2128,18 @@ private fun BroadcastSection(
                     },
                 )
             }
+            if (noTelevisionText != null) {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = {
+                        Text(
+                            text = noTelevisionText,
+                            style = CCText.S14,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                )
+            }
             visibleBroadcasts.chunked(columns).forEachIndexed { index, pair ->
                 if (index > 0 || showNoRegion) PanelDivider()
                 val rowContent: @Composable (Broadcast, Modifier) -> Unit = { b, m ->
@@ -2149,9 +2171,10 @@ private fun BroadcastSection(
 private val BroadcastTwoColumnMinWidth = 600.dp
 
 /**
- * Fila de emisión: emisora (14 normal, hasta dos líneas) con el icono de
- * información de la nota y, con «Todas», su región como etiqueta neutra; a la
- * derecha, en una línea, la hora (gris, cifras tabulares) y «Ver ↗».
+ * Fila de emisión de 48 dp, como en iOS y la web: emisora (14 normal, hasta
+ * dos líneas) con el icono de información de la nota y, con «Todas», su región
+ * como etiqueta neutra; a la derecha, en una línea, la hora (gris, cifras
+ * tabulares) y «Ver ↗». Sin relleno vertical: la acción de 48 dp fija el alto.
  * Compartida con Ciclocross.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2169,64 +2192,67 @@ internal fun BroadcastRow(
     val note = b.note?.takeIf {
         it.isNotEmpty() && RaceLogic.shouldShowBroadcastNote(hasResults, isRevive, b.showInRevive)
     }
-    ListItem(
-        modifier = modifier,
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .semantics(mergeDescendants = true) {}
+            .padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = b.channel ?: channelFallback,
+                style = CCText.S14,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            note?.let { BroadcastNoteButton(it) }
+            if (showsRegion) {
+                broadcastRegionLabel(b.country)?.let { region ->
+                    Text(
+                        text = region,
+                        style = CCText.S12,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .background(neutralFill, RoundedCornerShape(CCRadius.Control))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        if (url != null || (!isRevive && b.startTimeLocal != null)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    text = b.channel ?: channelFallback,
-                    style = CCText.S14,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                note?.let { BroadcastNoteButton(it) }
-                if (showsRegion) {
-                    broadcastRegionLabel(b.country)?.let { region ->
+                if (!isRevive) {
+                    b.startTimeLocal?.let { time ->
                         Text(
-                            text = region,
-                            style = CCText.S12,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            text = time,
+                            style = CCText.S14.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            modifier = Modifier
-                                .background(neutralFill, RoundedCornerShape(CCRadius.Control))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
                 }
-            }
-        },
-        trailingContent = if (url != null || (!isRevive && b.startTimeLocal != null)) {
-            {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (!isRevive) {
-                        b.startTimeLocal?.let { time ->
-                            Text(
-                                text = time,
-                                style = CCText.S14.copy(fontFeatureSettings = "tnum"),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                    if (url != null) {
-                        PanelTextAction(
-                            label = "${LocaleHolder.t("Ver", "Watch")} ↗︎",
-                            onClick = { onExternalLinkTap(url) },
-                        )
-                    }
+                if (url != null) {
+                    PanelTextAction(
+                        label = "${LocaleHolder.t("Ver", "Watch")} ↗︎",
+                        onClick = { onExternalLinkTap(url) },
+                    )
                 }
             }
-        } else null,
-    )
+        }
+    }
 }
 
 /** Nota de la emisión tras un icono de información: se muestra al pulsarlo. */
@@ -2258,6 +2284,7 @@ private fun BroadcastNoteButton(note: String) {
 // AssetChip vive ahora en `ui/components/AssetChip.kt` para reusar el estilo
 // en RaceScreen (web oficial, inscritos) con paridad total con StageScreen.
 
+@Composable
 private fun assetIcon(type: String?): ImageVector = when (type) {
     "technicalGuide" -> Icons.AutoMirrored.Outlined.InsertDriveFile
     "startOrder" -> Icons.Filled.Timer
@@ -2267,7 +2294,7 @@ private fun assetIcon(type: String?): ImageVector = when (type) {
     "ports" -> Icons.Filled.Terrain
     "live_text" -> Icons.Outlined.ChatBubbleOutline
     "pave" -> Icons.Filled.Terrain
-    "startlist" -> Icons.Filled.Group
+    "startlist" -> ImageVector.vectorResource(R.drawable.ic_logo_cyclist)
     else -> Icons.AutoMirrored.Outlined.InsertDriveFile
 }
 

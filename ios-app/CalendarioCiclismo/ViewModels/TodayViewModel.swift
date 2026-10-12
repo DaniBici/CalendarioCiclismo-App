@@ -29,6 +29,39 @@ enum TodaySeason {
     }
 }
 
+/// Pestaña Hoy de carretera: retirada hasta `returnDate` y visible desde ese
+/// día civil local. Mientras está retirada, Ciclocross ocupa la primera
+/// posición y es la pestaña inicial. Espejo de `RoadTodayAvailability` en
+/// Android.
+enum RoadTodayAvailability {
+    static let returnDate = "2027-01-01"
+
+    /// Valores (`Tab.value`) de cada sección; identidad estable con
+    /// independencia de la posición, coincidente con `DeepLink.tab`.
+    static let todayTab = 0, resultsTab = 1, transfersTab = 2, cyclocrossTab = 3, calendarTab = 4
+
+    static func isVisible(today: String = DateFormatting.todayKey()) -> Bool {
+        today >= returnDate
+    }
+
+    /// Pestañas en el orden de la barra.
+    static func tabs(todayVisible: Bool) -> [Int] {
+        todayVisible
+            ? [todayTab, resultsTab, transfersTab, cyclocrossTab, calendarTab]
+            : [cyclocrossTab, resultsTab, transfersTab, calendarTab]
+    }
+
+    static func initialTab(todayVisible: Bool) -> Int {
+        todayVisible ? todayTab : cyclocrossTab
+    }
+
+    /// Pantalla de portada para las invitaciones a contribuir y a valorar la
+    /// app: Hoy o, mientras está retirada, la agenda de Ciclocross.
+    static func homeScreenName(today: String = DateFormatting.todayKey()) -> String {
+        isVisible(today: today) ? "today" : "cyclocross"
+    }
+}
+
 /// ViewModel para la vista de agenda del día — equivalente a `js/app.js`.
 @MainActor
 @Observable

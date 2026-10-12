@@ -9,7 +9,8 @@ final class MonthViewModel {
     var month: Int = DateFormatting.calendarStart().month // 1-12
     var allRaceDays: [RaceDay] = []
     var races: [Race] = []
-    var isLoading = false
+    /// Arranca en `true`: la primera imagen es la pantalla de carga, no un mes vacío.
+    var isLoading = true
     var error: String?
     var activeFilter: Constants.CategoryFilter = .all
     /// Indica que los datos mostrados provienen de la caché offline.
@@ -19,6 +20,9 @@ final class MonthViewModel {
     /// Indica que el mes no está cacheado y no hay conexión para descargarlo.
     var isUncachedOffline = false
     private var loadedMonthKey: String?
+    /// `true` tras la primera carga de esta pantalla: los cambios de mes posteriores
+    /// muestran la caché de inmediato en lugar de la pantalla de carga.
+    private var hasCompletedInitialLoad = false
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: "defaultFilter"),
@@ -129,16 +133,19 @@ final class MonthViewModel {
     // MARK: - Data loading
 
     /// Carga las jornadas y carreras que se solapan con el mes seleccionado.
+    ///
+    /// Primera carga de la pantalla (o `force`) con red: pantalla de carga
+    /// hasta la respuesta remota, aunque haya caché. Cambios de mes posteriores
+    /// con red: caché inmediata sin rótulo mientras la red refresca. Sin red:
+    /// caché con banner. El banner también aparece cuando la petición falla y
+    /// hay contenido, y nunca mientras la red está en vuelo.
     func loadMonth(force: Bool = false) async {
         let requestedKey = String(format: "%04d-%02d", year, month)
         guard force || loadedMonthKey != requestedKey else { return }
-        isLoading = true
+        let startedAt = Date()
+        let isInitialLoad = force || !hasCompletedInitialLoad
         error = nil
         isUncachedOffline = false
-        allRaceDays = []
-        races = []
-        isFromCache = false
-        cacheAgeLabel = nil
 
         let cache = CacheManager.shared
         let cacheKey = CacheManager.monthKey(year: year, month: month)
@@ -148,20 +155,36 @@ final class MonthViewModel {
         let startKey = "\(requestedKey)-01"
         let endKey = String(format: "%@-%02d", requestedKey, daysInMonth)
 
-        if let cached: PerMonthCache = await cache.load(PerMonthCache.self, forKey: cacheKey) {
-            guard isCurrentRequest(requestedKey) else { return }
-            allRaceDays = displayDays(
-                publishedDays: cached.raceDays,
-                races: cached.races,
-                startKey: startKey,
-                endKey: endKey
-            )
-            races = cached.races
-            loadedMonthKey = requestedKey
+        // La caché se lee antes de tocar el estado: un cambio de mes con caché
+        // no pasa por la pantalla de carga ni por un mes vacío.
+        let cached: PerMonthCache? = await cache.load(PerMonthCache.self, forKey: cacheKey)
+        guard isCurrentRequest(requestedKey) else { return }
+        let presentation = CachePresentation.resolve(
+            isOnline: NetworkMonitor.shared.isOnline,
+            isInitialLoad: isInitialLoad
+        )
+        switch (cached, presentation) {
+        case let (cached?, .silent):
+            show(cached, startKey: startKey, endKey: endKey)
+            isFromCache = false
+            cacheAgeLabel = nil
+            isLoading = false
+        case let (cached?, .offline):
+            // `loadedMonthKey` queda sin fijar: al recuperar la conexión o
+            // reabrir la pantalla el mes se vuelve a pedir.
+            show(cached, startKey: startKey, endKey: endKey)
             isFromCache = true
             cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
+            guard isCurrentRequest(requestedKey) else { return }
             isLoading = false
+        default:
+            allRaceDays = []
+            races = []
+            isFromCache = false
+            cacheAgeLabel = nil
+            isLoading = true
         }
+        let showsLoader = isLoading
 
         do {
             let (publishedDays, loadedRaces) = try await SupabaseService.shared.calendarMonthData(
@@ -169,6 +192,12 @@ final class MonthViewModel {
                 to: endKey
             )
             guard isCurrentRequest(requestedKey) else { return }
+            if showsLoader {
+                // Una respuesta inmediata no deja la pantalla de carga en un
+                // parpadeo: se mantiene su permanencia mínima.
+                await LoadingTiming.holdImmediate(since: startedAt)
+                guard isCurrentRequest(requestedKey) else { return }
+            }
             races = loadedRaces
             allRaceDays = displayDays(
                 publishedDays: publishedDays,
@@ -184,11 +213,38 @@ final class MonthViewModel {
             // placeholders se regeneran con las carreras vigentes.
             await cache.save(PerMonthCache(raceDays: publishedDays, races: races), forKey: cacheKey)
         } catch {
-            if allRaceDays.isEmpty, isCurrentRequest(requestedKey) {
+            guard isCurrentRequest(requestedKey) else { return }
+            if Task.isCancelled || error is CancellationError {
+                // El usuario salió de la pantalla con la red en vuelo: no hay
+                // constancia de falta de conexión. Sin `loadedMonthKey` el mes
+                // se vuelve a pedir al regresar.
+                loadedMonthKey = nil
+                isLoading = false
+                return
+            }
+            if let cached, allRaceDays.isEmpty {
+                show(cached, startKey: startKey, endKey: endKey)
+            }
+            if allRaceDays.isEmpty {
                 isUncachedOffline = true
+            } else {
+                isFromCache = true
+                cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
+                loadedMonthKey = nil
             }
         }
+        hasCompletedInitialLoad = true
         if isCurrentRequest(requestedKey) { isLoading = false }
+    }
+
+    private func show(_ cached: PerMonthCache, startKey: String, endKey: String) {
+        allRaceDays = displayDays(
+            publishedDays: cached.raceDays,
+            races: cached.races,
+            startKey: startKey,
+            endKey: endKey
+        )
+        races = cached.races
     }
 
     private func isCurrentRequest(_ requestedKey: String) -> Bool {

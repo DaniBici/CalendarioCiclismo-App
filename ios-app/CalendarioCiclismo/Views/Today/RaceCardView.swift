@@ -54,8 +54,7 @@ struct RaceCardView: View {
         !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
     }
 
-    /// Teléfono: etiquetas de dorsales y orden de salida solo con icono y
-    /// miniperfil de 36 pt. Pantallas anchas (iPad): con texto y 58 pt.
+    /// Teléfono: miniperfil de 36 pt. Pantallas anchas (iPad): 58 pt.
     private var isPhone: Bool { horizontalSizeClass != .regular }
 
     /// URL de live texto (asset tipo live_text).
@@ -212,7 +211,7 @@ struct RaceCardView: View {
                 Haptics.play(.primaryAction)
                 onShowStartlist()
             } label: {
-                RaceActionLabel(label: startlistLabel, icon: "figure.outdoor.cycle", iconOnly: isPhone)
+                RaceActionLabel(label: startlistLabel, icon: LogoCyclistIcon.name)
             }
             .buttonStyle(.plain)
         }
@@ -226,7 +225,7 @@ struct RaceCardView: View {
                 Haptics.play(.primaryAction)
                 onStartOrderTap?()
             } label: {
-                RaceActionLabel(label: LocaleService.t("Orden de salida", "Start order"), icon: "timer", iconOnly: isPhone)
+                RaceActionLabel(label: LocaleService.t("Orden de salida", "Start order"), icon: "timer")
             }
             .buttonStyle(.plain)
         }

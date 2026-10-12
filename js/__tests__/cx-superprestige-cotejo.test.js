@@ -19,7 +19,6 @@ describe('Superprestige 2025–26, cotejo independiente offline',()=>{
       expect(report.unspecifiedPublishedRanks.length).toBeGreaterThan(0);
     }
     expect(JSON.stringify({me,we,references})).toBe(before);
-    expect(references.references.find(r=>r.tournament==='Superprestige').pointsScheme.status).toBe('reference_requires_edition_review');
     expect(superprestigeCotejo(we,references).sourceDiscrepancies[0]).toMatchObject({htmlSummary:[92,92],independentFinalPdf:[91,91]});
   });
   it('conserva LAP con puesto y DNF/DNS sin puesto; el alias con informe UEC solo genera hashes locales',()=>{

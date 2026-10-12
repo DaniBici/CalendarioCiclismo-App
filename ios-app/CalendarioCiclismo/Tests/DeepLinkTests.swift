@@ -78,4 +78,15 @@ final class DeepLinkTests: XCTestCase {
             "https://calendariociclismo.app/ciclocross/torneos/canmore/extra/", "https://calendariociclismo.app/en/cyclocross/canmore/inscritos/"
         ] { XCTAssertNil(NotificationManager.DeepLink.fromURL(URL(string: value)!), value) }
     }
+
+    func testRoadTodayReturnsOnFirstOfJanuaryAndCyclocrossLeadsUntilThen() {
+        XCTAssertFalse(RoadTodayAvailability.isVisible(today: "2026-12-31"))
+        XCTAssertTrue(RoadTodayAvailability.isVisible(today: "2027-01-01"))
+        XCTAssertEqual(RoadTodayAvailability.tabs(todayVisible: false), [3, 1, 2, 4])
+        XCTAssertEqual(RoadTodayAvailability.initialTab(todayVisible: false), 3)
+        XCTAssertEqual(RoadTodayAvailability.tabs(todayVisible: true), [0, 1, 2, 3, 4])
+        XCTAssertEqual(RoadTodayAvailability.initialTab(todayVisible: true), 0)
+        XCTAssertEqual(RoadTodayAvailability.homeScreenName(today: "2026-12-31"), "cyclocross")
+        XCTAssertEqual(RoadTodayAvailability.homeScreenName(today: "2027-01-01"), "today")
+    }
 }

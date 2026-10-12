@@ -1,5 +1,7 @@
 package app.calendariociclismo.android
 
+import app.calendariociclismo.android.util.RoadTodayAvailability
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
@@ -319,7 +321,7 @@ class MainActivity : ComponentActivity() {
         if (data.scheme != "https" || data.host != "calendariociclismo.app") return null
         val segments = data.pathSegments
         return when {
-            // Raíz `/` → pestaña Hoy.
+            // Raíz `/` → pestaña inicial (Hoy o, mientras está oculta, Ciclocross).
             segments.isEmpty() -> DeepLink.Tab("today")
             // Páginas raíz de la web (mes.html, temporada.html, buscar.html) → tab equivalente.
             segments.size == 1 -> when (segments[0]) {
@@ -376,7 +378,8 @@ class MainActivity : ComponentActivity() {
             // a Supabase (suspende), así que se ejecuta en `lifecycleScope` —NO
             // en el LaunchedEffect que invoca esto, porque ese se cancela en
             // cuanto se limpia `pendingDeepLink` y abortaría la query a medias.
-            // Espejo de `load(slug:)` en iOS. Si el slug no existe, caer a Hoy.
+            // Espejo de `load(slug:)` en iOS. Si el slug no existe, caer a la
+            // pestaña inicial.
             is DeepLink.RaceSlug -> resolveSlugAndNavigate(navController) {
                 raceIdForSlug(link.slug)?.let { Routes.race(it) }
             }
@@ -394,7 +397,7 @@ class MainActivity : ComponentActivity() {
                 // navega después, para que CalendarScreen ya la lea actualizada.
                 val app = application as CalendarioCiclismoApp
                 val route = when (link.name) {
-                    "today" -> Routes.TODAY
+                    "today" -> homeRoute()
                     "results" -> Routes.RESULTS_FEED
                     "calendar" -> Routes.CALENDAR
                     "cyclocross" -> Routes.CYCLOCROSS
@@ -407,15 +410,15 @@ class MainActivity : ComponentActivity() {
                         Routes.CALENDAR
                     }
                     // Mercado de fichajes (4.0). "search" ya no existe como
-                    // pestaña: pushes/links antiguos caen a Hoy.
+                    // pestaña: pushes/links antiguos caen a la pestaña inicial.
                     "transfers" -> Routes.TRANSFERS
-                    "search" -> Routes.TODAY
+                    "search" -> homeRoute()
                     "notifications", "subscribe" -> Routes.SETTINGS
                     else -> return
                 }
                 navController.navigate(route) {
                     launchSingleTop = true
-                    popUpTo(Routes.TODAY)
+                    popUpTo(navController.graph.findStartDestination().id)
                 }
             }
         }
@@ -426,7 +429,7 @@ class MainActivity : ComponentActivity() {
      * y navega. Corre en `lifecycleScope` (ligado a la Activity, no a la
      * composición) para que la query a Supabase no se cancele cuando el
      * `LaunchedEffect` que originó el deep-link se recompone/olvida. Si el slug
-     * no resuelve a una ruta, cae a la pestaña Hoy en vez de un error muerto.
+     * no resuelve a una ruta, cae a la pestaña inicial en vez de un error muerto.
      */
     private fun resolveSlugAndNavigate(
         navController: androidx.navigation.NavController,
@@ -438,13 +441,16 @@ class MainActivity : ComponentActivity() {
             if (route != null) {
                 navController.navigate(route)
             } else {
-                navController.navigate(Routes.TODAY) {
+                navController.navigate(homeRoute()) {
                     launchSingleTop = true
-                    popUpTo(Routes.TODAY)
+                    popUpTo(navController.graph.findStartDestination().id)
                 }
             }
         }
     }
+
+    /** Pestaña inicial vigente: Hoy o, mientras está oculta, Ciclocross. */
+    private fun homeRoute(): String = Routes.home(RoadTodayAvailability.isVisible())
 
     companion object {
         const val EXTRA_DEEP_LINK = "cc_deep_link"

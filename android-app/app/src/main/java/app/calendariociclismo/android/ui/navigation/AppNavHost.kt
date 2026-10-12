@@ -68,13 +68,18 @@ import app.calendariociclismo.android.ui.transfers.TransfersTeamScreen
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.today.TodayScreen
 import app.calendariociclismo.android.util.Haptics
+import app.calendariociclismo.android.util.RoadTodayAvailability
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.calendariociclismo.android.util.rememberHaptics
 import com.google.android.play.core.review.ReviewManagerFactory
 import kotlinx.coroutines.tasks.await
 
 /**
  * Navegación principal adaptativa: barra inferior en móvil y rail en ventanas
- * amplias. Ajustes se abre desde la cabecera de Hoy, en paridad con iOS.
+ * amplias. Ajustes se abre desde la cabecera de Hoy o, mientras Hoy está
+ * oculta ([RoadTodayAvailability]), desde la de Ciclocross, en paridad con iOS.
  */
 @Composable
 fun AppNavHost(navController: NavHostController) {
@@ -86,6 +91,20 @@ fun AppNavHost(navController: NavHostController) {
     val isSubscribed by app.premium.isSubscribed.collectAsState()
     val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     var showContributionPrompt by remember { mutableStateOf(false) }
+    // Hoy de carretera: se evalúa al arrancar y al volver a primer plano.
+    var todayVisible by remember { mutableStateOf(RoadTodayAvailability.isVisible()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            todayVisible = RoadTodayAvailability.isVisible()
+        }
+    }
+    val mainTabs = Routes.mainTabs(todayVisible)
+    val homeRoute = Routes.home(todayVisible)
+    // El destino inicial se fija al crear el grafo: cambiarlo reiniciaría la
+    // pila de navegación al reanudar.
+    val startRoute = remember { homeRoute }
+    val tabs = mainTabs.map { route -> allTabs.first { it.route == route } }
 
     // Registrar pantalla visible en Firebase Analytics.
     // today, results_feed, calendar (month/season), transfers se loggean desde
@@ -115,7 +134,7 @@ fun AppNavHost(navController: NavHostController) {
 
     LaunchedEffect(currentRoute, isSubscribed, legacyPremiumActive) {
         val route = currentRoute ?: return@LaunchedEffect
-        val contentRoute = route in Routes.MAIN_TABS || route.startsWith("race/") ||
+        val contentRoute = route in mainTabs || route.startsWith("race/") ||
             route.startsWith("stage/") || route.startsWith("elevation_profile/") ||
             route.startsWith("route_map/") || route.startsWith("startlist/") ||
             route.startsWith("start_order/") || route.startsWith("results/") ||
@@ -126,7 +145,7 @@ fun AppNavHost(navController: NavHostController) {
             route.startsWith("startlist/") || route.startsWith("start_order/") ||
             route.startsWith("results/") || route.startsWith("transfers_team/")
         if (app.preferences.recordContributionContentView(
-                route == Routes.TODAY,
+                route == homeRoute,
                 isSubscribed || legacyPremiumActive,
                 meaningfulAction,
             )
@@ -134,7 +153,7 @@ fun AppNavHost(navController: NavHostController) {
             showContributionPrompt = true
             app.analytics.logEvent("contribution_prompt_view")
         }
-        if (app.preferences.recordReviewContentView(route == Routes.TODAY, meaningfulAction)) {
+        if (app.preferences.recordReviewContentView(route == homeRoute, meaningfulAction)) {
             val activity = context as? Activity ?: return@LaunchedEffect
             app.preferences.markReviewRequested()
             runCatching {
@@ -149,7 +168,7 @@ fun AppNavHost(navController: NavHostController) {
         }
     }
 
-    val showPrimaryNavigation = currentRoute in Routes.MAIN_TABS
+    val showPrimaryNavigation = currentRoute in mainTabs
     val navigationSuiteState = rememberNavigationSuiteScaffoldState()
     val tabLabels = tabs.map { stringResource(it.labelRes) }
     LaunchedEffect(showPrimaryNavigation) {
@@ -231,14 +250,14 @@ fun AppNavHost(navController: NavHostController) {
     ) {
         NavHost(
             navController = navController,
-            startDestination = Routes.TODAY,
+            startDestination = startRoute,
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.background),
         ) {
             composable(Routes.TODAY) { TodayScreen(navController) }
             composable(Routes.RESULTS_FEED) { ResultsFeedScreen(navController) }
             composable(Routes.CALENDAR) { CalendarScreen(navController) }
-            composable(Routes.CYCLOCROSS) { CyclocrossScreen(navController) }
+            composable(Routes.CYCLOCROSS) { CyclocrossScreen(navController, showSettingsShortcut = !todayVisible, roadTodayVisible = todayVisible) }
             composable(Routes.CX_TOURNAMENT, arguments = listOf(
                 navArgument("tournamentId") { type = NavType.StringType },
                 navArgument("season") { type = NavType.StringType },
@@ -405,7 +424,7 @@ private data class TabItem(
     val iconResource: Int? = null,
 )
 
-private val tabs = listOf(
+private val allTabs = listOf(
     TabItem(Routes.TODAY, R.string.tab_today, Icons.Filled.CalendarToday),
     TabItem(Routes.RESULTS_FEED, R.string.tab_results, Icons.Filled.EmojiEvents),
     TabItem(Routes.TRANSFERS, R.string.tab_transfers, Icons.Filled.SyncAlt),

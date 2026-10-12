@@ -1,9 +1,14 @@
 // ── Modal Apps — iOS y Android ────────────────────────────────────
+// Solo se abre solo, a la 4ª página en móvil. Los accesos permanentes a las
+// tiendas viven en el pie (footer.js).
 (function () {
-  var IOS_URL     = 'https://apps.apple.com/app/id6761902611';
   var ANDROID_URL = 'https://play.google.com/store/apps/details?id=app.calendariociclismo.android';
   var isEN        = window.location.pathname.startsWith('/en/') ||
                     (typeof window.EN_DOMAIN !== 'undefined' && window.EN_DOMAIN && window.location.hostname === window.EN_DOMAIN);
+  // En español la ficha de España; en inglés el enlace sin país, que App Store
+  // resuelve con la tienda del usuario.
+  var IOS_URL     = isEN ? 'https://apps.apple.com/app/id6761902611'
+                         : 'https://apps.apple.com/es/app/calendario-ciclismo/id6761902611';
 
   var CALENDAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1.15em" height="1.15em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
   var BIKE_SVG    = '<svg xmlns="http://www.w3.org/2000/svg" width="1.15em" height="1.15em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.4em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
@@ -108,11 +113,6 @@
       window.ccAnnounce(isEN ? 'Apps dialog opened' : 'Se ha abierto el diálogo de apps');
     }
   }
-
-  var btn = document.getElementById('navAppsBtn');
-  if (btn) btn.addEventListener('click', function () { openAppsModal(); });
-
-  window.openAppsModal = openAppsModal;
 
   // ── Android Smart Banner ──────────────────────────────────────
   var BANNER_KEY = 'cc_android_banner_dismissed';

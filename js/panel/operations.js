@@ -26,6 +26,7 @@ const _OPERATIONS_JOBS = [
 
 const _OPERATIONS_SOURCES = [
   { id: 'dataride_cx', label: 'DataRide CX', job: 'cx_results' },
+  { id: 'acn_cx', label: 'ACN Timing CX', job: 'cx_results' },
   { id: 'cx_standings', label: 'Generales CX', job: 'cx_results' },
   { id: 'cx_push', label: 'Avisos CX', job: 'cx_results' },
   { id: 'hbo_max', label: 'HBO Max' },
@@ -35,6 +36,8 @@ const _OPERATIONS_SOURCES = [
   { id: 'rtbf', label: 'RTBF' },
   { id: 'rai', label: 'RAI' },
   { id: 'lequipe', label: "L'Équipe" },
+  { id: 'hbo_max_cx', label: 'HBO Max CX' },
+  { id: 'sporza_cx', label: 'Sporza CX' },
 ];
 
 const _OPERATIONS_ACTION_LABELS = {
@@ -50,6 +53,8 @@ const _OPERATIONS_ACTION_LABELS = {
   ],
   pending_stability: ['dato pendiente de una segunda confirmación', 'datos pendientes de una segunda confirmación'],
   manual_lock: ['emisión protegida por bloqueo manual', 'emisiones protegidas por bloqueo manual'],
+  apply_error: ['error al escribir la emisión', 'errores al escribir emisiones'],
+  unverified_link: ['enlace HBO Max ausente del catálogo', 'enlaces HBO Max ausentes del catálogo'],
 };
 
 function _operationsActionLabel(action, count) {
@@ -65,8 +70,8 @@ function _operationsSafeUrl(value) {
 }
 
 function _operationsSourceIssues(item, sourceId) {
-  if(sourceId==='dataride_cx'||sourceId==='cx_standings'){
-    const issues=sourceId==='dataride_cx'?[
+  if(sourceId==='dataride_cx'||sourceId==='acn_cx'||sourceId==='cx_standings'){
+    const issues=sourceId==='dataride_cx'||sourceId==='acn_cx'?[
       ...(item?.summary?.decisions||[]).map(issue=>`${issue.category}: ${issue.reason}`),
       ...(item?.summary?.results||[]).flatMap(result=>[
         ...[...(result.reviews||[]),...(result.skipped||[]),...(result.warnings||[])].map(issue=>`${issue.category||''}: ${issue.reason}`),
@@ -193,7 +198,7 @@ function _operationsRenderSources(payload) {
       <div class="operations-source__head"><strong>${esc(source.label)}</strong><span class="operations-status operations-status--${status}"><i></i>${_operationsStatusLabel(status)}</span></div>
       <div class="operations-source__numbers">
         <span><b>${formatCount(item?.itemsFound)}</b> encontrados</span>
-        <span><b>${formatCount(item?.itemsMatched)}</b> ${source.id==='dataride_cx'?'importables':source.id==='cx_standings'?'publicadas':source.id==='cx_push'?'programados':'asociados'}</span>
+        <span><b>${formatCount(item?.itemsMatched)}</b> ${source.id==='dataride_cx'||source.id==='acn_cx'?'importables':source.id==='cx_standings'?'publicadas':source.id==='cx_push'?'programados':'asociados'}</span>
         <span><b>${formatCount(item?.itemsChanged)}</b> cambios</span>
         <span><b>${formatCount(item?.errors)}</b> errores</span>
       </div>
@@ -224,7 +229,7 @@ function _operationsRenderHistory(payload) {
   </table>`;
 }
 
-async function refreshOperationsMonitor() {
+export async function refreshOperationsMonitor() {
   const version = ++_operationsRefreshVersion;
   const refresh = document.getElementById('operationsRefreshBtn');
   refresh.disabled = true;
@@ -258,7 +263,7 @@ function _operationsUpdateForceButtons() {
   });
 }
 
-async function _operationsForce(job, button) {
+export async function _operationsForce(job, button) {
   if (button.disabled || _operationsForcing.has(job) || !_OPERATIONS_JOBS.some(item => item.id === job && item.force)) return;
   _operationsForcing.add(job);
   _operationsUpdateForceButtons();

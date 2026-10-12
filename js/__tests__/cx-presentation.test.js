@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxRaceMedia,cxCategoryConcludedAt,cxProgrammeOrder,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxLegacyGeneralFragment,cxTournamentPageUrl,cxTournamentPage,cxTournamentGeneralCategories,cxStandingValueCells,cxStandingsBreakdown,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches} from '../cx/presentation.js';
+import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxRaceMedia,cxCategoryConcludedAt,cxProgrammeOrder,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxLegacyGeneralFragment,cxTournamentPageUrl,cxTournamentPage,cxTournamentGeneralCategories,cxStandingValueCells,cxStandingsBreakdown,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches,cxAgendaBroadcast,cxAgendaStartlistCategory,cxDayRaces} from '../cx/presentation.js';
 import {cxMonth,cxNextDate,cxAllRows,cxTournamentRounds,cxSeasonRounds} from '../services/cx-data.js';
 import {cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
 
@@ -270,6 +270,32 @@ describe('agenda y clasificación pública CX',()=>{
     const media=cxRaceMedia(race,[{...me,resultsStatus:'pending'},we],[],[],{at:before});
     expect(media.liveCategories.map(c=>c.category)).toEqual(['WE','ME']);
   });
+  it('elige para la Agenda la primera emisión visible en directo del día y la lista de dorsales pendiente',()=>{
+    const day={...race,cx_race_categories:[{...me,resultsStatus:'pending',startlistImportedAt:'2026-10-10T12:00:00Z'},{...we,startlistImportedAt:'2026-10-10T12:00:00Z'}]};
+    const rows=[
+      {id:'me',url:'https://example.org/me',category:'ME',startTimeUtc:'2026-10-11T12:57:00Z',sortOrder:0},
+      {id:'we-late',url:'https://example.org/we2',category:'WE',startTimeUtc:'2026-10-11T11:45:00Z',sortOrder:1},
+      {id:'we',url:'https://example.org/we',category:'WE',startTimeUtc:'2026-10-11T11:40:00Z',sortOrder:2},
+    ];
+    expect(cxAgendaBroadcast(day,'2026-10-11',rows,before)).toMatchObject({id:'we',firstStartUtc:'2026-10-11T11:40:00Z',live:false});
+    // Iniciada la primera, en directo; al alcanzar la hora de otra emisión de
+    // una categoría en directo, el enlace pasa a la última iniciada.
+    expect(cxAgendaBroadcast(day,'2026-10-11',rows,new Date('2026-10-11T11:42:00Z'))).toMatchObject({id:'we',live:true});
+    expect(cxAgendaBroadcast(day,'2026-10-11',rows,new Date('2026-10-11T11:50:00Z'))).toMatchObject({id:'we-late',firstStartUtc:'2026-10-11T11:40:00Z',live:true});
+    // Solo cuenta lo visible en la región: la lista llega ya filtrada.
+    expect(cxAgendaBroadcast(day,'2026-10-11',[rows[0]],before).id).toBe('me');
+    expect(cxAgendaBroadcast(day,'2026-10-11',[],before)).toBeNull();
+    // Concluida la Elite femenina, el badge pasa a la siguiente emisión en directo.
+    expect(cxAgendaBroadcast(day,'2026-10-11',rows,new Date('2026-10-11T13:20:00Z'))).toMatchObject({id:'me',firstStartUtc:'2026-10-11T11:40:00Z',live:true});
+    // Concluidas todas las categorías del día, sin badge.
+    expect(cxAgendaBroadcast(day,'2026-10-11',rows,new Date('2026-10-11T23:00:00Z'))).toBeNull();
+    expect(cxAgendaBroadcast({...day,isCancelled:true},'2026-10-11',rows,before)).toBeNull();
+    expect(cxAgendaBroadcast(day,'2026-10-12',rows,before)).toBeNull();
+    expect(cxAgendaStartlistCategory(day,'2026-10-11',before).category).toBe('ME');
+    const done={...day,cx_race_categories:[{...me,startlistImportedAt:'2026-10-10T12:00:00Z'},{...we,isCancelled:true,startlistImportedAt:'2026-10-10T12:00:00Z'}]};
+    expect(cxAgendaStartlistCategory(done,'2026-10-11',before)).toBeNull();
+    expect(cxAgendaStartlistCategory({...race,cx_race_categories:[we]},'2026-10-11',before)).toBeNull();
+  });
 });
 
 describe('número de ronda por torneo',()=>{
@@ -406,7 +432,22 @@ describe('consultas mensuales y salto puntual CX',()=>{
     expect(q.eq).toHaveBeenCalledWith('editorialStatus','published');
     expect(q.lte).toHaveBeenCalledWith('dateKey','2027-02-28');
     expect(q.or).toHaveBeenCalledWith('dateKey.gte.2027-02-01,endDateKey.gte.2027-02-01');
-    expect(client.from).toHaveBeenCalledTimes(1);
+    expect(client.from.mock.calls.filter(([table])=>table==='cx_races')).toHaveLength(1);
+  });
+  it('marca las destacadas y las pone a la cabeza de su día sin alterar el resto',async()=>{
+    const day='2026-11-01',cat=time=>[{category:'ME',dateKey:day,startTimeUtc:time}];
+    const rows=[
+      {id:'cdm',name:'Copa',class:'CDM',dateKey:day,cx_race_categories:cat('2026-11-01T14:00:00Z')},
+      {id:'c2a',name:'Ruddervoorde',class:'C2',dateKey:day,cx_race_categories:cat('2026-11-01T13:00:00Z')},
+      {id:'c1',name:'Kortrijk',class:'C1',dateKey:day,cx_race_categories:cat('2026-11-01T12:00:00Z')},
+      {id:'c2b',name:'Beringen',class:'C2',dateKey:day,cx_race_categories:cat('2026-11-01T15:00:00Z')},
+    ];
+    const tables={cx_races:rows,cx_race_featured:[{cxRaceId:'c2b'},{cxRaceId:'c2a'}]};
+    const client={from:vi.fn(table=>{const q={};for(const key of ['select','eq','lte','or','order'])q[key]=vi.fn(()=>q);q.then=resolve=>Promise.resolve(resolve({data:tables[table],error:null}));return q;})};
+    const marked=await cxMonth(client,'2026-27',2026,11);
+    expect(cxDayRaces(marked,day).map(r=>r.id)).toEqual(['c2a','c2b','cdm','c1']);
+    const failing={from:vi.fn(table=>{const q={};for(const key of ['select','eq','lte','or','order'])q[key]=vi.fn(()=>q);q.then=resolve=>Promise.resolve(resolve(table==='cx_races'?{data:rows.map(r=>({...r})),error:null}:{data:null,error:{message:'sin permiso'}}));return q;})};
+    expect(cxDayRaces(await cxMonth(failing,'2026-27',2026,11),day).map(r=>r.id)).toEqual(['cdm','c1','c2a','c2b']);
   });
   it('obtiene la fecha mínima por RPC sin recorrer meses vacíos y propaga errores',async()=>{
     const rpc=vi.fn().mockResolvedValueOnce({data:'2027-01-30'}).mockResolvedValueOnce({data:null}).mockResolvedValueOnce({error:{message:'Error de consulta'}});

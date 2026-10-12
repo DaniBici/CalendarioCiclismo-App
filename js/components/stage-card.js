@@ -6,12 +6,12 @@
 
 import { esc, extractYouTubeId, jornadaUrl, makeCardActivatable } from '../shared.js';
 import { t, getLang } from '../i18n.js';
-import { waitingResultsHtml, resultsTrophyHtml, profileProgress } from '../services/race-presentation.js';
+import { waitingResultsHtml, resultsTrophyHtml, profileProgress, tvIconHtml } from '../services/race-presentation.js';
 import { isReviveBroadcast } from '../broadcast-priority.js';
 import { buildElevationSparkline } from '../stage/elevation-profile.js';
 import { setInfoTooltip } from './race-card.js';
 
-export const tvIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+export { tvIconHtml };
 const timerIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
 
 export function noExtraInfoMessage(dateKey) {

@@ -292,6 +292,40 @@ private struct ResultsRailSurface: ViewModifier {
     }
 }
 
+private struct ActionStripStretchesKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Las celdas de la tira de acciones se reparten el ancho disponible en
+    /// lugar de conservar el ancho fijo (`ResultsFittingRail`).
+    var actionStripStretches: Bool {
+        get { self[ActionStripStretchesKey.self] }
+        set { self[ActionStripStretchesKey.self] = newValue }
+    }
+}
+
+/// Tira de acciones enmarcada para pocas celdas (la ficha de ciclocross tiene
+/// como máximo Web oficial, Libro de ruta, Mapa y Notificaciones). Si cada
+/// celda conserva su ancho mínimo (`ActionStripTile.minimumWidth`), las celdas
+/// se reparten a partes iguales todo el ancho, sea cual sea el de la pantalla;
+/// si no caben, la tira es el carril con desplazamiento y flechas de siempre.
+struct ResultsFittingRail<Content: View>: View {
+    let height: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) { content() }
+                .environment(\.actionStripStretches, true)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .ccCardSurface()
+            ResultsScrollRail(height: height, spacing: 0, framed: true) { content() }
+        }
+    }
+}
+
 /// Carril horizontal con zonas de flecha independientes, como el componente
 /// web `cc-scroll-arrow`. Las flechas aparecen únicamente cuando hay desborde y
 /// permanecen en los extremos sin tapar el contenido.
@@ -524,18 +558,28 @@ struct ResultsPublicationStatus: View {
                     "Classification updating"
                 ))
             }
-            if !isOfficial, let raw = stage.lastSyncedAt,
-               let date = DateFormatting.parseISO(raw) {
-                Text(LocaleService.t("Última actualización", "Last update") + ": "
-                     + date.formatted(date: .abbreviated, time: .shortened))
-                    .ccFont(.s13)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// «Última actualización» de una clasificación provisional, en línea propia
+/// bajo el estado: en la fila del filtro de equipos o en la del título no
+/// cabe completa.
+struct ResultsLastUpdate: View {
+    let stage: RaceUciStage
+
+    var body: some View {
+        if stage.publicationStatus != "official", let raw = stage.lastSyncedAt,
+           let time = DateFormatting.formatResultsSyncedAt(raw) {
+            Text(LocaleService.t("Última actualización", "Last update") + ": " + time)
+                .ccFont(.s13)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

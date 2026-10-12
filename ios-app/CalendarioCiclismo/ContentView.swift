@@ -28,9 +28,40 @@ struct CxTournamentDestination: Hashable {
     }
 }
 
+/// Pantalla de cada `DeepLinkDestination`. La registran la pila de Hoy y la
+/// de Ciclocross, que la sustituye mientras Hoy está retirada.
+struct DeepLinkDestinationView: View {
+    let destination: DeepLinkDestination
+
+    var body: some View {
+        switch destination {
+        case .race(let raceId):
+            RaceDetailView(raceId: raceId)
+        case .stage(let raceDayId):
+            StageDetailView(raceDayId: raceDayId)
+        case .startlist(let raceId):
+            StartlistView(raceId: raceId)
+        case .startOrder(let raceDayId):
+            StartOrderView(raceDayId: raceDayId)
+        case .profile(let raceDayId):
+            ProfileDestinationView(raceDayId: raceDayId)
+        case .routeMap(let raceDayId):
+            RouteMapDestinationView(raceDayId: raceDayId)
+        case .settings:
+            SettingsView()
+                .onAppear { AnalyticsService.shared.logScreenView("settings") }
+        case .results(let raceId, let stageNumber, let stageSuffix):
+            ResultsView(raceId: raceId, initialStageNumber: stageNumber, initialStageSuffix: stageSuffix)
+        }
+    }
+}
+
 /// Vista principal con navegación por pestañas.
 struct ContentView: View {
-    @State private var selectedTab = 0
+    /// Hoy de carretera visible (`RoadTodayAvailability`); se reevalúa al
+    /// volver a primer plano.
+    @State private var roadTodayVisible: Bool
+    @State private var selectedTab: Int
     @State private var navigationPath = NavigationPath()
     @State private var cxNavigationPath = NavigationPath()
     @State private var calendarNavigationPath = NavigationPath()
@@ -42,73 +73,30 @@ struct ContentView: View {
     @State private var contributionPrompt = ContributionPromptService.shared
     @State private var reviewPrompt = ReviewPromptService.shared
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let visible = RoadTodayAvailability.isVisible()
+        _roadTodayVisible = State(initialValue: visible)
+        _selectedTab = State(initialValue: RoadTodayAvailability.initialTab(todayVisible: visible))
+    }
 
     var body: some View {
+        // `value` identifica cada sección con independencia de su posición:
+        // `DeepLink.tab(index)` apunta siempre a la misma pestaña.
         TabView(selection: $selectedTab) {
-            Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: 0) {
-                NavigationStack(path: $navigationPath) {
-                    TodayView(navigationPath: $navigationPath)
-                        .navigationDestination(for: DeepLinkDestination.self) { dest in
-                            switch dest {
-                            case .race(let raceId):
-                                RaceDetailView(raceId: raceId)
-                            case .stage(let raceDayId):
-                                StageDetailView(raceDayId: raceDayId)
-                            case .startlist(let raceId):
-                                StartlistView(raceId: raceId)
-                            case .startOrder(let raceDayId):
-                                StartOrderView(raceDayId: raceDayId)
-                            case .profile(let raceDayId):
-                                ProfileDestinationView(raceDayId: raceDayId)
-                            case .routeMap(let raceDayId):
-                                RouteMapDestinationView(raceDayId: raceDayId)
-                            case .settings:
-                                SettingsView()
-                                    .onAppear { AnalyticsService.shared.logScreenView("settings") }
-                            case .results(let raceId, let stageNumber, let stageSuffix):
-                                ResultsView(raceId: raceId, initialStageNumber: stageNumber, initialStageSuffix: stageSuffix)
-                            }
-                        }
-                }
+            ForEach(RoadTodayAvailability.tabs(todayVisible: roadTodayVisible), id: \.self) { value in
+                tab(value)
             }
-            .accessibilityIdentifier(AccessibilityID.tabToday)
-
-            // Apps 3.1 (fase F3): el feed "Últimos resultados" entra como 2º
-            // tab y Mes+Temporada se fusionan en "Calendario" (con toggle).
-            Tab(localeService.t("Resultados", "Results"), systemImage: "trophy", value: 1) {
-                NavigationStack {
-                    ResultsFeedView()
-                }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            let visible = RoadTodayAvailability.isVisible()
+            guard visible != roadTodayVisible else { return }
+            roadTodayVisible = visible
+            if !RoadTodayAvailability.tabs(todayVisible: visible).contains(selectedTab) {
+                selectedTab = RoadTodayAvailability.initialTab(todayVisible: visible)
             }
-            .accessibilityIdentifier(AccessibilityID.tabResults)
-
-            // Los índices coinciden con NotificationManager.DeepLink.
-            Tab(localeService.t("Fichajes", "Transfers"), systemImage: "arrow.left.arrow.right", value: 2) {
-                NavigationStack {
-                    TransfersView(deepLinkedTeamId: $transfersTeamId)
-                }
-            }
-            .accessibilityIdentifier(AccessibilityID.tabTransfers)
-
-            Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: 3) {
-                NavigationStack(path: $cxNavigationPath) {
-                    CyclocrossView()
-                        .navigationDestination(for: CxDestination.self) { destination in
-                            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
-                        }
-                        .navigationDestination(for: CxTournamentDestination.self) { destination in
-                            CyclocrossView(tournament: destination.tournament, season: destination.season)
-                        }
-                }
-            }
-            .accessibilityIdentifier(AccessibilityID.tabCyclocross)
-
-            Tab(localeService.t("Calendario", "Calendar"), systemImage: "calendar", value: 4) {
-                NavigationStack(path: $calendarNavigationPath) {
-                    CalendarTabView()
-                }
-            }
-            .accessibilityIdentifier(AccessibilityID.tabCalendar)
         }
         .tint(Color("AccentColor"))
         .onChange(of: reviewPrompt.shouldRequest) { _, shouldRequest in
@@ -159,6 +147,73 @@ struct ContentView: View {
         }
     }
 
+    @TabContentBuilder<Int>
+    private func tab(_ value: Int) -> some TabContent<Int> {
+        switch value {
+        case RoadTodayAvailability.todayTab:
+            Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
+                NavigationStack(path: $navigationPath) {
+                    TodayView(navigationPath: $navigationPath)
+                        .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+                }
+            }
+            .accessibilityIdentifier(AccessibilityID.tabToday)
+        case RoadTodayAvailability.resultsTab:
+            // Apps 3.1 (fase F3): el feed "Últimos resultados" entra como 2º
+            // tab y Mes+Temporada se fusionan en "Calendario" (con toggle).
+            Tab(localeService.t("Resultados", "Results"), systemImage: "trophy", value: value) {
+                NavigationStack {
+                    ResultsFeedView()
+                }
+            }
+            .accessibilityIdentifier(AccessibilityID.tabResults)
+        case RoadTodayAvailability.transfersTab:
+            Tab(localeService.t("Fichajes", "Transfers"), systemImage: "arrow.left.arrow.right", value: value) {
+                NavigationStack {
+                    TransfersView(deepLinkedTeamId: $transfersTeamId)
+                }
+            }
+            .accessibilityIdentifier(AccessibilityID.tabTransfers)
+        case RoadTodayAvailability.cyclocrossTab:
+            Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: value) {
+                NavigationStack(path: $cxNavigationPath) {
+                    // Con Hoy retirada, la agenda CX lleva Ajustes en su barra y
+                    // su pila recibe los destinos de carretera de los deep links.
+                    CyclocrossView(showsSettings: !roadTodayVisible)
+                        .navigationDestination(for: CxDestination.self) { destination in
+                            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
+                        }
+                        .navigationDestination(for: CxTournamentDestination.self) { destination in
+                            CyclocrossView(tournament: destination.tournament, season: destination.season)
+                        }
+                        .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+                }
+            }
+            .accessibilityIdentifier(AccessibilityID.tabCyclocross)
+        default:
+            Tab(localeService.t("Calendario", "Calendar"), systemImage: "calendar", value: value) {
+                NavigationStack(path: $calendarNavigationPath) {
+                    CalendarTabView()
+                }
+            }
+            .accessibilityIdentifier(AccessibilityID.tabCalendar)
+        }
+    }
+
+    /// Abre un destino de carretera en la pila de Hoy o, mientras Hoy está
+    /// retirada, en la de Ciclocross.
+    private func openRoadDestination(_ destination: DeepLinkDestination) {
+        if roadTodayVisible {
+            selectedTab = RoadTodayAvailability.todayTab
+            navigationPath = NavigationPath()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { navigationPath.append(destination) }
+        } else {
+            selectedTab = RoadTodayAvailability.cyclocrossTab
+            cxNavigationPath = NavigationPath()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { cxNavigationPath.append(destination) }
+        }
+    }
+
     private func handleDeepLink(_ link: NotificationManager.DeepLink) {
         deepLinkRevision += 1
         let revision = deepLinkRevision
@@ -166,66 +221,38 @@ struct ContentView: View {
         case .tab(let index):
             navigationPath = NavigationPath()
             cxNavigationPath = NavigationPath()
-            if (0..<5).contains(index) {
+            if RoadTodayAvailability.tabs(todayVisible: roadTodayVisible).contains(index) {
                 selectedTab = index
+            } else if (0..<5).contains(index) {
+                // Hoy retirada: la pestaña inicial vigente.
+                selectedTab = RoadTodayAvailability.initialTab(todayVisible: roadTodayVisible)
             } else {
                 // Enlaces de pestañas retiradas → ajustes
-                selectedTab = 0
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    navigationPath.append(DeepLinkDestination.settings)
-                }
+                openRoadDestination(.settings)
             }
         case .race(let raceId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.race(raceId))
-            }
+            openRoadDestination(.race(raceId))
         case .stage(let raceDayId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.stage(raceDayId))
-            }
+            openRoadDestination(.stage(raceDayId))
         case .startlist(let raceId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.startlist(raceId))
-            }
+            openRoadDestination(.startlist(raceId))
         case .startOrder(let raceDayId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.startOrder(raceDayId))
-            }
+            openRoadDestination(.startOrder(raceDayId))
         case .profile(let raceDayId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.profile(raceDayId))
-            }
+            openRoadDestination(.profile(raceDayId))
         case .routeMap(let raceDayId):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.routeMap(raceDayId))
-            }
+            openRoadDestination(.routeMap(raceDayId))
         case .results(let raceId, let stageNumber, let stageSuffix):
-            selectedTab = 0
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                navigationPath.append(DeepLinkDestination.results(raceId, stageNumber, stageSuffix))
-            }
+            openRoadDestination(.results(raceId, stageNumber, stageSuffix))
         case .cxRace(let raceId, let anchor):
-            selectedTab = 3
+            selectedTab = RoadTodayAvailability.cyclocrossTab
             cxNavigationPath = NavigationPath()
             DispatchQueue.main.async {
                 guard deepLinkRevision == revision else { return }
                 cxNavigationPath.append(CxDestination(raceId: raceId, anchor: anchor))
             }
         case .cxRaceSlug(let slug, let anchor):
-            selectedTab = 3
+            selectedTab = RoadTodayAvailability.cyclocrossTab
             cxNavigationPath = NavigationPath()
             Task {
                 guard let id = try? await CyclocrossRepository.shared.raceId(forSlug: slug), deepLinkRevision == revision else { return }
@@ -234,7 +261,7 @@ struct ContentView: View {
         case .cxTournamentSlug(let slug):
             // Página de serie: se resuelve el slug a torneo; sin resolución,
             // la pestaña CX queda en su raíz.
-            selectedTab = 3
+            selectedTab = RoadTodayAvailability.cyclocrossTab
             cxNavigationPath = NavigationPath()
             Task {
                 guard let tournament = await CyclocrossRepository.shared.tournament(forSlug: slug),
@@ -252,10 +279,10 @@ struct ContentView: View {
             calendarNavigationPath = NavigationPath()
             UserDefaults.standard.set("season", forKey: "calendar_subview")
             manager.pendingSeasonYear = year
-            selectedTab = 4
+            selectedTab = RoadTodayAvailability.calendarTab
         case .team(let teamId):
             navigationPath = NavigationPath()
-            selectedTab = 2
+            selectedTab = RoadTodayAvailability.transfersTab
             // La pila del Mercado pertenece a su propio NavigationStack. Se
             // entrega el ID en el siguiente ciclo para que la pestaña exista
             // antes de empujar su destino.

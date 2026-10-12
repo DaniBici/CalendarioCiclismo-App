@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.calendariociclismo.android.data.model.CxRace
 import app.calendariociclismo.android.data.model.CxRound
+import app.calendariociclismo.android.data.model.CxRoundEntry
+import app.calendariociclismo.android.data.model.CxRoundRow
 import app.calendariociclismo.android.data.repository.CxCached
 import app.calendariociclismo.android.data.repository.CyclocrossRepository
 import app.calendariociclismo.android.util.CxAgendaFilter
@@ -19,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Estado de la pestaña Ciclocross y de la página de torneo. Ambas cargan los
@@ -26,9 +29,27 @@ import kotlinx.coroutines.coroutineScope
  * [CyclocrossRepository]. La agenda general es una vista de un día, con la
  * navegación de Hoy en carretera; la página de torneo lista todas sus pruebas.
  */
-class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val clock: () -> LocalDate = { LocalDate.now() }, val tournamentId: String? = null) {
+private const val RECENT_DAYS = 14
+
+class CyclocrossAgendaState(
+    private val repo: CyclocrossRepository,
+    private val clock: () -> LocalDate = { LocalDate.now() },
+    val tournamentId: String? = null,
+    /** La pestaña Ciclocross de Resultados necesita la temporada completa por
+     *  meses; Hoy carga un índice ligero y el día mostrado. */
+    private val seasonWide: Boolean = false,
+) {
     private val today: LocalDate get() = clock()
     val cache = mutableStateMapOf<YearMonth, CxCached<List<CxRace>>>()
+    /** Hoy (sin torneo ni temporada completa): como Hoy de carretera, índice
+     *  ligero de la temporada y detalle de los días consultados. */
+    private val dayMode: Boolean get() = tournamentId == null && !seasonWide
+    private var index by mutableStateOf<CxCached<List<CxRace>>?>(null)
+    private val dayDetails = mutableStateMapOf<String, CxCached<List<CxRace>>>()
+    /** Último día descargado de la red; evita repetir su carga al mostrarlo. */
+    private var freshDay: String? = null
+    /** Orden de lanzamiento de las recargas de Hoy: solo la última aplica. */
+    private var refreshSequence = 0
     var season by mutableStateOf(CyclocrossLogic.season(today))
         private set
     var busy by mutableStateOf(false)
@@ -44,6 +65,16 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
         private set
     // Numeración n/total por torneo de la temporada (insignia de ronda).
     var rounds by mutableStateOf<Map<String, CxRound>>(emptyMap())
+        private set
+    /** Pruebas destacadas (`cx_race_featured`): encabezan su día en la
+     *  agenda y en la pestaña Ciclocross de Resultados. Se leen con cada
+     *  descarga de la temporada; un fallo deja el orden canónico. */
+    var featured by mutableStateOf<Set<String>>(emptySet())
+        private set
+    /** La numeración de rondas es completa: calculada con la temporada entera
+     *  en caché o descargada. La pestaña Ciclocross de Resultados espera a
+     *  este indicador para pintar la manga n/total con las filas. */
+    var roundsReady by mutableStateOf(false)
         private set
     /** Hay carreras que mostrar: caché local o descarga terminada. */
     var loaded by mutableStateOf(false)
@@ -71,15 +102,24 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
 
     /** Carreras de la agenda general con el filtro activo. */
     val races: List<CxRace>
-        get() = CyclocrossLogic.months(season).flatMap { cache[it]?.data.orEmpty() }
-            .distinctBy { it.id }
-            .filter { CxPresentation.matchesAgendaFilter(it, filter) }
+        get() = seasonRaces.filter { CxPresentation.matchesAgendaFilter(it, filter) }
+
+    /** Carreras de la temporada sin duplicados. En Hoy, el índice con el
+     *  detalle de los días consultados sobre las mismas pruebas. */
+    private val seasonRaces: List<CxRace>
+        get() {
+            if (!dayMode) return CyclocrossLogic.months(season).flatMap { cache[it]?.data.orEmpty() }.distinctBy { it.id }
+            val byId = LinkedHashMap<String, CxRace>()
+            index?.data.orEmpty().forEach { byId[it.id] = it }
+            dayDetails.keys.sorted().forEach { key -> dayDetails[key]?.data.orEmpty().forEach { byId[it.id] = it } }
+            return byId.values.toList()
+        }
 
     /** Días de la temporada con carreras del filtro activo. */
     val raceDays: List<String> get() = CyclocrossLogic.raceDays(races)
 
     /** Carreras del día mostrado, en el orden de la agenda. */
-    val dayRaces: List<CxRace> get() = CyclocrossLogic.racesOn(races, dateKey)
+    val dayRaces: List<CxRace> get() = CyclocrossLogic.racesOn(races, dateKey, featured)
 
     /** Siguiente día con carreras del filtro activo. */
     val nextRaceDay: String? get() = CyclocrossLogic.nextRaceDay(raceDays, dateKey)
@@ -105,10 +145,23 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
         error = null
         busy = true
         loaded = false
+        roundsReady = false
         jumpDate = null
+        index = null
+        dayDetails.clear()
+        freshDay = null
+        if (dayMode) {
+            openToday(generation, restoredDay, initialFilter)
+            return
+        }
         val allowed = CyclocrossLogic.months(season)
         loadCached(generation)
         if (generation != revision) return
+        // Con la temporada completa en caché la numeración sale ya completa.
+        if (cache.size == allowed.size) {
+            rounds = localRounds()
+            roundsReady = true
+        }
         // Página de torneo: todas sus pruebas de la temporada en una sola lista.
         if (tournamentId != null) {
             try {
@@ -146,6 +199,119 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
         } finally { if (generation == revision) busy = false }
     }
 
+    /**
+     * Apertura de Hoy. Primero la copia local (índice y día de apertura); la
+     * red trae a la vez el índice, el día, las destacadas y las rondas y, si la
+     * apertura recae en otro día, ese día.
+     */
+    private suspend fun openToday(generation: Int, restoredDay: String?, initialFilter: CxAgendaFilter) {
+        val selectedSeason = season
+        filter = initialFilter
+        navigated = false
+        lastTodayKey = todayKey()
+        val restored = restoredDay?.takeIf { it in firstDay..lastDay }
+        try {
+            repo.cachedIndex(selectedSeason)?.let {
+                if (generation != revision) return
+                index = it
+            }
+            if (generation != revision) return
+            if (index != null) {
+                showOpening(restored)
+                rounds = localRounds()
+                roundsReady = true
+                loaded = true
+            }
+            repo.cachedDay(selectedSeason, dateKey)?.let {
+                if (generation != revision) return
+                dayDetails[dateKey] = it
+            }
+            val requested = dateKey
+            val outcome = downloadToday(requested, includeIndex = true, forceRounds = false)
+            if (generation != revision) return
+            applyToday(outcome, requested)
+            if (index == null && dayDetails.isEmpty() && outcome.failure != null) error = outcome.failure.message
+            if (!navigated) showOpening(restored) else autoNavigate()
+            loaded = index != null || dayDetails[requested] != null
+            if (dateKey != requested) loadDay(dateKey, generation)
+        } catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
+            if (generation == revision) error = failure.message
+        } finally { if (generation == revision) busy = false }
+    }
+
+    private class TodayDownload(
+        val index: CxCached<List<CxRace>>?,
+        val day: CxCached<List<CxRace>>?,
+        val failure: Exception?,
+        val featured: Set<String>,
+        val rounds: Map<String, CxRound>,
+    )
+
+    /** Descarga a la vez el día, el índice de la temporada (si [includeIndex]),
+     *  las destacadas y las rondas. Un fallo del día o del índice conserva lo
+     *  que ya hubiera; la cancelación se propaga. */
+    private suspend fun downloadToday(day: String, includeIndex: Boolean, forceRounds: Boolean): TodayDownload = coroutineScope {
+        val selectedSeason = season
+        val featuredDeferred = async { repo.featuredRaceIds() }
+        val roundsDeferred = async { repo.rounds(selectedSeason, force = forceRounds) }
+        suspend fun <T> capture(work: suspend () -> T): Result<T> = try { Result.success(work()) } catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
+            Result.failure(failure)
+        }
+        val dayDeferred = async { capture { repo.day(selectedSeason, day) } }
+        val indexDeferred = if (includeIndex) async { capture { repo.seasonIndex(selectedSeason) } } else null
+        val dayResult = dayDeferred.await()
+        val indexResult = indexDeferred?.await()
+        TodayDownload(
+            index = indexResult?.getOrNull(),
+            day = dayResult.getOrNull(),
+            failure = (dayResult.exceptionOrNull() ?: indexResult?.exceptionOrNull()) as? Exception,
+            featured = featuredDeferred.await(),
+            rounds = roundsDeferred.await(),
+        )
+    }
+
+    /** Aplica la descarga de Hoy de una vez: índice, día, destacadas y rondas. */
+    private fun applyToday(download: TodayDownload, day: String) {
+        download.index?.let { fresh ->
+            index = fresh
+            // Más reciente que el detalle de los demás días: se vuelven a pedir
+            // al visitarlos.
+            dayDetails.keys.filter { it != day }.forEach { dayDetails.remove(it) }
+        }
+        download.day?.let {
+            dayDetails[day] = it
+            if (!it.offline) freshDay = day
+        }
+        featured = download.featured
+        rounds = download.rounds.ifEmpty { localRounds() }
+        roundsReady = true
+    }
+
+    /** Detalle de un día: primero la copia local y después la red, sin
+     *  indicadores. Un fallo conserva lo mostrado. */
+    private suspend fun loadDay(target: String, generation: Int) {
+        if (dayDetails[target] == null) {
+            repo.cachedDay(season, target)?.let { if (generation == revision) dayDetails[target] = it }
+        }
+        try {
+            val fresh = repo.day(season, target)
+            if (generation != revision) return
+            dayDetails[target] = fresh
+            if (!fresh.offline) freshDay = target
+        } catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
+        }
+    }
+
+    /** Carga el día mostrado tras navegar (flechas, gesto, filtro, medianoche);
+     *  la pantalla lo invoca al cambiar [dateKey]. */
+    suspend fun showDay() {
+        if (!dayMode || !loaded || freshDay == dateKey) return
+        loadDay(dateKey, revision)
+    }
+
     /** Día de apertura: el restaurado o hoy y, si hoy no tiene carreras del
      *  filtro activo, el siguiente día que las tenga (skipEmptyDay de Hoy). */
     private fun showOpening(restored: String?) {
@@ -165,21 +331,60 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
         }
     }
 
-    /** Descarga en paralelo los siete meses; devuelve el primer fallo. */
-    private suspend fun loadSeason(generation: Int): Exception? = coroutineScope {
+    /** Numeración n/total calculada con los meses en caché; completa solo con
+     *  la temporada entera. */
+    private fun localRounds(): Map<String, CxRound> {
+        val rows = seasonRaces.map { race ->
+            CxRoundRow(
+                id = race.id, tournamentId = race.tournamentId, dateKey = race.dateKey, seasonKey = race.seasonKey,
+                categories = race.categories.map { CxRoundEntry(it.dateKey, it.startTimeUtc) },
+                isCancelled = race.isCancelled,
+            )
+        }
+        return CyclocrossLogic.tournamentRounds(rows, season)
+    }
+
+    /** Descarga en paralelo los meses, las destacadas y la numeración de
+     *  rondas, y las aplica juntas: carreras, orden de destacadas y manga
+     *  n/total aparecen a la vez. Devuelve el primer fallo de los meses. */
+    private suspend fun loadSeason(
+        generation: Int,
+        recentOnly: Boolean = false,
+        forceRounds: Boolean = false,
+        sequence: Int = refreshSequence,
+    ): Exception? = coroutineScope {
         val selectedSeason = season
-        CyclocrossLogic.months(selectedSeason).map { month ->
+        val featuredDeferred = async { repo.featuredRaceIds() }
+        val roundsDeferred = async { repo.rounds(selectedSeason, force = forceRounds) }
+        val all = CyclocrossLogic.months(selectedSeason)
+        val recentFrom = today.minusDays(RECENT_DAYS - 1L)
+        val recent = all.filter { it.atEndOfMonth() >= recentFrom && it.atDay(1) <= today }
+        val outcomes = (if (recentOnly && recent.isNotEmpty()) recent else all).map { month ->
             async {
                 try {
-                    val data = repo.month(selectedSeason, month)
-                    if (generation == revision) cache[month] = data
-                    null
+                    month to Result.success(repo.month(selectedSeason, month))
                 } catch (failure: Exception) {
                     if (failure is CancellationException) throw failure
-                    failure
+                    month to Result.failure(failure)
                 }
             }
-        }.awaitAll().firstOrNull { it != null }
+        }.awaitAll()
+        val ids = featuredDeferred.await()
+        val freshRounds = roundsDeferred.await()
+        var firstFailure: Exception? = null
+        // Una recarga posterior (el tirón tras un latido) ya sustituye a esta.
+        if (generation == revision && sequence == refreshSequence) {
+            for ((month, outcome) in outcomes) {
+                outcome.onSuccess { cache[month] = it }
+                outcome.onFailure { if (firstFailure == null) firstFailure = it as? Exception }
+            }
+            featured = ids
+            rounds = freshRounds.ifEmpty { localRounds() }
+            roundsReady = true
+        } else {
+            firstFailure = outcomes.firstNotNullOfOrNull { it.second.exceptionOrNull() as? Exception }
+        }
+        firstFailure
     }
 
     suspend fun retry() = refresh()
@@ -187,16 +392,22 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
     /** Pull-to-refresh: vuelve a descargar la temporada y las rondas y
      *  conserva el día mostrado. */
     suspend fun refresh() {
-        if (busy) return
+        // El tirón del usuario en Hoy y en Resultados no se descarta porque
+        // haya una carga en curso (apertura o latido): se lanza igualmente y
+        // prevalece su resultado. La página de torneo no se solapa.
+        if (busy && tournamentId != null) return
+        val sequence = ++refreshSequence
         val generation = revision
         busy = true
         isRefreshing = true
         error = null
         try {
-            val failure = loadSeason(generation)
-            val fresh = repo.rounds(season, force = true)
+            if (dayMode) {
+                refreshToday(generation, sequence)
+                return
+            }
+            val failure = loadSeason(generation, forceRounds = true, sequence = sequence)
             if (generation != revision) return
-            rounds = fresh
             if (cache.isEmpty() && failure != null) error = failure.message
             if (tournamentId == null) {
                 if (!loaded && !navigated) showOpening(null) else autoNavigate()
@@ -209,6 +420,18 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
             isRefreshing = false
             if (generation == revision) busy = false
         }
+    }
+
+    private suspend fun refreshToday(generation: Int, sequence: Int) {
+        val requested = dateKey
+        val outcome = downloadToday(requested, includeIndex = true, forceRounds = true)
+        // Una recarga posterior ya la sustituye.
+        if (generation != revision || sequence != refreshSequence) return
+        applyToday(outcome, requested)
+        if (index == null && dayDetails.isEmpty() && outcome.failure != null) error = outcome.failure.message
+        if (!loaded && !navigated) showOpening(null) else autoNavigate()
+        loaded = index != null || dayDetails[requested] != null
+        if (dateKey != requested) loadDay(dateKey, generation)
     }
 
     /** Hoy mostrado con alguna manga sin resultados ni cancelación: el latido
@@ -226,10 +449,28 @@ class CyclocrossAgendaState(private val repo: CyclocrossRepository, private val 
     /** Refresco periódico del día en curso: descarga la temporada sin
      *  indicadores ni mensajes de error y conserva el día mostrado. */
     suspend fun refreshSilently(at: Instant = Instant.now()) {
-        if (busy || silentRefreshing || !hasPendingToday(at)) return
+        if (hasPendingToday(at)) refreshQuietly()
+    }
+
+    /** Recarga la temporada sin indicadores ni mensajes de error y conserva lo
+     *  cargado. La usa la pestaña Ciclocross de Resultados al volver a ella, a
+     *  primer plano y en su latido de 60 s; con [recentOnly] solo descarga los
+     *  meses de los últimos [RECENT_DAYS] días (ventana inicial del feed). */
+    suspend fun refreshQuietly(recentOnly: Boolean = false) {
+        if (busy || silentRefreshing || !loaded) return
         val generation = revision
         silentRefreshing = true
-        try { loadSeason(generation) }
+        try {
+            if (dayMode) {
+                // Latido: solo el día mostrado; el índice se renueva con el
+                // tirón de recarga y al volver a la pantalla.
+                val requested = dateKey
+                val outcome = downloadToday(requested, includeIndex = false, forceRounds = false)
+                if (generation == revision) applyToday(outcome, requested)
+            } else {
+                loadSeason(generation, recentOnly)
+            }
+        }
         finally { silentRefreshing = false }
     }
 

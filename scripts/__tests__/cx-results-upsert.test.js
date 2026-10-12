@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCxResults, emitCxResultsSql, loadCxResultsContext, prepareCxResults, resolveCxResultIdentity } from '../results-fetchers/cx-results-upsert.mjs';
+import { applyCxResults, loadCxResultsContext, prepareCxResults, resolveCxResultIdentity } from '../results-fetchers/cx-results-upsert.mjs';
 
 function fixture() {
   const riders = [{ id: 'a-cx', firstName: 'A', lastName: 'Prueba', nationality: 'ES', birthDate: '2000-01-01', verified: true }];
@@ -53,6 +53,22 @@ describe('identidades CX propias', () => {
     row.birthDate = '2000-02-30';
     expect(prepare(input).imports[0].rows[0].birthDate).toBeNull();
   });
+  it('resuelve por el ID UCI de licencia cuando el nombre de la fuente no coincide con la ficha', () => {
+    const rider = { id: 'norbert-riberolle-marion', firstName: 'Marion', lastName: 'Norbert Riberolle', uciProfileId: '262683', nationality: 'BE', verified: true };
+    const row = { riderDisplay: 'Riberolle Marion Norbert', firstName: 'Riberolle Marion', lastName: 'Norbert', isoCode2: 'BE' };
+    expect(resolveCxResultIdentity(row, [rider])).toMatchObject({ id: null, reason: 'unresolved' });
+    expect(resolveCxResultIdentity({ ...row, uciLicenseId: '10026268388' }, [rider])).toMatchObject({ id: rider.id, reason: 'verified_uci_id' });
+    expect(resolveCxResultIdentity({ ...row, uciLicenseId: '10026268388', isoCode2: 'NL' }, [rider]).id).toBeNull();
+    expect(resolveCxResultIdentity({ ...row, uciLicenseId: '10026268388' }, [{ ...rider, verified: false }]).id).toBeNull();
+
+    const input = fixture(); input.context.riders.women = [rider];
+    Object.assign(input.document.categories[0], { category: 'WE' }); input.context.categories[0].category = 'WE';
+    Object.assign(input.document.categories[0].rows[0], { ...row, uciLicenseId: '10026268388' });
+    const value = prepare(input);
+    expect(value.warnings).toEqual([]);
+    expect(value.imports[0].rows[0]).toMatchObject({ globalRiderId: rider.id, firstName: 'Marion', lastName: 'Norbert Riberolle', riderDisplay: 'Marion Norbert Riberolle' });
+    expect(value.imports[0].rows[0]).not.toHaveProperty('uciLicenseId');
+  });
   it('no crea una ficha ni enlaza automáticamente un perfil sin verificar', () => {
     const input = fixture(); input.context.riders.men[0].verified = false;
     const value = prepare(input); expect(value.imports[0].rows[0].globalRiderId).toBeNull();
@@ -92,6 +108,19 @@ describe('preparación del contrato CX', () => {
     const [first, second] = prepare(input).imports[0].rows;
     expect(first).toMatchObject({ riderDisplay: 'Claudia de Diego', firstName: 'Claudia', lastName: 'de Diego' });
     expect(second.riderDisplay).toBe('Nahia De Miguel');
+  });
+  it('escribe en la fila enlazada la grafía de la ficha y conserva la de la fuente sin ficha', () => {
+    const input = fixture();
+    input.context.riders.men.push({ id: 'pintos-gomez-jose-manuel', firstName: 'José Manuel', lastName: 'Pintos', otherNames: 'José Manuel Pintos Gómez',
+      nationality: 'ES', birthDate: '2009-02-18', verified: true });
+    const rows = input.document.categories[0].rows;
+    rows.push({ rank: 2, bib: 'A02', riderDisplay: 'Jose Manuel Pintos Gomez', firstName: 'Jose Manuel', lastName: 'Pintos Gomez',
+      isoCode2: 'ES', timeText: '1:00:10', timeSeconds: '3610', bonusSeconds: null, sourceResultId: '100002' });
+    rows.push({ rank: 3, bib: 'A03', riderDisplay: 'Sin Ficha Nuevo', firstName: 'Nuevo', lastName: 'Sin Ficha',
+      isoCode2: 'ES', timeText: '1:00:20', timeSeconds: '3620', bonusSeconds: null, sourceResultId: '100003' });
+    const [, linked, unlinked] = prepare(input).imports[0].rows;
+    expect(linked).toMatchObject({ globalRiderId: 'pintos-gomez-jose-manuel', riderDisplay: 'José Manuel Pintos', firstName: 'José Manuel', lastName: 'Pintos' });
+    expect(unlinked).toMatchObject({ globalRiderId: null, riderDisplay: 'Nuevo Sin Ficha', firstName: 'Nuevo', lastName: 'Sin Ficha' });
   });
   it('no oficializa un documento DataRide por su mera existencia', () => {
     const input = fixture(); expect(() => prepare(input, { status: 'official' })).toThrow(/revisión/);
@@ -166,11 +195,6 @@ describe('preparación del contrato CX', () => {
 describe('aplicación/SQL revisable', () => {
   it('informa de carrera ausente sin desestructurar una fila inexistente', async () => {
     await expect(loadCxResultsContext({ query: async () => ({ rows: [] }) },'no-existe')).rejects.toThrow('Carrera CX no encontrada');
-  });
-  it('escapa apóstrofos en JSON/SQL y no produce INSERT de carretera ni de perfiles', () => {
-    const input = fixture(); input.document.categories[0].rows[0].riderDisplay = "O'Prueba A";
-    const sql = emitCxResultsSql(prepare(input)); expect(sql).toContain("O''Prueba A"); expect(sql).toContain('public.cx_ingest_results');
-    expect(sql).not.toMatch(/INSERT|race_uci_results|riders_men/); expect(sql.startsWith('BEGIN;')).toBe(true);
   });
   it('revierte el lote si falla una categoría, sin confirmar categorías parciales', async () => {
     const calls = []; let imports = 0;

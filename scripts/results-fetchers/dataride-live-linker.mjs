@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { databaseUrl } from '../db/env.mjs';
+import { eventKindFromText, eventKindsConflict, ourEventKind } from './uci-event-kind.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => {
@@ -163,9 +164,15 @@ export function matchTodayRace(race, competitions, { slackDays = 1 } = {}) {
   const start = ourDay(race.startDate);
   const end = ourDay(race.endDate);
   const country = String(race.countryCode || '').toLowerCase().split('-')[0];
+  const kind = ourEventKind({
+    names: [race.nameEn, race.originalName, race.name],
+    primaryTypes: (race.todayDays || []).map((day) => day.primaryType),
+    raceFormat: race.raceFormat,
+  });
   const candidates = competitions
     .filter((competition) => competitionId(competition) != null)
     .filter((competition) => !isJuniorName(competition.CompetitionName))
+    .filter((competition) => !eventKindsConflict(kind, eventKindFromText(competition.CompetitionName)))
     .filter((competition) => overlaps(
       start,
       end,
@@ -330,7 +337,7 @@ async function loadTodayRaces(client) {
   const { rows } = await client.query(
     `WITH today_days AS (
        SELECT d.id, d."raceId", d."stageNumber", d."neutralStartTimeUtc",
-              d."estimatedFinishTimeUtc",
+              d."estimatedFinishTimeUtc", d."primaryType",
               row_number() OVER (
                 PARTITION BY d."raceId", d."stageNumber"
                 ORDER BY d."neutralStartTimeUtc" ASC NULLS LAST, d.id ASC
@@ -345,6 +352,7 @@ async function loadTodayRaces(client) {
             jsonb_agg(jsonb_build_object(
               'id', d.id,
               'stageNumber', d."stageNumber",
+              'primaryType', d."primaryType",
               'sectorIndex', d."sectorIndex",
               'estimatedFinishTimeUtc', d."estimatedFinishTimeUtc"
             ) ORDER BY d."stageNumber" NULLS FIRST, d."sectorIndex") AS "todayDays"

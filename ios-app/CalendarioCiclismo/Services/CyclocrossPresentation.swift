@@ -46,6 +46,18 @@ struct CxMediaSelection {
 }
 enum CxCategoryCardState { case time, awaiting, results, cancelled }
 
+/// Badge de TV de la tarjeta de Agenda: emisión enlazada, hora de la primera
+/// emisión del día y si el día ya está en directo.
+struct CxAgendaBroadcast {
+    /// Emisión enlazada: la primera hasta que empieza otra posterior de una
+    /// categoría aún en directo; después, la última que ha empezado.
+    let row: CxBroadcast
+    /// Hora UTC de la primera emisión del día (nil sin hora).
+    let firstStartUtc: String?
+    /// La primera emisión ya ha empezado.
+    let live: Bool
+}
+
 /// Celda de total de una general: puntos, o tiempo del líder y diferencia
 /// del resto.
 struct CxStandingValue: Equatable {
@@ -522,6 +534,63 @@ enum CyclocrossPresentation {
             .filter { urls.insert($0.id).inserted }
         return CxMediaSelection(tv: groups, revive: revive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty, regionalIds: regionalIds)
     }
+    // MARK: - Badges de la tarjeta de Agenda
+
+    /// Badge de TV de la tarjeta de Agenda, espejo de `cxAgendaBroadcast`
+    /// (`js/cx/presentation.js`). Cuenta solo las emisiones de la región del
+    /// usuario con URL válida que se aplican a las categorías del día. Hasta
+    /// que empieza la primera muestra su hora; desde entonces, «En directo»
+    /// mientras quede alguna categoría del día sin resultados, sin cancelar y
+    /// antes de su conclusión estimada; después, nil.
+    static func agendaBroadcast(race: CxRace, date: String, allowedGroups: Set<String>, at now: Date = Date()) -> CxAgendaBroadcast? {
+        let categories = CyclocrossLogic.categories(on: date, race: race)
+        guard !race.isCancelled, !categories.isEmpty else { return nil }
+        let visible = (race.broadcasts ?? [])
+            .filter { link($0.url) != nil && RaceLogic.broadcastMatchesRegion($0.country, allowedGroups: allowedGroups) }
+            .sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }
+        guard !visible.isEmpty else { return nil }
+        /// Filas que se aplican a las categorías aceptadas, sin repetir
+        /// categoría, URL, región y canal (criterio de la TV de la ficha).
+        func rows(_ accept: (CxCategory) -> Bool) -> [CxBroadcast] {
+            let codes = Set(categories.filter(accept).map(\.category))
+            guard !codes.isEmpty else { return [] }
+            var keys = Set<String>()
+            return visible.filter { row in
+                let code = row.category ?? ""
+                guard code.isEmpty || codes.contains(code) else { return false }
+                let country = row.country.flatMap { $0.isEmpty ? nil : $0 } ?? "ALL"
+                return keys.insert("\(code)|\(link(row.url)?.absoluteString ?? "")|\(country)|\(row.channel ?? "")").inserted
+            }
+        }
+        let tv = rows { category in
+            !category.isCancelled && !CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus)
+                && now < CyclocrossLogic.concludedAt(race: race, category: category)
+        }
+        guard !tv.isEmpty else { return nil }
+        func start(_ row: CxBroadcast) -> Date { CyclocrossLogic.instant(row.startTimeUtc) ?? .distantFuture }
+        /// La que antes empieza; a igualdad, la primera por orden.
+        func earliest(_ list: [CxBroadcast]) -> CxBroadcast? {
+            list.reduce(nil) { best, row in best.map { start(row) < start($0) ? row : $0 } ?? row }
+        }
+        guard let first = earliest(rows { !$0.isCancelled }) ?? earliest(tv) else { return nil }
+        // Última emisión empezada de una categoría en directo; a igualdad de
+        // hora, la última por orden.
+        let started = tv.filter { start($0) <= now }
+        let current = started.reduce(nil) { best, row in best.map { start(row) >= start($0) ? row : $0 } ?? row } ?? earliest(tv) ?? first
+        return CxAgendaBroadcast(row: current, firstStartUtc: first.startTimeUtc, live: start(first) <= now)
+    }
+
+    /// Badge de dorsales de la tarjeta de Agenda, espejo de
+    /// `cxAgendaStartlistCategory`: primera categoría del día con lista
+    /// cargada que aún no tiene resultados ni está cancelada.
+    static func agendaStartlistCategory(race: CxRace, date: String, at now: Date = Date()) -> CxCategory? {
+        guard !race.isCancelled else { return nil }
+        return CyclocrossLogic.categories(on: date, race: race).first { category in
+            category.startlistImportedAt != nil
+                && ![.results, .cancelled].contains(categoryCardState(race: race, category: category, at: now))
+        }
+    }
+
     static func usesDarkChipText(_ hex: String) -> Bool {
         guard let rgb = Int(hex.replacingOccurrences(of: "#", with: ""), radix: 16) else { return false }
         let channels = [Double(rgb >> 16 & 255), Double(rgb >> 8 & 255), Double(rgb & 255)].map {

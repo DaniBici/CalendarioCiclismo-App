@@ -2,7 +2,7 @@ import {describe,it,expect} from 'vitest';
 import {cxHighlightSlide,cxTournamentHighlightSlide} from '../cx/highlight.js';
 
 const highlight={targetType:'cxRace',cxRaceId:'cx'};
-const race={id:'cx',seasonKey:'2026-27',dateKey:'2026-09-12',name:'Prueba CX',nameEn:'CX race',slug:'prueba-cx',slugEn:'cx-race',cx_tournaments:{colorHex:'#5a3210',logoUrl:'https://example.org/tournament.png'}};
+const race={id:'cx',seasonKey:'2026-27',dateKey:'2026-09-12',name:'Prueba CX',nameEn:'CX race',slug:'prueba-cx',slugEn:'cx-race',cx_tournaments:{logoUrl:'https://example.org/tournament.png'}};
 
 describe('destinos CX del cintillo compartido',()=>{
   it('exige una carrera resuelta del destino y una fecha de temporada válida',()=>{
@@ -13,7 +13,7 @@ describe('destinos CX del cintillo compartido',()=>{
     expect(cxHighlightSlide(highlight,{...race,endDateKey:'2027-03-01'})).toBeNull();
   });
   it('resuelve ruta e identidad EN y fallback de torneo',()=>{
-    expect(cxHighlightSlide(highlight,race,'en')).toMatchObject({href:'/en/cyclocross/cx-race/',name:'CX race',colorHex:'#5a3210',logoUrl:'https://example.org/tournament.png',date:'2026-09-12',detail:null});
+    expect(cxHighlightSlide(highlight,race,'en')).toMatchObject({href:'/en/cyclocross/cx-race/',name:'CX race',logoUrl:'https://example.org/tournament.png',date:'2026-09-12',detail:null});
   });
   it('conserva títulos/detalles custom traducidos escapados',()=>{
     expect(cxHighlightSlide({...highlight,customTitle:'Título',customTitleEn:'<Race>',customDetail:'Detalle',customDetailEn:'TV & live'},race,'en')).toMatchObject({name:'&lt;Race&gt;',detail:'TV &amp; live'});
@@ -25,7 +25,7 @@ describe('destinos CX del cintillo compartido',()=>{
 });
 
 describe('destino de torneo del cintillo CX',()=>{
-  const tournament={id:'t1',name:'Copa del Mundo',nameEn:'World Cup',slug:'world-cup',seasonKey:'2026-27',colorHex:'#8b173d',logoUrl:'https://example.org/series.png'};
+  const tournament={id:'t1',name:'Copa del Mundo',nameEn:'World Cup',slug:'world-cup',seasonKey:'2026-27',logoUrl:'https://example.org/series.png'};
   const target={targetType:'cxTournament',cxTournamentId:'t1'};
 
   it('exige la fila de torneo correspondiente',()=>{
@@ -35,7 +35,7 @@ describe('destino de torneo del cintillo CX',()=>{
   });
 
   it('resuelve la ruta de torneo ES/EN y usa la temporada como detalle',()=>{
-    expect(cxTournamentHighlightSlide(target,tournament)).toMatchObject({href:'/ciclocross/torneos/world-cup/',name:'Copa del Mundo',detail:'2026-27',colorHex:'#8b173d',date:null});
+    expect(cxTournamentHighlightSlide(target,tournament)).toMatchObject({href:'/ciclocross/torneos/world-cup/',name:'Copa del Mundo',detail:'2026-27',date:null});
     expect(cxTournamentHighlightSlide(target,tournament,'en')).toMatchObject({href:'/en/cyclocross/series/world-cup/',name:'World Cup'});
   });
 

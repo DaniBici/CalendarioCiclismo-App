@@ -52,7 +52,7 @@ Los datos deportivos se actualizan durante la temporada. Los horarios se muestra
 
 ## Aplicaciones y proyecto
 
-- [Aplicación para iPhone y iPad](https://apps.apple.com/app/id6761902611)
+- [Aplicación para iPhone y iPad](https://apps.apple.com/es/app/calendario-ciclismo/id6761902611)
 - [Aplicación para Android](https://play.google.com/store/apps/details?id=app.calendariociclismo.android)
 - [Apps de Calendario Ciclismo](https://calendariociclismo.app/apps/)
 - [Acerca de Calendario Ciclismo](https://calendariociclismo.app/about/)

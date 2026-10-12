@@ -227,6 +227,29 @@ function _secondsToTime(sec) {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+// La UCI publica a veces la llegada con la lista de salida completa y solo los
+// primeros puestos asignados (París-Tours sub23 2026: 17 de 161 filas). Una
+// llegada individual con más de la mitad de las filas sin puesto ni IRM no está
+// terminada: se emite como incompleta (publicationStatus provisional) y sin las
+// filas vacías. La mitad separa este caso de los cuadros terminados que conservan
+// unas pocas filas sin clasificar. Las contrarreloj por equipos y los tipos de
+// prueba desconocidos conservan siempre el estado oficial.
+const INDIVIDUAL_ARRIVAL_RACE_TYPES = new Set(['IRR', 'RR', 'ITT']);
+export function markIncompleteArrivals(classifications, raceType) {
+  if (!INDIVIDUAL_ARRIVAL_RACE_TYPES.has(String(raceType || '').toUpperCase())) return classifications;
+  return classifications.map((cl) => {
+    if ((cl.classKind !== 'stage' && cl.classKind !== 'gc') || cl.isTeamEvent || !Array.isArray(cl.rows)) return cl;
+    const placed = cl.rows.filter((r) => r.rank != null || r.irm);
+    if (cl.rows.length - placed.length <= placed.length) return cl;
+    return {
+      ...cl,
+      rowCount: placed.length,
+      rows: placed,
+      publication: { ...(cl.publication || {}), provider: RESULTS_SOURCE, format: 'uci', sourceStatus: 'incomplete' },
+    };
+  });
+}
+
 export function normalizeInitialStageOnlyClassification(stageNumber, classifications, finishBonuses = []) {
   if (stageNumber !== 1 || !Array.isArray(classifications)) return classifications;
   if (classifications.some((cl) => cl.classKind === 'stage' && cl.scope === 'stage')) return classifications;
@@ -669,14 +692,18 @@ async function main() {
       log(`    ${stageName.padEnd(20)} ${(scope + '/' + classKind).padEnd(14)} ${String(rows.length).padStart(3)} filas  (event ${ev.EventId})`);
     }
 
-    const normalizedClassifications = normalizeInitialStageOnlyClassification(
+    const initialNormalized = normalizeInitialStageOnlyClassification(
       stageNumber,
       classifications,
       INITIAL_FINISH_BONUSES.get(Number(COMPETITION)) || [],
     );
-    if (normalizedClassifications !== classifications) {
+    if (initialNormalized !== classifications) {
       log('    ↳ Stage General Classification normalizada como clasificación de etapa inicial');
     }
+    const normalizedClassifications = markIncompleteArrivals(initialNormalized, clean(race.RaceTypeCode));
+    normalizedClassifications.forEach((cl, i) => {
+      if (cl !== initialNormalized[i]) log(`    ↳ ${cl.eventName}: llegada incompleta en origen (${cl.rowCount} con puesto), se emite sin filas vacías como provisional`);
+    });
 
     stages.push({
       uciRaceId: race.Id,

@@ -311,7 +311,7 @@ async function init(i18nReady = Promise.resolve()) {
             <td class="so-td so-td--time">${timeCell}</td>
             <td class="so-td so-td--dorsal">${e.dorsal}</td>
             <td class="so-td so-td--rider">${riderCell}</td>
-            <td class="so-td so-td--team">${team}</td>
+            <td class="so-td so-td--team"${e.teamName ? ` title="${esc(e.teamName)}"` : ''}>${team}</td>
           </tr>`;
     }
   });

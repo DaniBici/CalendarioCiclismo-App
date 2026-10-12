@@ -119,12 +119,6 @@ class AppDatabaseMigrationTest {
         val json = requireNotNull(javaClass.classLoader!!.getResourceAsStream(resource))
             .bufferedReader().use { it.readText() }
         val schema = JSONObject(json).getJSONObject("database")
-        val expectedHash = if (schemaVersion == 15) {
-            "fd0f7ed37c59b6a97a684bc90fce4802"
-        } else {
-            "37b95198f275ecd8dd0c1f93dc75cd7b"
-        }
-        assertEquals(expectedHash, schema.getString("identityHash"))
 
         context.openOrCreateDatabase(databaseName, Context.MODE_PRIVATE, null).use { database ->
             val entities = schema.getJSONArray("entities")

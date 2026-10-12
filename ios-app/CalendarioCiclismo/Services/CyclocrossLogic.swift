@@ -123,8 +123,14 @@ enum CyclocrossLogic {
 
     static let publishedResultsStatuses: Set<String> = ["official", "provisional"]
 
-    static func races(on date: String, races: [CxRace]) -> [CxRace] {
+    /// Pruebas del día en el orden de la agenda. Las destacadas (`featured`,
+    /// corona del panel en `cx_race_featured`) encabezan el día; el resto, y
+    /// las destacadas entre sí, siguen el orden canónico: clase, hora de la
+    /// categoría programada de mayor rango y nombre.
+    static func races(on date: String, races: [CxRace], featured: Set<String> = []) -> [CxRace] {
         races.filter { dates($0).contains(date) }.sorted { lhs, rhs in
+            let lFeatured = featured.contains(lhs.id), rFeatured = featured.contains(rhs.id)
+            if lFeatured != rFeatured { return lFeatured }
             let lClass = classes.firstIndex(of: lhs.raceClass) ?? classes.count
             let rClass = classes.firstIndex(of: rhs.raceClass) ?? classes.count
             if lClass != rClass { return lClass < rClass }
@@ -203,6 +209,22 @@ enum CyclocrossLogic {
     /// Número de prueba por carrera y torneo. Una carrera cancelada en su
     /// totalidad sale de la numeración; una manga cancelada no la altera. Sin
     /// torneo o fuera de temporada no se numeran.
+    /// Numeración calculada con las carreras ya descargadas (caché por mes), sin
+    /// la consulta de la temporada. Una carrera que abarca dos meses figura en
+    /// ambos y se cuenta una vez. Solo es completa con todos los meses de la
+    /// temporada.
+    static func tournamentRounds(races: [CxRace], season: String) -> [String: CxRound] {
+        var seen = Set<String>()
+        let rows = races.filter { seen.insert($0.id).inserted }.map { race in
+            CxRoundRow(
+                id: race.id, tournamentId: race.tournamentId, dateKey: race.dateKey, seasonKey: race.seasonKey,
+                isCancelled: race.isCancelled,
+                cx_race_categories: race.categories.map { CxRoundEntry(dateKey: $0.dateKey, startTimeUtc: $0.startTimeUtc) }
+            )
+        }
+        return tournamentRounds(rows, season: season)
+    }
+
     static func tournamentRounds(_ rows: [CxRoundRow], season: String) -> [String: CxRound] {
         var groups: [String: [CxRoundRow]] = [:]
         for row in rows where !(row.tournamentId ?? "").isEmpty && row.isCancelled != true && row.seasonKey == season && dateInSeason(row.dateKey, season: season) {

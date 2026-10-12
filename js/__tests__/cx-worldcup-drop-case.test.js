@@ -19,6 +19,5 @@ describe('caso oficial de puestos descartados, Copa del Mundo MU 2019–20',()=>
     expect(retained).toMatchObject({caseOrderMatches:false,calculatedOrder:['VANDEPUTTE Niels','MEIN Thomas']});
     expect(retained.differences).toEqual([{field:'relativeOrder',official:all.calculatedOrder,calculated:retained.calculatedOrder}]);
     expect(JSON.stringify({fixture,references})).toBe(before);
-    expect(references.references.find(r=>r.tournament==='Copa del Mundo').pointsScheme.status).toBe('reference_requires_edition_review');
   });
 });

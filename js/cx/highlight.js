@@ -1,5 +1,5 @@
 import {cxDateInSeason} from './season.js';
-import {cxEsc,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentColor} from './presentation.js';
+import {cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl} from './presentation.js';
 import {cxLogoSources} from '../components/cx-logo.js';
 
 export function cxHighlightSlide(highlight,race,lang='es') {
@@ -7,7 +7,7 @@ export function cxHighlightSlide(highlight,race,lang='es') {
   const title=lang==='en'?(highlight.customTitleEn||highlight.customTitle):(highlight.customTitle);
   const detail=lang==='en'?(highlight.customDetailEn||highlight.customDetail):highlight.customDetail;
   return {href:cxRaceUrl(race,lang),logoUrl:cxLogoSources({...race,logoUrl:highlight.customLogo||race.logoUrl})[0]?.url||null,
-    name:cxEsc(title||cxRaceName(race,lang)),detail:detail?cxEsc(detail):null,colorHex:cxColor(race),date:race.dateKey};
+    name:cxEsc(title||cxRaceName(race,lang)),detail:detail?cxEsc(detail):null,date:race.dateKey};
 }
 
 // Destino «torneo»: la página de serie (/ciclocross/torneos/<slug>/ o
@@ -18,6 +18,5 @@ export function cxTournamentHighlightSlide(highlight,tournament,lang='es') {
   const title=lang==='en'?(highlight.customTitleEn||highlight.customTitle):(highlight.customTitle);
   const detail=lang==='en'?(highlight.customDetailEn||highlight.customDetail):highlight.customDetail;
   return {href:cxTournamentUrl(tournament,lang),logoUrl:cxLogoSources({logoUrl:highlight.customLogo},{logoUrl:tournament.logoUrl})[0]?.url||null,
-    name:cxEsc(title||cxRaceName(tournament,lang)),detail:detail?cxEsc(detail):(tournament.seasonKey?cxEsc(tournament.seasonKey):null),
-    colorHex:cxTournamentColor(tournament)||(/^#[0-9a-f]{6}$/i.test(tournament.colorHex||'')?tournament.colorHex:null),date:null};
+    name:cxEsc(title||cxRaceName(tournament,lang)),detail:detail?cxEsc(detail):(tournament.seasonKey?cxEsc(tournament.seasonKey):null),date:null};
 }

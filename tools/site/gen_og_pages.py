@@ -17,21 +17,12 @@ SUPABASE_URL = "https://bcecwlkynpgovnzhbpah.supabase.co"
 ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 BASE_URL = "https://calendariociclismo.app"
 BASE_URL_EN = os.environ.get("EN_BASE_URL", "https://calendariociclismo.app/en")
-DEFAULT_OG_IMAGE = "https://assets.calendariociclismo.app/og-default.png"
-OG_WORKER_URL = "https://og.calendariociclismo.app"
+DEFAULT_OG_IMAGE = "https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg"
+DEFAULT_OG_IMAGE_ALT = "Calendario Ciclismo"
 
 if not ANON_KEY:
     print("FATAL: SUPABASE_ANON_KEY no está definido", file=sys.stderr)
     sys.exit(1)
-
-def og_image_url(logo_url, title=""):
-    """Genera la URL del worker OG que compone logo + fondo."""
-    if not logo_url or not logo_url.startswith("http"):
-        return DEFAULT_OG_IMAGE
-    url = f"{OG_WORKER_URL}/?logo={quote(logo_url, safe='')}"
-    if title:
-        url += f"&title={quote(title, safe='')}"
-    return url
 
 def supabase_get(path):
     # PostgREST limita cada respuesta a 1000 filas. Paginamos con el header
@@ -296,7 +287,7 @@ def page_id_meta(page_ids):
 
 # ── Página HTML base ───────────────────────────────────────
 def og_page(title, description, canonical_url,
-            og_image=None, og_image_alt=None,
+            og_image=None,
             body_html="", json_ld_objs=None,
             container_id="jornadaContent", spa_script=JORNADA_SCRIPT,
             main_class="",
@@ -304,7 +295,7 @@ def og_page(title, description, canonical_url,
             date_published=None, date_modified=None,
             head_extra="", robots=ROBOTS_INDEX, en_url=None, page_ids=None):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
-    img_alt = og_image_alt or title
+    img_alt = DEFAULT_OG_IMAGE_ALT
     hreflang_en = f'\n<link rel="alternate" hreflang="en" href="{esc(en_url)}">' if en_url else ''
     # Asignar id estable según @type para que la SPA pueda sobrescribirlos
     # sin duplicar bloques. Fallback: sin id.
@@ -339,7 +330,6 @@ def og_page(title, description, canonical_url,
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="{SUPABASE_JS_ESM}" crossorigin>
 <link rel="preconnect" href="https://assets.calendariociclismo.app">{page_id_meta(page_ids)}
-<link rel="dns-prefetch" href="https://og.calendariociclismo.app">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_ES">
 <meta property="og:title" content="{esc(title)}">
@@ -699,7 +689,7 @@ SITE_HEADER_HTML_EN = (
 
 def og_page_en(title, description, canonical_url,
                es_url=None,
-               og_image=None, og_image_alt=None,
+               og_image=None,
                body_html="", json_ld_objs=None,
                container_id="jornadaContent", spa_script=JORNADA_SCRIPT,
                main_class="",
@@ -707,7 +697,7 @@ def og_page_en(title, description, canonical_url,
                date_published=None, date_modified=None,
                head_extra="", robots=ROBOTS_INDEX, page_ids=None):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
-    img_alt = og_image_alt or title
+    img_alt = DEFAULT_OG_IMAGE_ALT
     ld_tags = ""
     for obj in (json_ld_objs or []):
         if not isinstance(obj, dict):
@@ -968,7 +958,7 @@ for race in emit_rows(races, "races"):
     else:
         description = f"{art_name} {year}. Consulta el recorrido, etapas y cómo ver por TV y online streaming."
 
-    og_image = og_image_url(race.get("logoUrl"), f"{name} {year}")
+    og_image = DEFAULT_OG_IMAGE
     # Carrera de un día: /competicion/ y /jornada/ comparten keyword y
     # (casi siempre) slug. Consolidamos la señal SEO hacia la JORNADA
     # (contenido real: recorrido, perfil, horarios, TV) apuntando el
@@ -1060,7 +1050,6 @@ for race in emit_rows(races, "races"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
-                        og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="competicionContent",
                         spa_script=COMPETICION_SCRIPT,
@@ -1205,7 +1194,7 @@ for rd in emit_rows(racedays, "stages"):
                        f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
 
     og_title = f"{race_name} {race_year}" if is_one_day else title.replace(" - Calendario Ciclismo App", "")
-    og_image = og_image_url(race.get("logoUrl"), og_title)
+    og_image = DEFAULT_OG_IMAGE
     canonical_slug = canonical_slug_by_slug.get(slug, slug)
     canonical = f"{BASE_URL}/jornada/{quote(canonical_slug)}/"
     canonical_rd = day_by_slug.get(canonical_slug, rd)
@@ -1283,7 +1272,6 @@ for rd in emit_rows(racedays, "stages"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
-                        og_image_alt=og_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="jornadaContent",
                         spa_script=JORNADA_SCRIPT,
@@ -1335,7 +1323,7 @@ for race in emit_rows(races, "extras"):
     title = f"{insc_search_name} {year}: {insc_title_tail} - Calendario Ciclismo App"
     display_title = f"{inscritos_label} - {name} {year}"
 
-    og_image = og_image_url(race.get("logoUrl"), f"{inscritos_label} - {name} {year}")
+    og_image = DEFAULT_OG_IMAGE
     canonical = f"{BASE_URL}/inscritos/{quote(slug)}/"
     en_url = (f"{BASE_URL_EN}/startlist/{quote(race['slugEn'])}/"
               if race.get("slugEn") and (race.get("nameEn") or race.get("name")) else None)
@@ -1355,7 +1343,6 @@ for race in emit_rows(races, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
-                        og_image_alt=f"{inscritos_label} - {name} {year}",
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="inscritosContent",
                         spa_script="/js/inscritos.js",
@@ -1428,7 +1415,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
     description = (f"Horarios y orden de salida de la {so_type_name}{so_stage_par} "
                    f"{so_de_art} {hero_title}{so_detail}.")
     title = f"{display_title} - Calendario Ciclismo App"
-    og_image = og_image_url(race.get("logoUrl"), display_title)
+    og_image = DEFAULT_OG_IMAGE
     canonical = f"{BASE_URL}/orden-salida/{quote(slug)}/"
     race_slug = race.get("slug", "")
     crumbs = [
@@ -1449,7 +1436,6 @@ for rd in emit_rows(so_rds_raw, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         source = og_page(title, description, canonical, og_image,
-                        og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="startOrderContent",
                         spa_script="/js/orden-salida.js",
@@ -1515,7 +1501,7 @@ for rd in emit_rows(so_rds_raw, "extras"):
     desc_en = (f"Schedule and start order for the {type_label_en}{so_stage_par_en} "
                f"of the {hero_title_en}{so_detail_en}.")
     title_en = f"{display_title_en} - Calendario Ciclismo"
-    og_img_en = og_image_url(race.get("logoUrl"), display_title_en)
+    og_img_en = DEFAULT_OG_IMAGE
     canonical_en = f"{BASE_URL_EN}/start-order/{quote(slug_en)}/"
     canonical_es = f"{BASE_URL}/orden-salida/{quote(slug_es)}/" if slug_es else None
     slug_en_race = race.get("slugEn") or race.get("slug", "")
@@ -1539,7 +1525,6 @@ for rd in emit_rows(so_rds_raw, "extras"):
             canonical_en,
             es_url=canonical_es,
             og_image=og_img_en,
-            og_image_alt=display_title_en,
             body_html=body_en,
             json_ld_objs=[breadcrumb_list(crumbs_en)],
             container_id="startOrderContent",
@@ -1654,7 +1639,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
     hero_en = f"{name_en} {year}".strip()
     is_one_day_res = race.get("raceFormat") == "one_day"
     res_de_art = de_articulo(name_es)
-    og_image = og_image_url(race.get("logoUrl"), f"Resultados - {hero_es}")
+    og_image = DEFAULT_OG_IMAGE
     for stage_entry in sorted(stage_set, key=result_entry_sort_key):
         stage_num, stage_suffix = stage_entry
         # race_day correspondiente: por entrada sectorizada; para un día,
@@ -1745,7 +1730,6 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
             os.makedirs(dir_path, exist_ok=True)
             with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
                 source = og_page(title, description, canonical, og_image,
-                                og_image_alt=display_title,
                                 body_html=body,
                                 json_ld_objs=[breadcrumb_list(crumbs)],
                                 container_id="resultsContent",
@@ -1825,8 +1809,7 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
                 f.write(og_page_en(
                     title_en, desc_en, canonical_en,
                     es_url=canonical_es,
-                    og_image=og_image_url(race.get("logoUrl"), f"Results - {hero_en}"),
-                    og_image_alt=display_title_en,
+                    og_image=DEFAULT_OG_IMAGE,
                     body_html=body_en,
                     json_ld_objs=[breadcrumb_list(crumbs_en)],
                     container_id="resultsContent",
@@ -1911,7 +1894,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     if date_key:
         description += f" {format_full_date(date_key)}."
 
-    og_image = og_image_url(race.get("logoUrl"), display_title)
+    og_image = DEFAULT_OG_IMAGE
     canonical = f"{BASE_URL}/perfil/{quote(slug)}/"
 
     crumbs = [("Inicio", f"{BASE_URL}/")]
@@ -1942,7 +1925,6 @@ for rd in emit_rows(perfil_rds, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         source = og_page(title, description, canonical, og_image,
-                        og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="perfilEtapaContent",
                         spa_script="/js/perfil-pub.js",
@@ -2021,7 +2003,7 @@ for rd in emit_rows(mapa_rds, "extras"):
     if date_key:
         description += f" {format_full_date(date_key)}."
 
-    og_image = og_image_url(race.get("logoUrl"), display_title)
+    og_image = DEFAULT_OG_IMAGE
     canonical = f"{BASE_URL}/mapa/{quote(slug)}/"
 
     crumbs = [("Inicio", f"{BASE_URL}/")]
@@ -2048,7 +2030,6 @@ for rd in emit_rows(mapa_rds, "extras"):
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         source = og_page(title, description, canonical, og_image,
-                        og_image_alt=display_title,
                         body_html=body, json_ld_objs=[breadcrumb_list(crumbs)],
                         container_id="mapaEtapaContent",
                         spa_script="/js/mapa-pub.js",
@@ -2117,8 +2098,7 @@ for rd in emit_rows(mapa_rds, "extras"):
                 title_en,
                 desc_en, canonical_en,
                 es_url=canonical_es,
-                og_image=og_image_url(race.get("logoUrl"), display_title_en),
-                og_image_alt=display_title_en,
+                og_image=DEFAULT_OG_IMAGE,
                 body_html=body_en,
                 json_ld_objs=[breadcrumb_list(crumbs_en)],
                 container_id="mapaEtapaContent",
@@ -2162,7 +2142,7 @@ for race in emit_rows(races, "races"):
     title_en = f"{name_en} {year}".strip() if year else name_en
     cancelled_en = bool(race.get("isCancelled"))
     desc_en = race_description_en(title_en, start, end, race.get("raceFormat") == "one_day")
-    og_img_en = og_image_url(race.get("logoUrl") or "", title_en)
+    og_img_en = DEFAULT_OG_IMAGE
     country_en = (race.get("countryCode") or "").upper() or None
     race_updated_en = (race.get("updatedAt") or "")[:10] or None
 
@@ -2262,7 +2242,6 @@ for race in emit_rows(races, "races"):
             canonical_en,
             es_url=canonical_es,
             og_image=og_img_en,
-            og_image_alt=title_en,
             body_html=body_en,
             json_ld_objs=json_ld_en,
             spa_script=COMPETICION_SCRIPT,
@@ -2349,7 +2328,7 @@ for rd in emit_rows(racedays, "stages"):
         if _wd_en:
             desc_en += f" {_wd_en}."
 
-    og_img_en = og_image_url(race.get("logoUrl") or "", name_en)
+    og_img_en = DEFAULT_OG_IMAGE
 
     # Breadcrumbs EN
     crumbs_en = [("Home", f"{BASE_URL_EN}/")]
@@ -2412,7 +2391,6 @@ for rd in emit_rows(racedays, "stages"):
             canonical_en,
             es_url=canonical_es,
             og_image=og_img_en,
-            og_image_alt=title_en,
             body_html=body_en,
             json_ld_objs=json_ld_list_en,
             spa_script=JORNADA_SCRIPT,
@@ -2436,7 +2414,7 @@ for race in emit_rows(races, "extras"):
     canonical_es = f"{BASE_URL}/inscritos/{quote(slug_es)}/" if slug_es else None
     title_en = f"{name_en} {year} - Startlist".strip()
     desc_en  = f"Full startlist for {name_en} {year}.".strip()
-    og_img_sl = og_image_url(race.get("logoUrl") or "", name_en)
+    og_img_sl = DEFAULT_OG_IMAGE
     crumbs_sl = [
         ("Home", f"{BASE_URL_EN}/"),
         (f"{year} season" if year else "Season", f"{BASE_URL_EN}/season/"),
@@ -2453,7 +2431,6 @@ for race in emit_rows(races, "extras"):
             canonical_en,
             es_url=canonical_es,
             og_image=og_img_sl,
-            og_image_alt=title_en,
             body_html=body_sl,
             json_ld_objs=[breadcrumb_list(crumbs_sl)],
             spa_script="/js/inscritos.js",
@@ -2521,8 +2498,7 @@ for rd in emit_rows(perfil_rds, "extras"):
             desc_en,
             canonical_en,
             es_url=canonical_es,
-            og_image=og_image_url(race.get("logoUrl") or "", name_en),
-            og_image_alt=display_title_en,
+            og_image=DEFAULT_OG_IMAGE,
             json_ld_objs=None,
             container_id="perfilEtapaContent",
             spa_script="/js/perfil-pub.js",
@@ -2659,7 +2635,7 @@ def generate_cx_tournament_pages(races):
             body += '</div>'
             kwargs = dict(title=f"{name} · {season} - Calendario Ciclismo",
                 description=cx_tournament_description(tournament,races,lang),
-                canonical_url=canonical,og_image=og_image_url(tournament.get("logoUrl"),name),body_html=body,
+                canonical_url=canonical,og_image=DEFAULT_OG_IMAGE,body_html=body,
                 json_ld_objs=[breadcrumb_list(crumbs)],container_id="cxAgendaContent",
                 spa_script="/js/ciclocross.js",head_extra='<link rel="stylesheet" href="/css/ciclocross.css">')
             if lang == "en" and not has_english:
@@ -2740,7 +2716,7 @@ def generate_cx_pages(cx_races):
             if race.get("endDateKey") and race["endDateKey"] != race["dateKey"]:
                 dates.append(race["endDateKey"])
             event = sports_event(name,race["dateKey"],race.get("endDateKey") or race["dateKey"],canonical,description,
-                                 image=og_image_url(race.get("logoUrl"),title),location_name=race.get("venue"),
+                                 image=DEFAULT_OG_IMAGE,location_name=race.get("venue"),
                                  location_country=race.get("countryCode"),cancelled=race.get("isCancelled",False),
                                  organizer_url=race.get("websiteUrl"),same_as=race.get("websiteUrl"),
                                  date_published=(race.get("createdAt") or "")[:10] or None,
@@ -2801,7 +2777,7 @@ def generate_cx_pages(cx_races):
                                for key,label,suffix in sections) + '</nav>'
                      + f'<p>{esc(description)}</p>')
             kwargs = dict(title=title,description=description,canonical_url=canonical,
-                          og_image=og_image_url(race.get("logoUrl"),title),body_html=body,
+                          og_image=DEFAULT_OG_IMAGE,body_html=body,
                           json_ld_objs=[event,breadcrumb_list(crumbs)],container_id="cxRaceContent",
                           spa_script="/js/cx-race.js",head_extra=cx_extra,
                           prerender_visible=False,

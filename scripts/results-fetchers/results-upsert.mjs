@@ -84,7 +84,7 @@
  *   --startlist ruta.json  Contrasta dorsales en el preflight integrado.
  *   --preflight-report ruta.json  Informe compacto; no requiere archivo normalizado intermedio.
  *   --empty-means-ditto / --allow-nonmonotonic-gaps / --allow-bibless / --allow-pointless /
- *               --allow-gapless-teams: excepciones verificadas en fuente.
+ *               --allow-gapless-teams / --allow-winner-without-time: excepciones verificadas en fuente.
  *   --apply     Aplica a Postgres (DATABASE_URL del .env). Sin esto → modo SQL.
  *   --emit-sql  Ruta de salida del SQL (default <in dir>/upsert.sql). '-' = stdout. (Modo SQL.)
  *   --no-delete (solo modo SQL) Variante para el conector MCP, que retiene toda consulta
@@ -1210,6 +1210,7 @@ async function main() {
       emptyMeansDitto: hasFlag('empty-means-ditto'),
       allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'), allowBibless: hasFlag('allow-bibless'),
       allowPointless: hasFlag('allow-pointless'), allowGaplessTeams: hasFlag('allow-gapless-teams'),
+      allowWinnerWithoutTime: hasFlag('allow-winner-without-time'),
     });
     const reportPath = getArg('preflight-report');
     if (reportPath) writeFileSync(reportPath, JSON.stringify(prepared.report, null, 2) + '\n');

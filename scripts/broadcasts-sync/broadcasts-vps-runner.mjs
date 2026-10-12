@@ -6,7 +6,9 @@ import {
   recordAutomationSourceRun,
   startAutomationRun,
 } from '../automation-monitor.mjs';
-import { run, SOURCES } from './broadcasts-sync.mjs';
+import { APPLY_SOURCES, run, SOURCES } from './broadcasts-sync.mjs';
+import { CX_SOURCES } from './cx-broadcasts-core.mjs';
+import { runCxBroadcasts, summarizeCxSource } from './cx-broadcasts.mjs';
 import { fileURLToPath } from 'node:url';
 
 function actionCounts(rows) {
@@ -54,6 +56,27 @@ export function summarizeBroadcastSource(source, report) {
   };
 }
 
+async function runCxPass(client, runId) {
+  try {
+    const cx = await runCxBroadcasts({ client, applySources: APPLY_SOURCES });
+    for (const source of CX_SOURCES) {
+      await recordAutomationSourceRun(client, { runId, ...summarizeCxSource(source, cx.report) });
+    }
+    return cx;
+  } catch (error) {
+    for (const source of CX_SOURCES) {
+      await recordAutomationSourceRun(client, {
+        runId,
+        source,
+        status: 'error',
+        errors: 1,
+        summary: { issues: [{ action: 'source_failure', detail: error.message }] },
+      }).catch(() => {});
+    }
+    return { mode: 'error', observations: 0, failures: CX_SOURCES.length, degraded: true, report: [] };
+  }
+}
+
 async function claimManualRequest(client) {
   const { rows } = await client.query('select * from private.claim_broadcasts_manual_request()');
   return rows[0] || null;
@@ -97,12 +120,18 @@ async function main() {
       });
     }
 
+    // Ciclocross comparte ejecución, cadencia y credencial con carretera, pero
+    // una pasada no degrada a la otra.
+    const cx = await runCxPass(client, runId);
+    result.degraded = result.degraded || cx.degraded;
+
     const status = result.degraded ? 'partial' : 'success';
     const summary = {
       mode: result.mode,
       applySources: result.applySources,
       observations: result.observations,
       failures: result.failures,
+      cx: { mode: cx.mode, observations: cx.observations, failures: cx.failures },
     };
     await finishAutomationRun(client, {
       runId,

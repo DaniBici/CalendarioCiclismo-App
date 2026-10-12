@@ -84,6 +84,13 @@ object Routes {
     val followedCxRaces = FOLLOWED_CX_RACES
     fun transfersTeam(teamId: String) = "transfers_team/$teamId"
 
-    /** Destinos principales mostrados por la suite adaptativa de navegación. */
-    val MAIN_TABS = listOf(TODAY, RESULTS_FEED, TRANSFERS, CYCLOCROSS, CALENDAR)
+    /** Destinos principales de la suite adaptativa de navegación, en orden.
+     *  Con Hoy oculta ([app.calendariociclismo.android.util.RoadTodayAvailability]),
+     *  Ciclocross encabeza la barra. */
+    fun mainTabs(todayVisible: Boolean): List<String> =
+        if (todayVisible) listOf(TODAY, RESULTS_FEED, TRANSFERS, CYCLOCROSS, CALENDAR)
+        else listOf(CYCLOCROSS, RESULTS_FEED, TRANSFERS, CALENDAR)
+
+    /** Pestaña inicial: la primera de la barra. */
+    fun home(todayVisible: Boolean): String = mainTabs(todayVisible).first()
 }

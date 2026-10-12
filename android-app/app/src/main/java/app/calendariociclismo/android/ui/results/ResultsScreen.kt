@@ -10,7 +10,6 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Grain
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Timer
@@ -26,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
@@ -448,6 +448,7 @@ private fun ResultsContent(
                                 showClassificationLabel = true,
                             )
                         }
+                        ResultsLastUpdate(activeStage)
                         Spacer(Modifier.height(4.dp))
                         tableHeader?.let { header ->
                             ResultsTableHeader(
@@ -598,7 +599,7 @@ private fun ResultsAssetStrip(
 
         if (data.race.startlistImportedAt != null) {
             AssetChip(
-                icon = Icons.Filled.Group,
+                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
                 label = if (data.race.startlistProvisional) {
                     LocaleHolder.t("Lista provisional", "Provisional Startlist")
                 } else {

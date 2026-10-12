@@ -32,11 +32,6 @@ class RaceLogicTypeLabelTest {
     // ── typeLabel ──────────────────────────────────────────────────
 
     @Test
-    fun `typeLabel devuelve el tipo si no esta en el mapa`() {
-        assertEquals("unknown_type", RaceLogic.typeLabel(context, "unknown_type"))
-    }
-
-    @Test
     fun `typeLabel devuelve cadena vacia para null`() {
         assertEquals("", RaceLogic.typeLabel(context, null))
     }

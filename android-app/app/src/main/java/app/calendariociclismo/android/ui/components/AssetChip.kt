@@ -43,7 +43,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.launch
+
+/** Ancho fijo de una celda en la tira con desplazamiento y mínimo en la que reparte el ancho. */
+private val AssetTileMinWidth = 100.dp
+
+/** Ancho de las celdas cuando la tira reparte el ancho (`AssetActionStrip(tileCount)`). */
+private val LocalAssetTileWidth = compositionLocalOf<Dp?> { null }
 
 /**
  * Chip de acción usado en la lista de "documentación" de una jornada y en el
@@ -72,7 +82,12 @@ fun AssetChip(
     val labelColor = if (highlighted) colors.primary else colors.onSurface
     // La celda destacada ("Clasificaciones") se ensancha con su etiqueta; el
     // resto conserva el ancho fijo de la tira.
-    val widthModifier = if (highlighted) Modifier.widthIn(min = 100.dp) else Modifier.width(100.dp)
+    val stretchedWidth = LocalAssetTileWidth.current
+    val widthModifier = when {
+        stretchedWidth != null -> Modifier.width(stretchedWidth)
+        highlighted -> Modifier.widthIn(min = AssetTileMinWidth)
+        else -> Modifier.width(AssetTileMinWidth)
+    }
     Column(
         modifier = widthModifier
             .height(60.dp)
@@ -118,66 +133,92 @@ fun AssetChip(
     }
 }
 
-/** Tira única de acciones, con flechas sincronizadas con el desplazamiento real. */
+/**
+ * Tira única de acciones, con flechas sincronizadas con el desplazamiento real.
+ *
+ * Con `tileCount` (pocas celdas, como la ficha de ciclocross: Web oficial,
+ * Libro de ruta, Mapa y Notificaciones), si cada celda conserva su ancho mínimo
+ * las celdas se reparten a partes iguales todo el ancho de la tira, sea cual sea
+ * el de la pantalla; si no caben, la tira conserva el desplazamiento con flechas.
+ * Paridad: iOS `ResultsFittingRail`.
+ */
 @Composable
 fun AssetActionStrip(
     modifier: Modifier = Modifier,
+    tileCount: Int? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
     val colors = MaterialTheme.colorScheme
     val cardColor = colors.surfaceVariant
-    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(60.dp)
             .clip(RoundedCornerShape(CCRadius.Surface))
             .background(cardColor),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val hasOverflow = scrollState.maxValue > 0
-            if (hasOverflow) {
-                AssetRailArrow(
-                    forward = false,
-                    enabled = scrollState.value > 0,
-                    onClick = {
-                        scope.launch {
-                            val step = maxOf(80, scrollState.viewportSize * 3 / 4)
-                            val target = (scrollState.value - step).coerceAtLeast(0)
-                            if (animationsEnabled) scrollState.animateScrollTo(target)
-                            else scrollState.scrollTo(target)
-                        }
-                    },
+        val tileWidth = tileCount?.takeIf { it > 0 && maxWidth >= AssetTileMinWidth * it }?.let { maxWidth / it }
+        if (tileWidth != null) {
+            CompositionLocalProvider(LocalAssetTileWidth provides tileWidth) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
                 )
             }
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(scrollState)
-                    .height(60.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                content = content,
+        } else {
+            ScrollingAssetStrip(content)
+        }
+    }
+}
+
+@Composable
+private fun ScrollingAssetStrip(content: @Composable RowScope.() -> Unit) {
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
+
+    Row(
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val hasOverflow = scrollState.maxValue > 0
+        if (hasOverflow) {
+            AssetRailArrow(
+                forward = false,
+                enabled = scrollState.value > 0,
+                onClick = {
+                    scope.launch {
+                        val step = maxOf(80, scrollState.viewportSize * 3 / 4)
+                        val target = (scrollState.value - step).coerceAtLeast(0)
+                        if (animationsEnabled) scrollState.animateScrollTo(target)
+                        else scrollState.scrollTo(target)
+                    }
+                },
             )
-            if (hasOverflow) {
-                AssetRailArrow(
-                    forward = true,
-                    enabled = scrollState.value < scrollState.maxValue,
-                    onClick = {
-                        scope.launch {
-                            val step = maxOf(80, scrollState.viewportSize * 3 / 4)
-                            val target = (scrollState.value + step).coerceAtMost(scrollState.maxValue)
-                            if (animationsEnabled) scrollState.animateScrollTo(target)
-                            else scrollState.scrollTo(target)
-                        }
-                    },
-                )
-            }
+        }
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState)
+                .height(60.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            content = content,
+        )
+        if (hasOverflow) {
+            AssetRailArrow(
+                forward = true,
+                enabled = scrollState.value < scrollState.maxValue,
+                onClick = {
+                    scope.launch {
+                        val step = maxOf(80, scrollState.viewportSize * 3 / 4)
+                        val target = (scrollState.value + step).coerceAtMost(scrollState.maxValue)
+                        if (animationsEnabled) scrollState.animateScrollTo(target)
+                        else scrollState.scrollTo(target)
+                    }
+                },
+            )
         }
     }
 }

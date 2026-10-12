@@ -61,8 +61,9 @@ describe('filtro de etapa — general final del último volcado automático', ()
 // del libro STS y curadas a mano, con el .clax de STS llegando después bajo otro
 // eventId sintético).
 //
-// Estos tests fijan el SQL que emite buildPlan. Son la red de seguridad de una
-// lógica de BORRADO: sin ellos, una regresión aquí destruye datos curados en silencio.
+// Estos tests fijan el plan que emite buildPlan (orden, parámetros y banderas de
+// cada sentencia). El efecto de las guardas de lock sobre las filas depende del
+// SQL ejecutado en la base y se cubre en scripts/data-preflight/tests.
 
 const clasificacion = (overrides = {}) => ({
   eventId: -1359920101,
@@ -96,15 +97,17 @@ const planDeSector = (eventId, sectorIndex) => {
   return plan;
 };
 
-const purgaDe = (plan) => plan.find(
-  (p) => p.text.includes('DELETE FROM public.race_uci_stages') && p.text.includes('"eventId" <> '),
-);
-const insertCabeceraDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_stages'));
-const insertFilasDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_results'));
+// Las sentencias se identifican por propiedades del plan (nota, resultRow,
+// parámetros), no por su texto SQL.
+const esEnlace = (p) => typeof p.note === 'string' && p.note.startsWith('puente carrera↔competición');
+const enlaceDe = (plan) => plan.find(esEnlace);
+const purgaDe = (plan) => plan.find((p) => p.note === null && !p.resultRow && p.params.length > 1);
+const insertCabeceraDe = (plan) => plan.find((p) => /^stage /.test(p.note ?? ''));
+const insertFilasDe = (plan) => plan.find((p) => p.resultRow);
 
 describe('bloqueo del enlace durante el volcado', () => {
   it('difiere el upsert de race_uci_links hasta el final de la transacción', () => {
-    const link = planDe(380794).find((p) => p.text.includes('INSERT INTO public.race_uci_links'));
+    const link = enlaceDe(planDe(380794));
 
     expect(link).toBeDefined();
     expect(link.deferUntilCommit).toBe(true);
@@ -119,8 +122,7 @@ describe('enlace de fuentes con código obligatorio', () => {
     ...extra,
     stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId: -1359920101 })] }],
   });
-  const linkDe = (data) => buildPlan(data).plan
-    .find((statement) => statement.text.includes('INSERT INTO public.race_uci_links'));
+  const linkDe = (data) => enlaceDe(buildPlan(data).plan);
 
   it('race|result propaga el evento como código y exige su identificador', () => {
     expect(linkDe(caso('raceresult', { raceresultEvent: 421325 })).params).toContain('421325');
@@ -142,43 +144,13 @@ describe('enlace de fuentes con código obligatorio', () => {
   });
 });
 
-describe('purga de gemelas — entrante SINTÉTICA (otro cronometrador/PDF)', () => {
-  it('respeta el candado: no borra una gemela bloqueada', () => {
-    // Sin este AND, el .clax de STS se llevaría por delante los volcados manuales
-    // de las etapas 1-3 de Aosta pese a estar bloqueados desde el panel.
-    expect(purgaDe(planDe(-1359920101)).text).toContain('"lockedAt" IS NULL');
-  });
-
-  it('no se inserta al lado de una gemela bloqueada', () => {
-    // El ON CONFLICT es por "eventId", que aquí NO colisiona (los eventId difieren)
-    // → sin este guard saldrían DOS pestañas de la misma clasificación en la web.
-    const sql = insertCabeceraDe(planDe(-1359920101)).text;
-    expect(sql).toContain('WHERE NOT EXISTS');
-    expect(sql).toContain('"lockedAt" IS NOT NULL');
-  });
-
-  it('sus filas exigen que la cabecera exista', () => {
-    // Si el guard anterior impidió insertar la cabecera, las filas quedan sin
-    // stageRef al que colgar y el FK aborta el --apply ENTERO (cazado en real
-    // contra Aosta: "violates foreign key constraint race_uci_results_stageRef_fkey").
-    expect(insertFilasDe(planDe(-1359920101)).text)
-      .toContain('EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=$1)');
-  });
-
-  it('limita la purga al raceDayId del sector entrante', () => {
+describe('purga de gemelas por sector', () => {
+  it('pasa el sectorIndex entrante a la purga', () => {
     const purgeA = purgaDe(planDeSector(-1359920101, 0));
     const purgeB = purgaDe(planDeSector(-1359920102, 1));
 
-    expect(purgeA.text).toContain('"raceDayId" = (SELECT id');
-    expect(purgeA.text).toContain('OFFSET $6');
     expect(purgeA.params.at(-1)).toBe(0);
     expect(purgeB.params.at(-1)).toBe(1);
-  });
-
-  it('limita también el guard de gemelas bloqueadas al sector entrante', () => {
-    const insertB = insertCabeceraDe(planDeSector(-1359920102, 1));
-    expect(insertB.text).toContain('g."raceDayId" = (SELECT id');
-    expect(insertB.text).toContain('OFFSET $17');
   });
 });
 
@@ -197,20 +169,6 @@ describe('preferencia UCI por clave lógica sectorizada', () => {
   it('una clasificación oficial del mismo sector sí bloquea su gemela sintética', () => {
     const officialB = new Set(['1|1|stage|stage']);
     expect(buildPlan(data(1), null, null, officialB).nStages).toBe(0);
-  });
-});
-
-describe('purga de gemelas — entrante OFICIAL (DataRide)', () => {
-  it('purga el placeholder AUNQUE esté bloqueado', () => {
-    // La regla original, intacta: el candado protege correcciones del panel frente a
-    // re-volcados de la misma fuente, pero no convierte un placeholder en verdad
-    // frente a la UCI. Si esto se rompe, un PDF viejo bloquea al oficial para siempre.
-    expect(purgaDe(planDe(78302001)).text).not.toContain('"lockedAt" IS NULL');
-  });
-
-  it('se inserta sin condicionarse a gemelas bloqueadas', () => {
-    // Su purga ya se llevó la gemela por delante → no hay nada que esquivar.
-    expect(insertCabeceraDe(planDe(78302001)).text).not.toContain('WHERE NOT EXISTS');
   });
 });
 
@@ -245,16 +203,28 @@ describe('fallback de identidad exclusivo de DataRide', () => {
   });
 });
 
-describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
-  // El nº de $N del SQL debe cuadrar SIEMPRE con params.length, o Postgres rechaza
-  // el bind y aborta el --apply entero. Se rompió con la pseudo-etapa Final
-  // Classification (stageNumber null): raceDayExpr='NULL' y stageDateExpr='$12' no
-  // referencian $17, pero params seguía llevando sectorIndex → "bind message supplies
-  // 17 parameters, but prepared statement requires 16". Cazado en real volcando la
-  // etapa 4 del Giro della Valle d'Aosta 2026. --emit-sql no lo detecta (serializa
-  // a literales), así que solo fallaba la ruta --apply.
-  const maxPlaceholder = (sql) =>
-    Math.max(...[...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+describe('coherencia de parámetros del plan con el bind del servidor', () => {
+  // El nº de $N de cada sentencia debe cuadrar SIEMPRE con params.length, o
+  // Postgres rechaza el bind y aborta el --apply entero. Se rompió con la
+  // pseudo-etapa Final Classification (stageNumber null): "bind message supplies
+  // 17 parameters, but prepared statement requires 16" (Giro della Valle
+  // d'Aosta 2026, etapa 4). --emit-sql no lo detecta (serializa a literales).
+  //
+  // El cliente falso reproduce la validación del bind del servidor y recibe las
+  // sentencias del plan como lo hace la ruta --apply (client.query(text, params)).
+  const clienteFalso = () => {
+    const llamadas = [];
+    return {
+      llamadas,
+      query(text, params) {
+        const requeridos = Math.max(0, ...[...text.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+        if (requeridos !== params.length) {
+          throw new Error(`bind message supplies ${params.length} parameters, but prepared statement requires ${requeridos}`);
+        }
+        llamadas.push({ text, params });
+      },
+    };
+  };
 
   const planConStage = (stageNumber) => {
     const stages = [{
@@ -280,33 +250,15 @@ describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
     return plan;
   };
 
-  it('etapa normal: params cuadran con los placeholders', () => {
-    const ins = insertCabeceraDe(planConStage(4));
-    expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
-  });
+  it('etapa normal y Final Classification: cada sentencia cuadra con sus params', () => {
+    for (const stageNumber of [4, null]) {
+      const plan = planConStage(stageNumber);
+      const cliente = clienteFalso();
 
-  it('Final Classification (stageNumber null): params cuadran con los placeholders', () => {
-    const ins = planConStage(null)
-      .filter((p) => p.text.includes('INSERT INTO public.race_uci_stages'))
-      .at(-1);
-    expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
-  });
+      for (const statement of plan) cliente.query(statement.text, statement.params);
 
-});
-
-describe('el candado propio sigue protegiendo el re-volcado de la MISMA clasificación', () => {
-  it('la cabecera no se actualiza si está bloqueada', () => {
-    // Guarda preexistente (migración 087), independiente de la asimetría de arriba.
-    expect(insertCabeceraDe(planDe(-1359920101)).text)
-      .toContain('WHERE race_uci_stages."lockedAt" IS NULL');
-  });
-
-  it('las filas no se borran si su clasificación está bloqueada', () => {
-    const borrado = planDe(-1359920101).plan ?? planDe(-1359920101);
-    const del = borrado.find(
-      (p) => p.text.includes('DELETE FROM public.race_uci_results') && p.text.includes('"stageRef"=$1'),
-    );
-    expect(del.text).toContain('lockedAt" IS NOT NULL');
+      expect(cliente.llamadas, `stageNumber ${stageNumber}`).toHaveLength(plan.length);
+    }
   });
 });
 
@@ -467,23 +419,24 @@ describe('statement del enlace — guard anti-secuestro manual', () => {
     stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId })] }],
   });
 
-  it('un volcado pdf emite el ON CONFLICT acotado a enlaces ya manuales', () => {
+  it('un volcado pdf emite el enlace diferido con la fuente pdf', () => {
     const { plan } = buildPlan(carrera(-1038250600), null, null, null, null, 'pdf');
-    const link = plan.find((p) => p.deferUntilCommit);
+    const link = enlaceDe(plan);
     expect(link).toBeTruthy();
-    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+    expect(link.deferUntilCommit).toBe(true);
     expect(link.params).toContain('pdf');
   });
 
-  it('un volcado automático (uci) no acota el ON CONFLICT', () => {
+  it('un volcado automático (uci) emite el enlace diferido con la fuente uci', () => {
     const { plan } = buildPlan(carrera(380794), null, null, null, null, 'uci');
-    const link = plan.find((p) => p.deferUntilCommit);
+    const link = enlaceDe(plan);
     expect(link).toBeTruthy();
-    expect(link.text).not.toContain('WHERE race_uci_links."source"');
+    expect(link.deferUntilCommit).toBe(true);
+    expect(link.params[5]).toBe('uci');
   });
 
   // Un placeholder no crea el enlace: uno 'pdf' bloquearía el enlazador live y el cron.
-  const linkStatements = (plan) => plan.filter((p) => p.text.includes('race_uci_links'));
+  const linkStatements = (plan) => plan.filter(esEnlace);
 
   it('un manual sin fuente con competición sintética no crea ni modifica el enlace', () => {
     const { plan, nStages } = buildPlan({ ...carrera(-131200500), competitionId: -131200100 });
@@ -499,9 +452,8 @@ describe('statement del enlace — guard anti-secuestro manual', () => {
 
   it('respeta la fuente automática declarada por un captador sintético', () => {
     const { plan } = buildPlan({ ...carrera(-123), competitionId: -123, source: 'domtel', domtelCode: '8872' });
-    const link = plan.find((p) => p.deferUntilCommit);
+    const link = enlaceDe(plan);
     expect(link.params[5]).toBe('domtel');
-    expect(link.text).not.toContain('WHERE race_uci_links."source"');
   });
 
   it('rechaza una competición sintética presentada como DataRide', () => {

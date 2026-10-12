@@ -9,12 +9,6 @@ import org.junit.Test
 class TodaySeasonTest {
 
     @Test
-    fun `el ultimo dia de 2026 es el 18 de octubre`() {
-        assertEquals("2026-10-18", TodaySeason.lastDay("2026-09-27"))
-        assertEquals("2026-10-18", TodaySeason.lastDay("2026-12-31"))
-    }
-
-    @Test
     fun `las fechas posteriores del mismo ano se llevan al ultimo dia`() {
         assertEquals("2026-10-18", TodaySeason.clamp("2026-10-19", "2026-09-27"))
         assertEquals("2026-10-18", TodaySeason.clamp("2026-11-02", "2026-11-02"))

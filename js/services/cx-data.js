@@ -1,6 +1,6 @@
 // Clientes inyectados: se comparte entre panel, web y pruebas sin cargar Auth.
 import {cxSeasonMonths,cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
-export const CX_AGENDA_SELECT='id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone,assets(type,url),cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl),cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl,startlistImportedAt)';
+export const CX_AGENDA_SELECT='id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone,assets(type,url),cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl),cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl,startlistImportedAt),cx_broadcasts(id,category,channel,startTimeUtc,url,country,sortOrder)';
 
 // Clases ocultas en inglés: la categoría nacional española (y los futuros
 // calendarios nacionales) está dirigida al público hispanohablante. Espejo de
@@ -48,21 +48,37 @@ export async function cxMonth(client,seasonKey,year,month) {
   if(!cxSeasonMonths(seasonKey).includes(`${year}-${String(month).padStart(2,'0')}`))throw new Error('El calendario CX solo admite meses de agosto a febrero.');
   const first=`${year}-${String(month).padStart(2,'0')}-01`;
   const last=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
-  return cxQuery(client.from('cx_races').select(CX_AGENDA_SELECT).eq('seasonKey',seasonKey)
+  const featured=cxFeaturedIds(client);
+  const rows=await cxQuery(client.from('cx_races').select(CX_AGENDA_SELECT).eq('seasonKey',seasonKey)
     .eq('editorialStatus','published').lte('dateKey',last).or(`dateKey.gte.${first},endDateKey.gte.${first}`)
     .order('dateKey').order('id'));
+  return cxMarkFeatured(rows,await featured);
 }
 
 export async function cxSeasonRows(client,seasonKey) {
   cxSeasonMonths(seasonKey);
   const {first,last}=cxSeasonBounds(seasonKey);
+  const featured=cxFeaturedIds(client);
   const rows=[];
   for(let offset=0;;offset+=1000) {
     const page=await cxQuery(client.from('cx_races').select(CX_AGENDA_SELECT).eq('seasonKey',seasonKey)
       .eq('editorialStatus','published').gte('dateKey',first).lte('dateKey',last)
       .order('dateKey').order('id').range(offset,offset+999));
-    rows.push(...page);if(page.length<1000)return rows;
+    rows.push(...page);if(page.length<1000)return cxMarkFeatured(rows,await featured);
   }
+}
+
+// Destacadas de ciclocross (corona del panel, tabla cx_race_featured): la
+// prueba marcada encabeza su día (cxDayRaces). Sin lectura, orden canónico.
+async function cxFeaturedIds(client) {
+  try {
+    const {data,error}=await client.from('cx_race_featured').select('cxRaceId');
+    return new Set(error?[]:(data||[]).map(row=>row.cxRaceId));
+  } catch { return new Set(); }
+}
+function cxMarkFeatured(rows,ids) {
+  for(const race of rows)race.featured=ids.has(race.id);
+  return rows;
 }
 
 export function cxTournamentNextDate(rows,seasonKey,dateKey) {

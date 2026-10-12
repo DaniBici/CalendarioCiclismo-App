@@ -79,20 +79,29 @@
 /* Secciones y categorías fijas bajo la navegación; la fila de columnas de las tablas se fija debajo. */
 #cxRaceContent>.cx-sticky-nav {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h));z-index:21;background:var(--bg)}
 #cxRaceContent>.cx-sticky-nav>.res-tabs-bar {position:static}
-[data-cx-section][hidden],[data-cx-classification-content][hidden],[data-cx-general-section][hidden] {display:none!important}
+[data-cx-section][hidden],[data-cx-classification-content][hidden],[data-cx-startlist-category][hidden],[data-cx-general-section][hidden] {display:none!important}
 .cx-race-sections>.jornada-section {width:100%;max-width:none;padding-inline:0}
 .cx-classification-page .res-td--rider .so-flag {display:inline-flex;flex:0 0 auto;margin-right:.4rem}
+/* El corredor ocupa lo justo para un nombre largo; el resto es del equipo.
+   En móvil la columna Equipo desaparece y el corredor toma el ancho. */
+@media(min-width:601px){.cx-startlist-table .res-th--rider {width:16rem}.cx-startlist-table .res-th--team {width:auto}}
 .cx-category-content [data-cx-general]>h3 {font: 600 var(--fs-3) var(--font-body);margin:.5rem 0}
 .cx-category-content .asset-links-wrap {margin:0}.cx-category-content>.jornada-section {width:100%;max-width:none;margin:0 0 12px}.cx-race-actions {display:flex;gap:.6rem;flex-wrap:wrap}.cx-race-actions a {text-decoration:none}
-.cx-startlist {display:flex;flex-direction:column}.cx-startlist .startlist-rider {border-bottom:1px solid var(--border);padding:.4rem 0}.cx-team-badge {display:inline-block;vertical-align:middle;line-height:0;margin-left:.4rem}
-.cx-media-section {margin:.75rem 0 0}
+/* TV y Revive: cajón de TV de carretera con una sola columna de filas y un
+   subtítulo por categoría. */
+.tv-panel.cx-media-section .tv-panel__list {grid-template-columns:minmax(0,1fr)}
+.tv-panel.cx-media-section .tv-panel__list::before {content:none}
+/* Filas a la escala de Horarios: emisora en seminegrita y hora a 16 px. */
+.tv-panel.cx-media-section .tv-entry__platform {font:600 var(--fs-4)/1.5 var(--font-body)}
+.tv-panel.cx-media-section .tv-entry__time {font-size:var(--fs-4);line-height:1.5}
+.cx-media-section>.cx-empty {margin:0;padding:10px 12px}
+.cx-race-sections>.cx-media-section+.cx-media-section {margin-top:16px}
 .cx-media-label {flex:1;min-width:0;padding-right:.75rem}.cx-media-actions {display:flex;align-items:center;gap:.75rem}.cx-media-section [hidden] {display:none!important}
 .cx-video-section {padding-top:0}
 .cx-video-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px}
 .cx-video-card {min-width:0;display:flex;flex-direction:column}.cx-video-card h3 {font: 600 var(--fs-4)/1.35 var(--font-body);margin:0 0 9px}.cx-video-card iframe {display:block;width:100%;aspect-ratio:16/9;border:0;border-radius: var(--radius);background:#000}.cx-video-card .tv-link-btn {margin-top:9px;align-self:flex-end}
-/* TV de la jornada por categorías: encabezado compacto de cada grupo. */
-.cx-tv-group {margin-top:.75rem}
-.cx-tv-group__title {font: 600 var(--fs-3)/1.35 var(--font-body);margin:0 0 .5rem;color:var(--text)}
+/* Subtítulo de categoría dentro del cajón de TV. */
+.cx-tv-group__title {font: 600 var(--fs-2)/1.35 var(--font-body);margin:0;padding:10px 12px 2px;color:var(--text-muted)}
 @media(max-width:600px){.cx-category-section .res-th--rider {min-width:0}}
 
 /* El copa bajo la caja replica el botón de Hoy (icono secundario); el aviso
@@ -106,6 +115,8 @@
 @media(max-width:600px){.cx-category-cell {gap:1px}.cx-category-hour {font-size: var(--fs-3)}}
 
 
+/* TV y dorsales de la tarjeta de Agenda, en la fila de badges de Hoy. */
+.cx-card-badges {display:contents}
 .cx-card-chevron {position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none}
 .cx-programme-row {padding:.5rem 12px;border-bottom:1px solid var(--border)}
 .cx-programme-row:last-child {border-bottom:0}
@@ -116,13 +127,19 @@
 .cx-programme-grid {display:grid;grid-template-columns:minmax(0,1fr);column-gap:2rem}
 @media(min-width:900px){.cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-programme-grid .cx-programme-row:last-child {border-bottom:1px solid var(--border)}}
 .cx-programme-layout {display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
-.cx-programme-layout>.stage-profile-panel {width:100%;min-width:0;margin:0}
+.cx-programme-layout .stage-profile-panel {width:100%;min-width:0;margin:0}
 .cx-programme-map,.cx-programme-schedule {overflow:hidden}
 .cx-programme-grid {margin-bottom:-1px}
 .cx-programme-layout .cx-programme-grid {grid-template-columns:minmax(0,1fr)}
 .cx-map-preview {display:block;color:var(--text-muted);text-align:center;text-decoration:none}
 .cx-map-preview img {display:block;width:100%;height:auto;background:#fff}
-@media(min-width:900px){.cx-programme-layout {grid-template-columns:minmax(0,1.8fr) minmax(320px,1fr)}.cx-programme-layout>.cx-programme-map {order:-1}}
+/* Columna derecha: horarios, TV y streaming. En móvil se disuelve y los
+   horarios preceden al mapa. */
+.cx-programme-side {display:contents}
+.cx-programme-schedule {order:-1}
+.cx-programme-layout .cx-media-section {width:100%;min-width:0;margin:0}
+@media(min-width:900px){.cx-programme-layout {grid-template-columns:minmax(0,1.8fr) minmax(320px,1fr)}.cx-programme-side {display:flex;flex-direction:column;gap:16px;min-width:0}.cx-programme-schedule {order:0}}
+@media(min-width:1200px){.cx-programme-layout--schedule .cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* Fila del programa: horarios a la izquierda e inscritos/resultados a la derecha. */
 .cx-programme-top {display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .cx-programme-actions {display:flex;align-items:center;gap:.25rem;flex:none}

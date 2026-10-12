@@ -105,6 +105,15 @@ de la copa, la variante sin horarios reserva caja y estado, y nombre y línea
 secundaria ocupan una línea con puntos suspensivos (la sede se recorta antes
 que el torneo).
 
+Fila de badges de la tarjeta CX, tras la clase y como en Hoy de carretera: TV
+con la hora de la primera emisión del día visible en la región del usuario y,
+desde su inicio, «En directo» hasta que concluyen todas las categorías del día;
+enlaza a la primera emisión y, al alcanzarse la hora de otra posterior de una
+categoría aún en directo, a la última iniciada. «Dorsales», en la misma línea,
+lleva a la primera categoría del día con lista cargada sin resultados ni
+cancelación (`cxAgendaBroadcast`, `cxAgendaStartlistCategory`). Web desde el
+2026-10-10 (criterio de TV del 2026-10-11); apps en 5.1.
+
 | Plataforma | Lógica | Vista |
 |---|---|---|
 | Web | `js/cx/today.js`, `js/components/day-swipe.js` | `js/ciclocross.js` |

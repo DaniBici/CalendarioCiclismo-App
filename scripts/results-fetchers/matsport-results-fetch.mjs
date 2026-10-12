@@ -56,6 +56,15 @@
  * Solo se emiten etapas TERMINADAS (con ITE publicado); la ventana de meta del
  * cron (087) ya garantiza que se consulta cuando toca.
  *
+ * COMPETICIÓN MULTIPRUEBA (--matsport-stage N): Matsport agrupa bajo un mismo id
+ *   varias pruebas independientes de un día como «etapas» (Chrono des Nations:
+ *   2026_HER con una etapa por categoría, la 7 = hombres élite, la 6 = mujeres,
+ *   la 5 = sub23 hombres). Con --matsport-stage solo se procesa esa etapa y se
+ *   trata como carrera de UN DÍA (stageNumber NULL, gc/stage, sin complementarias),
+ *   y la semilla de los IDs sintéticos pasa a "<comp>#<etapa>" para que cada
+ *   prueba tenga su propio competitionId. Sin él, nada cambia. Tiene precedencia
+ *   sobre --stage (nº de etapa de una carrera por etapas).
+ *
  * Uso (desde la raíz del repo; fetch nativo, sin deps):
  *   node scripts/results-fetchers/matsport-results-fetch.mjs --competition 2026_PYF --competition-id -123456
  *   node scripts/results-fetchers/matsport-results-fetch.mjs --competition 2026_PYF --competition-id -123456 --stage 1
@@ -68,6 +77,8 @@
  *                     Convención: -(fnv1a("matsport:"+compId)%200000) — lo imprime
  *                     este script si se pasa --suggest-id.
  *   --stage           (opcional) limitar a un nº de etapa.
+ *   --matsport-stage  (opcional) etapa de Matsport que es la carrera completa en una
+ *                     competición multiprueba (ver arriba). Entra en --suggest-id.
  *   --out             carpeta de salida (default _results_run/matsport-<comp> JUNTO A ESTE
  *                     script, no relativo al cwd). La ruta que imprime al terminar es la
  *                     real: leer esa, no reconstruirla a mano.
@@ -89,6 +100,9 @@ const hasFlag = (n) => args.includes(`--${n}`);
 const COMP = getArg('competition');                 // "2026_PYF"
 const COMPETITION_ID = getArg('competition-id');    // sintético negativo (puente race_uci_links)
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
+// Prueba (etapa de Matsport) que constituye la carrera entera en una competición
+// multiprueba. NULL = comportamiento por etapas / carrera de un día de una sola etapa.
+const MATSPORT_STAGE = getArg('matsport-stage') != null ? parseInt(getArg('matsport-stage'), 10) : null;
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el JSON en una ruta distinta de la que imprime, y una lectura posterior
 // se quedaba con un fichero viejo (cazado en el TdF E12, relegación de Van Mechelen).
@@ -105,12 +119,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ── IDs sintéticos (negativos, deterministas; salt "matsport:") ────────────
 // ≤199999 → eventId > -2^31 garantizado. Sin --competition queda NaN: solo lo usa
 // main(), que valida los args antes (importar el módulo desde un test no ejecuta nada).
-const ID_BASE = COMP ? fnv1a(`matsport:${COMP}`) % 200000 : NaN;
+export function matsportIdSeed(comp, stage = null) {
+  return stage == null ? `matsport:${comp}` : `matsport:${comp}#${stage}`;
+}
+const ID_BASE = COMP ? fnv1a(matsportIdSeed(COMP, MATSPORT_STAGE)) % 200000 : NaN;
 
 // Validación de args: DENTRO de main(), no a nivel de módulo — un process.exit() al
 // importar mataría el runner de tests.
 function checkArgs() {
   if (!COMP) { log('FATAL: falta --competition <id matsport, p.ej. 2026_PYF>'); process.exit(1); }
+  if (getArg('matsport-stage') != null && !(Number.isInteger(MATSPORT_STAGE) && MATSPORT_STAGE > 0)) {
+    log('FATAL: --matsport-stage debe ser un entero positivo (nº de etapa de la competición multiprueba)');
+    process.exit(1);
+  }
   if (hasFlag('suggest-id')) {
     process.stdout.write(String(-ID_BASE) + '\n');
     process.exit(0);
@@ -278,10 +299,19 @@ async function main() {
   }
   log(`  índice: ${riderByBib.size} corredores con dorsal, ${teamByNumber.size} equipos numerados`);
 
-  const stageList = [...(comp.stages || [])].sort((a, b) => Number(a.stage) - Number(b.stage));
+  let stageList = [...(comp.stages || [])].sort((a, b) => Number(a.stage) - Number(b.stage));
   if (!stageList.length) log('⚠️  0 etapas en Matsport');
+  if (MATSPORT_STAGE != null) {
+    stageList = stageList.filter((st) => Number(st.stage) === MATSPORT_STAGE);
+    if (!stageList.length) {
+      log(`FATAL: ${COMP} no tiene la etapa ${MATSPORT_STAGE} (--matsport-stage)`);
+      process.exit(1);
+    }
+    log(`  prueba única: etapa ${MATSPORT_STAGE} «${clean(stageList[0].name)}» como carrera de un día`);
+  }
   const lastStageNumber = stageList.length ? Number(stageList[stageList.length - 1].stage) : null;
   // Una sola etapa = carrera de un día (clásica) → resultado único, sin complementarias.
+  // --matsport-stage fuerza el mismo tratamiento para una prueba suelta de una multiprueba.
   const isOneDay = stageList.length === 1;
 
   const stages = [];
@@ -291,7 +321,7 @@ async function main() {
   for (const st of stageList) {
     const stageNumber = Number(st.stage);
     if (!Number.isFinite(stageNumber)) { log(`  ⚠ etapa con número raro (${st.stage}) — omitida`); continue; }
-    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
+    if (MATSPORT_STAGE == null && ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
 
     await sleep(DELAY);
     const detail = await get(`/stages/${st.id}`);
@@ -409,6 +439,7 @@ async function main() {
     disciplineId: 10,
     source: 'matsport',
     matsportCompetition: COMP,
+    ...(MATSPORT_STAGE != null ? { matsportStage: MATSPORT_STAGE } : {}),
     fetchedAt: new Date().toISOString(),
     stageCount: stages.length,
     stages,

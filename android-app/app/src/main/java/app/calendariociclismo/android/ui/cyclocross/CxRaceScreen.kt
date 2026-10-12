@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.*
@@ -30,9 +29,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -57,6 +57,9 @@ import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.results.ResultsStageSelector
 import app.calendariociclismo.android.ui.results.ResultsClassificationTab
 import app.calendariociclismo.android.ui.results.ResultsClassificationTable
+import app.calendariociclismo.android.ui.results.ResultsHeaderCell
+import app.calendariociclismo.android.ui.results.ResultsTableMetrics
+import app.calendariociclismo.android.ui.results.ResultsTableSurface
 import app.calendariociclismo.android.ui.results.classificationSwipe
 import app.calendariociclismo.android.ui.results.rememberClassificationSwipeState
 import app.calendariociclismo.android.ui.startlist.TeamColorBands
@@ -68,7 +71,10 @@ import app.calendariociclismo.android.ui.stage.RaceDayLocation
 import app.calendariociclismo.android.ui.stage.SectionCard
 import app.calendariociclismo.android.ui.stage.SectionTitle
 import app.calendariociclismo.android.ui.stage.BroadcastRow
+import app.calendariociclismo.android.ui.stage.PanelDivider
+import app.calendariociclismo.android.ui.stage.PanelHeader
 import app.calendariociclismo.android.ui.stage.PanelTextAction
+import app.calendariociclismo.android.ui.stage.StagePanel
 import app.calendariociclismo.android.ui.stage.OfflineAccessAlert
 import app.calendariociclismo.android.ui.stage.OfflineAccessDialog
 import app.calendariociclismo.android.ui.navigation.Routes
@@ -116,14 +122,21 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
     // fotograma mostraba «Carrera no disponible».
     var loadedOnce by remember(raceId) { mutableStateOf(false) }
     var error by remember(raceId) { mutableStateOf<String?>(null) }
-    var categoryCode by rememberSaveable(raceId) { mutableStateOf<String?>(initialCategory?.removePrefix("inscritos-")?.removePrefix("resultados-")?.removePrefix("general-")?.takeIf { it in CyclocrossLogic.categories } ?: "ME") }
-    var section by rememberSaveable(raceId) { mutableStateOf(when {
+    val initialCode = initialCategory?.removePrefix("inscritos-")?.removePrefix("resultados-")?.removePrefix("general-")?.takeIf { it in CyclocrossLogic.categories } ?: "ME"
+    val initialSection = when {
         initialCategory?.startsWith("general") == true -> CxDetailSection.GENERAL
         initialCategory?.startsWith("inscritos-") == true -> CxDetailSection.STARTLIST
         initialCategory?.startsWith("resultados-") == true -> CxDetailSection.RESULTS
         initialCategory == "videos" -> CxDetailSection.VIDEOS
         else -> CxDetailSection.PROGRAMME
-    }) }
+    }
+    var categoryCode by rememberSaveable(raceId) { mutableStateOf<String?>(initialCode) }
+    var section by rememberSaveable(raceId) { mutableStateOf(initialSection) }
+    // Última selección derivada del ancla y si ya se aplicó con un detalle no
+    // cacheado: el detalle en caché puede ser anterior a los resultados que la
+    // agenda ya anuncia y, normalizado contra él, el ancla caía en otra sección.
+    var automatic by remember(raceId) { mutableStateOf<Pair<CxDetailSection, String?>?>(null) }
+    var freshApplied by remember(raceId) { mutableStateOf(false) }
     var showAllTV by rememberSaveable(raceId) { mutableStateOf(false) }
     var initialApplied by remember(raceId) { mutableStateOf(false) }
     var round by remember(raceId) { mutableStateOf<CxRound?>(null) }
@@ -151,7 +164,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         round = seasonRounds[value.data.race.id]
         // El refresco de cada minuto trae un cachedAt nuevo: sin cambios en la
         // jornada no se publica, para no recomponer la ficha ni la clasificación.
-        if (data?.data == value.data) return
+        if (data?.data == value.data && data?.offline == value.offline) return
         data = value
     }
     suspend fun reload() {
@@ -159,7 +172,13 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         loading = true
         try {
             if (data == null) {
-                app.cxRepository.cachedDetail(raceId)?.let { cached ->
+                // Un detalle en caché anterior a los resultados del ancla no se
+                // publica: se espera al de red (que ya cae en la caché sin
+                // conexión) en lugar de abrir en otra sección.
+                app.cxRepository.cachedDetail(raceId)?.takeIf { cached ->
+                    initialCategory?.startsWith("resultados-") != true ||
+                        initialCategory.removePrefix("resultados-") in CxPresentation.resultCategories(cached.data)
+                }?.let { cached ->
                     preloadMap(mapAssetUrl(cached.data))
                     publish(cached)
                 }
@@ -193,13 +212,22 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         roundRaces = try { app.cxRepository.roundRaces(roundIds).associateBy { it.id } }
             catch (failure: Exception) { if (failure is CancellationException) throw failure; emptyMap() }
     }
-    LaunchedEffect(detail, section, categoryCode, hasMedia) {
+    val freshDetail = data?.offline == false
+    LaunchedEffect(detail, section, categoryCode, hasMedia, freshDetail) {
         if (detail != null) {
-            val defaultResults = !initialApplied && initialCategory == null && CxPresentation.resultCategories(detail).isNotEmpty()
-            val requested = if (defaultResults || (!initialApplied && initialCategory in CyclocrossLogic.categories && categoryCode in CxPresentation.resultCategories(detail))) CxDetailSection.RESULTS else section
-            val normalized = CxPresentation.normalizeSelection(detail, requested, categoryCode, hasMedia)
+            // Primera selección o primera publicación fresca sin cambios del
+            // usuario: se parte del ancla y no de lo normalizado con la caché.
+            val reevaluate = initialApplied && freshDetail && !freshApplied && automatic == (section to categoryCode)
+            val derived = !initialApplied || reevaluate
+            val baseSection = if (reevaluate) initialSection else section
+            val baseCode = if (reevaluate) initialCode else categoryCode
+            val defaultResults = derived && initialCategory == null && CxPresentation.resultCategories(detail).isNotEmpty()
+            val requested = if (defaultResults || (derived && initialCategory in CyclocrossLogic.categories && baseCode in CxPresentation.resultCategories(detail))) CxDetailSection.RESULTS else baseSection
+            val normalized = CxPresentation.normalizeSelection(detail, requested, baseCode, hasMedia)
             section = normalized.first
             categoryCode = normalized.second
+            if (derived) automatic = normalized
+            if (freshDetail) freshApplied = true
             initialApplied = true
         }
     }
@@ -255,28 +283,36 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             }
                             if (race.isCancelled) Text(stringResource(R.string.cx_cancelled), style = CCText.S12, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                             // Zona de documentación, idéntica a la de carretera:
-                            // tira enmarcada con Web oficial · Libro de Ruta · Mapa.
+                            // tira enmarcada con Web oficial · Libro de Ruta · Mapa,
+                            // como la web (un único Libro de ruta y un único Mapa).
                             // La acción de seguimiento es también la puerta de
-                            // entrada a los avisos, por lo que siempre se muestra.
+                            // entrada a los avisos. Son cuatro celdas como máximo y
+                            // reparten el ancho de la tira si caben.
                             val websiteUrl = CxPresentation.link(race.websiteUrl)
-                            val docs = detail.assets.filter { !it.url.isNullOrEmpty() && it.type in listOf("technicalGuide", "map") }
-                                .sortedBy { if (it.type == "technicalGuide") 0 else 1 }
-                            AssetActionStrip {
+                            val docs = listOf("technicalGuide", "map").mapNotNull { type ->
+                                detail.assets.firstOrNull { it.type == type && !it.url.isNullOrEmpty() }
+                            }
+                            val notifies = CxPresentation.awaitsResults(race)
+                            AssetActionStrip(
+                                tileCount = (if (websiteUrl != null) 1 else 0) + docs.size + (if (notifies) 1 else 0),
+                            ) {
                                 websiteUrl?.let { url ->
                                     AssetChip(icon = Icons.Filled.Language, label = stringResource(R.string.stage_doc_web_official),
-                                        onClick = { openExternalUrl(context, url) })
+                                        onClick = { openExternalUrl(context, url) },
+                                        showTrailingSeparator = docs.isNotEmpty() || notifies)
                                 }
-                                for (asset in docs) {
+                                docs.forEachIndexed { index, asset ->
                                     val isMap = asset.type == "map"
                                     AssetChip(icon = if (isMap) Icons.Filled.Map else Icons.AutoMirrored.Outlined.InsertDriveFile,
                                         label = stringResource(if (isMap) R.string.asset_map else R.string.asset_technical_guide),
-                                        onClick = { openExternalUrl(context, asset.url!!) })
+                                        onClick = { openExternalUrl(context, asset.url!!) },
+                                        showTrailingSeparator = index < docs.lastIndex || notifies)
                                 }
                                 // Los avisos de ciclocross solo se ofrecen en las
                                 // pruebas con resultados en directo (Mundial,
                                 // Continental, Copa del Mundo, Superprestige y
                                 // X2O), igual que el indicador de espera.
-                                if (CxPresentation.awaitsResults(race)) {
+                                if (notifies) {
                                     CxNotificationChip(
                                         isFollowing = race.id in followedCxRaceIds,
                                         onClick = {
@@ -341,23 +377,34 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             onOpenRace = { nav.navigate(Routes.cxRace(it.id, title = cxTitle(it))) },
                             locale = locale,
                             english = english,
-                            showAllTV = showAllTV,
-                            wide = wideDetail,
-                            onToggleTV = { showAllTV = !showAllTV },
-                            onStartlist = { code -> categoryCode = code; section = CxDetailSection.STARTLIST },
-                            onResults = { code -> categoryCode = code; section = CxDetailSection.RESULTS },
                         )
                         }
                     }
                     val mapUrl = mapAssetUrl(detail).takeIf { section != CxDetailSection.VIDEOS }
-                    // Resultados, publicados o no, llevan columna lateral como en
+                    if (section == CxDetailSection.PROGRAMME) {
+                        CxProgrammeLayout(
+                            detail = detail,
+                            categories = categories,
+                            allowedGroups = RegionDetector.allowedBroadcastGroups(),
+                            showAllTV = showAllTV,
+                            mapUrl = mapUrl,
+                            wide = wideDetail,
+                            paneSpacing = adaptiveInfo.paneSpacing,
+                            onToggleTV = { showAllTV = !showAllTV },
+                            onStartlist = { code -> categoryCode = code; section = CxDetailSection.STARTLIST },
+                            onResults = { code -> categoryCode = code; section = CxDetailSection.RESULTS },
+                        )
+                        return@item
+                    }
+                    // Resultados y dorsales llevan columna lateral como en
                     // carretera: mapa en pequeño y, debajo, los datos de la
-                    // jornada (el horario).
+                    // jornada (el horario, con la categoría elegida resaltada).
                     val scheduled = cxScheduledCategories(race, categories)
-                    val raceData = section == CxDetailSection.RESULTS && scheduled.isNotEmpty()
+                    val contextSection = section == CxDetailSection.RESULTS || section == CxDetailSection.STARTLIST
+                    val raceData = contextSection && scheduled.isNotEmpty()
                     val sideColumn: @Composable () -> Unit = {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            mapUrl?.let { CxMapPreview(url = it, maxHeight = if (section == CxDetailSection.RESULTS) 260.dp else 480.dp) }
+                            mapUrl?.let { CxMapPreview(url = it, maxHeight = if (contextSection) 260.dp else 480.dp) }
                             if (raceData) CxRaceDataCard(race = race, scheduled = scheduled, activeCategory = categoryCode)
                         }
                     }
@@ -367,13 +414,8 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing),
                             verticalAlignment = Alignment.Top,
                         ) {
-                            if (section == CxDetailSection.PROGRAMME && mapUrl != null) {
-                                Box(Modifier.weight(0.60f)) { CxMapPreview(url = mapUrl) }
-                                Box(Modifier.weight(0.40f)) { selectedContent() }
-                            } else {
-                                Box(Modifier.weight(0.60f)) { selectedContent() }
-                                Box(Modifier.weight(0.40f)) { sideColumn() }
-                            }
+                            Box(Modifier.weight(0.60f)) { selectedContent() }
+                            Box(Modifier.weight(0.40f)) { sideColumn() }
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -406,27 +448,14 @@ private fun CxSelectedContent(
     onOpenRace: (CxRace) -> Unit,
     locale: Locale,
     english: Boolean,
-    showAllTV: Boolean,
-    wide: Boolean,
-    onToggleTV: () -> Unit,
-    onStartlist: (String) -> Unit,
-    onResults: (String) -> Unit,
 ) {
     // Catálogo CX indexado una vez por publicación, y filas memorizadas: la
     // recomposición (cambios de sección) no vuelve a casar cada fila contra
     // los ~400 equipos.
     val teamMatcher = remember(detail.teams) { UciResultsLogic.TeamMatcher(detail.teams.map { it.roadTeam }) }
     when {
-        section == CxDetailSection.PROGRAMME -> CxProgrammeCard(
-            detail,
-            categories,
-            RegionDetector.allowedBroadcastGroups(),
-            showAllTV,
-            broadcastColumns = if (wide) 2 else 1,
-            onToggleTV = onToggleTV,
-            onStartlist = onStartlist,
-            onResults = onResults,
-        )
+        // El programa se compone aparte (CxProgrammeLayout).
+        section == CxDetailSection.PROGRAMME -> Unit
         section == CxDetailSection.VIDEOS -> CxVideosCard(CxPresentation.videos(detail))
         section == CxDetailSection.GENERAL -> {
             if (generalCategories.isEmpty()) {
@@ -456,21 +485,13 @@ private fun CxSelectedContent(
         section == CxDetailSection.STARTLIST -> {
             val riders = detail.startlist.filter { it.category == category.category }.sortedBy { it.sortOrder }
             Column {
-                Text(cxCategoryName(category.category), style = CCText.S16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+                Text(cxCategoryName(category.category), style = CCText.S14, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                 if (categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
-                    Text(category.dateKey ?: race.dateKey, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(DateFormatting.formatDateLongContent(category.dateKey ?: race.dateKey), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                Spacer(Modifier.height(4.dp))
                 if (riders.isEmpty()) Text(stringResource(R.string.cx_no_startlist), style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                riders.forEach { row ->
-                    CxTableRow(
-                        row.bib ?: "-",
-                        "${row.firstName} ${row.lastName}",
-                        null,
-                        row.countryCode,
-                        null,
-                        detail.teams.firstOrNull { it.id == row.teamId }?.roadTeam,
-                    )
-                }
+                else CxStartlistTable(riders, detail.teams)
             }
         }
         section == CxDetailSection.RESULTS -> {
@@ -604,13 +625,21 @@ private fun CxRaceDataCard(race: CxRace, scheduled: List<CxCategory>, activeCate
     }
 }
 
+/**
+ * Sección Programa: Horarios, TV y Revive, y el mapa. En teléfono, en una
+ * columna (Horarios, TV, Revive y mapa). En la maqueta ancha, el mapa ocupa
+ * una columna y Horarios, TV y Revive la otra; sin mapa, Horarios a un lado y
+ * TV y Revive al otro. Las emisoras van siempre en una sola columna.
+ */
 @Composable
-private fun CxProgrammeCard(
+private fun CxProgrammeLayout(
     detail: CxDetail,
     categories: List<CxCategory>,
     allowedGroups: Set<String>,
     showAllTV: Boolean,
-    broadcastColumns: Int = 1,
+    mapUrl: String?,
+    wide: Boolean,
+    paneSpacing: androidx.compose.ui.unit.Dp,
     onToggleTV: () -> Unit,
     onStartlist: (String) -> Unit,
     onResults: (String) -> Unit,
@@ -618,146 +647,228 @@ private fun CxProgrammeCard(
     val race = detail.race
     val context = LocalContext.current
     var offlineAlert by remember { mutableStateOf(false) }
-    // Si ninguna categoría tiene horario verificado, la zona de programa no se muestra.
+    // Si ninguna categoría tiene horario verificado, Horarios no se muestra.
     val scheduled = cxScheduledCategories(race, categories)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (scheduled.isNotEmpty()) SectionCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(LocaleHolder.t("Horarios", "Schedule"))
-                for ((index, category) in scheduled.withIndex()) {
-                    if (index > 0) HorizontalDivider()
-                    // Fila centrada verticalmente: hora (en negrita) y categoría
-                    // a la izquierda con su metadata debajo; dorsales y copa a
-                    // la derecha, centradas con el bloque.
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (race.isCancelled || category.isCancelled) stringResource(R.string.cx_cancelled)
-                                    else category.startTimeUtc?.let(DateFormatting::formatTimeLocal).orEmpty(), style = CCText.S16, fontWeight = FontWeight.Bold)
-                                Text(cxCategoryName(category.category), style = CCText.S16)
-                            }
-                            if (race.categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
-                                Text(DateFormatting.formatDateLongContent(category.dateKey ?: race.dateKey), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (detail.startlist.any { it.category == category.category }) CxLinkBadge(stringResource(R.string.cx_startlist), { onStartlist(category.category) }, icon = Icons.Filled.Group)
-                            // Copa solo-icono de las cards de Hoy en lugar del botón de texto.
-                            if (category.category in CxPresentation.resultCategories(detail)) {
-                                ResultsTrophyAction(onClick = { onResults(category.category) }, contentDescription = stringResource(R.string.cx_results), boxSize = 28.dp, glyphSize = 20.dp)
-                            }
-                        }
-                    }
-                }
-            }
+    val media = CxPresentation.programmeMedia(detail, allowedGroups, showAllTV, cxClock())
+    // Apertura de carretera: aviso sin conexión y apps nativas.
+    val openLink: (String) -> Unit = { url -> openExternalLink(context, url) { offlineAlert = true } }
+    val hasMedia = media.showsLiveTV || media.revive.isNotEmpty()
+    val schedule: @Composable () -> Unit = {
+        if (scheduled.isNotEmpty()) CxScheduleCard(detail, scheduled, onStartlist, onResults)
+    }
+    val mediaCards: @Composable () -> Unit = {
+        if (media.showsLiveTV) CxTVCard(race, media, showAllTV, onToggleTV, openLink)
+        if (media.revive.isNotEmpty()) CxReviveCard(race, media.revive, openLink)
+    }
+    when {
+        wide && mapUrl != null -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(paneSpacing),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(Modifier.weight(0.60f)) { CxMapPreview(url = mapUrl) }
+            Column(Modifier.weight(0.40f), verticalArrangement = Arrangement.spacedBy(12.dp)) { schedule(); mediaCards() }
         }
-        val media = CxPresentation.programmeMedia(detail, allowedGroups, showAllTV, cxClock())
-        // Apertura de carretera: aviso sin conexión y apps nativas.
-        val openLink: (String) -> Unit = { url -> openExternalLink(context, url) { offlineAlert = true } }
-        if (media.showsLiveTV) SectionCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Conmutador regional de carretera (`BroadcastSection`): acción
-                // de texto «Todas» / «Mi región» junto al título, solo con filas
-                // de otras regiones; el aviso vacío desaparece con «Todas».
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { SectionTitle(stringResource(R.string.cx_tv)) }
-                    if (media.hasHiddenTV) PanelTextAction(
-                        label = stringResource(if (showAllTV) R.string.stage_broadcast_filter_region else R.string.stage_broadcast_filter_all),
-                        onClick = onToggleTV,
-                        // Sin altura propia en la fila: el título conserva la
-                        // posición de los demás paneles y el objetivo táctil
-                        // de 48 dp queda centrado sobre él.
-                        modifier = Modifier.layout { measurable, constraints ->
-                            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-                            layout(placeable.width, 0) { placeable.placeRelative(0, -placeable.height / 2) }
-                        },
-                    )
-                }
-                if (media.tv.isEmpty() && media.hasHiddenTV && !showAllTV) Text(
-                    text = stringResource(R.string.stage_broadcast_no_region),
-                    style = CCText.S14,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
-                // Presentación de carretera, dividida por categorías: emisiones
-                // comunes (sin categoría) sin encabezado y un bloque por
-                // categoría en directo, en el orden del programa.
-                for (group in media.tv) {
-                    group.category?.let {
-                        Text(cxCategoryName(it), style = CCText.S14, fontWeight = FontWeight.SemiBold)
-                        // Filete de las filas de la ficha entre la categoría y sus emisiones.
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                    group.rows.chunked(broadcastColumns).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            row.forEach { tv ->
-                                Box(Modifier.weight(1f)) {
-                                    BroadcastRow(
-                                        Broadcast(
-                                            id = tv.broadcast.id,
-                                            raceDayId = race.id,
-                                            channel = tv.broadcast.channel,
-                                            startTimeUtc = tv.broadcast.startTimeUtc,
-                                            url = tv.url,
-                                            note = tv.broadcast.note,
-                                            sortOrder = tv.broadcast.sortOrder,
-                                            showInRevive = tv.broadcast.showInRevive,
-                                            country = tv.broadcast.country,
-                                        ),
-                                        showsRegion = showAllTV,
-                                        onExternalLinkTap = openLink,
-                                    )
-                                }
-                            }
-                            repeat(broadcastColumns - row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                }
-            }
+        wide && scheduled.isNotEmpty() && hasMedia -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(paneSpacing),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(Modifier.weight(0.60f)) { schedule() }
+            Column(Modifier.weight(0.40f), verticalArrangement = Arrangement.spacedBy(12.dp)) { mediaCards() }
         }
-        if (media.revive.isNotEmpty()) SectionCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(stringResource(R.string.cx_revive))
-                media.revive.chunked(broadcastColumns).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { link ->
-                            Box(Modifier.weight(1f)) {
-                                BroadcastRow(
-                                    Broadcast(id = link.url, raceDayId = race.id, channel = link.title, url = link.url, sortOrder = link.sortOrder, showInRevive = true),
-                                    isRevive = true,
-                                    hasResults = true,
-                                    onExternalLinkTap = openLink,
-                                )
-                            }
-                        }
-                        repeat(broadcastColumns - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
+        else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            schedule()
+            mediaCards()
+            mapUrl?.let { CxMapPreview(url = it) }
         }
     }
     if (offlineAlert) OfflineAccessDialog(OfflineAccessAlert.ExternalLinkOffline, onDismiss = { offlineAlert = false }, onEnableOffline = { offlineAlert = false })
 }
 
 @Composable
-private fun CxTableRow(position: String, name: String, teamName: String?, country: String?, value: String?, team: Team? = null) {
-    Column {
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(position, Modifier.width(36.dp), style = CCText.S14, fontWeight = FontWeight.SemiBold)
-            CountryFlag(country, height = 12.dp)
-            Column(Modifier.weight(1f)) {
-                // Franjas junto al corredor, como en iOS y en la web.
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(name, style = CCText.S14, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f, fill = false))
-                    team?.let { TeamColorBands(it) }
+private fun CxScheduleCard(detail: CxDetail, scheduled: List<CxCategory>, onStartlist: (String) -> Unit, onResults: (String) -> Unit) {
+    val race = detail.race
+    SectionCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(LocaleHolder.t("Horarios", "Schedule"))
+            for ((index, category) in scheduled.withIndex()) {
+                if (index > 0) HorizontalDivider()
+                // Fila centrada verticalmente: hora (en negrita) y categoría
+                // a la izquierda con su metadata debajo; dorsales y copa a
+                // la derecha, centradas con el bloque.
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (race.isCancelled || category.isCancelled) stringResource(R.string.cx_cancelled)
+                                else category.startTimeUtc?.let(DateFormatting::formatTimeLocal).orEmpty(), style = CCText.S16, fontWeight = FontWeight.Bold)
+                            Text(cxCategoryName(category.category), style = CCText.S16)
+                        }
+                        if (race.categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
+                            Text(DateFormatting.formatDateLongContent(category.dateKey ?: race.dateKey), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (detail.startlist.any { it.category == category.category }) CxLinkBadge(stringResource(R.string.cx_startlist), { onStartlist(category.category) }, icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist))
+                        // Copa solo-icono de las cards de Hoy en lugar del botón de texto.
+                        if (category.category in CxPresentation.resultCategories(detail)) {
+                            ResultsTrophyAction(onClick = { onResults(category.category) }, contentDescription = stringResource(R.string.cx_results), boxSize = 28.dp, glyphSize = 20.dp)
+                        }
+                    }
                 }
-                teamName?.takeIf { it.isNotBlank() }?.let { Text(it, style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            value?.let { Text(it, style = CCText.S13) }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
+
+/**
+ * Televisión de la ficha CX con el panel de la jornada de carretera
+ * (`BroadcastSection`): cabecera con la acción regional «Todas» / «Mi región»
+ * solo con filas de otras regiones, y filas a sangre separadas por filete, sin
+ * huecos añadidos entre ellas. Dividida por categorías: emisiones comunes (sin
+ * categoría) sin encabezado y un bloque por categoría en directo, en el orden
+ * del programa.
+ */
+@Composable
+private fun CxTVCard(race: CxRace, media: app.calendariociclismo.android.util.CxMediaSelection, showAllTV: Boolean, onToggleTV: () -> Unit, openLink: (String) -> Unit) {
+    StagePanel {
+        PanelHeader(
+            title = stringResource(R.string.cx_tv),
+            actions = {
+                if (media.hasHiddenTV) PanelTextAction(
+                    label = stringResource(if (showAllTV) R.string.stage_broadcast_filter_region else R.string.stage_broadcast_filter_all),
+                    onClick = onToggleTV,
+                )
+            },
+        )
+        if (media.tv.isEmpty() && media.hasHiddenTV && !showAllTV) ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.stage_broadcast_no_region),
+                    style = CCText.S14,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        media.tv.forEachIndexed { groupIndex, group ->
+            if (groupIndex > 0) PanelDivider()
+            group.category?.let {
+                Text(
+                    cxCategoryName(it),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                PanelDivider()
+            }
+            group.rows.forEachIndexed { index, tv ->
+                if (index > 0) PanelDivider()
+                BroadcastRow(
+                    Broadcast(
+                        id = tv.broadcast.id,
+                        raceDayId = race.id,
+                        channel = tv.broadcast.channel,
+                        startTimeUtc = tv.broadcast.startTimeUtc,
+                        url = tv.url,
+                        note = tv.broadcast.note,
+                        sortOrder = tv.broadcast.sortOrder,
+                        showInRevive = tv.broadcast.showInRevive,
+                        country = tv.broadcast.country,
+                    ),
+                    showsRegion = showAllTV,
+                    onExternalLinkTap = openLink,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CxReviveCard(race: CxRace, revive: List<app.calendariociclismo.android.util.CxReplayLink>, openLink: (String) -> Unit) {
+    StagePanel {
+        PanelHeader(title = stringResource(R.string.cx_revive))
+        revive.forEachIndexed { index, link ->
+            if (index > 0) PanelDivider()
+            BroadcastRow(
+                Broadcast(id = link.url, raceDayId = race.id, channel = link.title, url = link.url, sortOrder = link.sortOrder, showInRevive = true),
+                isRevive = true,
+                hasResults = true,
+                onExternalLinkTap = openLink,
+            )
+        }
+    }
+}
+
+/** Ancho a partir del cual la tabla de dorsales separa la columna Equipo. */
+private val CxStartlistTeamColumnMinWidth = 480.dp
+
+/**
+ * Dorsales de una categoría con la superficie de tabla de Resultados:
+ * Dorsal, Corredor y Equipo (franjas y nombre). En anchos estrechos el
+ * equipo pasa a subtítulo bajo el corredor; sin equipo en ninguna fila no
+ * hay columna de equipo.
+ */
+@Composable
+private fun CxStartlistTable(riders: List<CxStartlistRider>, teams: List<CxTeam>) {
+    val byId = remember(teams) { teams.associateBy { it.id } }
+    val hasTeam = riders.any { it.teamId != null && it.teamId in byId }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val teamColumn = hasTeam && maxWidth >= CxStartlistTeamColumnMinWidth
+        ResultsTableSurface {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.HeaderVerticalPadding),
+                horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ResultsHeaderCell(stringResource(R.string.start_order_col_bib), Modifier.width(ResultsTableMetrics.RankWidth), align = TextAlign.Center)
+                ResultsHeaderCell(stringResource(R.string.results_col_rider), Modifier.weight(1f))
+                if (teamColumn) ResultsHeaderCell(stringResource(R.string.results_col_team), Modifier.weight(1f))
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            riders.forEachIndexed { index, rider ->
+                val cxTeam = rider.teamId?.let(byId::get)
+                CxStartlistRow(rider, cxTeam?.name, cxTeam?.roadTeam, teamColumn)
+                if (index < riders.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CxStartlistRow(rider: CxStartlistRider, teamName: String?, team: Team?, teamColumn: Boolean) {
+    val teamLabel: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            team?.let { TeamColorBands(it) }
+            Text(teamName.orEmpty(), style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 35.dp)
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.RowVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            rider.bib.orEmpty(),
+            Modifier.width(ResultsTableMetrics.RankWidth),
+            style = CCText.S14.copy(fontFeatureSettings = "tnum"),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (!rider.countryCode.isNullOrEmpty()) CountryFlag(rider.countryCode, height = 13.dp)
+                Text("${rider.firstName} ${rider.lastName}", style = CCText.S14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (!teamColumn && teamName != null) teamLabel()
+        }
+        if (teamColumn) Box(Modifier.weight(1f)) { if (teamName != null) teamLabel() }
+    }
+}
+
 
 /** Aviso en inglés para una carrera o un torneo solo nacional. */
 @Composable

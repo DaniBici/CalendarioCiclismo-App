@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RTVE_LIVES_URL,
   decodeHtml, desiredBroadcasts, hboSharedEventVariants, matchObservation, parseHboCatalog, parseHboEventStart,
-  isMontoneraEligible, normalizedObservation,
+  isMontoneraEligible, normalizedObservation, placeBroadcasts,
   parseRtveGuide, parseRtvePlayLives, parseRtveStructuredGuide,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveRaceHintMatch, rtveVueltaExternalEventId, zonedTimeToUtc,
 } from '../../scripts/broadcasts-sync/broadcasts-sync-core.mjs';
@@ -966,8 +966,28 @@ describe('sincronización oficial de emisiones', () => {
       startTimeUtc: '2026-09-02T12:45:00.000Z', channel: 'TDP / RTVE Play', country: 'ES',
     }, { raceDayId: 'day-11' }, { broadcasts: [existing] });
     expect(action).toBe('manual_conflict');
-    expect(calls.some(([sql]) => sql.includes('INSERT INTO private.broadcast_source_links'))).toBe(false);
-    expect(calls.find(([sql]) => sql.includes('INSERT INTO private.broadcast_source_observations'))?.[1])
-      .toEqual(expect.arrayContaining(['manual_conflict', expect.stringContaining('rtve:previous-event')]));
+    expect(calls.some(([, params]) => params?.includes('manual_conflict')
+      && params.some(value => typeof value === 'string' && value.includes('rtve:previous-event')))).toBe(true);
+  });
+});
+
+describe('orden denso de emisiones', () => {
+  const row = (id, channel, country, sortOrder) => ({ id, channel, country, sortOrder });
+
+  it('coloca la pareja HBO Max tras el emisor español y antes del resto', () => {
+    const existing = [row('rtve', 'TDP / RTVE Play', 'ES', 0), row('nos', 'NOS', 'NL', 1), row('zdf', 'ZDF', 'DE_AT_CH', 2)];
+    expect(placeBroadcasts(existing, [{ id: 'eurosport', tier: -20 }, { id: 'tnt', tier: -10 }]))
+      .toEqual(['rtve', 'eurosport', 'tnt', 'nos', 'zdf']);
+  });
+
+  it('coloca un emisor español al inicio y una alta final al término', () => {
+    const existing = [row('eurosport', 'Eurosport (HBO Max)', 'EUROPA', 0), row('tnt', 'TNT Sports (HBO Max)', 'UK_IE', 1), row('nos', 'NOS', 'NL', 2)];
+    expect(placeBroadcasts(existing, [{ id: 'rtve', tier: -30 }, { id: 'rtbf', tier: 10 }]))
+      .toEqual(['rtve', 'eurosport', 'tnt', 'nos', 'rtbf']);
+  });
+
+  it('conserva el orden relativo y deja el YouTube del organizador primero', () => {
+    const existing = [row('b', 'ZDF', 'DE_AT_CH', 5), row('yt', 'Japan Cup (YouTube)', 'ALL', -40), row('a', 'NOS', 'NL', 2)];
+    expect(placeBroadcasts(existing, [{ id: 'rtve', tier: -30 }])).toEqual(['yt', 'rtve', 'a', 'b']);
   });
 });

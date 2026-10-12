@@ -62,14 +62,19 @@ import kotlinx.coroutines.launch
  *
  * Autoavance cada 5 s y navegación manual por gesto o flechas.
  */
+/**
+ * [scopes]: secciones de `today_highlights` que se muestran, en ese orden y
+ * cada una por `position`. La vista Hoy de Ciclocross reúne `cx` y `road`
+ * mientras Hoy de carretera está oculta.
+ */
 @Composable
-fun TodayHighlightsBanner(navController: NavController, scope: String = "road") {
+fun TodayHighlightsBanner(navController: NavController, scopes: List<String> = listOf("road")) {
     val app = rememberApp()
     val tapScope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<HighlightItem>>(emptyList()) }
 
-    LaunchedEffect(scope) {
-        items = runCatching { loadHighlights(app, scope) }.getOrElse { emptyList() }
+    LaunchedEffect(scopes) {
+        items = try { loadHighlights(app, scopes) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
     }
 
     AnimatedVisibility(
@@ -177,9 +182,12 @@ internal data class HighlightItem(
 
 private suspend fun loadHighlights(
     app: app.calendariociclismo.android.CalendarioCiclismoApp,
-    scope: String = "road",
+    scopes: List<String>,
 ): List<HighlightItem> {
-    val highlights = app.repository.todayHighlights(scope)
+    // Una sección que falla no impide mostrar las demás.
+    val highlights = scopes.distinct().flatMap { scope ->
+        try { app.repository.todayHighlights(scope) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+    }
     if (highlights.isEmpty()) return emptyList()
 
     val raceIds = highlights.mapNotNull { it.raceId }.distinct()

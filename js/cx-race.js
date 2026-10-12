@@ -63,10 +63,13 @@ function table(rows,header,value,teamList) {
 }
 function startlist(rows,teams) {
   if(!rows.length)return `<p class="cx-empty">${t('cx.noStartlist')}</p>`;
-  return `<div class="cx-startlist">${[...rows].sort((a,b)=>a.sortOrder-b.sortOrder).map(r=>{
-    const team=teams.get(r.teamId),badge=team?teamStripes(team):'';
-    return `<div class="startlist-rider"><span class="startlist-rider__dorsal">${esc(r.bib||'')}</span><span class="startlist-rider__flag">${countryFlag(r.countryCode)}</span><span class="startlist-rider__name">${esc(`${r.firstName} ${r.lastName}`)}${badge?`<span class="cx-team-badge" title="${esc(team.name)}">${badge}</span>`:''}</span></div>`;
-  }).join('')}</div>`;
+  // Misma tabla que Resultados: Dorsal, Corredor y Equipo; en móvil el equipo
+  // pasa a subtítulo bajo el corredor.
+  const hasTeam=rows.some(r=>teams.has(r.teamId));
+  return `<div class="res-table-wrap"><table class="so-table res-table cx-startlist-table"><thead><tr><th class="so-th res-th--rank">${t('cx.bibShort')}</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}</tr></thead><tbody>${[...rows].sort((a,b)=>a.sortOrder-b.sortOrder).map(r=>{
+    const team=teams.get(r.teamId),teamHtml=team?`${teamStripes(team)}${esc(team.name)}`:'';
+    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(r.bib||'')}</td><td class="so-td res-td--rider"><span class="so-flag">${countryFlag(r.countryCode)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(`${r.firstName} ${r.lastName}`)}</span>${team?`<span class="res-rider-team">${teamHtml}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${team?`<span class="res-team-cell">${teamHtml}</span>`:''}</td>`:''}</tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 function tvEntry(row,hidden,revive=false) {
   const time=!revive&&cxTime(row.startTimeUtc,locale);
@@ -74,7 +77,7 @@ function tvEntry(row,hidden,revive=false) {
 }
 function reviveMedia(rows) {
   if(!rows.length)return '';
-  return `<section class="jornada-section cx-media-section"><h2 class="jornada-section__title">${t('tv.reviveRaceTitle')}</h2><div class="stage-tv-grid">${rows.map(row=>tvEntry(row,false,true)).join('')}</div></section>`;
+  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><h2>${t('tv.reviveRaceTitle')}</h2></header><div class="tv-panel__list">${rows.map(row=>tvEntry(row,false,true)).join('')}</div></section>`;
 }
 function videoMedia(rows) {
   if(!rows.length)return '';
@@ -83,16 +86,16 @@ function videoMedia(rows) {
     return `<article class="cx-video-card"><h3>${title}</h3><iframe src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>${external(row.url,'YouTube ↗')}</article>`;
   }).join('')}</div></section>`;
 }
-// TV de la jornada CX con la presentación de carretera, dividida por
+// TV de la jornada CX en el cajón de carretera, dividida por
 // categorías: emisiones comunes (sin categoría) sin encabezado y un bloque
 // por categoría en directo, en el orden del programa.
 function tvGroups(broadcasts,categories) {
   if(!broadcasts.length)return '';
   const mine=new Set(filterBroadcastsByRegion(broadcasts)),hasHidden=mine.size<broadcasts.length;
-  const group=(label,rows)=>rows.length?`<div class="cx-tv-group"${rows.some(row=>mine.has(row))?'':' data-cx-regional-hidden hidden'}>${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="stage-tv-grid">${rows.map(row=>tvEntry(row,!mine.has(row))).join('')}</div></div>`:'';
+  const group=(label,rows)=>rows.length?`<div class="cx-tv-group"${rows.some(row=>mine.has(row))?'':' data-cx-regional-hidden hidden'}>${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="tv-panel__list">${rows.map(row=>tvEntry(row,!mine.has(row))).join('')}</div></div>`:'';
   const html=group('',broadcasts.filter(row=>!row.category))+categories.map(c=>group(t(`cx.category.${c.category}`),broadcasts.filter(row=>row.category===c.category))).join('');
   if(!html)return '';
-  return `<section class="jornada-section cx-media-section"><div class="jornada-section__title-row"><h2 class="jornada-section__title">${t('cx.tv')}</h2>${hasHidden?`<button type="button" class="stage-key-toggle" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button>`:''}</div>${!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html}</section>`;
+  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><h2>${t('cx.tv')}</h2>${hasHidden?`<div class="tv-panel__actions"><button type="button" class="stage-key-toggle" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button></div>`:''}</header>${!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html}</section>`;
 }
 function mapImageUrl(assets) {
   const url=safeLink(assets.find(asset=>asset.type==='map'&&asset.url)?.url);
@@ -125,15 +128,18 @@ function resultsContext(race,categories,multiDate,assets) {
   return map||data?`<aside class="res-context cx-results-context">${map}${data}</aside>`:'';
 }
 
-function programme(race,categories,results,multiDate,assets=[],hasMedia=false) {
+// En escritorio, la TV y el streaming acompañan a los horarios en la columna
+// derecha; en móvil, el orden es horarios, mapa y TV.
+function programme(race,categories,results,multiDate,assets=[],media='') {
   const scheduled=scheduledCategories(race,categories);
   const rows=scheduled.map(c=>{
     const cancelled=race.isCancelled||c.isCancelled,hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
     const badges=`${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistCyclistHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
     return `<section class="cx-programme-row" id="${c.category}"><div class="cx-programme-top"><div class="cx-programme-heading"><time title="${esc(t('stage.yourTimezone'))}: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}">${esc(cancelled?t('stage.cancelled'):cxTime(c.startTimeUtc,locale))}</time><h3>${esc(t(`cx.category.${c.category}`))}</h3></div>${badges?`<div class="cx-programme-actions">${badges}</div>`:''}</div>${multiDate?`<p>${esc(dateLabel(cxCategoryDate(race,c)))}</p>`:''}</section>`;
   }).join('');
-  const map=mapPreview(assets),schedule=rows?`<section class="stage-profile-panel cx-programme-schedule"><header class="stage-profile-heading"><h2>${t('stage.schedule')}</h2></header><div class="cx-programme-grid">${rows}</div></section>`:hasMedia?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
-  return map?`<div class="cx-programme-layout">${schedule}${map}</div>`:schedule;
+  const map=mapPreview(assets),schedule=rows?`<section class="stage-profile-panel cx-programme-schedule"><header class="stage-profile-heading"><h2>${t('stage.schedule')}</h2></header><div class="cx-programme-grid">${rows}</div></section>`:media?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
+  if(map)return `<div class="cx-programme-layout">${map}<div class="cx-programme-side">${schedule}${media}</div></div>`;
+  return schedule&&media?`<div class="cx-programme-layout cx-programme-layout--schedule">${schedule}<div class="cx-programme-side">${media}</div></div>`:schedule+media;
 }
 async function findRace() {
   const select='*,cx_race_categories(*),cx_tournaments(*)';
@@ -191,7 +197,7 @@ try {
   // Sin programa, dorsales, resultados ni TV, una carrera con vídeos abre Vídeos.
   const defaultPage=publishedCategories.length?'results':hasProgramme?'programme':hasStartlist?'startlist':hasMedia?'programme':videoRows.length?'videos':'programme';
   if(page==='race')page=defaultPage;
-  // La TV vive dentro del programa, debajo de horarios: los enlaces antiguos
+  // La TV vive dentro del programa, junto a los horarios: los enlaces antiguos
   // ?view=tv aterrizan ahí.
   if(page==='tv')page='programme';
   const sectionTabs=[
@@ -219,7 +225,7 @@ try {
   const publicationHtml=status=>`<div class="res-publication"><div class="res-publication-line"><span>${status==='official'?(lang==='en'?'Official':'Oficial'):(lang==='en'?'Provisional':'Provisional')}</span></div></div>`;
   const classificationPanels=categories.map(c=>{
     const rows=publishedCategories.includes(c.category)?results.filter(r=>r.category===c.category).sort((a,b)=>a.sortOrder-b.sortOrder):[],cells=cxResultCells(rows,lang);
-    return `<div data-cx-classification-content="${esc(c.category)}">${rows.length?`${publicationHtml(cxPublicationStatus(c))}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList)}`:`<p class="cx-empty">${t('cx.noResults')}</p>`}</div>`;
+    return `<div data-cx-classification-content="${esc(c.category)}">${rows.length?`${publicationHtml(cxPublicationStatus(c))}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList)}`:`<p class="cx-empty">${t(race.isCancelled||c.isCancelled?'stage.cancelled':'cx.noResults')}</p>`}</div>`;
   }).join('');
   const roundHeader=(raceId,index)=>{
     const round=tournamentRaces.get(raceId),label=`#${rounds?.get(raceId)?.n??index+1}`;
@@ -232,15 +238,17 @@ try {
   }).join('');
   const multiDate=new Set(categories.map(c=>cxCategoryDate(race,c))).size>1;
   const contextHtml=resultsContext(race,categories,multiDate,docAssets);
-  const classificationsHtml=`<div class="res-layout cx-classification-page${contextHtml?' res-layout--context':''}"><div class="res-main">${classificationPanels||`<p class="cx-empty">${t('cx.noResults')}</p>`}</div>${contextHtml}</div>`;
+  const classificationsHtml=`<div class="res-layout cx-classification-page${contextHtml?' res-layout--context':''}"><div class="res-main">${classificationPanels||`<p class="cx-empty">${t(race.isCancelled?'stage.cancelled':'cx.noResults')}</p>`}</div>${contextHtml}</div>`;
   const standingsPageHtml=`<div class="res-layout cx-classification-page cx-standings-page${contextHtml?' res-layout--context':''}"><div class="res-main">${generalHtml||`<p class="cx-empty">${t('cx.noStandings')}</p>`}</div>${contextHtml}</div>`;
-  const startlistHtml=categories.map(c=>`<section class="cx-category-section" data-cx-startlist-category="${c.category}"><div class="cx-category-content">${startlist(inscritos.filter(row=>row.category===c.category),teams)}</div></section>`).join('');
+  // Dorsales con la maqueta de las clasificaciones, columna lateral incluida.
+  const startlistPanels=categories.map(c=>`<div data-cx-startlist-category="${c.category}">${startlist(inscritos.filter(row=>row.category===c.category),teams)}</div>`).join('');
+  const startlistHtml=`<div class="res-layout cx-classification-page cx-startlist-page${contextHtml?' res-layout--context':''}"><div class="res-main">${startlistPanels||`<p class="cx-empty">${t('cx.noStartlist')}</p>`}</div>${contextHtml}</div>`;
   const capitalizeDate=value=>value?value.charAt(0).toLocaleUpperCase(lang)+value.slice(1):value;
   const headerDate= race.dateKey ? capitalizeDate(seoLongDateWeekday(race.dateKey,lang)) + (race.endDateKey&&race.endDateKey!==race.dateKey?` – ${capitalizeDate(seoLongDateWeekday(race.endDateKey,lang))}`:'') : '';
   const roundLabel=cxRoundLabel(rounds?.get(race.id));
   const headerDetail=[cxClassName(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
   const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
-  root.innerHTML=`${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div><div data-cx-section="results" hidden>${classificationsHtml}</div><div data-cx-section="general" hidden>${standingsPageHtml}</div><div class="cx-race-sections" data-cx-section="startlist" hidden>${startlistHtml||`<p class="cx-empty">${t('cx.noStartlist')}</p>`}</div><div class="cx-race-sections" data-cx-section="programme" hidden>${programme(race,categories,results,multiDate,docAssets,hasMedia)}${tvGroups(tvRows,media.liveCategories)}${reviveMedia(reviveRows)}</div><div class="cx-race-sections" data-cx-section="videos" hidden>${videoMedia(videoRows)||`<p class="cx-empty">${t('cx.noVideos')}</p>`}</div>`;
+  root.innerHTML=`${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div><div data-cx-section="results" hidden>${classificationsHtml}</div><div data-cx-section="general" hidden>${standingsPageHtml}</div><div data-cx-section="startlist" hidden>${startlistHtml}</div><div class="cx-race-sections" data-cx-section="programme" hidden>${programme(race,categories,results,multiDate,docAssets,tvGroups(tvRows,media.liveCategories)+reviveMedia(reviveRows))}</div><div class="cx-race-sections" data-cx-section="videos" hidden>${videoMedia(videoRows)||`<p class="cx-empty">${t('cx.noVideos')}</p>`}</div>`;
   cxWireStandingsScroll(root);
   const logo=cxLogoImage(race,tournament,{className:'race-header__logo'});
   if(logo){const brand=root.querySelector('.race-header__flag--solo'),flag=document.createElement('span');flag.className='race-header__flag';flag.append(...brand.childNodes);brand.className='race-header__brand';brand.append(logo,flag);}

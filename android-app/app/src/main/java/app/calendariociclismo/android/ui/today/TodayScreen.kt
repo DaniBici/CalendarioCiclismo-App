@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Settings
@@ -70,6 +69,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -865,12 +866,11 @@ private fun RaceCard(
                                         onClick = onShowStartlist,
                                         isFemale = race?.isFemale == true,
                                         isProvisional = race?.startlistProvisional == true,
-                                        iconOnly = isPhone,
                                     )
                                 }
                                 if (showsStartOrderBadge && onShowStartOrder != null) {
                                     val startOrderHaptic = rememberHaptics()
-                                    StartOrderBadge(iconOnly = isPhone) {
+                                    StartOrderBadge {
                                         startOrderHaptic(Haptics.Event.PrimaryAction)
                                         onShowStartOrder()
                                     }
@@ -1011,19 +1011,18 @@ private fun StartlistBadge(
     onClick: () -> Unit,
     isFemale: Boolean = false,
     isProvisional: Boolean = false,
-    iconOnly: Boolean = false,
 ) {
     val label = when {
         isProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
         isFemale -> stringResource(R.string.stage_doc_startlist_female)
         else -> stringResource(R.string.today_startlist_badge)
     }
-    RaceActionBadge(label = label, icon = Icons.Filled.Group, primaryAction = true, iconOnly = iconOnly, onClick = onClick)
+    RaceActionBadge(label = label, icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist), primaryAction = true, onClick = onClick)
 }
 
 @Composable
-private fun StartOrderBadge(iconOnly: Boolean = false, onClick: () -> Unit) {
-    RaceActionBadge(label = stringResource(R.string.asset_start_order), icon = Icons.Filled.Timer, primaryAction = true, iconOnly = iconOnly, onClick = onClick)
+private fun StartOrderBadge(onClick: () -> Unit) {
+    RaceActionBadge(label = stringResource(R.string.asset_start_order), icon = Icons.Filled.Timer, primaryAction = true, onClick = onClick)
 }
 
 /** Etiqueta de jornada cancelada, idéntica en geometría y color a la web. */
