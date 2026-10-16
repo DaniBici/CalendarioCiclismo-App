@@ -91,4 +91,6 @@ comprobación visual en el dispositivo queda pendiente de desbloquear el PIN.
 
 **Contador efectivo (2026-10-11, 5.1):** la 5.0.15 sale como **5.1** con iOS `CURRENT_PROJECT_VERSION` **1478** y Android `versionCode` **646** (`versionName` 5.1), sobre la **1477** y la **645** de la 5.0.14. iOS se archiva y se sube en local con Xcode 27.1 RC.
 
+**Contador efectivo (2026-10-15, icono Original en modo oscuro):** la build **1493** de 5.1 (cargada el 2026-10-13 a las 09:06, aprobada y programada) conserva el defecto del icono Original en la apariencia oscura. App Store Connect ya tenía una compilación **1494**, de modo que el arreglo fija iOS `CURRENT_PROJECT_VERSION` en **1495** con marketing **5.1**; Android no cambia (`versionCode` 659). La 1495 se archiva y se sube en local con Xcode 27.1 RC.
+
 **Requisito de SDK (2026-10-09):** toda build de iOS que se distribuya debe compilarse en local con Xcode 27.1 RC o con el Xcode oficial con el SDK de iOS 27.1, para que el iPhone Duo pueda usar la app. Aplica a la 5.0.15 y siguientes.

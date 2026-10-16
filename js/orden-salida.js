@@ -329,6 +329,8 @@ async function init(i18nReady = Promise.resolve()) {
   });
   window.addEventListener('pagehide', cleanupProfile, { once: true });
 
+  syncFiltersHeight(content.querySelector('#soFilters'));
+
   if (hasFilters) {
     const tableWrap = content.querySelector('.so-table-wrap');
     content.querySelectorAll('#soFilters .tcat-btn').forEach(btn => {
@@ -339,6 +341,16 @@ async function init(i18nReady = Promise.resolve()) {
       });
     });
   }
+}
+
+// Altura de la barra de filtros fija: la fila de columnas se fija debajo
+// (--res-tabs-h, resultados.css). Sin filtros se fija bajo la navegación.
+function syncFiltersHeight(bar) {
+  const root = document.documentElement;
+  if (!bar) { root.style.removeProperty('--res-tabs-h'); return; }
+  const update = () => root.style.setProperty('--res-tabs-h', `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  update();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(update).observe(bar);
 }
 
 // Esperar a cargar las traducciones (en.json) antes de renderizar: el panel de

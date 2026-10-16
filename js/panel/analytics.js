@@ -182,7 +182,7 @@ async function loadAllAnalytics(force = false) {
   // Reset KPIs to loading state
   ['gaKpiUsers','gaKpiPageviews','gaKpiNewUsers','gaKpiPushSubs']
     .forEach(id => { document.getElementById(id).textContent = '…'; });
-  ['gaPlatforms','gaPeakHour','gaTopPages','gaTopStages','gaTrafficSources','gaCountries']
+  ['gaPlatforms','gaPeakHour','gaTopPages','gaAppContent','gaTrafficSources','gaCountries']
     .forEach(id => { document.getElementById(id).innerHTML = '<div class="ga-placeholder">Cargando…</div>'; });
 
   // En rangos de ≥2 días sustituimos el gráfico de horas por uno con barras
@@ -219,7 +219,7 @@ async function loadAllAnalytics(force = false) {
     { key: 'top_pages',       containerId: 'gaTopPages',       render: renderTopPages },
     { key: 'traffic_sources', containerId: 'gaTrafficSources', render: renderTrafficSources },
     { key: 'top_countries',   containerId: 'gaCountries',      render: renderCountries },
-    { key: 'top_stages',      containerId: 'gaTopStages',      render: renderTopStages },
+    { key: 'app_content',     containerId: 'gaAppContent',     render: renderAppContent },
   ];
 
   const [settled, platformsResult] = await Promise.all([
@@ -772,27 +772,35 @@ function renderTopPages(data) {
   container.innerHTML = html;
 }
 
-// ── Render top stages (apps) ─────────────────────────────────────
-function renderTopStages(data) {
-  const container = document.getElementById('gaTopStages');
-  const rows = (data?.rows || []).slice(0, 5);
-  if (!rows.length) { container.innerHTML = '<div class="ga-placeholder">Sin datos</div>'; return; }
+// ── Render contenidos más vistos (apps) ──────────────────────────
+// Un solo ranking. La edge function entrega cada contenido ya agrupado: una
+// prueba de un día con todas sus pantallas; en una vuelta por etapas, cada
+// etapa con sus clasificaciones y pantallas y, aparte, la ficha e inscritos de
+// la carrera; una carrera o un torneo de ciclocross; o una pestaña global
+// (Ciclocross, Resultados, Fichajes). Ver `buildAppContent` en `ga-analytics`.
+const GA_CONTENT_KINDS = {
+  race: 'Carrera',
+  stage: 'Etapa',
+  race_info: 'Ficha e inscritos',
+  cx_race: 'Carrera de ciclocross',
+  cx_tournament: 'Torneo de ciclocross',
+  tab: 'Pestaña',
+  cx_unnamed: 'Ciclocross',
+};
 
-  const maxViews = Math.max(...rows.map(r => Number(gaMetricValue(r, 0))));
-  let html = `<table class="ga-table"><thead><tr><th>Etapa</th><th>Carrera</th><th>Usuarios</th><th>Vistas</th></tr></thead><tbody>`;
-  for (const row of rows) {
-    const raceName  = esc(gaDimensionValue(row, 1)) || '—';
-    // Las pruebas de un día (clásicas, Campeonatos Nacionales) no tienen
-    // etiqueta de etapa → stage_name vacío. En esos casos mostramos "Prueba
-    // única" en la columna Etapa en lugar de un "—" suelto.
-    const stageName = esc(gaDimensionValue(row, 0)) || 'Prueba única';
-    const views     = Number(gaMetricValue(row, 0));
-    const users     = formatNumber(gaMetricValue(row, 1));
-    const pct       = maxViews > 0 ? (views / maxViews * 100) : 0;
+function renderAppContent(data) {
+  const container = document.getElementById('gaAppContent');
+  const items = (data?.items || []).slice(0, 10);
+  if (!items.length) { container.innerHTML = '<div class="ga-placeholder">Sin datos</div>'; return; }
+
+  const maxViews = Math.max(...items.map(item => item.views));
+  let html = '<table class="ga-table"><thead><tr><th>Contenido</th><th>Tipo</th><th>Usuarios</th><th>Vistas</th></tr></thead><tbody>';
+  for (const item of items) {
+    const pct = maxViews > 0 ? (item.views / maxViews * 100) : 0;
     html += `<tr>
-      <td class="ga-bar-cell u-w-35pc"><span class="ga-bar" style="--ga-size:${pct}%"></span><span class="u-relative">${stageName}</span></td>
-      <td class="u-w-35pc">${raceName}</td>
-      <td>${users}</td><td>${formatNumber(views)}</td>
+      <td class="ga-bar-cell u-w-35pc"><span class="ga-bar" style="--ga-size:${pct}%"></span><span class="u-relative">${esc(item.name)}</span></td>
+      <td class="u-w-35pc">${esc(GA_CONTENT_KINDS[item.kind] || '')}</td>
+      <td>${formatNumber(item.users)}</td><td>${formatNumber(item.views)}</td>
     </tr>`;
   }
   html += '</tbody></table>';

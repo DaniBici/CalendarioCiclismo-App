@@ -97,13 +97,64 @@ Detalle, respaldos y reversión en
   bonificaciones fuera de plantilla, `profileSummits`/`profileWaypoints`
   NULL, 171 Eurosport sin pareja anteriores a julio y los perfiles PDF/WEBP
   existentes.
-- Sin decidir: colores de BE en Nacionales y `ports` en JPG/PNG (13).
+- Sin decidir: `ports` en JPG/PNG (13 recientes, 29 en total). Colores de BE
+  en Nacionales: cerrado el 2026-10-14 (sección siguiente).
 - Pendientes de subida a R2 (aplazada por Dani): guía técnica de
   `vuelta-al-ecuador`, rutómetro de la etapa 3 de `tour-of-shanghai`, 5
   documentos externos y los 4 logos de los Juegos del Mediterráneo, retirados
   (`logoUrl` NULL) porque no se admiten logos externos.
-- Pendientes de código: editor de equipo del panel sin afiliación de destino
-  (`js/panel/team-situation.js`, `_tseSaveTeam`); emparejamiento de
-  `cx_prepare_startlist_import` sin `cx_rider_name_matches`.
+- Pendientes de código: cerrados el 2026-10-14 (sección siguiente).
 - Regeneración web de 48 páginas de jornada, a lanzar desde `main`.
 
+## Cierre del 2026-10-14
+
+Recuento releído con `sql.mjs --read-only` antes de escribir; cada escritura se
+probó con `--rollback`, se aplicó y se verificó. Respaldos en `private` con
+RLS y sin privilegios para roles de API.
+
+- **`profileSummits` NULL con perfil:** 7 jornadas del 4 al 11 de octubre pasan
+  a `[]` (0 restantes). Respaldo
+  `private.jornadas_summits_be_color_20261014_backup`.
+- **Color de los Campeonatos de Bélgica:** 3 pruebas (CRI sub23 masculino y
+  femenino, línea sub23 masculino) pasan a `#fdda24`, el color de las otras 4.
+  «Campeonato de Flandes» (`#ffd500`) no es nacional y se conserva. Mismo
+  respaldo.
+- **`schrempf-carina`:** `fromTeamName` y `toTeamName` a NULL en
+  `schrempf-carina-2026-sd-worx-protime`; la baja `?` ya la había sustituido la
+  fila normal oculta hacia SD Worx. Respaldo
+  `private.fichajes_afiliaciones_20261014_backup`.
+- **`arens-megan`:** sin acción; la afiliación de mercado 2027 ya apunta a AG
+  Insurance.
+- **Afiliaciones de mercado 2027 ausentes:** insertadas para los 5
+  movimientos confirmados no `midSeason` con destino y sin afiliación
+  (`stella-davide`, `okamika-ander`, `van-uden-casper`, `craps-lars`,
+  `ulissi-diego`), con `dateTo` = 31-dic del año de contrato; `contractUntil`
+  de `van-uden-casper` = 2029. `currentTeamId` sin cambios. Las otras 7 del
+  recuento del 2026-09-29 ya constaban resueltas.
+- **Editor de equipo del panel:** la rama «Cambia» de `_tseSaveTeam` crea la
+  afiliación de destino y sincroniza `contractUntil` cuando el cambio está
+  confirmado (no en rumor); los `insert` de `rider_transfers` de «En duda»,
+  «Cambia» y «Termina» comprueban el error. Tabla del editor actualizada en
+  `docs/memory/carretera.md`. Panel validado con `esbuild`.
+- **`cx_prepare_startlist_import`:** migración
+  `20261014201236_cx_prepare_startlist_import_nombres_plegados`. El
+  emparejamiento usa `cx_rider_name_matches` (tildes y `otherNames`) y compara
+  la nacionalidad sin distinguir mayúsculas; mantiene candidato único. Sin
+  prueba SQL nueva: la función exige `cx_require_admin`.
+
+### Sin cambios o pendientes
+
+- **Fichas CX de `results_dataride` sin `otherNames`:** 614 (497 hombres, 117
+  mujeres), por la ingesta posterior al 2026-09-29. Completarlas exige fuente
+  externa por ficha. Seis tienen dos apellidos en `lastName`
+  (`gonzalez-jimenez-gabriel`, `urzua-ovalle-juan-ignacio`,
+  `cidras-alvarez-xoel`, `vazquez-golpe-aitor`, `hormann-ripoll-katia`,
+  `sanchez-mendoza-nicole`). La búsqueda web del 2026-10-14 no dio grafía con
+  tilde verificable (solo `Vazquez Golpe` en fuente externa, sin tilde); no se
+  modificaron.
+- **Perfiles PDF/WEBP (356 y 28 en total):** se mantienen por decisión de Dani
+  del 2026-09-29. Convertirlos exige renderizar, subir a R2 y reapuntar
+  `assets.url`.
+- **`ports` en JPG/PNG y subidas a R2 aplazadas:** sin decisión ni subida.
+- **Filas Eurovision Sport:** ya borradas el 2026-09-29 (0 filas).
+- **Regeneración web de 48 páginas de jornada:** a lanzar desde `main`.

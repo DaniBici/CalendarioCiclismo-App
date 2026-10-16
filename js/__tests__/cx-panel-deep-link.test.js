@@ -6,7 +6,7 @@ vi.hoisted(() => Object.assign(globalThis, {
   SUPABASE_URL: '', SUPABASE_ANON_KEY: '', location: { hash: '', search: '', pathname: '/' },
   window: { location: { hostname: '', pathname: '/', search: '', hash: '' } },
 }));
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => ({}) }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => ({}) }));
 
 const SECTIONS = ['identity', 'tv', 'videos', 'docs', 'results'];
 const seasonKey = cxSeason(new Date());

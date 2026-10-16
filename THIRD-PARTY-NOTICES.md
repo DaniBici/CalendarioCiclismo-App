@@ -116,7 +116,9 @@ SOFTWARE.
 
 Google Sans Medium se redistribuye en las cabeceras nativas de iOS y Android.
 Subconjuntos latinos de Google Sans Regular, Medium y Bold se sirven desde
-`fonts/pdf/` para el PDF de inscritos de la web.
+`fonts/pdf/` para el PDF de inscritos de la web. La fuente variable completa de
+la interfaz web se sirve autoalojada desde `fonts/web/` (subconjuntos latino,
+cirílico, griego, vietnamita y símbolos).
 
 - Proyecto: https://github.com/googlefonts/googlesans
 - Versión: 13.002
@@ -125,6 +127,29 @@ Subconjuntos latinos de Google Sans Regular, Medium y Bold se sirven desde
 
 El binario conserva el aviso de copyright, el nombre del proyecto y la URL de
 la licencia en sus metadatos.
+
+---
+
+## Roboto
+
+Fuente alternativa de la interfaz web, autoalojada en `fonts/web/` (subconjuntos
+latino, cirílico, griego, vietnamita y símbolos).
+
+- Proyecto: https://github.com/googlefonts/roboto
+- Copyright: Copyright 2011 Google Inc. All Rights Reserved.
+- Licencia: [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+---
+
+## @supabase/postgrest-js
+
+Cliente PostgREST de las páginas públicas de la web, copiado sin cambios desde
+el paquete npm en `js/vendor/postgrest-js/` (junto a su `LICENSE`).
+
+- Proyecto: https://github.com/supabase/supabase-js (paquete `@supabase/postgrest-js`)
+- Versión: 2.117.2
+- Copyright: Copyright (c) 2020 Supabase
+- Licencia: MIT
 
 ---
 

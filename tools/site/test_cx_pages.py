@@ -22,7 +22,7 @@ def offline_helpers(filename):
                  'SITE_HEADER_HTML','SITE_HEADER_HTML_EN','SITE_FOOTER_HTML',
                  'SITE_FOOTER_HTML_EN','PRERENDER_STYLE','PRERENDER_LOADING_HTML',
                  'JORNADA_SCRIPT','APP_STYLESHEET','MESES','DIAS_SEMANA','PAIS_ES',
-                 'MONTHS_EN','WEEKDAYS_EN','COUNTRY_EN','SUPABASE_JS_ESM'}
+                 'MONTHS_EN','WEEKDAYS_EN','COUNTRY_EN'}
     nodes = [n for n in tree.body if isinstance(n,ast.FunctionDef) or
              isinstance(n,ast.Assign) and all(isinstance(t,ast.Name) and t.id in constants for t in n.targets)]
     namespace = {'os':os,'html':html,'json':json,'quote':quote,'datetime':datetime,'timezone':timezone,'dt_date':date,

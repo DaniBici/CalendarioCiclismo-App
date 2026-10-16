@@ -13,7 +13,7 @@ import {cxAllRows,cxQuery,cxRpc,cxTournamentRounds} from '../services/cx-data.js
 import {resultsTrophyHtml} from '../services/race-presentation.js';
 import {attachCountryAutocomplete} from '../country-select.js';
 import {automaticTeamHeaderText} from '../team-appearance.js';
-import {CX_CATEGORIES,CX_CLASSES,CX_COUNTRY_GROUPS,cxGender,cxSlug,cxSlugWithoutDiscipline,cxRaceSlugSuggestion,cxUniqueRaceSlug,cxSaveErrorMessage,cxEscape as esc,cxUrl,cxAssertMapImageUrl,cxYouTubeWatchUrl,cxLocalParts,cxLocalToUtc,cxDuration,parseCxRows,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
+import {CX_CATEGORIES,cxDurationFormatOptions,cxEliteGroupError,CX_CLASSES,CX_COUNTRY_GROUPS,cxGender,cxSlug,cxSlugWithoutDiscipline,cxRaceSlugSuggestion,cxUniqueRaceSlug,cxSaveErrorMessage,cxEscape as esc,cxUrl,cxAssertMapImageUrl,cxYouTubeWatchUrl,cxLocalParts,cxLocalToUtc,cxDuration,parseCxRows,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
 import {CX_DURATION_RULE_VERSION,cxCategoryTiming} from '../cx/timing.js';
 import {cxSeason,cxSeasonBounds,cxDateInSeason} from '../cx/season.js';
 import {isValidRiderSlug} from '../rider-rename-logic.js';
@@ -338,41 +338,29 @@ function riderList(renderToken) {
   };
   search.oninput=()=>{++riderSearchVersion;clearTimeout(debounce);debounce=setTimeout(()=>void paint(),280);};
 }
-function cxOriginHtml(link,lastDumpAt) {
-  if(!link)return `<div class="ru-origin"><div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> — sin enlace no hay resultados in-house.</div>
+function cxOriginHtml(link,timingLink,lastDumpAt) {
+  if(!link&&!timingLink)return `<div class="ru-origin"><div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> — sin enlace no hay resultados in-house.</div>
     <div class="u-row u-mt-045 u-wrap">
       <a class="btn btn--ghost btn--compact" href="https://dataride.uci.ch/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
       <button type="button" class="btn btn--primary cru-link-edit btn--compact">Enlazar fuente</button>
     </div></div>`;
+  const both=Boolean(link&&timingLink);
+  const dataRide=link?`<div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
+    ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}`:'';
+  const acn=timingLink?`<div class="ru-origin__state">${both?'Cronometraje':'Origen'}: <a href="${esc(cxAcnUrl(timingLink))}" target="_blank" rel="noopener">ACN Timing ↗</a>
+      <span class="u-c-dim"> · evento ${esc(timingLink.eventId)} · ${timingLink.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
+    ${timingLink.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(timingLink.lastFetchError)}</div>`:''}`:'';
   return `<div class="ru-origin">
-    <div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
-    ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
+    ${dataRide}${acn}
     <div class="u-row u-mt-045 u-wrap">
-      <button type="button" class="btn btn--ghost cru-link-edit btn--compact">Cambiar enlace</button>
-      <button type="button" class="btn btn--ghost cru-unlink btn--compact u-c-danger">Desenlazar</button>
-      <button type="button" class="btn btn--primary cru-dump btn--compact"
-        title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">▶ Volcar esta carrera</button>
+      <button type="button" class="btn btn--ghost cru-link-edit btn--compact">${link?'Cambiar enlace':'Enlazar fuente'}</button>
+      ${link?'<button type="button" class="btn btn--ghost cru-unlink btn--compact u-c-danger">Desenlazar</button>':''}
+      ${link?`<button type="button" class="btn btn--primary cru-dump btn--compact"
+        title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">▶ Volcar esta carrera</button>`:''}
     </div></div>`;
 }
-// ACN Timing (cronometraje del organizador): resultados provisionales sin pasar por DataRide.
-function cxAcnTarget(value) {
-  const match=/#\/events\/(\d+)\/ctx\/([^/?#]+)/.exec(String(value||''));
-  return match?{eventId:match[1],ctx:match[2]}:null;
-}
-function cxAcnHtml(link) {
-  if(!link)return `<div class="ru-origin u-mt-050"><div class="ru-origin__state">Cronometraje <strong>ACN Timing</strong> sin enlazar — publica resultados provisionales antes que DataRide (HG Cross, Exact Cross).</div>
-    <div class="u-row u-gap-050 u-items-center u-wrap u-mt-045">
-      <input type="url" data-acn-url placeholder="https://www.acn-timing.com/?lng=EN#/events/…/ctx/…" class="u-w-1200">
-      <button type="button" class="btn btn--primary cru-acn-link btn--compact">Enlazar ACN</button></div></div>`;
-  return `<div class="ru-origin u-mt-050">
-    <div class="ru-origin__state">Cronometraje: <a href="https://www.acn-timing.com/?lng=EN#/events/${esc(link.eventId)}/ctx/${esc(link.ctx)}/cms" target="_blank" rel="noopener">ACN Timing ↗</a>
-      <span class="u-c-dim"> · evento ${esc(link.eventId)} · ${link.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
-    ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
-    <div class="u-row u-mt-045 u-wrap">
-      <button type="button" class="btn btn--ghost cru-acn-toggle btn--compact">${link.syncEnabled?'Desactivar recogida':'Activar recogida'}</button>
-      <button type="button" class="btn btn--ghost cru-acn-unlink btn--compact u-c-danger">Desenlazar ACN</button>
-    </div></div>`;
-}
+// ACN Timing (cronometraje del organizador): el enlace lo gestionan los agentes; el panel solo muestra su estado.
+const cxAcnUrl=link=>`https://www.acn-timing.com/?lng=EN#/events/${link.eventId}/ctx/${link.ctx}/cms`;
 // Las ventanas CX son minutos relativos al final estimado de cada manga, no horas absolutas.
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
@@ -394,7 +382,7 @@ async function resultsView(root,race,categories) {
   const link=links[0],timingLink=timingLinks[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
   const render=()=>resultsView(root,race,categories);
   const byCategory=new Map(categories.map(c=>[c.category,c]));
-  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}${cxAcnHtml(timingLink)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
+  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,timingLink,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
     return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);
@@ -415,21 +403,6 @@ async function resultsView(root,race,categories) {
       try{await cxQuery(ctx.supabase.from('cx_race_uci_links').upsert({raceId:race.id,disciplineId:3,competitionId,seasonId,uciRaceId,updatedAt:new Date().toISOString()},{onConflict:'raceId'}));ctx.showToast('Enlace guardado','success');await render();}
       catch(error){save.disabled=false;errorAt(root,error);}
     };
-  });
-  root.querySelector('.cru-acn-link')?.addEventListener('click',async event=>{
-    const button=event.currentTarget,target=cxAcnTarget(root.querySelector('[data-acn-url]').value);
-    if(!target){errorAt(root,new Error('Pega la URL del visor de ACN Timing con «/events/…/ctx/…».'));return;}
-    button.disabled=true;
-    try{await cxQuery(ctx.supabase.from('cx_race_timing_links').upsert({raceId:race.id,provider:'acn',eventId:target.eventId,ctx:target.ctx,syncEnabled:true,updatedAt:new Date().toISOString()},{onConflict:'raceId'}));ctx.showToast('Enlace ACN guardado','success');await render();}
-    catch(error){button.disabled=false;errorAt(root,error);}
-  });
-  root.querySelector('.cru-acn-toggle')?.addEventListener('click',async()=>{
-    try{await cxQuery(ctx.supabase.from('cx_race_timing_links').update({syncEnabled:!timingLink.syncEnabled,updatedAt:new Date().toISOString()}).eq('raceId',race.id));await render();}
-    catch(error){errorAt(root,error);}
-  });
-  root.querySelector('.cru-acn-unlink')?.addEventListener('click',async()=>{
-    try{if(await confirmDialog({title:'Quitar enlace ACN Timing',message:'Se conserva la carrera y sus resultados.',confirmText:'Quitar'})){await cxQuery(ctx.supabase.from('cx_race_timing_links').delete().eq('raceId',race.id));await render();}}
-    catch(error){errorAt(root,error);}
   });
   root.querySelector('.cru-unlink')?.addEventListener('click',async()=>{
     try{if(await confirmDialog({title:'Quitar enlace DataRide',message:'Se conserva la carrera y sus resultados.',confirmText:'Quitar'})){await cxQuery(ctx.supabase.from('cx_race_uci_links').delete().eq('raceId',race.id));await render();}}
@@ -563,7 +536,7 @@ async function markCxRacePageIfMissing(slug) {
 
 function raceForm(root,race,categories,handle,slugRaces=[]) {
   const saveId=race.id||crypto.randomUUID();
-  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',[['','Sin verificar'],['individual','Manga propia de la categoría'],...(['WE','WJ'].includes(category)?[['WE_WJ','WE y WJ en la misma manga']]:[])],c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
+  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',cxDurationFormatOptions(category),c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
   const form=root.querySelector('form');
   boxSection(form,'Identidad',[form.querySelector('.cx-grid')]);
   form.querySelector('h2').remove();
@@ -634,6 +607,7 @@ function raceForm(root,race,categories,handle,slugRaces=[]) {
       const unchanged=previous?.startTimeUtc && race.timezone===payload.timezone && local?.time===c.time && local?.dateKey===c.dateKey;
       return {category,dateKey:c.dateKey||payload.dateKey,startTimeUtc:unchanged?previous.startTimeUtc:cxLocalToUtc(c.dateKey||payload.dateKey,c.time,payload.timezone),isCancelled:c.isCancelled,sortOrder:CX_CATEGORIES.indexOf(category),durationFormat:c.durationFormat||null,durationRuleVersion:c.durationFormat?CX_DURATION_RULE_VERSION:null};
     });
+    const groupError=cxEliteGroupError(selected);if(groupError)throw new Error(groupError);
     const removed=categories.filter(c=>!selected.some(x=>x.category===c.category));
     let allow=false;if(removed.length){allow=await confirmDialog({title:'Eliminar categorías',message:`Se eliminan ${removed.map(c=>c.category).join(', ')} y sus inscritos, resultados, TV y vídeos.`,confirmText:'Eliminar categorías'});if(!allow)return;}
     const id=await cxRpc(ctx.supabase,'cx_save_race',{p_race:payload,p_categories:selected,p_allow_category_removal:allow});

@@ -177,6 +177,15 @@ su publicación la víspera. Así las bajas anteriores o dorsales sustituidos de
 lista inicial no bloquean la oficialidad. El cierre conserva los 30 minutos de
 estabilidad observada y exige que todos los dorsales de ese censo estén resueltos.
 
+En contrarreloj (jornada `itt` que el cron pasa con `--itt-stages`, nombre de la
+etapa o `TT_starttime` en la lista de salida), el captador no emite ningún cuadro
+de la jornada hasta que los tres últimos salidores por `TT_starttime`, y los
+empatados con el tercero, figuran en la llegada con puesto o IRM. Sin lista de
+salida válida no emite. Cumplida la condición, los cuadros de la jornada se
+declaran definitivos (`format='fixed'`, `sourceStatus='official'`). El campo
+`resultRemark` no sirve de señal: la CRI del ZLM Tour 2026 conserva
+`race in progress` en su llegada final.
+
 `belgiancycling-results-fetch.mjs` vigila el PDF oficial estable `CODE-U.pdf` de
 Belgian Cycling. Distingue el marcador previo a la publicación del resultado
 definitivo y extrae clasificados, DNS, DNF, OTL y DSQ, incluidos los clubes
@@ -225,9 +234,16 @@ final cuando la fila lo publica; la columna de diferencia solo se usa sin tiempo
 `evodata-results-fetch.mjs` consume la API JSON pública de EvoData CIS. El
 `eventId` padre descubre las jornadas y cada una publica llegada, general,
 puntos, montaña, jóvenes y equipos. Un evento autónomo, sin padre ni
-`subEvents` (campeonatos UEC), es su propia y única jornada. El token público
+`subEvents` (campeonatos UEC), es su propia y única jornada; también lo es el
+que declara un `parentEventId` inexistente (la API responde 404 al consultar el
+padre). El token público
 de aplicación solo vive en memoria. El cron lo activa con
 `race_uci_links.source='evodata'` y `evodataCode=<eventId padre o autónomo>`.
+En una vuelta con prólogo, la jornada «Prologue» es la etapa 0 y las demás
+restan el `order` del prólogo: en el Eneco Tour 2026, `order` 1 es la etapa 0 y
+`order` 2 la etapa 1. La CRI de una vuelta (prólogo incluido) aplica la regla de
+la CRI de un día: no se emite nada hasta que todos los corredores de la lista de
+salida tienen llegada o IRM, y entonces se publica como oficial.
 En una carrera de un día, los abandonos se leen del `status` de la lista de
 salida (1 DNF, 3 DNS, 9 OTL), ausentes de la llegada. Con `status` 0, tras 20
 minutos sin nuevas llegadas: `started` sin `finished` = DNF; `started=false`

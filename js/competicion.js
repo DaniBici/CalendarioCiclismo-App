@@ -8,7 +8,7 @@ import { supabase, stageLabel, countryFlag, formatTimeUser,
          resolveTypeBadges, setMeta, setMetaProperty, initPhTooltip,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
          startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
-         articuloNombre, conArticulo, originalNameDistinto, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair,
+         articuloNombre, conArticulo, originalNameDistinto, raceSearchName, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair,
          embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
@@ -425,7 +425,7 @@ function updateSeoCompeticion(race, days) {
   const totalKm   = Math.round(stageDays.reduce((acc, d) => acc + (Number(d.distanceKm) || 0), 0));
   const title       = isOneDay || isEn
     ? `${name} ${year} - ${t('seo.siteName')}`
-    : `${name} ${year}: etapas y recorrido - ${t('seo.siteName')}`;
+    : `${raceSearchName(race, name)} ${year}: etapas y recorrido - ${t('seo.siteName')}`;
   const artNameEs   = conArticulo(name, nameWithOrig, art);
   const artNameCap  = artNameEs.charAt(0).toUpperCase() + artNameEs.slice(1);
   // EN: paridad con race_description_en de tools/site/gen_og_pages.py.

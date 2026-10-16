@@ -98,8 +98,15 @@ internal fun CCBadgeSurface(
  *  secundario clicable de altura contenida para la agenda y el programa CX. */
 @Composable
 fun ResultsTrophyAction(onClick: () -> Unit, contentDescription: String, modifier: Modifier = Modifier, boxSize: Dp = 24.dp, glyphSize: Dp = 18.dp) {
+    RaceGlyphAction(Icons.Outlined.EmojiEvents, onClick, contentDescription, modifier, boxSize, glyphSize)
+}
+
+/** Acción solo-icono con el mismo cuadro y color que la copa de resultados
+ *  (bicicleta de dorsales en el programa CX). */
+@Composable
+fun RaceGlyphAction(icon: ImageVector, onClick: () -> Unit, contentDescription: String, modifier: Modifier = Modifier, boxSize: Dp = 24.dp, glyphSize: Dp = 18.dp) {
     Box(modifier.size(boxSize).clickable(role = Role.Button, onClickLabel = contentDescription, onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(Icons.Outlined.EmojiEvents, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(glyphSize))
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(glyphSize))
     }
 }
 

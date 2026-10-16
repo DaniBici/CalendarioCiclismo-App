@@ -195,6 +195,17 @@ struct CxRaceDetailView: View {
         .safariSheet(url: $safariURL)
         .offlineAccessAlert($offlineAlert)
         .refreshable { await refresh(forceArtwork: true) }
+        // Una vez por apertura, al disponer del nombre: el refresco de cada
+        // minuto y la sustitución de la caché por la red no repiten la vista.
+        // Mismos parámetros que race_detail; sin race_day_id, de modo que no
+        // suma en «Etapas más vistas».
+        .onChange(of: data?.race.id) { _, id in
+            guard let race = data?.race, race.id == id, !CyclocrossPresentation.isHidden(race) else { return }
+            AnalyticsService.shared.logScreenView("cx_race", parameters: [
+                "race_id": race.id,
+                "race_name": race.name,
+            ])
+        }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
@@ -520,7 +531,14 @@ private struct CxProgrammeSection: View {
                             Spacer(minLength: 0)
                             HStack(spacing: 6) {
                                 if detail.startlist.contains(where: { $0.category == category.category }) {
-                                    Button { onStartlist(category.category) } label: { CxLinkLabel(label: CyclocrossPresentation.t("Dorsales", "Startlist"), icon: LogoCyclistIcon.name) }.buttonStyle(CxCategoryBoxStyle())
+                                    // Bicicleta solo-icono con el mismo cuadro, tamaño y
+                                    // color que la copa de resultados.
+                                    Button { onStartlist(category.category) } label: {
+                                        LogoCyclistIcon(size: 20).foregroundStyle(.secondary)
+                                            .frame(width: 32, height: 24).contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(CyclocrossPresentation.category(category.category) + ": " + CyclocrossPresentation.t("Dorsales", "Startlist"))
                                 }
                                 // Copa solo-icono de las cards de Hoy en lugar del
                                 // botón de texto; la sección Revive sigue aparte.

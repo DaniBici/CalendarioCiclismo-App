@@ -167,6 +167,18 @@ export function recomputeCxStandings(snapshot) {
           { globalRiderIds: [ranked[index - 1].id, ranked[index].id] });
       }
     }
+    // Reglamentos que exigen disputar la última prueba para ganar: celebrada esa ronda, un líder que no tomó la salida
+    // requiere decisión de la organización; no se elige a otro corredor por inferencia.
+    const mustStart = rule.extras?.leaderMustStart;
+    if (mustStart !== undefined) {
+      if (typeof mustStart?.raceId !== 'string' || !mustStart.raceId) throw new Error('Ronda obligatoria del líder inválida');
+      const index = rounds.findIndex(round => round.race.id === mustStart.raceId);
+      const result = index >= 0 && ranked.length ? ranked[0].rounds[index].result : null;
+      if (index >= 0 && ranked.length && (!result || irm(result) === 'DNS')) {
+        issue('leader_not_started', 'El líder no tomó la salida de la ronda obligatoria; requiere clasificación oficial',
+          { globalRiderId: ranked[0].id, raceId: mustStart.raceId });
+      }
+    }
     output.breakdown = entries.map(entry => ({ globalRiderId: entry.id, eligible: entry.eligible,
       rounds: entry.rounds.map(({ result: _result, ...round }) => round) }));
     if (output.issues.length) return output;
@@ -204,6 +216,25 @@ function calculatePoints(entries, rounds, rule) {
     }
   }
   const scale = Math.max(...table.map(point => point.scale), ...adjustments.map(point => point.scale));
+  // Rondas que multiplican los puntos de puesto (p. ej. la última prueba puntúa doble). No altera ajustes ni sanciones.
+  const multipliers = new Map();
+  if (rule.extras?.roundMultipliers !== undefined) {
+    if (!Array.isArray(rule.extras.roundMultipliers)) throw new Error('Multiplicadores de ronda inválidos');
+    for (const item of rule.extras.roundMultipliers) {
+      if (typeof item?.raceId !== 'string' || !item.raceId || multipliers.has(item.raceId)
+        || !Number.isInteger(item.factor) || item.factor < 2 || item.factor > 10) throw new Error('Multiplicador de ronda inválido');
+      multipliers.set(item.raceId, BigInt(item.factor));
+    }
+  }
+  // Mínimo de rondas con puntos para figurar en la general, exigible solo al celebrarse `afterRounds` rondas.
+  const minimum = rule.extras?.minScoredRounds;
+  let minScored = 0;
+  if (minimum !== undefined) {
+    if (!Number.isInteger(minimum?.count) || minimum.count < 1 || !Number.isInteger(minimum.afterRounds) || minimum.afterRounds < 1) {
+      throw new Error('Mínimo de rondas puntuadas inválido');
+    }
+    if (rounds.length >= minimum.afterRounds) minScored = minimum.count;
+  }
   let keep = rounds.length;
   if (rule.drops?.mode === 'bestResults') {
     const matched = rule.drops.byHeldRounds?.filter(limit => limit.exact === rounds.length
@@ -217,7 +248,8 @@ function calculatePoints(entries, rounds, rule) {
     for (const round of entry.rounds) {
       const row = round.result;
       const position = placed(row) ? row.rank : null;
-      const base = position && position <= table.length ? aligned(table[position - 1], scale) : 0n;
+      const base = (position && position <= table.length ? aligned(table[position - 1], scale) : 0n)
+        * (multipliers.get(round.raceId) ?? 1n);
       // Una sanción de general no desaparece al descartar el resultado de la ronda.
       round.base = base; round.adjustment = aligned(decimal(row?.bonusPoints ?? 0), scale);
       round.sourceRank = position; round.missing = !row;
@@ -227,9 +259,10 @@ function calculatePoints(entries, rounds, rule) {
     const retainedIds = new Set(retained.map(round => round.raceId));
     entry.total = sum(retained.map(round => round.base)) + sum(entry.rounds.map(round => round.adjustment));
     entry.row.points = decimalText(entry.total, scale);
-    entry.eligible = eligibility === 'awardedAtLeastOnce'
+    entry.eligible = (eligibility === 'awardedAtLeastOnce'
       ? entry.rounds.some(round => round.base > 0n)
-      : entry.rounds.some(round => round.result && irm(round.result) !== 'DNS') || entry.total !== 0n;
+      : entry.rounds.some(round => round.result && irm(round.result) !== 'DNS') || entry.total !== 0n)
+      && entry.rounds.filter(round => round.base > 0n).length >= minScored;
     for (const round of entry.rounds) {
       round.retained = retainedIds.has(round.raceId); round.points = decimalText(round.base, scale);
       round.bonusPoints = decimalText(round.adjustment, scale); delete round.base; delete round.adjustment;

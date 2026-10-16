@@ -3,7 +3,7 @@
    Las importan css/app.css y css/panel.css; cada una añade las suyas.
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+@import url('fonts.css');
 
 /* ── Variables (modo oscuro por defecto) ──────────────────────── */
 :root {

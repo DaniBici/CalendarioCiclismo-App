@@ -1,5 +1,3 @@
-import {CX_AGENDA_SELECT,cxHiddenClasses,cxIsHidden} from './services/cx-data.js';
-import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx/highlight.js';
 import { arrowHtml } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  CINTILLO «HOY» — carrusel editorial (tabla today_highlights)
@@ -69,6 +67,8 @@ export async function initCintillo(scope = 'road') {
   const scopes = [...new Set([scope].flat().map(s => s === 'cx' ? 'cx' : 'road'))];
 
   const _isEn = getLang() === 'en';
+  const cxModulePromise = scopes.includes('cx') ? import('./cintillo-cx.js') : null;
+  cxModulePromise?.catch(() => {});
 
   // Cintillo manual desde panel admin (tabla today_highlights), filtrado por
   // sección. Cada entrada apunta a una jornada, startlist, orden de salida o,
@@ -105,30 +105,28 @@ export async function initCintillo(scope = 'road') {
 
   const cxIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxRace').map(h=>h.cxRaceId).filter(Boolean))];
   const cxTournamentIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxTournament').map(h=>h.cxTournamentId).filter(Boolean))];
-  // En inglés se descartan las carreras nacionales y los torneos solo nacionales.
-  const cxLang=_isEn?'en':'es',hiddenClasses=cxHiddenClasses(cxLang);
-  let visibleQuery=null;
-  if(hiddenClasses.length&&cxTournamentIds.length){
-    visibleQuery=supabase.from('cx_races').select('tournamentId').eq('editorialStatus','published').in('tournamentId',cxTournamentIds);
-    for(const raceClass of hiddenClasses)visibleQuery=visibleQuery.neq('class',raceClass);
-  }
+  // El código de Ciclocross solo se descarga si hay entradas de CX o la
+  // sección `cx` está activa (en ese caso, en paralelo a la lectura editorial).
+  const cxLang=_isEn?'en':'es';
+  const noCx={module:null,cxById:{},cxTournamentsById:{}};
+  const cxLoad=cxIds.length||cxTournamentIds.length
+    ?(cxModulePromise||import('./cintillo-cx.js'))
+      .then(async module=>({module,...await module.loadCxHighlightData(supabase,cxIds,cxTournamentIds,cxLang)}))
+      .catch(()=>noCx)
+    :noCx;
   // La jornada lleva su carrera embebida (nombre/logo si solo viene raceDayId):
   // todas las lecturas salen en un único round-trip.
   const RACE_COLUMNS = 'id, name, nameEn, logoUrl, slug, slugEn, hideFlag, countryCode, startlistImportedAt';
-  const [racesRes, rdsRes, cxRes, cxTournamentsRes, visibleRes] = await Promise.all([
+  const [racesRes, rdsRes, cxData] = await Promise.all([
     raceIds.size
       ? supabase.from('races').select(RACE_COLUMNS).in('id', [...raceIds])
       : Promise.resolve({ data: [] }),
     raceDayIds.size
       ? supabase.from('race_days').select(`id, raceId, slug, slugEn, date, stageNumber, startLocation, finishLocation, race:races(${RACE_COLUMNS})`).in('id', [...raceDayIds])
       : Promise.resolve({ data: [] }),
-    cxIds.length?Promise.resolve(supabase.from('cx_races').select(CX_AGENDA_SELECT).eq('editorialStatus','published').in('id',cxIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
-    cxTournamentIds.length?Promise.resolve(supabase.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,logoUrl').in('id',cxTournamentIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
-    visibleQuery?Promise.resolve(visibleQuery).catch(()=>({data:null})):Promise.resolve({data:null}),
+    cxLoad,
   ]);
-  const visibleTournamentIds=visibleRes.data?new Set(visibleRes.data.map(row=>row.tournamentId)):null;
-  const cxById=Object.fromEntries((cxRes.data||[]).filter(r=>!cxIsHidden(r,cxLang)).map(r=>[r.id,r]));
-  const cxTournamentsById=Object.fromEntries((cxTournamentsRes.data||[]).filter(t=>!visibleTournamentIds||visibleTournamentIds.has(t.id)).map(t=>[t.id,t]));
+  const {module:cxModule,cxById,cxTournamentsById}=cxData;
   const racesById = Object.fromEntries((racesRes.data || []).map(r => [r.id, r]));
   const rdsById = {};
   (rdsRes.data || []).forEach(({ race, ...rd }) => {
@@ -139,12 +137,12 @@ export async function initCintillo(scope = 'road') {
   const slides = [];
   webHighlights.forEach(h => {
     if(h.targetType==='cxRace'){
-      const slide=cxHighlightSlide(h,cxById[h.cxRaceId],_isEn?'en':'es');
+      const slide=cxModule?.cxHighlightSlide(h,cxById[h.cxRaceId],_isEn?'en':'es');
       if(slide)slides.push(_buildGcSlide({...slide,detail:slide.detail||_buildHighlightAutoDetail(h,{date:slide.date},_isEn)}));
       return;
     }
     if(h.targetType==='cxTournament'){
-      const slide=cxTournamentHighlightSlide(h,cxTournamentsById[h.cxTournamentId],_isEn?'en':'es');
+      const slide=cxModule?.cxTournamentHighlightSlide(h,cxTournamentsById[h.cxTournamentId],_isEn?'en':'es');
       if(slide)slides.push(_buildGcSlide(slide));
       return;
     }

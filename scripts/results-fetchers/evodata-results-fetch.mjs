@@ -161,6 +161,34 @@ export function mapStartListIrm(startList, presentRows = [], { arrivalClosed = f
   return rows;
 }
 
+// Abandonos de una CRI. Las salidas están programadas y pueden dejar huecos de
+// media hora (bloque final de favoritos): un corredor que aún no ha salido
+// tampoco tiene llegada, y la quietud de las llegadas no lo convierte en DNS.
+// Sin estado codificado, solo se deduce DNS si un corredor con salida posterior
+// ya ha salido (su turno ha pasado) y DNF si salió y no llega tras la quietud.
+// Quien no salió y no tiene un posterior que haya salido queda pendiente.
+export function mapTimeTrialIrm(startList, presentRows = [], { arrivalClosed = false } = {}) {
+  const list = Array.isArray(startList) ? startList : [];
+  const startOf = (rider) => Number(rider?.startTimeMilli);
+  const lastStartedAt = Math.max(-Infinity, ...list
+    .filter((rider) => rider?.started === true && startOf(rider) > 0).map(startOf));
+  const present = new Set(presentRows.map((row) => row.bib).filter(Boolean));
+  const rows = [];
+  for (const rider of list) {
+    const bib = bibOf(rider);
+    if (!bib || present.has(bib)) continue;
+    let irm = START_LIST_IRM[Number(rider?.status)];
+    if (!irm && Number(rider?.status) === 0) {
+      if (rider.started === true && rider.finished === false && arrivalClosed) irm = 'DNF';
+      else if (rider.started === false && rider.starting !== false && startOf(rider) > 0 && startOf(rider) < lastStartedAt) irm = 'DNS';
+    }
+    if (!irm) continue;
+    present.add(bib);
+    rows.push({ rank: null, rankText: irm, bib, resultValue: null, timeText: null, gapText: null, points: null, irm });
+  }
+  return rows;
+}
+
 const GENERAL_TYPES = {
   1: { classKind: 'gc', scope: 'stage', eventName: 'General Classification', timed: true },
   2: { classKind: 'points', scope: 'overall', eventName: 'Points Classification', points: true },
@@ -195,9 +223,19 @@ export function mapGeneralRows(sourceRows, spec) {
   return rows.sort((a, b) => a.rank - b.rank);
 }
 
-export function stageNumberFor(subEvent, index = 0) {
+const PROLOGUE_NAME = /^(?:prologue|prologo|prólogo|proloog)\b/i;
+export const isPrologue = (subEvent) => PROLOGUE_NAME.test(clean(subEvent?.name));
+
+// EvoData numera `order` desde 1 incluido el prólogo; la app lo guarda como
+// etapa 0 y la primera etapa en línea como 1. `prologueOrder` desplaza el resto
+// de jornadas de un evento con prólogo (Eneco Tour 2026: prólogo order 1,
+// Stage 1 order 2).
+export function stageNumberFor(subEvent, index = 0, { prologueOrder = null } = {}) {
+  if (isPrologue(subEvent)) return 0;
   const order = Number(subEvent?.order);
-  if (Number.isInteger(order) && order >= 0) return order;
+  if (Number.isInteger(order) && order >= 0) {
+    return Number.isInteger(prologueOrder) && order > prologueOrder ? order - prologueOrder : order;
+  }
   const match = clean(subEvent?.name).match(/(?:stage|etape|étape)\s*(\d+)\b/i);
   return match ? Number(match[1]) : index + 1;
 }
@@ -328,22 +366,28 @@ function buildClassification(code, eventId, jersey, response, final = false) {
   };
 }
 
-export function buildStage(code, subEvent, payload, { totalStages = null, oneDay = false, now = Date.now() } = {}) {
+export function buildStage(code, subEvent, payload, {
+  totalStages = null, oneDay = false, now = Date.now(), stageNumber: knownStageNumber = null,
+} = {}) {
   if (payload.relayMembers) return buildRelayStage(code, subEvent, payload);
-  const sourceStageNumber = stageNumberFor(subEvent);
+  const sourceStageNumber = Number.isInteger(knownStageNumber) ? knownStageNumber : stageNumberFor(subEvent);
   const stageNumber = oneDay ? null : sourceStageNumber;
   const sourceRaceType = raceTypeFor(subEvent, payload.races);
   const raceType = oneDay ? null : sourceRaceType;
   const timingRows = mapTimingRows(payload.timing?.times, { timeTrial: sourceRaceType === 'ITT' });
   if (!timingRows.some((row) => row.rank === 1)) return [];
-  // Solo en la carrera de un día: en las vueltas, EvoData ha omitido de la
-  // llegada a corredores que siguieron en carrera (Tour del Porvenir 2026, E4).
+  // Solo en la carrera de un día y en las contrarrelojes: en las llegadas en
+  // línea de una vuelta, EvoData ha omitido de la llegada a corredores que
+  // siguieron en carrera (Tour del Porvenir 2026, E4).
   const lastArrival = lastArrivalAt(payload.timing?.times);
   const arrivalClosed = Number.isFinite(lastArrival) && now - lastArrival >= ARRIVAL_QUIET_MS;
-  const stageRows = oneDay ? [...timingRows, ...mapStartListIrm(payload.startList, timingRows, { arrivalClosed })] : timingRows;
-  // La CRI se publica cuando el último corredor tiene llegada o estado IRM, y
-  // entonces como oficial: no se completa por grupos como una llegada en línea.
-  const closedTimeTrial = oneDay && sourceRaceType === 'ITT';
+  // La CRI, de un día o de etapa (prólogo incluido), se publica cuando el último
+  // corredor de la lista de salida tiene llegada o estado IRM, y entonces como
+  // oficial: EvoData publica cada llegada en directo y no se completa por grupos.
+  const closedTimeTrial = sourceRaceType === 'ITT';
+  const stageRows = closedTimeTrial
+    ? [...timingRows, ...mapTimeTrialIrm(payload.startList, timingRows, { arrivalClosed })]
+    : oneDay ? [...timingRows, ...mapStartListIrm(payload.startList, timingRows, { arrivalClosed })] : timingRows;
   if (closedTimeTrial) {
     const pending = pendingTimeTrialRiders(payload.startList, stageRows);
     if (pending == null || pending.length) return [];
@@ -391,7 +435,7 @@ async function apiPost(path, body, token = null) {
     headers: { 'Content-Type': 'application/json', 'User-Agent': 'calendariociclismo.app results sync (+https://calendariociclismo.app)' },
     body: JSON.stringify(token ? { ...body, token } : body),
   });
-  if (!response.ok) throw new Error(`EvoData HTTP ${response.status} en ${path}`);
+  if (!response.ok) throw Object.assign(new Error(`EvoData HTTP ${response.status} en ${path}`), { status: response.status });
   return response.json();
 }
 
@@ -458,9 +502,11 @@ async function fetchStagePayload(eventId, token, { withStartList = false } = {})
   if (!races.length) return { races, jerseys: [], timing: null, generals: {}, startList: null };
   const raceId = validRaceId(races[0], eventId);
   const generalJerseys = (Array.isArray(jerseys) ? jerseys : []).filter((jersey) => GENERAL_TYPES[Number(jersey.type)]);
+  // Mismo criterio que raceTypeFor: el concurso cronometrado (13) es una CRI.
+  const needsStartList = withStartList || Number(races[0]?.raceTypeId) === 13;
   const [timing, startList, ...responses] = await Promise.all([
     fetchTiming(eventId, raceId, token),
-    withStartList ? fetchStartList(eventId, raceId, token) : null,
+    needsStartList ? fetchStartList(eventId, raceId, token) : null,
     ...generalJerseys.map((jersey) =>
       apiPost('/api/generalclassification/getGeneralClassification/', {
         eventId, jerseyId: jersey.jerseyId, status: 0, pageIndex: 0, pageSize: 1000,
@@ -471,25 +517,46 @@ async function fetchStagePayload(eventId, token, { withStartList = false } = {})
 }
 
 // Los campeonatos UEC publican cada prueba como evento autónomo, sin padre ni
-// subEvents: el propio evento es la única jornada.
-export function jornadasOf(event, code) {
+// subEvents: el propio evento es la única jornada. Un evento con padre es la
+// jornada de una vuelta y no se toma como carrera, salvo que el padre no exista
+// (`orphan`): EvoData dejó así el Veneto Women el 14-10-2026.
+export function jornadasOf(event, code, { orphan = false } = {}) {
   if (Array.isArray(event?.subEvents) && event.subEvents.length) return event.subEvents;
-  if (Number(event?.eventId) !== Number(code) || Number(event?.parentEventId) > 0) return [];
+  if (Number(event?.eventId) !== Number(code) || (Number(event?.parentEventId) > 0 && !orphan)) return [];
   return [{ eventId: Number(event.eventId), order: 1, eventType: event.eventType, name: event.name, date: event.date }];
+}
+
+// El padre declarado no existe: la API responde HTTP 404 con cuerpo KO («Event
+// not found»). Cualquier otro fallo lanza y no se interpreta como huérfano.
+async function isOrphanEvent(event, code, token, fixture) {
+  const parentId = Number(event?.parentEventId);
+  if (!(parentId > 0) || Number(event?.eventId) !== Number(code)) return false;
+  if (Array.isArray(event?.subEvents) && event.subEvents.length) return false;
+  if (fixture) return fixture.parentExists === false;
+  try {
+    const parent = await apiPost('/api/events/getEventById/', { eventId: parentId }, token);
+    return parent?.status === 'KO' && !Number(parent?.eventId);
+  } catch (error) {
+    if (error.status === 404) return true;
+    throw error;
+  }
 }
 
 export async function fetchCompetition(code, { onlyStage = null, totalStages = null, delay = 300, oneDay = false, fixture = null } = {}) {
   const parsedCode = parseCode(code);
   const token = fixture ? null : await getAppToken();
   const parentEvent = fixture?.parentEvent || await apiPost('/api/events/getEventById/', { eventId: Number(parsedCode) }, token);
-  const subEvents = jornadasOf(parentEvent, parsedCode)
-    .map((subEvent, index) => ({ ...subEvent, _stageNumber: stageNumberFor(subEvent, index) }))
+  const jornadas = jornadasOf(parentEvent, parsedCode, { orphan: await isOrphanEvent(parentEvent, parsedCode, token, fixture) });
+  const prologue = jornadas.find(isPrologue);
+  const prologueOrder = Number.isInteger(Number(prologue?.order)) ? Number(prologue.order) : null;
+  const subEvents = jornadas
+    .map((subEvent, index) => ({ ...subEvent, _stageNumber: stageNumberFor(subEvent, index, { prologueOrder }) }))
     .filter((subEvent) => onlyStage == null || subEvent._stageNumber === Number(onlyStage))
     .sort((a, b) => a._stageNumber - b._stageNumber);
   const stages = [];
   for (const subEvent of subEvents) {
-    const payload = fixture?.byEventId?.[String(subEvent.eventId)] || await fetchStagePayload(subEvent.eventId, token, { withStartList: oneDay });
-    stages.push(...buildStage(parsedCode, subEvent, payload, { totalStages, oneDay }));
+    const payload = fixture?.byEventId?.[String(subEvent.eventId)] || await fetchStagePayload(subEvent.eventId, token, { withStartList: oneDay || Number(subEvent.eventType) === 2 });
+    stages.push(...buildStage(parsedCode, subEvent, payload, { totalStages, oneDay, stageNumber: subEvent._stageNumber }));
     if (!fixture && delay > 0) await sleep(delay);
   }
   return stages;

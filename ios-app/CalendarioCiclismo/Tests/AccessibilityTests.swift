@@ -4,90 +4,40 @@ import XCTest
 /// Accessibility tests to prevent regressions in VoiceOver labels, hints, and descriptions.
 final class AccessibilityTests: XCTestCase {
 
-    // MARK: - Mini-profile contrast
+    // MARK: - Profile contrast
 
-    func testMiniProfileContrastLightensDarkColorsWithWebThreshold() {
+    func testProfileContrastLightensDarkColorsWithWebThreshold() {
         for original in [
-            MiniProfileColorContrast.RGB(red: 0, green: 0, blue: 0),
-            MiniProfileColorContrast.RGB(red: 0.09, green: 0.08, blue: 0.41),
-            MiniProfileColorContrast.RGB(red: 0, green: 0.2, blue: 0),
+            ProfileColorContrast.RGB(red: 0, green: 0, blue: 0),
+            ProfileColorContrast.RGB(red: 0.09, green: 0.08, blue: 0.41),
+            ProfileColorContrast.RGB(red: 0, green: 0.2, blue: 0),
         ] {
-            let adjusted = MiniProfileColorContrast.adjustedRGB(original, for: .dark)
+            let adjusted = ProfileColorContrast.adjustedRGB(original, for: .dark)
             XCTAssertGreaterThanOrEqual(
                 adjusted.relativeLuminance,
-                MiniProfileColorContrast.darkMinimumLuminance
+                ProfileColorContrast.darkMinimumLuminance
             )
         }
     }
 
-    func testMiniProfileContrastDarkensLightColorsWithWebThreshold() {
+    func testProfileContrastDarkensLightColorsWithWebThreshold() {
         for original in [
-            MiniProfileColorContrast.RGB(red: 1, green: 1, blue: 1),
-            MiniProfileColorContrast.RGB(red: 1, green: 1, blue: 0),
-            MiniProfileColorContrast.RGB(red: 1, green: 0.67, blue: 0.67),
+            ProfileColorContrast.RGB(red: 1, green: 1, blue: 1),
+            ProfileColorContrast.RGB(red: 1, green: 1, blue: 0),
+            ProfileColorContrast.RGB(red: 1, green: 0.67, blue: 0.67),
         ] {
-            let adjusted = MiniProfileColorContrast.adjustedRGB(original, for: .light)
+            let adjusted = ProfileColorContrast.adjustedRGB(original, for: .light)
             XCTAssertLessThanOrEqual(
                 adjusted.relativeLuminance,
-                MiniProfileColorContrast.lightMaximumLuminance
+                ProfileColorContrast.lightMaximumLuminance
             )
         }
     }
 
-    func testMiniProfileContrastPreservesColorInsideWebRange() {
-        let original = MiniProfileColorContrast.RGB(red: 0.08, green: 0.28, blue: 0.65)
+    func testProfileContrastPreservesColorInsideWebRange() {
+        let original = ProfileColorContrast.RGB(red: 0.08, green: 0.28, blue: 0.65)
         XCTAssertEqual(
-            MiniProfileColorContrast.adjustedRGB(original, for: .light),
-            original
-        )
-    }
-
-    // MARK: - Interactive profile contrast
-
-    func testProfileColorContrastDarkensLightRaceColorOnLightBackground() {
-        let background = ProfileColorContrast.RGB(
-            red: 250.0 / 255.0,
-            green: 251.0 / 255.0,
-            blue: 252.0 / 255.0
-        )
-        let original = ProfileColorContrast.RGB(red: 1, green: 0.95, blue: 0.1)
-
-        let adjusted = ProfileColorContrast.adjustedRGB(original, background: background)
-
-        XCTAssertGreaterThanOrEqual(
-            ProfileColorContrast.contrastRatio(adjusted, background),
-            ProfileColorContrast.minimumRatio - 0.001
-        )
-        XCTAssertLessThan(adjusted.red, original.red)
-    }
-
-    func testProfileColorContrastLightensDarkRaceColorOnDarkBackground() {
-        let background = ProfileColorContrast.RGB(
-            red: 30.0 / 255.0,
-            green: 38.0 / 255.0,
-            blue: 50.0 / 255.0
-        )
-        let original = ProfileColorContrast.RGB(red: 0.01, green: 0.04, blue: 0.12)
-
-        let adjusted = ProfileColorContrast.adjustedRGB(original, background: background)
-
-        XCTAssertGreaterThanOrEqual(
-            ProfileColorContrast.contrastRatio(adjusted, background),
-            ProfileColorContrast.minimumRatio - 0.001
-        )
-        XCTAssertGreaterThan(adjusted.blue, original.blue)
-    }
-
-    func testProfileColorContrastPreservesColorThatAlreadyPasses() {
-        let background = ProfileColorContrast.RGB(
-            red: 250.0 / 255.0,
-            green: 251.0 / 255.0,
-            blue: 252.0 / 255.0
-        )
-        let original = ProfileColorContrast.RGB(red: 0.1, green: 0.2, blue: 0.7)
-
-        XCTAssertEqual(
-            ProfileColorContrast.adjustedRGB(original, background: background),
+            ProfileColorContrast.adjustedRGB(original, for: .light),
             original
         )
     }

@@ -28,6 +28,13 @@ Configuración:
 3. Mantener los símbolos de cada documento en un único grupo combinado; en Original, el barro ocupa un segundo grupo debajo.
 4. Mantener bordes definidos; no añadir desenfoques, sombras ni brillos a los SVG.
 5. Revisar `Default`, `Dark` y `Mono`, además de las vistas `Clear` y `Tinted`.
+   En Original, la apariencia `dark` define un fondo `#191108` y reduce el
+   barro (`00-fondo-barro`) a una opacidad de 0,22; las capas `01-calendar` y
+   `02-cyclist` llevan una especialización de relleno `dark` en `#FFFFFF`. Sin
+   ellas, el sistema funde los símbolos con el barro y el icono conserva el
+   fondo marrón. Comprobación local:
+   `ictool AppIcon.icon --export-image --platform iOS --rendition Dark
+   --design-generation 27 …`.
 6. Conservar los PNG planos de los asset catalogs para los sistemas anteriores.
    `AppIcon-1024x1024.png` y `OriginalAppIcon.png` son la composición plana de
    `00-fondo-barro.png` con los símbolos blancos, sin canal alfa.

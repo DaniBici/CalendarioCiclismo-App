@@ -136,9 +136,10 @@ function resultsSeoDescription(race, raceNameStr, raceDay, stageNumber, suffix, 
   const tail = `${day ? ` ${day}.` : ''}`;
   const paren = routeKm ? ` (${routeKm})` : '';
   if (race.raceFormat === 'one_day') {
+    const winnerEs = race.gender === 'female' ? 'ganadora' : 'ganador';
     return isEn
       ? `Classification and results of the ${hero}${paren}: full results and winner.${tail}`
-      : `Clasificación ${deArticulo(raceNameStr)} ${hero}${paren}: resultados completos y ganador.${tail}`;
+      : `Clasificación ${deArticulo(raceNameStr)} ${hero}${paren}: resultados completos y ${winnerEs}.${tail}`;
   }
   if (stageNumber == null) {
     return isEn

@@ -182,7 +182,7 @@ function mergeGAReports(a: GAReport, b: GAReport): GAReport {
 }
 
 // ── Predefined report configurations ─────────────────────────────
-type ReportType = 'overview' | 'top_pages' | 'top_screens' | 'traffic_sources' | 'top_countries' | 'devices' | 'peak_hour' | 'daily_pageviews' | 'weekly_pageviews' | 'platforms' | 'platform_detail' | 'top_races' | 'top_stages';
+type ReportType = 'overview' | 'top_pages' | 'top_screens' | 'traffic_sources' | 'top_countries' | 'devices' | 'peak_hour' | 'daily_pageviews' | 'weekly_pageviews' | 'platforms' | 'platform_detail' | 'top_races' | 'top_stages' | 'app_content';
 
 function buildReportBody(
   reportType: ReportType,
@@ -458,6 +458,218 @@ function buildReportBody(
   }
 }
 
+// ── Contenidos de las apps ───────────────────────────────────────
+// Ranking único de lo que se ve en las apps. Cada elemento agrupa todas las
+// pantallas que le pertenecen para que cuente como un solo contenido:
+//   - race:          una carrera de un día con su ficha, inscritos,
+//                    clasificación, orden de salida, perfil y mapa (agrupadas
+//                    por race_name).
+//   - stage:         una etapa de una vuelta por etapas con su jornada,
+//                    clasificaciones, orden de salida, perfil y mapa
+//                    (agrupadas por race_day_id).
+//   - race_info:     la carrera de una vuelta por etapas fuera de sus etapas:
+//                    ficha e inscritos. La lista de inscritos es de toda la
+//                    carrera y no se reparte entre etapas.
+//   - cx_race:       una carrera de ciclocross con todas sus categorías.
+//   - cx_tournament: la página de un torneo de ciclocross.
+//   - tab:           una pestaña global: Ciclocross; Resultados, con sus
+//                    secciones Últimos resultados, Ciclocross y Ránking UCI
+//                    (la misma pestaña); Fichajes, con su detalle de equipo.
+//   - cx_unnamed:    fichas y torneos de ciclocross de apps anteriores a la
+//                    5.1.1, que registraban la plantilla de la ruta sin
+//                    identidad.
+// Cada consulta deduplica los usuarios dentro de su grupo; sumar usuarios de
+// pantallas distintas los contaría dos veces.
+// Pantallas de una jornada concreta (llevan race_day_id) y de la carrera.
+const ROAD_DAY_SCREENS = ['stage_detail', 'results', 'start_order', 'elevation_profile', 'route_map'];
+const ROAD_RACE_LEVEL_SCREENS = ['race_detail', 'startlist'];
+const ROAD_RACE_SCREENS = [...ROAD_RACE_LEVEL_SCREENS, ...ROAD_DAY_SCREENS];
+
+interface AppContentItem {
+  kind: 'race' | 'stage' | 'race_info' | 'cx_race' | 'cx_tournament' | 'tab' | 'cx_unnamed';
+  name: string;
+  views: number;
+  users: number;
+}
+
+function gaNotEmpty(fieldName: string): Record<string, unknown> {
+  return {
+    andGroup: {
+      expressions: ['(not set)', ''].map((value) => ({
+        notExpression: { filter: { fieldName, stringFilter: { matchType: 'EXACT', value } } },
+      })),
+    },
+  };
+}
+
+function gaAnd(...expressions: Record<string, unknown>[]): Record<string, unknown> {
+  return { andGroup: { expressions } };
+}
+
+function gaOr(...expressions: Record<string, unknown>[]): Record<string, unknown> {
+  return { orGroup: { expressions } };
+}
+
+function gaScreenIn(values: string[]): Record<string, unknown> {
+  return { filter: { fieldName: 'unifiedScreenName', inListFilter: { values } } };
+}
+
+async function buildAppContent(
+  accessToken: string,
+  propertyId: string,
+  dateRange: { startDate: string; endDate: string },
+): Promise<AppContentItem[]> {
+  const metrics = [{ name: 'screenPageViews' }, { name: 'activeUsers' }];
+  const orderBys = [{ metric: { metricName: 'screenPageViews' }, desc: true }];
+
+  // Una dimensión personalizada sin registrar en GA4 devuelve 400: la consulta
+  // queda vacía y el resto del ranking se conserva.
+  const run = async (body: Record<string, unknown>, customDimensions: boolean): Promise<GARow[]> => {
+    const res = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dateRanges: [dateRange], metrics, ...body }),
+      },
+    );
+    if (!res.ok) {
+      const errText = await res.text();
+      if (customDimensions && res.status === 400 && /not a valid dimension|INVALID_ARGUMENT/i.test(errText)) {
+        console.warn(`[ga-analytics] app_content: dimensiones custom no registradas en GA4 (property ${propertyId}).`);
+        return [];
+      }
+      throw new Error(`GA API error ${res.status} (property ${propertyId}): ${errText.slice(0, 300)}`);
+    }
+    return ((await res.json()) as GAReport).rows ?? [];
+  };
+
+  const dayFilter = gaAnd(gaScreenIn(ROAD_DAY_SCREENS), gaNotEmpty('customEvent:race_day_id'));
+  const noDay = { filter: { fieldName: 'customEvent:race_day_id', inListFilter: { values: ['(not set)', ''] } } };
+
+  const [dayTotals, dayNames, raceTotals, raceInfo, cxRaces, cxTournaments, cyclocross, results, transfers, unnamed] = await Promise.all([
+    // Usuarios y vistas de cada jornada, deduplicados por race_day_id.
+    run({ dimensions: [{ name: 'customEvent:race_day_id' }], dimensionFilter: dayFilter, orderBys, limit: 250 }, true),
+    // Nombre de la carrera y de la etapa de cada jornada. El nombre de etapa
+    // llega localizado («Etapa 3», «Stage 3»): se conserva el de más vistas.
+    run({
+      dimensions: [{ name: 'customEvent:race_day_id' }, { name: 'customEvent:race_name' }, { name: 'customEvent:stage_name' }],
+      dimensionFilter: dayFilter, orderBys, limit: 1000,
+    }, true),
+    // Carrera completa (todas sus pantallas), para las pruebas de un día.
+    run({
+      dimensions: [{ name: 'customEvent:race_name' }],
+      dimensionFilter: gaAnd(gaScreenIn(ROAD_RACE_SCREENS), gaNotEmpty('customEvent:race_name')),
+      orderBys, limit: 100,
+    }, true),
+    // Ficha e inscritos de la carrera (más las clasificaciones sin jornada).
+    run({
+      dimensions: [{ name: 'customEvent:race_name' }],
+      dimensionFilter: gaAnd(
+        gaNotEmpty('customEvent:race_name'),
+        gaOr(gaScreenIn(ROAD_RACE_LEVEL_SCREENS), gaAnd(gaScreenIn(['results']), noDay)),
+      ),
+      orderBys, limit: 100,
+    }, true),
+    run({
+      dimensions: [{ name: 'customEvent:race_id' }, { name: 'customEvent:race_name' }],
+      dimensionFilter: { andGroup: { expressions: [gaScreenIn(['cx_race']), gaNotEmpty('customEvent:race_id')] } },
+      orderBys, limit: 100,
+    }, true),
+    run({
+      dimensions: [{ name: 'customEvent:race_id' }, { name: 'customEvent:race_name' }],
+      dimensionFilter: { andGroup: { expressions: [gaScreenIn(['cx_tournament']), gaNotEmpty('customEvent:race_id')] } },
+      orderBys, limit: 100,
+    }, true),
+    // Las pestañas globales se consultan sin dimensión: una sola fila con los
+    // usuarios deduplicados entre todas las pantallas del grupo.
+    run({ dimensionFilter: gaScreenIn(['cyclocross']) }, false),
+    run({ dimensionFilter: gaScreenIn(['results_feed', 'results_feed_cx', 'uci_team_ranking']) }, false),
+    run({ dimensionFilter: gaScreenIn(['transfers', 'transfers_team']) }, false),
+    run({
+      dimensionFilter: {
+        orGroup: {
+          expressions: ['cx_race/', 'cx_tournament/'].map((value) => ({
+            filter: { fieldName: 'unifiedScreenName', stringFilter: { matchType: 'BEGINS_WITH', value } },
+          })),
+        },
+      },
+    }, false),
+  ]);
+
+  const num = (row: GARow, index: number) => Number(row.metricValues[index]?.value ?? 0);
+  const items: AppContentItem[] = [];
+
+  // Nombre y etapa de cada jornada. Una carrera con alguna etapa rotulada es
+  // una vuelta por etapas; el resto son pruebas de un día.
+  const emptyName = (value: string | undefined) => !value || value === '(not set)';
+  const days = new Map<string, { race: string; raceTop: number; stage: string; stageTop: number }>();
+  for (const row of dayNames) {
+    const id = row.dimensionValues?.[0]?.value ?? '';
+    const race = row.dimensionValues?.[1]?.value;
+    const stage = row.dimensionValues?.[2]?.value;
+    const views = num(row, 0);
+    const day = days.get(id) ?? { race: '', raceTop: -1, stage: '', stageTop: -1 };
+    if (!emptyName(race) && views > day.raceTop) { day.raceTop = views; day.race = race!; }
+    if (!emptyName(stage) && views > day.stageTop) { day.stageTop = views; day.stage = stage!; }
+    days.set(id, day);
+  }
+  const stageRaces = new Set<string>();
+  for (const day of days.values()) if (day.stage && day.race) stageRaces.add(day.race);
+
+  for (const row of dayTotals) {
+    const day = days.get(row.dimensionValues?.[0]?.value ?? '');
+    if (!day || !stageRaces.has(day.race)) continue; // las pruebas de un día salen en raceTotals
+    items.push({ kind: 'stage', name: `${day.race} · ${day.stage || 'Jornada'}`, views: num(row, 0), users: num(row, 1) });
+  }
+  for (const row of raceTotals) {
+    const race = row.dimensionValues?.[0]?.value ?? '';
+    if (!stageRaces.has(race)) items.push({ kind: 'race', name: race, views: num(row, 0), users: num(row, 1) });
+  }
+  for (const row of raceInfo) {
+    const race = row.dimensionValues?.[0]?.value ?? '';
+    if (stageRaces.has(race)) items.push({ kind: 'race_info', name: race, views: num(row, 0), users: num(row, 1) });
+  }
+
+  // Ciclocross: se agrupa por identificador, porque el nombre del torneo llega
+  // localizado y un mismo torneo aparecería dos veces (castellano e inglés).
+  const byId = (rows: GARow[], kind: 'cx_race' | 'cx_tournament') => {
+    const groups = new Map<string, { name: string; top: number; views: number; users: number }>();
+    for (const row of rows) {
+      const id = row.dimensionValues?.[0]?.value ?? '';
+      const views = num(row, 0);
+      const group = groups.get(id) ?? { name: '', top: -1, views: 0, users: 0 };
+      group.views += views;
+      group.users += num(row, 1);
+      if (views > group.top) { group.top = views; group.name = row.dimensionValues?.[1]?.value ?? ''; }
+      groups.set(id, group);
+    }
+    for (const group of groups.values()) {
+      items.push({ kind, name: group.name, views: group.views, users: group.users });
+    }
+  };
+  byId(cxRaces, 'cx_race');
+  byId(cxTournaments, 'cx_tournament');
+
+  const tabs: [string, GARow[]][] = [['Ciclocross', cyclocross], ['Resultados', results], ['Fichajes', transfers]];
+  for (const [name, rows] of tabs) {
+    if (rows[0]) items.push({ kind: 'tab', name, views: num(rows[0], 0), users: num(rows[0], 1) });
+  }
+  if (unnamed[0]) {
+    items.push({
+      kind: 'cx_unnamed',
+      name: 'Fichas y torneos de ciclocross sin nombre (apps anteriores a la 5.1.1)',
+      views: num(unnamed[0], 0),
+      users: num(unnamed[0], 1),
+    });
+  }
+
+  return items
+    .filter((item) => item.views > 0 && item.name)
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 50);
+}
+
 // ── Main handler ─────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -571,11 +783,12 @@ Deno.serve(async (req: Request) => {
   }
 
   // IDs de propiedades a consultar.
-  //   top_screens, top_races, top_stages: solo la propiedad de apps (usan dimensiones
-  //                                        específicas de eventos móviles).
+  //   top_screens, top_races, top_stages, app_content: solo la propiedad de apps
+  //                                        (usan dimensiones específicas de
+  //                                        eventos móviles).
   //   resto:                              ambas propiedades, fusionando resultados.
   let propertyIds: string[];
-  if (['top_screens', 'top_races', 'top_stages'].includes(reportType)) {
+  if (['top_screens', 'top_races', 'top_stages', 'app_content'].includes(reportType)) {
     if (!GA_APP_PROPERTY_ID) {
       return jsonRes({ ok: true, report: reportType, data: { rows: [], rowCount: 0 } }, 200);
     }
@@ -590,6 +803,18 @@ Deno.serve(async (req: Request) => {
   // Default: last 30 days
   const startDate = body.startDate || '30daysAgo';
   const endDate   = body.endDate   || 'today';
+
+  // Contenidos de las apps: varias consultas agregadas en una respuesta ya
+  // clasificada (ver buildAppContent).
+  if (reportType === 'app_content') {
+    try {
+      const accessToken = await getGoogleAccessToken(GA_SERVICE_ACCOUNT_EMAIL, GA_PRIVATE_KEY);
+      const items = await buildAppContent(accessToken, propertyIds[0], { startDate, endDate });
+      return jsonRes({ ok: true, report: reportType, data: { items } }, 200);
+    } catch (err) {
+      return jsonRes({ error: `Error interno: ${(err as Error).message}` }, 500);
+    }
+  }
 
   try {
     const accessToken = await getGoogleAccessToken(GA_SERVICE_ACCOUNT_EMAIL, GA_PRIVATE_KEY);

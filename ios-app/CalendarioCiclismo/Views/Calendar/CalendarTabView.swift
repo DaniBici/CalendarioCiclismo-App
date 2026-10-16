@@ -12,13 +12,27 @@ private enum CalendarSelection: Identifiable, Hashable {
     }
 }
 
+/// Año, filtro y mes compartidos por Temporada y la agenda en la maqueta
+/// ancha. Temporada tiene los selectores de año y filtro; el mes se mueve
+/// desde cualquiera de las dos vistas.
+@Observable
+final class CalendarLink {
+    var year = DateFormatting.calendarStart().year
+    var filter: Constants.CategoryFilter = .all
+    /// Mes visible de 1 a 12. «Todos» de Temporada no lo modifica.
+    var month = DateFormatting.calendarStart().month
+}
+
 /// Pestaña Calendario. En ancho compacto conserva la alternancia Mes/Temporada;
 /// en tamaño regular amplio presenta ambas superficies dentro del mismo
-/// NavigationStack, de modo que cualquier destino sustituya el conjunto.
+/// NavigationStack, de modo que cualquier destino sustituya el conjunto:
+/// Temporada en la columna ancha y la agenda en la estrecha, enlazadas por
+/// `CalendarLink`.
 struct CalendarTabView: View {
     @AppStorage("calendar_subview") private var sub: String = "month"
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selection: CalendarSelection?
+    @State private var link = CalendarLink()
 
     var body: some View {
         GeometryReader { proxy in
@@ -64,14 +78,15 @@ struct CalendarTabView: View {
     private var wideCalendar: some View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
-                MonthView(embedded: true)
-                    .frame(width: proxy.size.width * 0.62)
-                Divider()
                 SeasonView(
                     embedded: true,
                     onOpenStage: { selection = .stage($0) },
-                    onOpenRace: { selection = .race($0) }
+                    onOpenRace: { selection = .race($0) },
+                    link: link
                 )
+                    .frame(width: proxy.size.width * 0.62)
+                Divider()
+                MonthView(embedded: true, link: link)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -158,7 +173,9 @@ struct CalendarSelectorLabel: View {
         HStack(spacing: 6) {
             Image(systemName: icon)
             Text(label)
+                .lineLimit(1)
         }
+        .fixedSize()
     }
 }
 

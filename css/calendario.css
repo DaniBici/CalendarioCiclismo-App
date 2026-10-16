@@ -137,21 +137,8 @@ button.t-race {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Carrera cancelada: cuadrado rojo con aspa a la izquierda del nombre, sin
-   tachar; el nombre se atenúa conservando contraste AA (0,65 de opacidad). */
-.t-race__name--cancelled { display: flex; align-items: center; gap: 0.4rem; }
-.t-race__name--cancelled .t-race__name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: 0.65; }
-.t-race__cancel {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-sm);
-  background: #c5221f;
-}
-.t-race__cancel svg { width: 8px; height: 8px; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linecap: round; }
+/* Carrera cancelada: nombre tachado; conserva contraste AA (0,65 de opacidad). */
+.t-race__name--cancelled { text-decoration: line-through; opacity: 0.65; }
 .t-race__female {
   font-size: var(--fs-1);
   font-weight: 400;

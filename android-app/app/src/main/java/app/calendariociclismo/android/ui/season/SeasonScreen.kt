@@ -76,6 +76,7 @@ import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.ChallengeGroup
 import app.calendariociclismo.android.data.model.Race
+import app.calendariociclismo.android.ui.calendar.CalendarLink
 import app.calendariociclismo.android.ui.calendar.CalendarNavigation
 import app.calendariociclismo.android.ui.calendar.CalendarStart
 import app.calendariociclismo.android.ui.components.CCCard
@@ -114,6 +115,8 @@ fun SeasonScreen(
      *  la pantalla vive dentro de CalendarScreen → añade TopAppBar con la action
      *  (esta pantalla no tenía topBar propio). */
     onSwitchView: (() -> Unit)? = null,
+    /** Enlace con la agenda en la maqueta ancha de `CalendarScreen`. */
+    link: CalendarLink? = null,
 ) {
     val app = rememberApp()
     val haptic = rememberHaptics()
@@ -271,6 +274,19 @@ fun SeasonScreen(
     // Rastrea si ya se ejecutó el salto inicial al mes actual (para no repetirlo en cambios de filtro)
     var initialScrollDone by remember { mutableStateOf(false) }
 
+    // Maqueta ancha: año y filtro pasan a la agenda; el año puede llegar de su
+    // botón Hoy. Se lee el valor vigente del enlace, no la clave del efecto.
+    if (link != null) {
+        LaunchedEffect(year) { link.year = year }
+        LaunchedEffect(category) { link.category = category }
+        LaunchedEffect(link.year) {
+            if (link.year != year) {
+                year = link.year
+                initialScrollDone = false
+            }
+        }
+    }
+
     // Temporada pedida por el cintillo: otro año se recarga y se sitúa en su
     // primer mes; el mismo año vuelve al mes de referencia.
     val pendingSeasonYear by CalendarNavigation.pendingSeasonYear.collectAsState()
@@ -314,6 +330,22 @@ fun SeasonScreen(
             if (targetIdx != pagerState.currentPage) {
                 pagerState.scrollToPage(targetIdx)
             }
+        }
+    }
+
+    // Maqueta ancha: el mes asentado pasa a la agenda («Todos» no lo cambia) y
+    // el mes movido desde la agenda sitúa Temporada si tiene carreras en él.
+    if (link != null) {
+        LaunchedEffect(pagerState.settledPage, months, initialScrollDone) {
+            val month = months.getOrNull(pagerState.settledPage) ?: return@LaunchedEffect
+            if (initialScrollDone && month > 0) link.month = month
+        }
+        LaunchedEffect(link.month, initialScrollDone) {
+            if (!initialScrollDone) return@LaunchedEffect
+            val visible = months.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
+            if (visible == 0 || visible == link.month) return@LaunchedEffect
+            val target = months.indexOf(link.month)
+            if (target >= 0) pagerState.animateScrollToPage(target)
         }
     }
 

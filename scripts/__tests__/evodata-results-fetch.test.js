@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildStage, eventsListUrl, fetchCompetition, jornadasOf, mapGeneralRows, mapRelayRows, mapStartListIrm, mapTimingRows,
+  buildStage, eventsListUrl, fetchCompetition, jornadasOf, mapGeneralRows, mapRelayRows, mapStartListIrm, mapTimeTrialIrm, mapTimingRows,
   parseCode, pendingRelayTeams, pendingTimeTrialRiders, raceTypeFor, relayRacesOf, stageNumberFor, suggestCompetitionId,
 } from '../results-fetchers/evodata-results-fetch.mjs';
 
@@ -89,6 +89,74 @@ describe('EvoData CIS — resultados públicos', () => {
     expect(stageNumberFor({ name: 'Étape 3' })).toBe(3);
     expect(raceTypeFor({ eventType: 2 }, [])).toBe('ITT');
     expect(raceTypeFor({ eventType: 1 }, [{ raceTypeId: 12 }])).toBe('IRR');
+  });
+
+  it('numera el prólogo como etapa 0 y desplaza el resto de jornadas', async () => {
+    const parentEvent = { eventId: 108026, parentEventId: 0, name: 'ENECO TOUR', subEvents: [
+      { eventId: 108027, order: 1, eventType: 2, name: 'Prologue', date: '2026-10-13T00:00:00.000Z' },
+      { eventId: 108028, order: 2, eventType: 1, name: 'Stage 1', date: '2026-10-14T00:00:00.000Z' },
+      { eventId: 108032, order: 6, eventType: 1, name: 'Stage 5', date: '2026-10-18T00:00:00.000Z' },
+    ] };
+    const timing = (bib) => ({ status: 'OK', tot: 1, times: [{ position: 1, bib, order: 217_002, gap: '0' }] });
+    const byEventId = {
+      108027: { races: [{ raceTypeId: 13 }], timing: timing('94'), jerseys: [],
+        startList: [{ bib: '94', status: 0, started: true, starting: true, finished: true }] },
+      108028: { races: [{ raceTypeId: 12 }], timing: timing('7'), jerseys: [] },
+      108032: { races: [{ raceTypeId: 12 }], timing: timing('11'), jerseys: [{ jerseyId: 1, type: 1 }],
+        generals: { 1: { status: 'OK', tot: 1, results: [{ position: 1, bib: '11', timeResult: 70_000_000, timeGap: 0 }] } } },
+    };
+    const fetchStages = (onlyStage) => fetchCompetition('108026', { parentEvent, fixture: { parentEvent, byEventId }, onlyStage, totalStages: 5, delay: 0 });
+
+    expect(stageNumberFor({ order: 1, name: 'Prologue' })).toBe(0);
+    expect(stageNumberFor({ order: 2, name: 'Stage 1' }, 0, { prologueOrder: 1 })).toBe(1);
+    expect(stageNumberFor({ order: 2, name: 'Stage 1' })).toBe(2);
+
+    const [prologue] = await fetchStages(0);
+    expect(prologue).toMatchObject({ stageNumber: 0, stageName: 'Prologue', raceType: 'ITT', dateKey: '2026-10-13' });
+    expect(prologue.classifications[0].rows[0]).toMatchObject({ bib: '94', timeText: '3:37' });
+    const [stage1] = await fetchStages(1);
+    expect(stage1).toMatchObject({ stageNumber: 1, stageName: 'Stage 1', dateKey: '2026-10-14' });
+    expect(stage1.classifications[0].rows[0].bib).toBe('7');
+
+    const all = await fetchStages(null);
+    expect(all.map((stage) => [stage.stageNumber, stage.isFinalClassification])).toEqual([[0, false], [1, false], [5, false], [null, true]]);
+  });
+
+  it('no publica el prólogo ni una CRI de etapa hasta que llega el último corredor', () => {
+    const prologue = { eventId: 108027, order: 1, eventType: 2, name: 'Prologue', date: '2026-10-13T00:00:00.000Z' };
+    const times = [
+      { position: 1, bib: '94', order: 217_002, gap: '0', createdAt: '2026-10-13T18:08:38Z' },
+      { position: 2, bib: '53', order: 218_549, gap: '1549', createdAt: '2026-10-13T18:11:40Z' },
+    ];
+    const rider = (bib, extra = {}) => ({ bib, status: 0, started: true, starting: true, finished: true, ...extra });
+    const build = (startList, now = '2026-10-13T18:12:00Z') => buildStage('108026', prologue,
+      { races: [{ raceTypeId: 13 }], timing: { status: 'OK', tot: 2, times }, jerseys: [], startList },
+      { totalStages: 5, stageNumber: 0, now: Date.parse(now) });
+    const onCourse = [rider('94'), rider('53'), rider('1', { started: false, finished: false })];
+
+    // Sin lista de salida o con un corredor por llegar no se emite nada.
+    expect(build(null)).toEqual([]);
+    expect(build(onCourse)).toEqual([]);
+    // Con todos los corredores en meta, la CRI de etapa se publica como oficial.
+    const [stage] = build([rider('94'), rider('53')]);
+    expect(stage).toMatchObject({ stageNumber: 0, raceType: 'ITT' });
+    expect(stage.classifications[0].publication).toEqual({ provider: 'evodata', format: 'fixed', sourceStatus: 'official' });
+    // Un hueco en las salidas (bloque final tras 30 minutos) no convierte en DNS
+    // a quien aún no ha salido, aunque lleve más de 20 minutos sin llegadas.
+    const gap = [rider('94', { startTimeMilli: 72_000_000 }), rider('53', { startTimeMilli: 72_060_000 }),
+      ...['1', '2', '3'].map((bib, index) => rider(bib, { started: false, finished: false, startTimeMilli: 75_000_000 + index * 60_000 }))];
+    expect(build(gap, '2026-10-13T19:00:00Z')).toEqual([]);
+    expect(mapTimeTrialIrm(gap, times.map((row) => ({ bib: row.bib })), { arrivalClosed: true })).toEqual([]);
+    // Quien no salió y tiene un posterior que sí salió es DNS; quien salió y no llega, DNF.
+    const dns = [rider('94', { startTimeMilli: 72_000_000 }), rider('53', { startTimeMilli: 72_060_000 }),
+      rider('7', { started: false, finished: false, startTimeMilli: 72_030_000 }),
+      rider('8', { finished: false, startTimeMilli: 72_040_000 })];
+    expect(build(dns)).toEqual([]);
+    const [closed] = build(dns, '2026-10-13T18:40:00Z')[0].classifications;
+    expect(closed.rows.map(({ bib, irm }) => [bib, irm])).toEqual([['94', null], ['53', null], ['7', 'DNS'], ['8', 'DNF']]);
+    // Una llegada en línea de la misma vuelta no exige lista de salida.
+    const road = { eventId: 108028, order: 2, eventType: 1, name: 'Stage 1', date: '2026-10-14T00:00:00.000Z' };
+    expect(buildStage('108026', road, { races: [{ raceTypeId: 12 }], timing: { status: 'OK', times } }, { totalStages: 5 })).toHaveLength(1);
   });
 
   it('separa las generales finales de la última etapa', () => {
@@ -224,8 +292,54 @@ describe('EvoData CIS — resultados públicos', () => {
       { eventId: 107119, order: 1, eventType: -1, name: 'UEC ITT', date: '2026-06-12T00:00:00.000Z' },
     ]);
     expect(jornadasOf({ ...event, parentEventId: 107000 }, '107119')).toEqual([]);
+    expect(jornadasOf({ ...event, parentEventId: 107000 }, '107119', { orphan: true })).toHaveLength(1);
     expect(jornadasOf({ ...event, eventId: 107120 }, '107119')).toEqual([]);
     expect(jornadasOf(null, '107119')).toEqual([]);
+  });
+
+  describe('evento con padre', () => {
+    const stubApi = (parent) => {
+      const urls = [];
+      vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+        const body = JSON.parse(options.body);
+        urls.push(url);
+        let data;
+        if (url.endsWith('/apptoken')) data = { status: 'OK', token: 'test' };
+        else if (url.includes('/getEventById/')) {
+          data = body.eventId === 108375
+            ? { eventId: 108375, parentEventId: 108374, eventType: 1, name: 'VENETO WOMEN', date: '2026-10-14T00:00:00.000Z', subEvents: [] }
+            : parent;
+        } else if (url.includes('/getRacesByEventId/')) data = [{ raceId: 100000001, eventId: 108375, raceTypeId: 12 }];
+        else if (url.includes('/getJerseysByEventId/')) data = [];
+        else data = { status: 'KO', msg: 'No times found', tot: 0 };
+        return { ok: true, json: async () => data };
+      }));
+      return urls;
+    };
+
+    it('carga el evento si el padre declarado no existe', async () => {
+      const urls = stubApi({ msg: 'Error: Event not found', status: 'KO' });
+      await fetchCompetition('108375', { delay: 0, oneDay: true });
+      expect(urls.some((url) => url.includes('/getRacesByEventId/'))).toBe(true);
+    });
+
+    it('trata como huérfano el padre que responde 404', async () => {
+      const urls = stubApi(null);
+      const api = globalThis.fetch;
+      vi.stubGlobal('fetch', vi.fn(async (url, options) => (
+        url.includes('/getEventById/') && JSON.parse(options.body).eventId === 108374
+          ? { ok: false, status: 404, json: async () => ({ status: 'KO' }) }
+          : api(url, options)
+      )));
+      await fetchCompetition('108375', { delay: 0, oneDay: true });
+      expect(urls.some((url) => url.includes('/getRacesByEventId/'))).toBe(true);
+    });
+
+    it('no toma por carrera la jornada de una vuelta existente', async () => {
+      const urls = stubApi({ eventId: 108374, parentEventId: 0, name: 'VUELTA', subEvents: [{ eventId: 108375 }] });
+      expect(await fetchCompetition('108375', { delay: 0, oneDay: true })).toEqual([]);
+      expect(urls.some((url) => url.includes('/getRacesByEventId/'))).toBe(false);
+    });
   });
 
   describe('relevo mixto UEC', () => {

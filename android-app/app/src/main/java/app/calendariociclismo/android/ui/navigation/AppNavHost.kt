@@ -126,6 +126,11 @@ fun AppNavHost(navController: NavHostController) {
             currentRoute.startsWith("route_map/") -> return@LaunchedEffect
             // La ficha de corredor loggea "rider_profile" desde su pantalla.
             currentRoute.startsWith("rider/") -> return@LaunchedEffect
+            // La ficha y la página de torneo de ciclocross loggean "cx_race" y
+            // "cx_tournament" desde su pantalla, con el nombre; aquí solo
+            // llegaría la plantilla de la ruta, sin identidad.
+            currentRoute.startsWith("cx_race/") -> return@LaunchedEffect
+            currentRoute.startsWith("cx_tournament/") -> return@LaunchedEffect
             else -> currentRoute
         }
 

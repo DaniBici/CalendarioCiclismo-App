@@ -26,7 +26,7 @@ android {
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 655
+        versionCode = 660
         versionName = "5.1"
 
         vectorDrawables { useSupportLibrary = true }

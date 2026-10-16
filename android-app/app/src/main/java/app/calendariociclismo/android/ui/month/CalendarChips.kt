@@ -119,7 +119,8 @@ fun CalendarSelectorChip(
 ) {
     AssistChip(
         onClick = onClick,
-        label = { Text(text = label, style = CCText.S13, fontWeight = FontWeight.SemiBold) },
+        // Una sola línea: el año o el país no se parten en dos.
+        label = { Text(text = label, style = CCText.S13, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) },
         leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
         shape = RoundedCornerShape(CCRadius.Control),
         colors = AssistChipDefaults.assistChipColors(

@@ -158,6 +158,20 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertEqual(CyclocrossLogic.timing(race: race, category: category).estimatedEnd, CyclocrossLogic.instant("2026-10-25T01:15:00Z"))
     }
 
+    func testUnder23InsideEliteMangaUsesEliteDurationOnlyForMUAndWU() throws {
+        let race = try race()
+        func decode(_ code: String, _ format: String, _ minutes: Int) throws -> CxCategory {
+            let json = "{\"category\":\"\(code)\",\"startTimeUtc\":\"2026-10-10T10:45:00Z\",\"sortOrder\":0,\"isCancelled\":false,\"resultsStatus\":\"pending\",\"durationFormat\":\"\(format)\",\"durationRuleVersion\":\"2026-07-01\",\"durationMinutes\":\(minutes)}"
+            return try JSONDecoder().decode(CxCategory.self, from: Data(json.utf8))
+        }
+        let men = try decode("MU", "WITH_ELITE", 60)
+        XCTAssertEqual(CyclocrossLogic.timing(race: race, category: men).estimatedEnd, CyclocrossLogic.instant("2026-10-10T11:45:00Z"))
+        let women = try decode("WU", "WITH_ELITE", 50)
+        XCTAssertEqual(CyclocrossLogic.timing(race: race, category: women).estimatedEnd, CyclocrossLogic.instant("2026-10-10T11:35:00Z"))
+        XCTAssertEqual(CyclocrossLogic.timing(race: race, category: try decode("ME", "WITH_ELITE", 60)).temporalState, .unknown)
+        XCTAssertEqual(CyclocrossLogic.timing(race: race, category: try decode("MU", "OTRO", 60)).temporalState, .unknown)
+    }
+
     func testPlaceholderCardsRequireDocumentsScheduleAndNonCancelled() throws {
         // Con Libro de Ruta/Mapa y horarios la card es clicable.
         let loaded = """

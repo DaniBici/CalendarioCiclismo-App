@@ -1,6 +1,4 @@
 // ── Modal Apps — iOS y Android ────────────────────────────────────
-// Solo se abre solo, a la 4ª página en móvil. Los accesos permanentes a las
-// tiendas viven en el pie (footer.js).
 (function () {
   var ANDROID_URL = 'https://play.google.com/store/apps/details?id=app.calendariociclismo.android';
   var isEN        = window.location.pathname.startsWith('/en/') ||
@@ -113,6 +111,11 @@
       window.ccAnnounce(isEN ? 'Apps dialog opened' : 'Se ha abierto el diálogo de apps');
     }
   }
+
+  var btn = document.getElementById('navAppsBtn');
+  if (btn) btn.addEventListener('click', function () { openAppsModal(); });
+
+  window.openAppsModal = openAppsModal;
 
   // ── Android Smart Banner ──────────────────────────────────────
   var BANNER_KEY = 'cc_android_banner_dismissed';

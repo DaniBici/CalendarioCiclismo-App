@@ -1,104 +1,6 @@
 import SwiftUI
 import UIKit.UIGestureRecognizerSubclass
 
-// MARK: - Profile color contrast
-
-/// Ajusta el color identificativo de una carrera solo cuando no alcanza el
-/// contraste mínimo para elementos gráficos sobre la tarjeta del perfil.
-enum ProfileColorContrast {
-    static let minimumRatio = 3.0
-
-    struct RGB: Equatable {
-        let red: Double
-        let green: Double
-        let blue: Double
-
-        fileprivate var relativeLuminance: Double {
-            func linear(_ component: Double) -> Double {
-                component <= 0.04045
-                    ? component / 12.92
-                    : pow((component + 0.055) / 1.055, 2.4)
-            }
-
-            return 0.2126 * linear(red)
-                + 0.7152 * linear(green)
-                + 0.0722 * linear(blue)
-        }
-    }
-
-    static func contrastRatio(_ first: RGB, _ second: RGB) -> Double {
-        let lighter = max(first.relativeLuminance, second.relativeLuminance)
-        let darker = min(first.relativeLuminance, second.relativeLuminance)
-        return (lighter + 0.05) / (darker + 0.05)
-    }
-
-    static func adjustedRGB(
-        _ foreground: RGB,
-        background: RGB,
-        minimumRatio: Double = minimumRatio
-    ) -> RGB {
-        guard contrastRatio(foreground, background) < minimumRatio else {
-            return foreground
-        }
-
-        // En claro se oscurece; en oscuro se aclara. Una búsqueda binaria
-        // obtiene el cambio mínimo que cumple el umbral y conserva el matiz.
-        let target = background.relativeLuminance > 0.5
-            ? RGB(red: 0, green: 0, blue: 0)
-            : RGB(red: 1, green: 1, blue: 1)
-        var lowerBound = 0.0
-        var upperBound = 1.0
-
-        for _ in 0..<24 {
-            let amount = (lowerBound + upperBound) / 2
-            let candidate = mix(foreground, toward: target, amount: amount)
-            if contrastRatio(candidate, background) >= minimumRatio {
-                upperBound = amount
-            } else {
-                lowerBound = amount
-            }
-        }
-
-        return mix(foreground, toward: target, amount: upperBound)
-    }
-
-    static func adjusted(_ color: Color, for colorScheme: ColorScheme) -> Color {
-        let interfaceStyle: UIUserInterfaceStyle = colorScheme == .dark ? .dark : .light
-        let traits = UITraitCollection(userInterfaceStyle: interfaceStyle)
-        let resolved = UIColor(color).resolvedColor(with: traits)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-
-        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
-            return color
-        }
-
-        let background = colorScheme == .dark
-            ? RGB(red: 30 / 255, green: 38 / 255, blue: 50 / 255)
-            : RGB(red: 250 / 255, green: 251 / 255, blue: 252 / 255)
-        let adjusted = adjustedRGB(
-            RGB(red: Double(red), green: Double(green), blue: Double(blue)),
-            background: background
-        )
-        return Color(
-            red: adjusted.red,
-            green: adjusted.green,
-            blue: adjusted.blue,
-            opacity: Double(alpha)
-        )
-    }
-
-    private static func mix(_ color: RGB, toward target: RGB, amount: Double) -> RGB {
-        RGB(
-            red: color.red + (target.red - color.red) * amount,
-            green: color.green + (target.green - color.green) * amount,
-            blue: color.blue + (target.blue - color.blue) * amount
-        )
-    }
-}
-
 // MARK: - Color helpers
 
 private extension Color {
@@ -392,6 +294,8 @@ struct ElevationChartCard: View {
         let name: String?
     }
 
+    /// Color de carrera con la corrección de contraste de la web
+    /// (`profileThemeColor`), común con los miniperfiles.
     private var visibleProfileColor: Color {
         ProfileColorContrast.adjusted(profileColor, for: colorScheme)
     }
@@ -449,17 +353,23 @@ struct ElevationChartCard: View {
     private func geometry(size: CGSize) -> ChartGeometry {
         let minAlt = profile.minElevation.map { Double($0) } ?? (profile.points.map { Double($0.alt) }.min() ?? 0)
         let maxAlt = profile.maxElevation.map { Double($0) } ?? (profile.points.map { Double($0.alt) }.max() ?? 1000)
+        // Suelo de la escala: 1100 m para comparar etapas de montaña entre sí.
+        // Un recorrido de poco relieve lo reduce a cuatro veces su altitud
+        // máxima, entre 100 y 1100 m, como `buildElevationProfileSVG` (web).
+        let yFloor = min(1100, max(100, ceil(maxAlt * 4 / 100) * 100))
         return ChartGeometry(
             size: size,
             totalDistance: profile.distance,
             yMin: max(0, minAlt - 150),
-            yMax: max(1100, maxAlt + 200)
+            yMax: max(yFloor, maxAlt + min(200, yFloor * 0.2))
         )
     }
 
     // Grid step for Y axis
     private func yGridStep(yMin: Double, yMax: Double) -> Double {
         let range = yMax - yMin
+        if range <= 120  { return 25 }
+        if range <= 250  { return 50 }
         if range <= 500  { return 100 }
         if range <= 1500 { return 200 }
         return 500
@@ -625,14 +535,15 @@ struct ElevationChartCard: View {
         fillPath.addLine(to: CGPoint(x: lastX, y: g.mt + g.plotHeight))
         fillPath.closeSubpath()
 
-        ctx.fill(fillPath, with: .color(visibleProfileColor.opacity(0.30)))
+        // Relleno al 42 % y línea de 2 pt, como el perfil de la jornada web.
+        ctx.fill(fillPath, with: .color(visibleProfileColor.opacity(0.42)))
 
         var linePath = Path()
         linePath.move(to: startPt)
         for pt in pts.dropFirst() {
             linePath.addLine(to: CGPoint(x: g.x(for: pt.km), y: g.y(for: Double(pt.alt))))
         }
-        ctx.stroke(linePath, with: .color(visibleProfileColor), style: StrokeStyle(lineWidth: 1.5))
+        ctx.stroke(linePath, with: .color(visibleProfileColor), style: StrokeStyle(lineWidth: 2))
 
         // Pavé/sterrato colored segments (those with lengthKm > 0)
         let segmentWaypoints = waypoints.filter { ($0.lengthKm ?? 0) > 0 && $0.km != nil }

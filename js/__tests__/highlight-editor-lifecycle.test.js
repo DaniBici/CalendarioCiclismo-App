@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   return { client: {}, openDrawer: vi.fn(), fillCxRaceSelect: vi.fn(), fillCxTournamentSelect: vi.fn(),
     confirmDialog: vi.fn(), showToast: vi.fn(), attachInlineUpload: vi.fn() };
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => mocks.client }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => mocks.client }));
 vi.mock('../components/drawer.js', async original => ({ ...await original(), openDrawer: mocks.openDrawer }));
 vi.mock('../components/dialog.js', async original => ({ ...await original(), confirmDialog: mocks.confirmDialog }));
 vi.mock('../panel/helpers.js', async original => ({ ...await original(), showToast: mocks.showToast }));

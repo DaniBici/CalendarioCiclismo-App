@@ -29,6 +29,9 @@ describe('duración UCI y estados de mangas CX',()=>{
     expect(cxCategoryTiming({},category('WE',{durationFormat:'WE_WJ'}),start).durationMinutes).toBe(45);
     expect(cxCategoryTiming({},category('WJ',{durationFormat:'WE_WJ'}),start).durationMinutes).toBe(45);
     expect(cxCategoryTiming({},category('MU',{durationFormat:'WE_WJ'}),start).temporalState).toBe('unknown');
+    expect(cxCategoryTiming({},category('MU',{durationFormat:'WITH_ELITE'}),start).durationMinutes).toBe(60);
+    expect(cxCategoryTiming({},category('WU',{durationFormat:'WITH_ELITE'}),start).durationMinutes).toBe(50);
+    for(const name of ['ME','WE','MJ','WJ'])expect(cxCategoryTiming({},category(name,{durationFormat:'WITH_ELITE'}),start).temporalState).toBe('unknown');
     const race={cx_race_categories:[category('WE'),category('WJ')]};
     expect(cxCategoryTiming(race,race.cx_race_categories[0],start).durationMinutes).toBe(50);
     expect(race.cx_race_categories).toHaveLength(2);

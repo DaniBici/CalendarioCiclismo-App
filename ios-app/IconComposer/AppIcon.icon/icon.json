@@ -2,14 +2,38 @@
   "fill": {
     "solid": "extended-srgb:0.50196,0.32157,0.20392,1.00000"
   },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "extended-srgb:0.09804,0.06667,0.04706,1.00000"
+      }
+    }
+  ],
   "groups": [
     {
       "layers": [
         {
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ],
           "image-name": "01-calendar.svg",
           "name": "01-calendar"
         },
         {
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ],
           "image-name": "02-cyclist.svg",
           "name": "02-cyclist"
         }
@@ -27,7 +51,13 @@
       "layers": [
         {
           "image-name": "00-fondo-barro.png",
-          "name": "00-fondo-barro"
+          "name": "00-fondo-barro",
+          "opacity-specializations": [
+            {
+              "appearance": "dark",
+              "value": 0.22
+            }
+          ]
         }
       ],
       "shadow": {

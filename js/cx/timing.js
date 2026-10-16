@@ -2,11 +2,14 @@
 export const CX_DURATION_RULE_VERSION='2026-07-01';
 // Fuente: https://assets.ctfassets.net/761l7gh5x5an/3X0PPNdbWNAhMGaZzKly8J/c1ffde19720611fa2fddae4e4601845b/5-CRO-20260701-E.pdf
 const individualMinutes={ME:60,WE:50,MU:50,WU:45,MJ:40,WJ:40};
+// Sub-23 dentro de la manga Elite (misma salida): duración de la manga ME o WE (sin WJ).
+const withEliteMinutes={MU:60,WU:50};
 
 export function cxRegulationMinutes(category,format,version=CX_DURATION_RULE_VERSION) {
   if(version!==CX_DURATION_RULE_VERSION)return null;
   if(format==='individual')return individualMinutes[category]??null;
   if(format==='WE_WJ'&&['WE','WJ'].includes(category))return 45;
+  if(format==='WITH_ELITE')return withEliteMinutes[category]??null;
   return null;
 }
 

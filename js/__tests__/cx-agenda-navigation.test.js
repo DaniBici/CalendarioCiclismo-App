@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => {
   }
   return { Element, state: {}, client: {}, navigationButtons: [] };
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => ({}) }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => ({}) }));
 vi.mock('../cintillo.js', () => ({ initCintillo: async () => {} }));
 vi.mock('../services/today-season.js', () => ({ cyclocrossHome: () => false }));
 vi.mock('../components/date-navigation.js', () => ({

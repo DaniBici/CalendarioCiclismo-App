@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => {
   });
   return { cxLogoImage: vi.fn() };
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => ({}) }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => ({}) }));
 vi.mock('../components/cx-logo.js', async original => ({ ...await original(), cxLogoImage: mocks.cxLogoImage }));
 
 const node = () => ({ hidden: false, disabled: false, textContent: '', innerHTML: '', dataset: {}, style: {},

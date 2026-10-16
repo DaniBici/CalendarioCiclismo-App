@@ -17,6 +17,10 @@
 }
 .res-main, .res-context { min-width: 0; }
 .res-main > .so-table-wrap:first-child { margin-top: 0; }
+/* Orden de salida: como en Resultados, la barra de filtros queda fija bajo la
+   navegación y la fila de columnas debajo (--res-tabs-h, medido en
+   orden-salida.js). Sin desplazamiento horizontal, que anularía el sticky. */
+.res-layout .so-table-wrap { overflow: visible; }
 .res-context .stage-profile-layout { margin-top: 0; }
 .res-layout .res-tabs,
 .res-layout .res-table-wrap,
@@ -554,11 +558,14 @@ button.feed-row {
   font-size: var(--fs-1);
   line-height: 1.3;
 }
+/* Contorno interior tenue: una clasificación de maillot blanco (jóvenes) no
+   desaparece sobre la tarjeta blanca del tema claro. */
 .feed-row__leader-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   flex: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent);
 }
 .feed-row__leader-label { font-weight: 600; color: var(--text-muted); flex: none; }
 .feed-row__leader-name {
@@ -727,6 +734,7 @@ html.light .uci-ranking-table { background: #fff; }
   /* En una columna, la lateral sigue a la tabla: basta la separación de la
      rejilla (24px), sin el relleno inferior de la tabla. */
   .res-layout--context .res-table-wrap { padding-bottom: 0; }
+  .res-layout--context .so-table-wrap { margin-bottom: 0; }
 }
 
 @media (max-width: 768px) {

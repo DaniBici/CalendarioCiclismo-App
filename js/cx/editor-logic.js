@@ -1,6 +1,27 @@
+import {cxRegulationMinutes} from './timing.js';
 export const CX_CATEGORIES=['ME','WE','MU','WU','MJ','WJ'];
 export const CX_CLASSES=['CM','CDM','CC','C1','C2','CN','NAC'];
 export const CX_COUNTRY_GROUPS=['ALL','ES','EUROPA','PT','FR','BE','NL','IT','DE_AT_CH','UK_IE','SCANDI','EE','LATAM','NORTEAM','ASIAPAC','AFRICA','MENA'];
+// Sub-23 que corren dentro de la manga Elite del mismo sexo (formato WITH_ELITE).
+export const CX_ELITE_PARENT={MU:'ME',WU:'WE'};
+// Cada opción nombra qué ocurre en la carrera y la duración reglamentaria que fija (UCI 5.1.048).
+export function cxDurationFormatOptions(category) {
+  const minutes=format=>{const value=cxRegulationMinutes(category,format);return value===null?'':` · ${value} min`;};
+  return [['','Sin verificar · sin hora de fin'],['individual',`Sale sola, manga exclusiva${minutes('individual')}`],
+    ...(['WE','WJ'].includes(category)?[['WE_WJ',`WE y WJ salen juntas${minutes('WE_WJ')}`]]:[]),
+    ...(CX_ELITE_PARENT[category]?[['WITH_ELITE',`Dentro de la manga ${CX_ELITE_PARENT[category]}${minutes('WITH_ELITE')}`]]:[])];
+}
+// Una categoría WITH_ELITE exige la manga Elite como manga propia, con su misma fecha y salida; la duración es la de esa manga.
+export function cxEliteGroupError(categories) {
+  for(const c of categories.filter(item=>item.durationFormat==='WITH_ELITE')) {
+    const parent=CX_ELITE_PARENT[c.category],elite=categories.find(item=>item.category===parent);
+    if(!parent)return `${c.category}: el formato «dentro de la manga Elite» solo vale para MU y WU.`;
+    if(!elite||elite.isCancelled)return `${c.category}: «dentro de la manga ${parent}» exige la categoría ${parent} activa.`;
+    if(elite.durationFormat!=='individual')return `${c.category}: ${parent} debe tener el formato «manga propia» para heredar su duración.`;
+    if(!c.startTimeUtc||c.startTimeUtc!==elite.startTimeUtc||c.dateKey!==elite.dateKey)return `${c.category}: debe salir a la misma fecha y hora que ${parent}.`;
+  }
+  return null;
+}
 export const cxGender=category=>category.startsWith('M')?'men':'women';
 export const cxSlug=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 // La URL ya empieza por /ciclocross/ (/en/cyclocross/): el slug no repite la disciplina.

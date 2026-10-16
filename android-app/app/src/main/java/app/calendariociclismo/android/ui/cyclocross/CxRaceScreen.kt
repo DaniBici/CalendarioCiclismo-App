@@ -205,6 +205,21 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
     val generalCategories = detail?.let(CxPresentation::generalCategories) ?: emptyList()
     val standingCategory = categoryCode?.takeIf { it in generalCategories } ?: "ME".takeIf { it in generalCategories } ?: generalCategories.firstOrNull()
     val roundIds = detail?.standingsState?.flatMap { it.roundIds }?.distinct().orEmpty()
+    // Una vez por apertura, al disponer del nombre: el refresco de cada minuto
+    // y la sustitución de la caché por la red no repiten la vista. Mismos
+    // parámetros que race_detail; sin race_day_id, de modo que no suma en
+    // «Etapas más vistas».
+    val loggedRaceId = race?.takeUnless { CxPresentation.isHidden(it) }?.id
+    LaunchedEffect(loggedRaceId) {
+        val visible = race?.takeIf { it.id == loggedRaceId } ?: return@LaunchedEffect
+        app.analytics.logScreenView(
+            "cx_race",
+            android.os.Bundle().apply {
+                putString("race_id", visible.id)
+                putString("race_name", visible.name)
+            },
+        )
+    }
     // TV o Revive sin horarios también abren la pestaña Programa.
     val clock = cxClock()
     val hasMedia = detail?.let { CxPresentation.hasProgrammeMedia(it, RegionDetector.allowedBroadcastGroups(), clock) } ?: false
@@ -709,7 +724,9 @@ private fun CxScheduleCard(detail: CxDetail, scheduled: List<CxCategory>, onStar
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (detail.startlist.any { it.category == category.category }) CxLinkBadge(stringResource(R.string.cx_startlist), { onStartlist(category.category) }, icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist))
+                        if (detail.startlist.any { it.category == category.category }) {
+                            RaceGlyphAction(ImageVector.vectorResource(R.drawable.ic_logo_cyclist), onClick = { onStartlist(category.category) }, contentDescription = stringResource(R.string.cx_startlist), boxSize = 28.dp, glyphSize = 20.dp)
+                        }
                         // Copa solo-icono de las cards de Hoy en lugar del botón de texto.
                         if (category.category in CxPresentation.resultCategories(detail)) {
                             ResultsTrophyAction(onClick = { onResults(category.category) }, contentDescription = stringResource(R.string.cx_results), boxSize = 28.dp, glyphSize = 20.dp)

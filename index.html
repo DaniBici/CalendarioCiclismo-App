@@ -33,12 +33,10 @@
   <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo - Próximas jornadas" href="https://calendariociclismo.app/atom.xml">
   <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
   <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co" crossorigin>
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm" crossorigin>
   <link rel="preconnect" href="https://assets.calendariociclismo.app">
-  <!-- El cliente de Supabase y las banderas se cargan desde jsDelivr y
-       están en la cadena crítica del primer render → preconnect ahorra el
-       handshake DNS+TLS a mitad de cadena (mejora LCP). crossorigin: los +esm
-       son módulos cargados con CORS. -->
+  <!-- Las banderas se cargan desde jsDelivr y están en la cadena crítica del
+       primer render → preconnect ahorra el handshake DNS+TLS a mitad de
+       cadena (mejora LCP). -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="dns-prefetch" href="https://pub-10252f2a495c488a856a619206783642.r2.dev">
   <script type="application/ld+json">
@@ -146,6 +144,12 @@
 
   <footer class="site-footer">
     <p>&copy; 2026 Calendario Ciclismo - Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> - <a href="/privacidad.html">Privacidad</a></p>
+    <p class="site-footer__actions">
+      <a class="footer-link footer-link--icon" href="/suscripcion/">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span data-i18n="nav.icalCalendar">Calendario iCal</span>
+      </a>
+    </p>
   </footer>
 
   <script src="js/apps-modal.js"></script>

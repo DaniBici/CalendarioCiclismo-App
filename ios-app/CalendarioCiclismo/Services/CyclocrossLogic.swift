@@ -160,7 +160,9 @@ enum CyclocrossLogic {
 
     static func timing(race: CxRace, category: CxCategory, at: Date = Date()) -> CxTiming {
         let verified = category.durationRuleVersion == durationVersion &&
-            (category.durationFormat == "individual" || (category.durationFormat == "WE_WJ" && ["WE", "WJ"].contains(category.category)))
+            (category.durationFormat == "individual"
+                || (category.durationFormat == "WE_WJ" && ["WE", "WJ"].contains(category.category))
+                || (category.durationFormat == "WITH_ELITE" && ["MU", "WU"].contains(category.category)))
         let start = instant(category.startTimeUtc)
         var end: Date?
         if verified, let start, let minutes = category.durationMinutes, minutes > 0 {

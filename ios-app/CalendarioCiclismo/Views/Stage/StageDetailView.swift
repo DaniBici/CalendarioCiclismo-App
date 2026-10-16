@@ -488,10 +488,13 @@ struct StageDetailView: View {
         let gap = detailColumnSpacing(in: proxy)
         let contentWidth = max(0, proxy.size.width - 32)
         let points = keyPoints(rd)
-        let hasPoints = wide && !points.all.isEmpty
-        // Con Puntos clave al lado, Televisión (una emisión) y Descripción
-        // toman el ancho del panel de perfil.
-        let mainWidth = hasPoints ? contentWidth - Self.sideColumnWidth - gap : contentWidth
+        // Sin Puntos clave, la columna lateral lleva los datos del perfil y la
+        // jornada conserva las dos columnas (`js/stage/profile.js`).
+        let summary = wide && points.all.isEmpty ? profileSummaryRows(rd) : []
+        let hasSide = wide && (!points.all.isEmpty || !summary.isEmpty)
+        // Con la columna lateral, Televisión (una emisión) y Descripción toman
+        // el ancho del panel de perfil.
+        let mainWidth = hasSide ? contentWidth - Self.sideColumnWidth - gap : contentWidth
         let readoutInline = proxy.size.width > 600
         VStack(spacing: 16) {
             stageHeader(rd)
@@ -505,19 +508,25 @@ struct StageDetailView: View {
                     timeSection(rd)
                     metricsSection(rd)
                 }
-                if hasPoints {
+                if hasSide {
                     HStack(alignment: .top, spacing: gap) {
                         profileSection(rd, readoutInline: readoutInline)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { profilePanelHeight = $0 }
                             .frame(maxWidth: .infinity, alignment: .top)
-                        keyPointsSection(rd, points: points, maxHeight: max(160, profilePanelHeight))
-                            .frame(width: Self.sideColumnWidth, alignment: .top)
+                        Group {
+                            if summary.isEmpty {
+                                keyPointsSection(rd, points: points, maxHeight: max(160, profilePanelHeight))
+                            } else {
+                                profileSummarySection(summary)
+                            }
+                        }
+                        .frame(width: Self.sideColumnWidth, alignment: .top)
                     }
                 } else {
                     profileSection(rd, readoutInline: readoutInline)
                     keyPointsSection(rd, points: points, maxHeight: nil)
                 }
-                broadcastSection(rd, columns: 2, singleWidth: hasPoints ? mainWidth : (contentWidth - gap) / 2)
+                broadcastSection(rd, columns: 2, singleWidth: hasSide ? mainWidth : (contentWidth - gap) / 2)
                 if hasDescription(rd) {
                     descriptionSection(rd)
                         .frame(width: mainWidth)
@@ -659,6 +668,43 @@ struct StageDetailView: View {
         )
         let rows = SimplifiedGuide.keyPointRows(guide)
         return (rows.all, rows.initial, SimplifiedGuide.hasGuide(guide))
+    }
+
+    /// Filas de «Datos del perfil»: perfil interactivo y jornada no cancelada,
+    /// sin las cifras ausentes. Espejo de `summaryRows` (`js/stage/profile.js`);
+    /// una altitud bajo el nivel del mar conserva el signo.
+    private func profileSummaryRows(_ rd: RaceDay) -> [(label: String, value: String)] {
+        guard !rd.isCancelledDay, rd.hasElevationProfile, let profile = rd.elevationProfile else { return [] }
+        let rows: [(String, String?)] = [
+            (localeService.t("Desnivel positivo", "Elevation gain"), profile.elevationGain.map { "+\(ProfileFormat.meters(Double(abs($0))))" }),
+            (localeService.t("Punto más alto", "Highest point"), profile.maxElevation.map { ProfileFormat.meters(Double($0)) }),
+            (localeService.t("Punto más bajo", "Lowest point"), profile.minElevation.map { ProfileFormat.meters(Double($0)) }),
+        ]
+        return rows.compactMap { label, value in value.map { (label, "\($0) m") } }
+    }
+
+    private func profileSummarySection(_ rows: [(label: String, value: String)]) -> some View {
+        StagePanel {
+            StagePanelTitle(localeService.t("Datos del perfil", "Profile data"))
+        } content: {
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 { Divider() }
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(row.label)
+                            .ccFont(.s14)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        Text(row.value)
+                            .ccFont(.s14, weight: .semibold)
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
     }
 
     /// Pie de cada puerto, por el km de su cima.

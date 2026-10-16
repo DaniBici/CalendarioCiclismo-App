@@ -187,7 +187,21 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     // Torneo formado solo por carreras ocultas en el idioma activo.
     var tournamentHidden by remember(tournamentId) { mutableStateOf(false) }
     LaunchedEffect(tournamentId) {
-        if (tournamentId != null) tournamentHidden = !app.cxRepository.tournamentIsVisible(tournamentId)
+        if (tournamentId != null) {
+            tournamentHidden = !app.cxRepository.tournamentIsVisible(tournamentId)
+            // Página de torneo: el torneo viaja en los parámetros de carrera
+            // (race_id y race_name), ya registrados como dimensiones de GA4,
+            // igual que iOS. El nombre es el de la ruta, localizado.
+            if (!tournamentHidden) {
+                app.analytics.logScreenView(
+                    "cx_tournament",
+                    android.os.Bundle().apply {
+                        putString("race_id", tournamentId)
+                        putString("race_name", tournamentName.orEmpty())
+                    },
+                )
+            }
+        }
     }
     if (tournamentHidden) {
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars), contentAlignment = Alignment.Center) {
@@ -294,9 +308,22 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             // Titular de sección, como en Mercado de Fichajes o Resultados.
             // Sin botón de refresco: la agenda se actualiza al tirar.
             TopAppBar(title = {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CCHeaderMark()
-                    Text(stringResource(R.string.tab_cyclocross), style = MaterialTheme.typography.titleMedium)
+                if (showSettingsShortcut) {
+                    // Como pestaña inicial (Hoy de carretera oculta), la firma
+                    // de Hoy sustituye al título; su toque lleva al día de hoy.
+                    val todayLabel = LocaleHolder.t("Ir al día de hoy", "Go to today")
+                    CCHeaderBrand(
+                        modifier = Modifier
+                            .semantics { contentDescription = todayLabel }
+                            .clickable(role = Role.Button) {
+                                changeDay(state.todayKey() >= state.dateKey) { state.navigateToToday() }
+                            },
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CCHeaderMark()
+                        Text(stringResource(R.string.tab_cyclocross), style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }, actions = {
                 // Mientras Hoy de carretera está oculta, su acceso a Ajustes
@@ -665,27 +692,6 @@ internal fun CxCategoryBox(
         Surface(shape = shape, color = color, contentColor = MaterialTheme.colorScheme.onSurface, modifier = boxModifier, content = content)
     } else {
         Surface(onClick = onClick, shape = shape, color = color, contentColor = MaterialTheme.colorScheme.onSurface, modifier = boxModifier, content = content)
-    }
-}
-
-/** Etiqueta de enlace neutra (Dorsales, torneo): texto principal sobre el gris de las etiquetas. */
-@Composable
-internal fun CxLinkBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(CCRadius.Control),
-        color = neutralFill,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = modifier.height(24.dp),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp))
-            Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
     }
 }
 

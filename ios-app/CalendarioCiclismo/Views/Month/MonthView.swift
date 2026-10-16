@@ -7,6 +7,9 @@ struct MonthView: View {
     /// `CalendarTabView`, apps 3.1). nil = sin botón de alternar.
     var switchAction: (() -> Void)? = nil
     var embedded = false
+    /// Enlace con Temporada en la maqueta ancha: año y filtro llegan de
+    /// Temporada, sin selectores propios; el mes se comparte.
+    var link: CalendarLink? = nil
     @State private var viewModel = MonthViewModel()
     @State private var currentMonthIndex: Int = DateFormatting.calendarStart().month - 1
     @State private var placeholderItem: PlaceholderModalItem?
@@ -14,6 +17,9 @@ struct MonthView: View {
     @State private var scrolledToTodayForMonth: String? = nil
     /// Incrementa para forzar scroll-to-today desde el botón "Hoy".
     @State private var scrollToTodayTrigger = 0
+    /// Mes al que salta el botón Hoy cuando además cambia el año.
+    @State private var pendingMonthIndex: Int?
+    @State private var followsLinkedMonth = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Ancho de la página del mes: decide las dos columnas de carreras.
@@ -29,7 +35,7 @@ struct MonthView: View {
                     Text(localeService.t("Agenda", "Agenda"))
                         .ccFont(.s16, weight: .semibold)
                     Spacer()
-                    if viewModel.availableYears.count > 1 {
+                    if link == nil, viewModel.availableYears.count > 1 {
                         Menu {
                             Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
                                 ForEach(viewModel.availableYears, id: \.self) { year in
@@ -47,47 +53,11 @@ struct MonthView: View {
                 .padding(.horizontal)
                 .frame(minHeight: 44)
             }
-            // Filtros de categoría
-            categoryFilterBar
-
-            // Pills de mes — sincronizan con el TabView
-            ScrollViewReader { pillProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(0..<12, id: \.self) { idx in
-                            let isSelected = currentMonthIndex == idx
-                            Button {
-                                currentMonthIndex = idx
-                            } label: {
-                                CalendarMonthChipLabel(
-                                    label: DateFormatting.shortMonthName(idx + 1),
-                                    isSelected: isSelected
-                                )
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                            .id(idx)
-                            .accessibilityLabel("Ir a \(DateFormatting.shortMonthName(idx + 1))")
-                            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 2)
-                    .padding(.bottom, 4)
-                }
-                .onChange(of: currentMonthIndex) { _, newValue in
-                    viewModel.month = newValue + 1
-                    Task { await viewModel.loadMonth() }
-                    Haptics.play(.navigation)
-                    withAnimation {
-                        pillProxy.scrollTo(newValue, anchor: .center)
-                    }
-                }
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        pillProxy.scrollTo(currentMonthIndex, anchor: .center)
-                    }
-                }
+            // Filtros de categoría y pills de mes: en la maqueta ancha los
+            // lleva Temporada.
+            if link == nil {
+                categoryFilterBar
+                monthPills
             }
 
             if viewModel.isFromCache {
@@ -197,11 +167,47 @@ struct MonthView: View {
             }
         }
         .onChange(of: viewModel.year) { _, _ in
-            currentMonthIndex = 0
-            viewModel.month = 1
+            currentMonthIndex = pendingMonthIndex ?? 0
+            pendingMonthIndex = nil
+            viewModel.month = currentMonthIndex + 1
             Task { await viewModel.loadMonth() }
         }
-        .task { await viewModel.loadMonth() }
+        .onChange(of: currentMonthIndex) { _, newValue in
+            viewModel.month = newValue + 1
+            Task { await viewModel.loadMonth() }
+            // El mes que llega de Temporada ya vibró allí.
+            if followsLinkedMonth {
+                followsLinkedMonth = false
+            } else {
+                Haptics.play(.navigation)
+            }
+            link?.month = newValue + 1
+        }
+        .onChange(of: link?.year) { _, newValue in
+            if let newValue, newValue != viewModel.year { viewModel.year = newValue }
+        }
+        .onChange(of: link?.filter) { _, newValue in
+            if let newValue { viewModel.activeFilter = newValue }
+        }
+        .onChange(of: link?.month) { _, newValue in
+            guard let newValue, newValue != currentMonthIndex + 1 else { return }
+            followsLinkedMonth = true
+            currentMonthIndex = newValue - 1
+        }
+        .task {
+            if let link {
+                viewModel.activeFilter = link.filter
+                currentMonthIndex = link.month - 1
+                viewModel.month = link.month
+                // Con otro año impuesto, la carga la hace onChange(of: year).
+                if link.year != viewModel.year {
+                    pendingMonthIndex = link.month - 1
+                    viewModel.year = link.year
+                    return
+                }
+            }
+            await viewModel.loadMonth()
+        }
         .onChange(of: network.isOnline) { _, isOnline in
             // Al recuperar la conexión se retira el banner y el aviso de mes
             // no guardado: el mes se vuelve a pedir sin acción del usuario.
@@ -257,16 +263,60 @@ struct MonthView: View {
         }
     }
 
+    /// Pills de mes — sincronizan con el TabView.
+    private var monthPills: some View {
+        ScrollViewReader { pillProxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(0..<12, id: \.self) { idx in
+                        let isSelected = currentMonthIndex == idx
+                        Button {
+                            currentMonthIndex = idx
+                        } label: {
+                            CalendarMonthChipLabel(
+                                label: DateFormatting.shortMonthName(idx + 1),
+                                isSelected: isSelected
+                            )
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .id(idx)
+                        .accessibilityLabel("Ir a \(DateFormatting.shortMonthName(idx + 1))")
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
+            }
+            .onChange(of: currentMonthIndex) { _, newValue in
+                withAnimation {
+                    pillProxy.scrollTo(newValue, anchor: .center)
+                }
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    pillProxy.scrollTo(currentMonthIndex, anchor: .center)
+                }
+            }
+        }
+    }
+
     private func goToCurrentMonth() {
         Haptics.play(.navigation)
         let cal = Calendar.current
         let todayYear = cal.component(.year, from: Date())
         let todayMonth = cal.component(.month, from: Date())
-        if todayYear != viewModel.year { viewModel.year = todayYear }
+        if todayYear != viewModel.year {
+            pendingMonthIndex = todayMonth - 1
+            viewModel.year = todayYear
+        }
         scrolledToTodayForMonth = nil
         scrollToTodayTrigger += 1
         currentMonthIndex = todayMonth - 1
         viewModel.month = todayMonth
+        link?.year = todayYear
+        link?.month = todayMonth
     }
 
     @ViewBuilder

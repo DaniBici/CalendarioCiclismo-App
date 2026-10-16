@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxAssertMapImageUrl,cxSaveErrorMessage,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
+import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxAssertMapImageUrl,cxSaveErrorMessage,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation,cxDurationFormatOptions,cxEliteGroupError} from '../cx/editor-logic.js';
 
 describe('editor CX: unidades, datos desconocidos e importación',()=>{
   it('acepta solo vídeos identificables de YouTube y guarda su URL canónica',()=>{
@@ -83,5 +83,26 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
     const calculation=cxManualStandingsCalculation('ME','points',[{rank:2,globalRiderId:'a',riderDisplay:'A',value:'30'},{rank:1,globalRiderId:'b',riderDisplay:'B',value:'40'}],{roundIds:['r1']});
     expect(calculation).toMatchObject({category:'ME',unit:'points',status:'ready',roundIds:['r1'],breakdown:[]});
     expect(calculation.rows.map(row=>[row.rank,row.globalRiderId,row.points])).toEqual([[1,'b','40'],[2,'a','30']]);
+  });
+});
+
+describe('editor CX: Sub-23 dentro de la manga Elite',()=>{
+  const row=(category,extra={})=>({category,dateKey:'2026-10-10',startTimeUtc:'2026-10-10T10:45:00.000Z',isCancelled:false,durationFormat:'individual',...extra});
+  it('ofrece el formato solo en MU y WU',()=>{
+    const values=category=>cxDurationFormatOptions(category).map(option=>option[0]);
+    expect(values('MU')).toEqual(['','individual','WITH_ELITE']);
+    expect(values('WU')).toEqual(['','individual','WITH_ELITE']);
+    expect(values('WE')).toEqual(['','individual','WE_WJ']);
+    expect(values('ME')).toEqual(['','individual']);
+  });
+  it('exige la manga Elite propia, activa y con la misma salida',()=>{
+    expect(cxEliteGroupError([row('ME'),row('MU',{durationFormat:'WITH_ELITE'}),row('WE'),row('WU')])).toBeNull();
+    expect(cxEliteGroupError([row('MU',{durationFormat:'WITH_ELITE'})])).toMatch(/exige la categoría ME/);
+    expect(cxEliteGroupError([row('ME',{isCancelled:true}),row('MU',{durationFormat:'WITH_ELITE'})])).toMatch(/activa/);
+    expect(cxEliteGroupError([row('ME',{durationFormat:null}),row('MU',{durationFormat:'WITH_ELITE'})])).toMatch(/manga propia/);
+    expect(cxEliteGroupError([row('WE',{durationFormat:'WE_WJ'}),row('WU',{durationFormat:'WITH_ELITE'})])).toMatch(/manga propia/);
+    expect(cxEliteGroupError([row('ME'),row('MU',{durationFormat:'WITH_ELITE',startTimeUtc:'2026-10-10T11:00:00.000Z'})])).toMatch(/misma fecha y hora/);
+    expect(cxEliteGroupError([row('ME'),row('MU',{durationFormat:'WITH_ELITE',startTimeUtc:null})])).toMatch(/misma fecha y hora/);
+    expect(cxEliteGroupError([row('ME'),row('MJ',{durationFormat:'WITH_ELITE'})])).toMatch(/solo vale para MU y WU/);
   });
 });

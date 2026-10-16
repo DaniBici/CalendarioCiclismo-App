@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => {
   });
   return { client: {} };
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => mocks.client }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => mocks.client }));
 
 const roster = [
   { id: 'kim-le-court', firstName: 'Kim', lastName: 'Le Court', nationality: 'mu' },

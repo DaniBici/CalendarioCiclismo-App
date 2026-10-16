@@ -117,7 +117,8 @@ def canonical_group_key(rd):
 
 
 RACE_SELECT = ("races?select=id,slug,slugEn,name,nameEn,originalName,year,startDate,endDate,"
-               "uciCategory,logoUrl,countryCode,raceFormat&slug=not.is.null&order=startDate.desc")
+               "uciCategory,logoUrl,countryCode,raceFormat,isCancelled,resultsOnly"
+               "&slug=not.is.null&order=startDate.desc")
 DAY_SELECT = ("race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
               "dateKey,updatedAt,isRestDay,isCancelledDay,neutralStartTimeUtc,elevationProfile,profileNotViewable,routeGpxUrl"
               "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.desc")
@@ -205,6 +206,25 @@ def alias_masters(racedays):
     return canonical_slug_by_slug, master_slugs, alias_groups
 
 
+def startlist_page_listed(race, race_days, race_ids_with_startlist):
+    """Inscritos en el sitemap: lista cargada o página anticipada.
+
+    La anticipada (como la de resultados) pone la URL en el sitemap desde que la
+    carrera tiene jornadas publicadas, antes de que exista la lista. Se limita a
+    carreras no terminadas, no canceladas y sin `resultsOnly`, que nunca tendrán
+    inscritos, para no acumular páginas vacías permanentes."""
+    if race.get("id") in race_ids_with_startlist:
+        return True
+    if race.get("isCancelled") or race.get("resultsOnly"):
+        return False
+    days = [rd for rd in race_days if not rd.get("isRestDay")]
+    if not days:
+        return False
+    last = (race.get("endDate") or race.get("startDate")
+            or max((rd.get("dateKey") or "" for rd in days), default=""))
+    return bool(last) and str(last)[:10] >= today
+
+
 def road_sections(data):
     """Entradas de carretera por sección, en el orden del sitemap completo.
 
@@ -243,9 +263,9 @@ def road_sections(data):
     entries = sections["inscritos"]
     for r in races:
         slug = r.get("slug")
-        if not slug or r.get("id") not in race_ids_with_startlist: continue
-        slug_en = r.get("slugEn")
         rd_list = racedays_by_race.get(r.get("id"), [])
+        if not slug or not startlist_page_listed(r, rd_list, race_ids_with_startlist): continue
+        slug_en = r.get("slugEn")
         rd_lm_candidates = [(rd.get("updatedAt") or "")[:10] or rd.get("dateKey") for rd in rd_list]
         lm = safe_lastmod(*rd_lm_candidates, r.get("startDate"), r.get("endDate"))
         en_url = f"{BASE_URL_EN}/startlist/{quote(slug_en)}/" if slug_en else None

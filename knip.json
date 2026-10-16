@@ -37,7 +37,8 @@
         "supabase/functions/**/*.ts"
       ],
       "ignore": [
-        "js/config.template.js"
+        "js/config.template.js",
+        "js/vendor/**"
       ],
       "ignoreDependencies": [
         "vite",

@@ -311,6 +311,14 @@ class CyclocrossTest {
         assertEquals(Instant.parse("2026-10-25T01:15:00Z"), CyclocrossLogic.timing(race, c).estimatedEnd)
         assertEquals(CxTemporalState.UNKNOWN, CyclocrossLogic.timing(race, c.copy(durationFormat = null)).temporalState)
     }
+    @Test fun `sub23 dentro de la manga elite usa la duracion elite solo en MU y WU`() {
+        fun category(code: String, format: String, minutes: Int) =
+            CxCategory(code, "2026-10-10T10:45:00Z", "2026-10-10", durationFormat = format, durationRuleVersion = "2026-07-01", durationMinutes = minutes)
+        assertEquals(Instant.parse("2026-10-10T11:45:00Z"), CyclocrossLogic.timing(race, category("MU", "WITH_ELITE", 60)).estimatedEnd)
+        assertEquals(Instant.parse("2026-10-10T11:35:00Z"), CyclocrossLogic.timing(race, category("WU", "WITH_ELITE", 50)).estimatedEnd)
+        assertEquals(CxTemporalState.UNKNOWN, CyclocrossLogic.timing(race, category("ME", "WITH_ELITE", 60)).temporalState)
+        assertEquals(CxTemporalState.UNKNOWN, CyclocrossLogic.timing(race, category("MU", "OTRO", 60)).temporalState)
+    }
     @Test fun `cada categoria conserva horario hasta meta y solo publica copa con resultados`() {
         val c = race.categories.first()
         assertEquals(CxCategoryCardState.TIME, CxPresentation.categoryCardState(race, c, Instant.parse("2027-01-31T14:59:59Z")))

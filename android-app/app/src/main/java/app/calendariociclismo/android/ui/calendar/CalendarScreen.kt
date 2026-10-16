@@ -28,6 +28,10 @@ import kotlinx.coroutines.launch
  * `AppPreferences.calendarSubview` para que la pestaña reabra donde el usuario
  * la dejó. El toggle alterna el estado local al instante (sin esperar a
  * DataStore) y persiste en segundo plano.
+ *
+ * En la maqueta ancha, Temporada ocupa la columna ancha con los selectores de
+ * año, país y filtro, y la agenda la estrecha; ambas comparten año, filtro y
+ * mes mediante [CalendarLink].
  */
 @Composable
 fun CalendarScreen(navController: NavController) {
@@ -48,6 +52,8 @@ fun CalendarScreen(navController: NavController) {
         scope.launch { app.preferences.setCalendarSubview(next) }
     }
 
+    val link = remember { CalendarLink() }
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
         when {
@@ -56,8 +62,17 @@ fun CalendarScreen(navController: NavController) {
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing),
             ) {
-                MonthScreen(navController, modifier = Modifier.weight(0.62f))
-                SeasonScreen(navController, embedded = true, modifier = Modifier.weight(0.38f))
+                SeasonScreen(
+                    navController,
+                    embedded = true,
+                    modifier = Modifier.weight(0.62f),
+                    link = link,
+                )
+                MonthScreen(
+                    navController,
+                    modifier = Modifier.weight(0.38f),
+                    link = link,
+                )
             }
             subview == "season" -> SeasonScreen(navController, onSwitchView = onSwitchView)
             else -> MonthScreen(navController, onSwitchView = onSwitchView)

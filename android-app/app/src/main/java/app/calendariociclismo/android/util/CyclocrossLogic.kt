@@ -155,7 +155,9 @@ object CyclocrossLogic {
 
     fun timing(race: CxRace, category: CxCategory, at: Instant = Instant.now()): CxTiming {
         val verified = category.durationRuleVersion == durationVersion &&
-            (category.durationFormat == "individual" || (category.durationFormat == "WE_WJ" && category.category in listOf("WE", "WJ")))
+            (category.durationFormat == "individual" ||
+                (category.durationFormat == "WE_WJ" && category.category in listOf("WE", "WJ")) ||
+                (category.durationFormat == "WITH_ELITE" && category.category in listOf("MU", "WU")))
         val start = parseInstant(category.startTimeUtc)
         val minutes = category.durationMinutes?.takeIf { verified && it > 0 }
         val end = if (start != null && minutes != null) start.plusSeconds(minutes.toLong() * 60) else null

@@ -324,3 +324,62 @@ describe('X2O: segundos, bonos, forfaits y elegibilidad', () => {
     round.results[0].bonusPoints = 0; points.tournament.pointsScheme.categories.ME.extras.sprints.perRank = [20, 10, 5]; review(points);
   });
 });
+
+describe('reglas regionales: ronda doble, mínimo de rondas puntuadas y líder obligado', () => {
+  const regional = extras => {
+    const input = snapshot();
+    input.tournament.pointsScheme.categories.ME = { ...input.tournament.pointsScheme.categories.ME, drops: { mode: 'none' },
+      perRank: [60, 54, 49], rounds: { scope: 'category', expected: 3 },
+      tieBreakers: [{ type: 'wins', direction: 'desc' }, { type: 'lastHeldRoundRank', direction: 'asc' }],
+      extras: { sprints: { enabled: false }, pointAdjustments: { enabled: false }, ...extras } };
+    return input;
+  };
+  it('duplica solo los puntos de puesto de la ronda indicada', () => {
+    const input = regional({ roundMultipliers: [{ raceId: 'round-2', factor: 2 }] });
+    addRound(input, '2026-10-03', [['a', 1], ['b', 2]]);
+    addRound(input, '2026-10-10', [['b', 1], ['a', 2]]);
+    const value = result(input);
+    expect(value.rows.map(row => [row.globalRiderId, row.points])).toEqual([['b', '174'], ['a', '168']]);
+    expect(value.breakdown.find(entry => entry.globalRiderId === 'b').rounds.map(round => round.points)).toEqual(['54', '120']);
+  });
+  it('ignora un multiplicador de una ronda aún no celebrada y rechaza definiciones inválidas', () => {
+    const input = regional({ roundMultipliers: [{ raceId: 'round-9', factor: 2 }] });
+    addRound(input, '2026-10-03', [['a', 1]]);
+    expect(result(input).rows[0].points).toBe('60');
+    for (const bad of [[{ raceId: 'round-1', factor: 1 }], [{ raceId: 'round-1', factor: 2 }, { raceId: 'round-1', factor: 3 }],
+      [{ raceId: '', factor: 2 }], 'round-1']) {
+      const wrong = regional({ roundMultipliers: bad }); addRound(wrong, '2026-10-03', [['a', 1]]); review(wrong);
+    }
+  });
+  it('exige rondas con puntos solo cuando se han celebrado las indicadas', () => {
+    const input = regional({ minScoredRounds: { count: 2, afterRounds: 3 } });
+    addRound(input, '2026-10-03', [['a', 1], ['b', 2]]);
+    addRound(input, '2026-10-10', [['a', 1], ['c', 3]]);
+    expect(result(input).rows.map(row => row.globalRiderId)).toEqual(['a', 'b', 'c']);
+    addRound(input, '2026-10-17', [['a', 3], ['b', 1]]);
+    const value = result(input);
+    expect(value.rows.map(row => row.globalRiderId)).toEqual(['a', 'b']);
+    expect(value.breakdown.find(entry => entry.globalRiderId === 'c').eligible).toBe(false);
+    const wrong = regional({ minScoredRounds: { count: 0, afterRounds: 3 } }); addRound(wrong, '2026-10-03', [['a', 1]]); review(wrong);
+  });
+  it('no publica si el líder no tomó la salida de la ronda obligatoria celebrada', () => {
+    const before = regional({ leaderMustStart: { raceId: 'round-2' } });
+    addRound(before, '2026-10-03', [['a', 1]]);
+    expect(result(before).status).toBe('ready');
+    const absent = regional({ leaderMustStart: { raceId: 'round-2' } });
+    addRound(absent, '2026-10-03', [['a', 1]]);
+    addRound(absent, '2026-10-10', [['b', 3]]);
+    const missing = result(absent);
+    expect(missing.status).toBe('needs_review');
+    expect(missing.issues).toMatchObject([{ code: 'leader_not_started', globalRiderId: 'a', raceId: 'round-2' }]);
+    const dns = regional({ leaderMustStart: { raceId: 'round-2' } });
+    addRound(dns, '2026-10-03', [['a', 1]]);
+    addRound(dns, '2026-10-10', [['a', null, { irm: 'DNS' }], ['b', 3]]);
+    expect(result(dns).status).toBe('needs_review');
+    const started = regional({ leaderMustStart: { raceId: 'round-2' } });
+    addRound(started, '2026-10-03', [['a', 1]]);
+    addRound(started, '2026-10-10', [['a', 2], ['b', 3]]);
+    expect(result(started).status).toBe('ready');
+    const wrong = regional({ leaderMustStart: { raceId: '' } }); addRound(wrong, '2026-10-03', [['a', 1]]); review(wrong);
+  });
+});

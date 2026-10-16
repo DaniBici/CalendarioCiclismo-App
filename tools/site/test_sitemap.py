@@ -62,6 +62,34 @@ class SitemapTest(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_startlist_is_listed_before_the_list_exists_only_for_upcoming_races(self):
+        def race(rid, **extra):
+            return {'id': rid, 'slug': rid, 'slugEn': rid + '-en', 'name': rid, 'nameEn': rid, 'year': 2026,
+                    'raceFormat': 'one_day', 'startDate': '2026-10-20', 'endDate': '2026-10-20', **extra}
+
+        races = [race('proxima'), race('cancelada', isCancelled=True), race('solo-resultados', resultsOnly=True),
+                 race('terminada', startDate='2026-09-01', endDate='2026-09-01'),
+                 race('descanso'), race('con-lista', startDate='2026-09-01', endDate='2026-09-01', isCancelled=True)]
+        days = [{'id': 'd-' + r['id'], 'raceId': r['id'], 'slug': 'j-' + r['id'], 'slugEn': 'j-' + r['id'] + '-en',
+                 'dateKey': r['startDate'], 'isRestDay': r['id'] == 'descanso'} for r in races]
+
+        def rows(path):
+            if path.startswith('races?'): return races
+            if path.startswith('race_days?') and 'startOrderImportedAt' in path: return []
+            if path.startswith('race_days?'): return days
+            if path.startswith('startlist_teams?'): return [{'raceId': 'con-lista'}]
+            return []
+
+        with patch.object(gen_sitemap, 'supabase_get', rows), \
+                patch.object(gen_sitemap, 'today', '2026-10-14'):
+            sections, _ = gen_sitemap.road_sections(gen_sitemap.fetch_road())
+        locs = ' '.join(sections['inscritos'])
+        self.assertIn('/inscritos/proxima/', locs)
+        self.assertIn('/en/startlist/proxima-en/', locs)
+        self.assertIn('/inscritos/con-lista/', locs)
+        for excluded in ('cancelada', 'solo-resultados', 'terminada', 'descanso'):
+            self.assertNotIn(f'/inscritos/{excluded}/', locs)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,9 +4,7 @@ import { flagIconUrl } from './flag-url.js';
 //  SHARED — funciones y constantes compartidas entre módulos
 // ─────────────────────────────────────────────────────────────────
 
-// Versión fija: coincide con el <link rel="modulepreload"> de los HTML y de
-// tools/site/gen_og_pages.py (SUPABASE_JS_ESM). Cambiarla en los tres sitios.
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
+import { getSupabaseClient } from './supabase-client.js';
 import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
@@ -16,8 +14,9 @@ export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
 
 // ── Supabase singleton ───────────────────────────────────────────
-// SUPABASE_URL y SUPABASE_ANON_KEY son globals definidos en js/config.js
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Cliente ligero de solo lectura en las páginas públicas; el panel y el login
+// reciben el completo según su HTML (js/supabase-client.js).
+const supabase = getSupabaseClient();
 export { supabase };
 
 // ── Caché de documentos de races ─────────────────────────────────

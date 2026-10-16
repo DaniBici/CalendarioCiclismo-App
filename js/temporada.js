@@ -941,7 +941,7 @@ function renderRaceRow(race) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
       : '<span class="t-race__logo-empty"></span>'
     }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${race.isCancelled ? `<span class="t-race__cancel" role="img" aria-label="${getLang() === 'en' ? 'Cancelled' : 'Cancelada'}"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.2 2.2l5.6 5.6M7.8 2.2L2.2 7.8"/></svg></span>` : ''}<span class="t-race__name-text">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span></span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;

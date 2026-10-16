@@ -362,10 +362,16 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     val localizedBonuses = rd.localizedBonuses?.takeIf { it.isNotEmpty() }
                     val localizedNotes = rd.localizedNotes?.takeIf { it.isNotEmpty() }
                     val hasEditorial = description != null || localizedBonuses != null || localizedNotes != null
-                    // Pantalla ancha con perfil y Puntos clave: Puntos clave va al
-                    // lado del perfil, sin superar su alto; Televisión (una
-                    // emisión) y Descripción toman el ancho del panel de perfil.
-                    val sideLayout = wideDetail && hasProfile && keyPoints != null
+                    // Sin puntos clave, la columna lateral muestra las cifras del
+                    // perfil interactivo para conservar las dos columnas.
+                    val profileSummary = if (wideDetail && hasInteractiveProfile && keyPoints == null) {
+                        profileSummaryRows(rd)
+                    } else emptyList()
+                    // Pantalla ancha con perfil y Puntos clave (o Datos del
+                    // perfil): la columna va al lado del perfil, sin superar su
+                    // alto; Televisión (una emisión) y Descripción toman el
+                    // ancho del panel de perfil.
+                    val sideLayout = wideDetail && hasProfile && (keyPoints != null || profileSummary.isNotEmpty())
                     val sideGap = adaptiveInfo.paneSpacing
                     val profileWidthInset = if (sideLayout) StageSideColumnWidth + sideGap else 0.dp
                     val selection = profileSelection
@@ -417,17 +423,21 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                             ),
                                         verticalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        KeyPointsPanel(
-                                            raceDay = rd,
-                                            data = keyPoints,
-                                            selection = selection,
-                                            interactive = hasInteractiveProfile,
-                                            onRowTap = onKeyRowTap,
-                                            // Con el alto del perfil ya medido, la lista se
-                                            // desplaza dentro del alto disponible.
-                                            scrollable = profileHeightPx > 0,
-                                            modifier = if (profileHeightPx > 0) Modifier.weight(1f, fill = false) else Modifier,
-                                        )
+                                        if (keyPoints != null) {
+                                            KeyPointsPanel(
+                                                raceDay = rd,
+                                                data = keyPoints,
+                                                selection = selection,
+                                                interactive = hasInteractiveProfile,
+                                                onRowTap = onKeyRowTap,
+                                                // Con el alto del perfil ya medido, la lista se
+                                                // desplaza dentro del alto disponible.
+                                                scrollable = profileHeightPx > 0,
+                                                modifier = if (profileHeightPx > 0) Modifier.weight(1f, fill = false) else Modifier,
+                                            )
+                                        } else {
+                                            ProfileSummaryPanel(profileSummary)
+                                        }
                                     }
                                 }
                             } else {
@@ -1852,6 +1862,40 @@ private fun ICalChip(onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Cifras del perfil para la columna lateral de las jornadas sin puntos clave,
+ * como `mountStageProfile` (`js/stage/profile.js`): desnivel positivo, punto
+ * más alto y punto más bajo, omitiendo los ausentes.
+ */
+private fun profileSummaryRows(rd: RaceDay): List<Pair<String, String>> {
+    if (rd.isCancelledDay) return emptyList()
+    val profile = rd.elevationProfile ?: return emptyList()
+    fun meters(value: Int, sign: String): String {
+        val sep = LocaleHolder.t(".", ",")
+        val digits = kotlin.math.abs(value).toString()
+            .reversed().chunked(3).joinToString(sep).reversed()
+        return "$sign$digits m"
+    }
+    return listOfNotNull(
+        profile.elevationGain?.let { LocaleHolder.t("Desnivel positivo", "Elevation gain") to meters(it, "+") },
+        profile.maxElevation?.let { LocaleHolder.t("Punto más alto", "Highest point") to meters(it, "") },
+        profile.minElevation?.let { LocaleHolder.t("Punto más bajo", "Lowest point") to meters(it, "") },
+    )
+}
+
+@Composable
+private fun ProfileSummaryPanel(rows: List<Pair<String, String>>) {
+    StagePanel {
+        PanelHeader(title = LocaleHolder.t("Datos del perfil", "Profile data"))
+        rows.forEachIndexed { index, (label, value) ->
+            if (index > 0) PanelDivider()
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                MetricRow(label, value)
             }
         }
     }

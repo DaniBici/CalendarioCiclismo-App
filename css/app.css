@@ -200,6 +200,10 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   padding: env(safe-area-inset-top, 0) 0 0;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
+  /* js/header.js rellena el elemento tras el primer pintado: sin alto
+     reservado, toda la página bajaba 57 px (CLS). Es el alto de la barra de
+     una fila; en tablet la cabecera real es mayor y el resto lo ocupa JS. */
+  min-height: 57px;
 }
 .site-header__inner {
   /* Hueco de la flecha de volver (32 px − 12 px de solape + 24 px de
@@ -250,7 +254,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 .back-btn--placeholder { visibility: hidden; pointer-events: none; }
 button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
 
-/* Acciones: Apoyar · idioma · tema. */
+/* Acciones: Apps · Apoyar · idioma · tema. */
 .header-actions {
   display: flex;
   align-items: center;
@@ -265,7 +269,8 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   flex-shrink: 0;
 }
 .header-action-icon svg { display: block; width: 100%; height: 100%; }
-.header-support-link {
+.header-actions__divider { display: none; }
+.nav-apps-btn, .header-support-link {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -280,7 +285,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   cursor: pointer;
   transition: color var(--transition), background var(--transition);
 }
-.header-support-link:hover { color: var(--header-text); background: var(--hover-bg); }
+.nav-apps-btn:hover, .header-support-link:hover { color: var(--header-text); background: var(--hover-bg); }
 
 /* Idioma: dos botones de texto; el activo, en color de acento y subrayado. */
 .lang-switcher {
@@ -319,9 +324,6 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   transition: color var(--transition), background var(--transition);
 }
 .theme-toggle:hover { color: var(--header-text); background: var(--hover-bg); }
-
-/* Menú de la cabecera móvil (js/header.js): solo existe en ≤600 px. */
-.header-menu-btn { display: none; }
 
 /* Flechas de desplazamiento compartidas (js/scroll-rail.js): zona propia,
    separadores y extremos desactivados. */
@@ -440,153 +442,61 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
 .giro-countdown__days strong { font-weight: 600; }
 .giro-countdown__chevron { flex: none; color: var(--accent-text); }
 
-/* Pie común (js/footer.js): columna del logo, tres columnas de destinos y barra
-   inferior con la autoría a la izquierda y el legal a la derecha. La altura mínima
-   reserva el espacio del pie montado para que el relevo del respaldo estático
-   no desplace nada. */
+/* Pie: autoría y, debajo, secciones secundarias y acciones en una fila. */
 .site-footer {
   width: var(--page-width);
-  min-height: 18rem;
   margin: 2rem auto 0;
-  padding: 2rem 0 1.5rem;
+  padding: 1.5rem 0;
   border-top: 1px solid var(--border);
-  font-family: var(--font-display);
-  color: var(--text-muted);
+  text-align: center;
 }
-.site-footer p, .site-footer ul { margin: 0; }
-.site-footer ul { padding: 0; list-style: none; }
-.site-footer a, .site-footer__link {
-  color: inherit;
+.site-footer p {
+  font-family: var(--font-display);
+  font-size: var(--fs-1);
+  color: var(--text-muted);
+  margin: 0;
+}
+.site-footer a {
+  color: var(--text-muted);
   text-decoration: none;
   transition: color var(--transition);
 }
-.site-footer a:hover, .site-footer__link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-.site-footer__link { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
-
-.site-footer__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
-  gap: 2rem 1.5rem;
-}
-/* Mismo ritmo vertical en toda la columna: el título deja el mismo aire que
-   hay entre filas. El selector doble gana a «.site-footer p». */
-.site-footer .site-footer__title { margin-bottom: 0.5rem; font: 600 var(--fs-2) var(--font-display); color: var(--text); }
-.site-footer__col a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 32px;
-  font: 500 var(--fs-3) var(--font-display);
-}
-.site-footer__col svg { flex: none; width: 16px; height: 16px; }
-
-.site-footer__bar {
+.site-footer a:hover { color: var(--text); }
+.site-footer p.site-footer__actions {
+  margin-top: 0.75rem;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 1.5rem;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  margin-top: 2rem;
-  font-size: var(--fs-2);
 }
-.site-footer a.site-footer__logo {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  font: 500 var(--fs-5) var(--font-display);
-  letter-spacing: -0.01em;
+.footer-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 500 var(--fs-2) var(--font-display);
   color: var(--accent-text);
-  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--transition);
 }
-.site-footer__logo-text { color: var(--text); }
-/* Selector doble: gana a «.site-footer p», que anula los márgenes. */
-.site-footer .site-footer__tagline { max-width: 38ch; margin-top: 0.25rem; font-size: var(--fs-2); line-height: 1.45; }
-.site-footer a.site-footer__logo:hover { color: var(--accent-text); text-decoration: none; }
-.site-footer__legal { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; }
-.site-footer__legal [data-footer-cookies] { display: contents; }
-
-@media (max-width: 900px) {
-  .site-footer { min-height: 26.5rem; }
-  .site-footer__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  /* Con el logo en fila propia, todo el pie se centra sobre el ancho total. */
-  .site-footer__brand { grid-column: 1 / -1; }
-  .site-footer { text-align: center; }
-  .site-footer .site-footer__tagline { max-width: none; margin-inline: auto; }
-  .site-footer__bar, .site-footer__legal { justify-content: center; }
-}
+.site-footer .footer-link { color: var(--text-muted); padding-block: 0.25rem; }
+.site-footer .footer-link:hover { color: var(--text); text-decoration: underline; }
+.footer-link--icon { display: inline-flex; align-items: center; gap: 0.35rem; }
+.footer-link--icon svg { width: 14px; height: 14px; }
 
 @media (max-width: 600px) {
-  /* Pie: bloque de borde a borde con el fondo de la barra inferior, de modo
-     que ambos se lean como un único menú. Secciones repite la barra y se
-     omite. Logo, frase, columnas y autoría centrados; legal a la derecha. */
-  .site-footer {
-    width: auto;
-    min-height: 27.5rem;
-    margin: 2.5rem 0 0;
-    padding: 1.75rem var(--page-gutter);
-    border-top: 0;
-    background: var(--bg-header);
-  }
-  .site-footer__col--sections { display: none; }
-  .site-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
-  .site-footer__col a { min-height: 36px; }
-  .site-footer__bar { flex-direction: column; align-items: stretch; gap: 0.25rem; margin-top: 1.5rem; }
-  .site-footer__credit { text-align: center; }
-  .site-footer__legal { justify-content: flex-end; }
-  .site-footer__legal a, .site-footer__link { display: inline-flex; align-items: center; min-height: 36px; }
   /* La cabecera se desplaza con la página: solo la barra inferior y los
      controles propios de cada agenda quedan fijos. */
   .site-header { position: relative; }
-  /* Cabecera: «Volver» (o su hueco) · logo completo centrado · menú. Apoyar,
-     idioma y tema van en el panel que abre el menú. */
-  .site-header__inner {
-    position: static;
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
-    column-gap: 0;
-  }
-  .site-logo { justify-self: center; }
-  .back-btn { width: 40px; height: 44px; margin-right: 0; }
-  .header-menu-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: end;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: color var(--transition), background var(--transition);
-  }
-  .header-menu-btn:hover { color: var(--header-text); background: var(--hover-bg); }
-  .header-menu-btn svg { display: block; width: 22px; height: 22px; }
-  .header-menu-btn .header-menu-btn__close, .header-menu-btn[aria-expanded="true"] .header-menu-btn__open { display: none; }
-  .header-menu-btn[aria-expanded="true"] .header-menu-btn__close { display: block; }
-  /* Panel a todo el ancho bajo la cabecera: Apoyar, idioma y tema en una
-     sola fila. */
-  .header-actions {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 140;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin: 0;
-    padding: 0.25rem var(--page-gutter);
-    background: var(--bg-header);
-    border-bottom: 1px solid var(--border);
-  }
-  .site-header--menu-open .header-actions { display: flex; }
-  .header-actions .header-support-link { min-height: 48px; padding: 0; gap: 0.5rem; }
-  .header-actions .lang-btn { min-height: 48px; min-width: 40px; padding: 0 0.5rem; }
-  .header-actions .theme-toggle { width: 48px; height: 48px; }
+  .site-logo__text { display: none; }
+  .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display: none; }
+  .nav-apps-btn, .header-support-link { width: 40px; padding: 0; justify-content: center; }
+  /* Zona táctil de 44 px; la cabecera mide 56 px y no crece. */
+  .nav-apps-btn, .header-support-link, .lang-btn, .theme-toggle, .back-btn { min-height: 44px; }
+  .lang-btn, .theme-toggle { min-width: 40px; }
+  .theme-toggle { width: 40px; height: 44px; }
+  .back-btn { width: 40px; height: 44px; }
   /* Barra inferior: celdas iguales, sin desplazamiento. */
   .primary-nav {
     position: fixed;
@@ -615,16 +525,11 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   .giro-countdown__days { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 }
 
-@media (max-width: 355px) {
-  /* Hasta 355 px el logo completo a 20 px no cabe entre los dos huecos. */
-  .site-logo { font-size: var(--fs-4); }
-}
-
 @media (min-width: 601px) and (max-width: 760px) {
   /* Tableta estrecha: acciones solo con icono, para que marca y acciones
      quepan en la primera fila con sus huecos simétricos. */
-  .header-support-link>span:last-child { display: none; }
-  .header-support-link { width: 32px; padding: 0; justify-content: center; }
+  .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display: none; }
+  .nav-apps-btn, .header-support-link { width: 32px; padding: 0; justify-content: center; }
 }
 
 @media (min-width: 601px) and (max-width: 1279px) {
@@ -1068,6 +973,9 @@ html.cc-booting::before {
 }
 
 /* Selector de día. */
+/* La barra de días la genera JS tras el primer pintado: se reserva su alto
+   mínimo (57,8 px en móvil, 65 px en escritorio) para no empujar la agenda. */
+#dateBar { min-height: 57px; }
 .date-bar {
   display: flex;
   align-items: center;
@@ -1542,6 +1450,9 @@ a.badge { min-height: 24px; }
 .race-card--finished .race-card__meta-top { gap: 0.1rem; }
 .badge--startlist, .badge--startorder { background: var(--badge-neutral-bg); color: var(--text); text-decoration: none; }
 .badge--startlist:hover, .badge--startorder:hover { background: var(--badge-neutral-hover); }
+/* Dorsales solo-icono (programa CX): sin fondo, como la copa de resultados. */
+.badge--startlist.badge--icon { background: none; color: var(--text-muted); }
+.badge--startlist.badge--icon:hover { background: var(--hover-bg); color: var(--text); }
 .badge--time {
   background: transparent;
   color: var(--text-muted);
@@ -2743,9 +2654,6 @@ button.stage-key-row { cursor: pointer; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* Orden de salida con la tabla de clasificación (.res-table, resultados.css);
-   la cabecera de columnas no se fija porque ya lo hace la barra de filtros. */
-.so-table-wrap .res-table thead .so-th { position: static; }
 .so-td--dorsal {
   text-align: center;
   font-weight: 600;
@@ -3752,17 +3660,22 @@ html.cc-android-banner-pending body::before { content: ''; display: block; heigh
 }
 .android-app-banner__btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 
-/* Aviso de cookies. */
+/* Aviso de cookies. Va superpuesto al borde superior y entra por transform:
+   al insertarse dentro del flujo y animar max-height empujaba toda la página
+   (≈120 px en móvil, en ocho pasos) y era la mayor parte del CLS de la
+   primera visita. */
 .cookie-banner {
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 3000;
-  max-height: 0;
-  overflow: hidden;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  transition: max-height 0.4s ease;
+  transform: translateY(-100%);
+  transition: transform 0.4s ease;
 }
-.cookie-banner--visible { max-height: 250px; }
+.cookie-banner--visible { transform: translateY(0); }
 .cookie-banner__inner {
   display: flex;
   align-items: center;

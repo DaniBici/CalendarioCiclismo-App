@@ -171,6 +171,11 @@ struct ResultsFeedView: View {
         .onAppear {
             isVisible = true
             AnalyticsService.shared.logScreenView("results_feed")
+            // Pestaña inicial en Ciclocross (modo ciclocross): mismo nombre
+            // que Android.
+            if activeSection == .cyclocross {
+                AnalyticsService.shared.logScreenView("results_feed_cx")
+            }
         }
         .onDisappear { isVisible = false }
     }
@@ -219,6 +224,9 @@ struct ResultsFeedView: View {
         guard section != activeSection else { return }
         Haptics.play(.selection)
         activeSection = section
+        if section == .cyclocross {
+            AnalyticsService.shared.logScreenView("results_feed_cx")
+        }
         if section == .ranking {
             AnalyticsService.shared.logScreenView("uci_team_ranking")
             if rankingRows.isEmpty {

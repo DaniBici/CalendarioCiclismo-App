@@ -8,7 +8,7 @@ const mocks=vi.hoisted(()=>{
     window:{location:{hostname:'',pathname:'/',search:'',hash:''}}});
   return {state:{},client:{from:table=>{const query={table,select:()=>query,eq:()=>query,maybeSingle:()=>query};return query;}}};
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm',()=>({createClient:()=>({})}));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => ({}) }));
 vi.mock('../race-assets.js',()=>({}));
 vi.mock('../components/cx-logo.js',()=>({cxLogoImage:()=>null}));
 vi.mock('../results/dom.js',()=>({limitScrollToStickyStart:(...args)=>mocks.state.limitScrollToStickyStart(...args)}));

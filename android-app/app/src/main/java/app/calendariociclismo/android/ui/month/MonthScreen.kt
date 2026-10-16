@@ -47,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import app.calendariociclismo.android.ui.calendar.CalendarLink
 import app.calendariociclismo.android.ui.calendar.CalendarStart
 import app.calendariociclismo.android.ui.components.CCHeaderMark
 import androidx.compose.runtime.Composable
@@ -104,6 +105,9 @@ fun MonthScreen(
     /** Toggle Mes↔Temporada de la pestaña Calendario (apps 3.1). No-null cuando
      *  la pantalla vive dentro de CalendarScreen → añade la action de cambio. */
     onSwitchView: (() -> Unit)? = null,
+    /** Enlace con Temporada en la maqueta ancha: año y filtro llegan de
+     *  Temporada, sin selectores propios; el mes se comparte. */
+    link: CalendarLink? = null,
 ) {
     val app = rememberApp()
     val haptic = rememberHaptics()
@@ -115,10 +119,17 @@ fun MonthScreen(
     var yearMenuOpen by remember { mutableStateOf(false) }
     var scrollToTodayTrigger by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
+    // Página a la que se mueve la agenda para seguir a Temporada: ese cambio
+    // ya vibró allí.
+    var linkedPage by remember { mutableStateOf<Int?>(null) }
 
     // Default filter (synced across tabs)
     val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
+    if (link != null) {
+        LaunchedEffect(link.year) { year = link.year }
+        LaunchedEffect(link.category) { category = link.category }
+    }
 
     // Analytics con parámetros
     LaunchedEffect(year, category) {
@@ -192,13 +203,32 @@ fun MonthScreen(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }
             .drop(1)
-            .collect { haptic(Haptics.Event.Navigation) }
+            .collect { page ->
+                if (page == linkedPage) linkedPage = null else haptic(Haptics.Event.Navigation)
+            }
     }
 
-    // Al cambiar de año, situar el pager en el mes pertinente.
+    // Al cambiar de año, situar el pager en el mes pertinente (el de
+    // Temporada en la maqueta ancha).
     LaunchedEffect(year) {
-        val target = if (year == LocalDate.now().year) LocalDate.now().monthValue - 1 else 0
+        val target = when {
+            link != null -> link.month - 1
+            year == LocalDate.now().year -> LocalDate.now().monthValue - 1
+            else -> 0
+        }
+        if (target != pagerState.currentPage) linkedPage = target.takeIf { link != null }
         pagerState.scrollToPage(target)
+    }
+
+    // Maqueta ancha: el mes se comparte con Temporada en ambos sentidos.
+    if (link != null) {
+        LaunchedEffect(pagerState.settledPage) { link.month = pagerState.settledPage + 1 }
+        LaunchedEffect(link.month) {
+            val target = link.month - 1
+            if (target == pagerState.currentPage) return@LaunchedEffect
+            linkedPage = target
+            pagerState.animateScrollToPage(target)
+        }
     }
 
     // La red recibe solo el intervalo del mes visible. Room conserva los meses
@@ -220,19 +250,32 @@ fun MonthScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CCHeaderMark()
+                        // En la maqueta ancha la marca y «Calendario» van solo
+                        // sobre Temporada; la agenda lleva su propio rótulo.
+                        if (link != null) {
                             Text(
-                                text = stringResource(R.string.month_title),
+                                text = LocaleHolder.t("Agenda", "Agenda"),
                                 style = MaterialTheme.typography.titleMedium,
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CCHeaderMark()
+                                Text(
+                                    text = stringResource(R.string.month_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                            }
                         }
                     },
                     actions = {
                         TextButton(onClick = {
                             haptic(Haptics.Event.Navigation)
                             val now = LocalDate.now()
-                            if (now.year != year) {
+                            if (link != null) {
+                                // Temporada sigue el año y el mes de hoy.
+                                link.month = now.monthValue
+                                link.year = now.year
+                            } else if (now.year != year) {
                                 year = now.year
                             } else {
                                 scope.launch {
@@ -264,79 +307,82 @@ fun MonthScreen(
                     .fillMaxSize()
                     .padding(padding),
             ) {
-                // Category filter chips
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(Constants.CategoryFilter.entries.toList(), key = { it.id }) { cat ->
-                        val hideAll = cat == Constants.CategoryFilter.ALL || category == Constants.CategoryFilter.ALL
-                        val isPinnedValid = defaultFilterPref != Constants.CategoryFilter.ALL
-                        val pinFilled = !hideAll && isPinnedValid && defaultFilterPref == cat
-                        val pinOutline = !hideAll && !pinFilled && category == cat
-                        // Pulsar el filtro activo abre el diálogo de filtro
-                        // predeterminado (paridad con iOS).
-                        CalendarFilterChip(
-                            label = stringResource(cat.labelRes),
-                            selected = category == cat,
-                            pinFilled = pinFilled,
-                            pinOutline = pinOutline,
-                            onClick = {
-                                if (cat == category) {
-                                    haptic(Haptics.Event.PrimaryAction)
-                                    pendingDefault = cat
-                                } else {
-                                    haptic(Haptics.Event.Selection)
-                                    category = cat
-                                }
-                            },
-                        )
-                    }
-                }
-
-                // Month pills row with year picker as first item
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    item(key = "year-picker") {
-                        Box {
-                            CalendarSelectorChip(
-                                icon = Icons.Filled.CalendarMonth,
-                                label = year.toString(),
-                                onClick = { yearMenuOpen = true },
+                // Filtros y meses: en la maqueta ancha los lleva Temporada.
+                if (link == null) {
+                    // Category filter chips
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(Constants.CategoryFilter.entries.toList(), key = { it.id }) { cat ->
+                            val hideAll = cat == Constants.CategoryFilter.ALL || category == Constants.CategoryFilter.ALL
+                            val isPinnedValid = defaultFilterPref != Constants.CategoryFilter.ALL
+                            val pinFilled = !hideAll && isPinnedValid && defaultFilterPref == cat
+                            val pinOutline = !hideAll && !pinFilled && category == cat
+                            // Pulsar el filtro activo abre el diálogo de filtro
+                            // predeterminado (paridad con iOS).
+                            CalendarFilterChip(
+                                label = stringResource(cat.labelRes),
+                                selected = category == cat,
+                                pinFilled = pinFilled,
+                                pinOutline = pinOutline,
+                                onClick = {
+                                    if (cat == category) {
+                                        haptic(Haptics.Event.PrimaryAction)
+                                        pendingDefault = cat
+                                    } else {
+                                        haptic(Haptics.Event.Selection)
+                                        category = cat
+                                    }
+                                },
                             )
-                            DropdownMenu(
-                                expanded = yearMenuOpen,
-                                onDismissRequest = { yearMenuOpen = false },
-                            ) {
-                                availableYears.forEach { y ->
-                                    DropdownMenuItem(
-                                        text = { Text(y.toString()) },
-                                        onClick = {
-                                            if (y != year) {
-                                                haptic(Haptics.Event.Selection)
-                                                year = y
-                                            }
-                                            yearMenuOpen = false
-                                        },
-                                    )
+                        }
+                    }
+
+                    // Month pills row with year picker as first item
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        item(key = "year-picker") {
+                            Box {
+                                CalendarSelectorChip(
+                                    icon = Icons.Filled.CalendarMonth,
+                                    label = year.toString(),
+                                    onClick = { yearMenuOpen = true },
+                                )
+                                DropdownMenu(
+                                    expanded = yearMenuOpen,
+                                    onDismissRequest = { yearMenuOpen = false },
+                                ) {
+                                    availableYears.forEach { y ->
+                                        DropdownMenuItem(
+                                            text = { Text(y.toString()) },
+                                            onClick = {
+                                                if (y != year) {
+                                                    haptic(Haptics.Event.Selection)
+                                                    year = y
+                                                }
+                                                yearMenuOpen = false
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                    items(12, key = { it }) { idx ->
-                        CalendarMonthChip(
-                            label = DateFormatting.shortMonthName(idx + 1),
-                            selected = pagerState.currentPage == idx,
-                            onClick = {
-                                haptic(Haptics.Event.Navigation)
-                                scope.launch { pagerState.animateScrollToPage(idx) }
-                            },
-                        )
+                        items(12, key = { it }) { idx ->
+                            CalendarMonthChip(
+                                label = DateFormatting.shortMonthName(idx + 1),
+                                selected = pagerState.currentPage == idx,
+                                onClick = {
+                                    haptic(Haptics.Event.Navigation)
+                                    scope.launch { pagerState.animateScrollToPage(idx) }
+                                },
+                            )
+                        }
                     }
                 }
 

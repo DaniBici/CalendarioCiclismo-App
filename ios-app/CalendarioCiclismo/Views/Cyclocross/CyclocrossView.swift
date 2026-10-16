@@ -110,7 +110,7 @@ struct CyclocrossView: View {
         .cxPlaceholderModal($placeholderRace)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(tournament.map { CyclocrossPresentation.t($0.name, $0.nameEn ?? $0.name) } ?? CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
+        .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarItems }
         .alert(
@@ -200,7 +200,19 @@ struct CyclocrossView: View {
         }
         .background(AppTheme.background)
         .allowsHitTesting(!isAnimatingNavigation)
-        .onAppear { AnalyticsService.shared.logScreenView("cyclocross") }
+        .onAppear {
+            // La página de torneo se distingue de la agenda general y lleva
+            // el torneo en los parámetros de carrera (race_id y race_name),
+            // ya registrados como dimensiones de GA4.
+            if let tournament {
+                AnalyticsService.shared.logScreenView("cx_tournament", parameters: [
+                    "race_id": tournament.id,
+                    "race_name": tournament.name,
+                ])
+            } else {
+                AnalyticsService.shared.logScreenView("cyclocross")
+            }
+        }
         .onChange(of: model.dateKey) { _, date in
             let count = model.dayRaces.count
             let label = DateFormatting.formatDateLabel(date)
@@ -451,8 +463,12 @@ struct CyclocrossView: View {
                                 .id(item.id)
                                 .frame(maxWidth: .infinity, alignment: .top)
                         }
+                        // La celda vacía conserva su anchura: una prueba
+                        // suelta ocupa media fila a la izquierda, como la web.
                         if row.items.count < columns {
-                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                            Color.clear
+                                .frame(maxWidth: .infinity, maxHeight: 0)
+                                .gridCellUnsizedAxes(.vertical)
                         }
                     }
                 }
@@ -570,16 +586,44 @@ struct CyclocrossView: View {
             isAnimatingNavigation = false
         }
     }
+
+    /// Como pestaña inicial (Hoy de carretera oculta), la agenda general lleva
+    /// la firma completa de Hoy en lugar del título «Ciclocross».
+    private var navigationTitleText: String {
+        if let tournament { return CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name) }
+        return showsSettings ? "" : CyclocrossPresentation.t("Ciclocross", "Cyclocross")
+    }
+
+    @ViewBuilder
+    private var headerBrand: some View {
+        if showsSettings {
+            // Firma de Hoy de carretera: el toque lleva al día de hoy.
+            CCHeaderBrandView()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    Haptics.play(.navigation)
+                    animateNavigation(forward: model.agendaToday >= model.dateKey) { model.goToToday() }
+                }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    animateNavigation(forward: model.agendaToday >= model.dateKey) { model.goToToday() }
+                }
+                .accessibilityLabel(CyclocrossPresentation.t("Ir al día de hoy", "Go to today"))
+        } else {
+            CCHeaderMarkView()
+        }
+    }
+
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
-        // La marca simplificada solo acompaña a la agenda general; la página de
-        // torneo usa la identidad de la cabecera, como las vueltas por etapas.
+        // La marca solo acompaña a la agenda general; la página de torneo usa
+        // la identidad de la cabecera, como las vueltas por etapas.
         if tournament == nil {
             if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarLeading) { CCHeaderMarkView() }
+                ToolbarItem(placement: .topBarLeading) { headerBrand }
                     .sharedBackgroundVisibility(.hidden)
             } else {
-                ToolbarItem(placement: .topBarLeading) { CCHeaderMarkView() }
+                ToolbarItem(placement: .topBarLeading) { headerBrand }
             }
         }
         if showsSettings {
@@ -973,22 +1017,6 @@ struct CxBadgeLinkStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Rectangle())
-    }
-}
-
-/// Etiqueta de enlace neutra (Dorsales, torneo): texto principal sobre la
-/// superficie gris; el fondo lo pone `CxCategoryBoxStyle`.
-struct CxLinkLabel: View {
-    let label: String
-    var icon: String? = nil
-
-    var body: some View {
-        HStack(spacing: 3) {
-            if let icon { ActionIcon(name: icon).font(.system(size: 10, weight: .semibold)) }
-            Text(label).ccFont(.s12, weight: .semibold).lineLimit(1)
-        }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 24)
     }
 }
 

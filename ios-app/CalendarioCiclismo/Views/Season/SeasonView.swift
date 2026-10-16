@@ -9,6 +9,8 @@ struct SeasonView: View {
     var embedded = false
     var onOpenStage: ((String) -> Void)?
     var onOpenRace: ((Race) -> Void)?
+    /// Enlace con la agenda en la maqueta ancha de `CalendarTabView`.
+    var link: CalendarLink? = nil
     @State private var viewModel = SeasonViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
@@ -27,20 +29,6 @@ struct SeasonView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if embedded {
-                HStack(spacing: 10) {
-                    Text(localeService.t("Calendario", "Calendar"))
-                        .ccFont(.s16, weight: .semibold)
-                    Spacer()
-                    // Menús nativos con estilo de botón con borde: fuera de la
-                    // barra no tienen la cápsula de la barra.
-                    yearMenu
-                    countryMenu
-                }
-                .buttonStyle(.bordered)
-                .padding(.horizontal)
-                .frame(minHeight: 44)
-            }
             // Filtros de categoría
             categoryFilterBar
 
@@ -143,33 +131,48 @@ struct SeasonView: View {
         .toolbar {
             // Año a la izquierda, como en Mes; país y cambio de vista a la
             // derecha. Menús nativos: el fondo es la cápsula de la barra.
-            if !embedded {
-                ToolbarItem(placement: .topBarLeading) {
-                    yearMenu
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    countryMenu
-                    if let switchAction {
-                        Button {
-                            Haptics.play(.navigation)
-                            switchAction()
-                        } label: {
-                            Image(systemName: "calendar")
-                        }
-                        .accessibilityLabel(localeService.t("Cambiar a vista de mes", "Switch to month view"))
+            // También en la maqueta ancha, que no repite el título.
+            ToolbarItem(placement: .topBarLeading) {
+                yearMenu
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                countryMenu
+                if let switchAction {
+                    Button {
+                        Haptics.play(.navigation)
+                        switchAction()
+                    } label: {
+                        Image(systemName: "calendar")
                     }
+                    .accessibilityLabel(localeService.t("Cambiar a vista de mes", "Switch to month view"))
                 }
             }
         }
-        .onChange(of: viewModel.year) { _, _ in
+        .onChange(of: viewModel.year) { _, newValue in
             currentMonth = 0
+            link?.year = newValue
             Task { await viewModel.loadSeason() }
+        }
+        .onChange(of: currentMonth) { _, newValue in
+            if newValue != 0 { link?.month = newValue }
+        }
+        .onChange(of: link?.year) { _, newValue in
+            // Año pedido desde la agenda (botón Hoy).
+            if let newValue, newValue != viewModel.year { viewModel.year = newValue }
+        }
+        .onChange(of: link?.month) { _, newValue in
+            // Mes movido desde la agenda; «Todos» se conserva.
+            guard let newValue, currentMonth != 0, newValue != currentMonth,
+                  viewModel.racesByMonth.contains(where: { $0.month == newValue }) else { return }
+            currentMonth = newValue
         }
         .onChange(of: notifications.pendingSeasonYear) { _, _ in
             applyPendingSeasonYear()
         }
         .placeholderModal(item: $placeholderItem)
         .task {
+            link?.year = viewModel.year
+            link?.filter = viewModel.activeFilter
             // Apertura desde el cintillo con otro año: carga onChange(of: year).
             if let year = notifications.pendingSeasonYear, year != viewModel.year {
                 applyPendingSeasonYear()
@@ -197,7 +200,8 @@ struct SeasonView: View {
                 currentMonth = bestMonth()
             }
         }
-        .onChange(of: viewModel.activeFilter) { _, _ in
+        .onChange(of: viewModel.activeFilter) { _, newValue in
+            link?.filter = newValue
             syncMonth()
         }
         .onChange(of: viewModel.activeCountry) { _, _ in

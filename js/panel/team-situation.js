@@ -585,17 +585,18 @@ async function _tseSaveTeam() {
       } else if (s.state === 'doubt') {
         // Duda: sigue afiliado a T, + rider_transfers renewal+doubt.
         await _upsertAffiliation2027(r.id, r.gender, teamId, s.year || null);
-        await supabase.from('rider_transfers').insert({
+        const { error } = await supabase.from('rider_transfers').insert({
           id: _tseNewId('tr'),
           season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
           toTeamId: teamId, type: 'renewal', status: 'doubt',
           contractUntil: s.year || null, announcedAt: _localDateKey(), dateVisible: true,
         });
+        if (error) throw error;
       } else if (s.state === 'change') {
         await _deleteAffiliation2027(r.id, teamId, r.gender);
         // Un rumor no sale en el feed → su fecha de anuncio es HOY (irrelevante);
         // un cambio confirmado lleva la fecha de confirmación que marcó el editor.
-        await supabase.from('rider_transfers').insert({
+        const { error } = await supabase.from('rider_transfers').insert({
           id: _tseNewId('tr'),
           season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
           fromTeamId: teamId, toTeamId: s.newTeamId, type: 'transfer',
@@ -604,23 +605,32 @@ async function _tseSaveTeam() {
           announcedAt: (s.rumor ? _localDateKey() : (s.announcedAt || _localDateKey())),
           dateVisible: true,
         });
+        if (error) throw error;
+        // Un cambio confirmado materializa la afiliación de destino y el
+        // contrato de la ficha; un rumor no toca ninguno de los dos.
+        if (!s.rumor) {
+          await _upsertAffiliation2027(r.id, r.gender, s.newTeamId, s.year || null);
+          await _syncTransferContractToRider({ status: 'confirmed', type: 'transfer', contractUntil: s.year || null, riderGender: r.gender, riderId: r.id });
+        }
       } else if (s.state === 'end') {
         await _deleteAffiliation2027(r.id, teamId, r.gender);
         if (s.retired) {
-          await supabase.from('rider_transfers').insert({
+          const { error } = await supabase.from('rider_transfers').insert({
             id: _tseNewId('tr'),
             season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
             fromTeamId: teamId, type: 'retirement', status: 'confirmed',
             announcedAt: _localDateKey(), dateVisible: true,
           });
+          if (error) throw error;
         } else {
           // Baja sin destino conocido: transfer con destino '?'.
-          await supabase.from('rider_transfers').insert({
+          const { error } = await supabase.from('rider_transfers').insert({
             id: _tseNewId('tr'),
             season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
             fromTeamId: teamId, toTeamName: TSE_UNKNOWN_DEST, type: 'transfer', status: 'confirmed',
             announcedAt: _localDateKey(), dateVisible: true,
           });
+          if (error) throw error;
         }
       } else {
         // 'undecided': ya se limpiaron sus transfers de T arriba; también quitar

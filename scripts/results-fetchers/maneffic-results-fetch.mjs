@@ -7,7 +7,9 @@
  * classifications/. El cron pasa la fecha esperada de la jornada: es un guard
  * obligatorio en producción porque el cronometrador puede dejar datos de prueba
  * en esas URLs antes de la carrera. El prólogo (etapa 0) se publica en
- * `prologue/`; las etapas, en `stageN/`.
+ * `prologue/`; las etapas, en `stageN/`. Una contrarreloj no se emite hasta que
+ * los tres últimos salidores de su lista de salida figuran en la llegada; a
+ * partir de ahí sus cuadros se declaran definitivos.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -24,6 +26,7 @@ const ONLY_STAGE = arg('--stage') == null ? null : Number(arg('--stage'));
 const TOTAL_STAGES = arg('--total-stages') == null ? null : Number(arg('--total-stages'));
 const EXPECTED_DATE = arg('--expected-date');
 const STAGE_DATES_JSON = arg('--stage-dates');
+const ITT_STAGES_JSON = arg('--itt-stages');
 const FIXTURE_DIR = arg('--fixture-dir');
 const BASE = 'https://www.timing-results.com/raceDataUploads';
 const FINAL_SLOT = 'final';
@@ -105,7 +108,46 @@ export function startlistPublication(document, resultDocument, code, stageNumber
   };
 }
 
-export function mapRows(sourceRows, { timed = false, points = false, teamRows = false } = {}) {
+// Una contrarreloj se publica de forma progresiva mientras los corredores llegan.
+// Se da por terminada cuando los tres últimos salidores de la lista de salida
+// del día figuran en la llegada con puesto o IRM; hasta entonces no se emite
+// ningún cuadro de esa jornada. Sin lista de salida válida no se emite.
+export const TIME_TRIAL_LAST_STARTERS = 3;
+const TIME_TRIAL_NAME = /\b(time trial|itt|tijdrit|prologue)\b/i;
+
+export function isTimeTrialStage(stageNumber, { resultDocument = null, startlist = null, ittStages = null } = {}) {
+  if (Array.isArray(ittStages) && ittStages.map(Number).includes(Number(stageNumber))) return true;
+  if (TIME_TRIAL_NAME.test(clean(resultDocument?.raceName))) return true;
+  return Array.isArray(startlist?.riders) && startlist.riders.some(rider => clean(rider?.TT_starttime));
+}
+
+const startTimeKey = (value) => {
+  const match = clean(value).match(/^(20\d{2}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$/);
+  return match ? `${match[1]}T${match[2].length === 5 ? `${match[2]}:00` : match[2]}` : null;
+};
+
+export function timeTrialLastStarters(startlist, resultDocument, code, stageNumber, count = TIME_TRIAL_LAST_STARTERS) {
+  const riders = Array.isArray(startlist?.riders) ? startlist.riders : [];
+  if (!riders.length || clean(startlist.documentName).toLowerCase() !== 'startlist'
+    || !clean(startlist.eventName) || clean(startlist.eventName) !== clean(resultDocument?.eventName)
+    || stageNumberFromName(startlist.raceName) !== Number(stageNumber)
+    || generatedDate(startlist)?.slice(0, 4) !== parseCode(code).slice(0, 4)) return null;
+  const entries = riders.map(rider => ({ bib: clean(rider.bib), start: startTimeKey(rider.TT_starttime) }));
+  if (entries.some(entry => !/^[1-9]\d*$/.test(entry.bib) || !entry.start)
+    || new Set(entries.map(entry => entry.bib)).size !== entries.length) return null;
+  entries.sort((a, b) => b.start.localeCompare(a.start));
+  // Los empatados con el último puesto vigilado también se exigen.
+  const threshold = entries[Math.min(count, entries.length) - 1].start;
+  return entries.filter(entry => entry.start >= threshold).map(entry => entry.bib);
+}
+
+// Últimos salidores que todavía no figuran en la llegada con puesto o IRM.
+export function timeTrialPendingStarters(resultDocument, lastStarters) {
+  const resolved = new Set(mapRows(resultDocument?.resultData).filter(row => row.bib).map(row => row.bib));
+  return lastStarters.filter(bib => !resolved.has(bib));
+}
+
+export function mapRows(sourceRows,{ timed = false, points = false, teamRows = false } = {}) {
   const rows = [];
   for (const item of Array.isArray(sourceRows) ? sourceRows : []) {
     const rawResult = clean(item?.result);
@@ -181,7 +223,9 @@ export function plannedStageNumbers({ onlyStage = null, totalStages, stageDates 
   return Array.from({ length: Number(totalStages) - first + 1 }, (_, index) => index + first);
 }
 
-export function stagesFromDocuments(documents, { code, onlyStage = null, totalStages, expectedDate = null, stageDates = null } = {}) {
+export function stagesFromDocuments(documents, {
+  code, onlyStage = null, totalStages, expectedDate = null, stageDates = null, ittStages = null, log = () => {},
+} = {}) {
   const eventCode = parseCode(code);
   const count = Number(totalStages);
   if (!Number.isInteger(count) || count < 1) throw new Error('--total-stages debe ser un entero positivo');
@@ -194,14 +238,34 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
     const expectedStageDate = expectedDate || stageDates?.[String(stageNumber)] || null;
     const mainDocument = documents[`${slot}/result.json`];
     if (!documentMatchesStage(mainDocument, stageNumber, expectedStageDate)) continue;
-    const publication = startlistPublication(documents[`${slot}/startlist.json`], mainDocument, eventCode, stageNumber);
+    const startlist = documents[`${slot}/startlist.json`];
+    const timeTrial = isTimeTrialStage(stageNumber, { resultDocument: mainDocument, startlist, ittStages });
+    if (timeTrial) {
+      const lastStarters = timeTrialLastStarters(startlist, mainDocument, eventCode, stageNumber);
+      if (!lastStarters) { log(`Etapa ${stageNumber}: contrarreloj sin lista de salida válida; no se emite`); continue; }
+      const pending = timeTrialPendingStarters(mainDocument, lastStarters);
+      if (pending.length) {
+        log(`Etapa ${stageNumber}: contrarreloj en curso; faltan en la llegada los dorsales ${pending.join(', ')}`);
+        continue;
+      }
+    }
+    // Con los últimos salidores en meta, la contrarreloj está terminada y sus
+    // cuadros se publican como definitivos desde la primera lectura.
+    const census = startlistPublication(startlist, mainDocument, eventCode, stageNumber);
+    const finished = timeTrial ? { provider: RESULTS_SOURCE, format: 'fixed', sourceStatus: 'official' } : null;
+    const publicationFor = (classKind) => {
+      const evidence = ['stage', 'gc'].includes(classKind) ? census : null;
+      if (finished) return { ...(evidence || {}), ...finished };
+      return evidence;
+    };
     const classifications = [];
     for (const [suffix, spec] of STAGE_SPECS) {
       if (classifications.some((item) => item.classKind === spec.classKind)) continue;
       const document = documents[`${slot}/${suffix}`];
       if (!documentMatchesStage(document, stageNumber, expectedStageDate)) continue;
       const built = classification(eventCode, stageNumber, document, spec);
-      if (built && publication && spec.classKind === 'stage') built.publication = publication;
+      const publication = built && publicationFor(spec.classKind);
+      if (publication) built.publication = publication;
       if (built) classifications.push(built);
     }
     if (!classifications.some((item) => item.classKind === 'stage')) continue;
@@ -212,7 +276,8 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
       const document = documents[path];
       if (!documentMatchesStage(document, stageNumber, expectedStageDate)) continue;
       const built = classification(eventCode, stageNumber, document, spec);
-      if (built && publication && spec.classKind === 'gc') built.publication = publication;
+      const publication = built && publicationFor(spec.classKind);
+      if (publication) built.publication = publication;
       if (built) cumulative.push({ document, spec, built });
     }
     const isLast = stageNumber === count;
@@ -224,7 +289,7 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
       stageName: clean(mainDocument.raceName) || `Stage ${stageNumber}`,
       isFinalClassification: false,
       dateKey,
-      raceType: /\b(time trial|itt|tijdrit|prologue)\b/i.test(clean(mainDocument.raceName)) ? 'ITT' : null,
+      raceType: timeTrial ? 'ITT' : null,
       startLocation: null,
       classificationCount: classifications.length,
       classifications,
@@ -233,7 +298,8 @@ export function stagesFromDocuments(documents, { code, onlyStage = null, totalSt
       const finals = cumulative
         .map(({ document, spec }) => {
           const built = classification(eventCode, FINAL_SLOT, document, spec, { final: true });
-          if (built && publication && spec.classKind === 'gc') built.publication = publication;
+          const publication = built && publicationFor(spec.classKind);
+          if (publication) built.publication = publication;
           return built;
         })
         .filter(Boolean);
@@ -296,12 +362,20 @@ async function main() {
       throw new Error('--stage-dates debe ser un objeto JSON {"etapa":"YYYY-MM-DD"}');
     }
   }
+  let ittStages = null;
+  if (ITT_STAGES_JSON) {
+    ittStages = JSON.parse(ITT_STAGES_JSON);
+    if (!Array.isArray(ittStages) || ittStages.some((stage) => !Number.isInteger(Number(stage)))) {
+      throw new Error('--itt-stages debe ser un array JSON de números de etapa');
+    }
+  }
   if (!EXPECTED_DATE && !stageDates) throw new Error('Falta --expected-date o --stage-dates para bloquear datos de prueba');
   const stageNumbers = plannedStageNumbers({ onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES, stageDates });
   const documents = await loadDocuments(code, stageNumbers);
   const stages = stagesFromDocuments(documents, {
     code, onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES,
-    expectedDate: EXPECTED_DATE, stageDates,
+    expectedDate: EXPECTED_DATE, stageDates, ittStages,
+    log: (message) => process.stderr.write(`${message}\n`),
   });
   const output = {
     competitionId: COMPETITION_ID,

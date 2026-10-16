@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Regla cromática de los miniperfiles web (`profileThemeColor`). Conserva el
+/// Regla cromática de los perfiles web (`profileThemeColor`), común al
+/// miniperfil y al perfil de la jornada. Conserva el
 /// matiz original y mezcla solo lo necesario hacia blanco en tema oscuro o
 /// hacia negro en tema claro. Los umbrales corresponden a un contraste superior
 /// a 4,5:1 sobre las tarjetas `#1e2632` y `#fafbfc`.
-enum MiniProfileColorContrast {
+enum ProfileColorContrast {
     static let darkMinimumLuminance = 0.27
     static let lightMaximumLuminance = 0.17
 
@@ -192,7 +193,7 @@ struct MiniElevationProfile: View {
     /// Dibuja la silueta. `progress == nil` → tinte completo (aspecto clásico);
     /// `progress != nil` → base gris + porción teñida recortada al avance.
     private func profileCanvas(progress: Double?) -> some View {
-        let profileTint = MiniProfileColorContrast.adjusted(tint, for: colorScheme)
+        let profileTint = ProfileColorContrast.adjusted(tint, for: colorScheme)
         let pendingFill = Self.pendingFill(for: colorScheme)
         return Canvas { ctx, size in
             guard profile.points.count >= 2 else { return }

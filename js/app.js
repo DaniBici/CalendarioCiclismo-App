@@ -21,7 +21,7 @@ initI18n(); // carga el diccionario EN en paralelo con los datos
 import { annotateDoubleSectors, buildInhouseResultsMatcher } from './services/races.js';
 import { fetchAllRowsParallel } from './services/paged-query.js';
 import { staleWhileRevalidate } from './services/local-cache.js';
-import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal } from './race-data-modal.js';
 import { createRaceCard, cardLogoHtml, overviewButtonHtml, raceCardHtml, setInfoTooltip } from './components/race-card.js';
 import { tvIconHtml, noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
          startOrderBadgeHtml, scheduleHtml, appendProfile, appendResultsActions, activateStageCard } from './components/stage-card.js';
@@ -236,10 +236,12 @@ function buildDateBar() {
 
 
 // ── Cargar jornadas de un día ─────────────────────────────────────
-// skipEmptyDay: si true, salta automáticamente al siguiente día con carreras
-// cuando el día no tiene actividad. Solo debe ser true en la carga inicial.
+// Jornada con su carrera, emisiones, assets y filas de resultados propios.
+const DAY_SELECT = '*,race:races(*,race_uci_stages(raceId,raceDayId,stageNumber)),broadcasts(*),assets(id,raceDayId,type,url)';
 let dayRequest = 0;
 let dayLoading = false;
+// skipEmptyDay: si true, salta automáticamente al siguiente día con carreras
+// cuando el día no tiene actividad. Solo debe ser true en la carga inicial.
 async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) {
   const request = ++dayRequest;
   dayLoading = true;
@@ -279,37 +281,50 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   if (!refresh) list.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.stages')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
   try {
-    // Estas dos lecturas no dependen de las jornadas del día: iniciarlas ya
-    // evita dos esperas en serie antes del primer render de la agenda.
+    // Estas lecturas no dependen de las jornadas del día: iniciarlas ya evita
+    // esperas en serie antes del primer render de la agenda.
     const currentYear = parseInt(dateKey.slice(0, 4));
     const yearRacesPromise = ensureYearRacesCached(currentYear);
     const activeRacesPromise = fetchActiveRaces(dateKey);
-    const { data: rdData, error: dayError } = await supabase.from('race_days').select('*').eq('dateKey', dateKey).eq('editorialStatus', 'published');
+    const featuredPromise = loadFeaturedRaces(supabase, [dateKey]);
+    featuredPromise.catch(() => {}); // el error se propaga en el `await` de abajo
+    // Jornadas con su carrera, emisiones, assets y filas de resultados propios
+    // embebidos: una sola lectura en lugar de dos oleadas en serie. El filtro
+    // de `race_uci_stages` acota solo las filas embebidas.
+    const { data: rdData, error: dayError } = await supabase.from('race_days').select(DAY_SELECT)
+      .eq('dateKey', dateKey).eq('editorialStatus', 'published')
+      .eq('race.race_uci_stages.keepForWeb', true).gt('race.race_uci_stages.rowCount', 0)
+      .order('sortOrder', { referencedTable: 'broadcasts', ascending: true });
 
     if (dayError) throw dayError;
     if (request !== dayRequest) return;
 
-    // Cargar datos de carrera y broadcasts para cada jornada (en paralelo)
-    const raceDays = rdData || [];
+    const raceDays = [];
+    const raceMap = {};
+    const bcastRows = [];
+    const assetRows = [];
+    const stageRows = [];
+    for (const { race, broadcasts, assets, ...rd } of rdData || []) {
+      raceDays.push(rd);
+      if (race) {
+        const { race_uci_stages: stages, ...raceRow } = race;
+        raceMap[raceRow.id] = raceRow;
+        setCachedRace(raceRow.id, raceRow);
+        stageRows.push(...(stages || []));
+      }
+      bcastRows.push(...(broadcasts || []));
+      assetRows.push(...(assets || []));
+    }
     const raceIds = [...new Set(raceDays.map(rd => rd.raceId).filter(Boolean))];
     const rdIds = raceDays.map(rd => rd.id);
-
-    const [racesResult, bcastResult, assetsResult, inhouseSet, featured] = await Promise.all([
-      raceIds.length ? supabase.from('races').select('*').in('id', raceIds) : Promise.resolve({ data: [] }),
-      rdIds.length ? supabase.from('broadcasts').select('*').in('raceDayId', rdIds).order('sortOrder', { ascending: true }) : Promise.resolve({ data: [] }),
-      rdIds.length ? supabase.from('assets').select('id,raceDayId,type,url').in('raceDayId', rdIds) : Promise.resolve({ data: [] }),
-      loadInhouseStageSet(raceIds),
-      loadFeaturedRaces(supabase, [dateKey]),
-    ]);
-
+    const inhouseMatcher = buildInhouseResultsMatcher(stageRows);
+    const featured = await featuredPromise;
     if (request !== dayRequest) return;
-    for (const result of [racesResult,bcastResult,assetsResult]) if (result.error) throw result.error;
-    const raceMap = {};
-    (racesResult.data || []).forEach(r => { raceMap[r.id] = r; setCachedRace(r.id, r); });
+
     const bcastByRd = {};
-    (bcastResult.data || []).forEach(b => { (bcastByRd[b.raceDayId] = bcastByRd[b.raceDayId] || []).push(b); });
+    bcastRows.forEach(b => { (bcastByRd[b.raceDayId] = bcastByRd[b.raceDayId] || []).push(b); });
     const assetsByRd = {};
-    (assetsResult.data || []).forEach(a => { (assetsByRd[a.raceDayId] = assetsByRd[a.raceDayId] || []).push(a); });
+    assetRows.forEach(a => { (assetsByRd[a.raceDayId] = assetsByRd[a.raceDayId] || []).push(a); });
     raceDays.forEach(rd => {
       if (rd.raceId) rd._race = raceMap[rd.raceId] || {};
       const _allB = bcastByRd[rd.id] || [];
@@ -318,7 +333,7 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
       // puede acceder a ninguna (badge de TV suprimido aunque tvStatus diga lo contrario).
       rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0;
       rd._assets = assetsByRd[rd.id] || [];
-      rd._hasInhouse = inhouseSet.has(rd);
+      rd._hasInhouse = !rd.isCancelledDay && inhouseMatcher.has(rd);
       rd._featured = featured.get(dateKey)?.has(rd.raceId) || false;
     });
 
@@ -326,7 +341,7 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     annotateDoubleSectors(raceDays);
     _dayProbe = {
       dateKey, raceIds, rdIds, days: raceDays,
-      signature: daySignature(raceDays, bcastResult.data || [], assetsResult.data || [], rd => rd._hasInhouse),
+      signature: daySignature(raceDays, bcastRows, assetRows, rd => rd._hasInhouse),
     };
 
     // ⚠️ NO vaciar la lista aquí: por debajo quedan awaits (ensureYearRacesCached,
@@ -336,14 +351,16 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     // cards aparecen después, con la página ya destapada. El marcador se
     // conserva hasta el instante en que hay algo que pintar.
 
-    // Carreras del año para la navegación que respeta el filtro activo.
-    await yearRacesPromise;
+    // Las carreras del año solo hacen falta para saltar a otro día cuando este
+    // queda vacío (la navegación manual las lee al pulsar): la agenda no espera.
     // Placeholders: carreras en curso sin jornada publicada ese día.
     const placeholders = await loadPlaceholders(dateKey, raceDays, activeRacesPromise);
     if (request !== dayRequest) return;
     const dayItems = [...raceDays, ...placeholders.map(ph => ({ _placeholder: true, _race: ph, _phRace: ph }))];
 
     if (dayItems.length === 0) {
+      await yearRacesPromise;
+      if (request !== dayRequest) return;
       // Buscar siguiente día con carreras (respetando filtro activo)
       const nextDateBtn = findNextDayWithRaces(dateKey, _agendaCat);
       if (skipEmptyDay && nextDateBtn) {
@@ -369,6 +386,8 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 
     if (allItems.length === 0) {
+      await yearRacesPromise;
+      if (request !== dayRequest) return;
       const nextFilteredDate = findNextDayWithRaces(dateKey, _agendaCat);
       // Dentro de la ventana de Campeonatos el filtro Masculino está FORZADO: si
       // este día no tiene carreras masculinas, auto-avanzar al siguiente que sí

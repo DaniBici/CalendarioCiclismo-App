@@ -272,10 +272,6 @@ LEAFLET_HEAD = (
     '<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
 )
 
-# Cliente de Supabase que importa js/shared.js (misma versión fija).
-SUPABASE_JS_ESM = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm"
-
-
 def page_id_meta(page_ids):
     """Identificadores de la página para que la SPA omita la resolución
     slug→id: {"race-day-id": ..., "race-id": ..., "cx-race-id": ...}."""
@@ -328,7 +324,6 @@ def og_page(title, description, canonical_url,
 <link rel="alternate" type="text/plain" title="LLMs.txt" href="{BASE_URL}/llms.txt">
 <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="modulepreload" href="{SUPABASE_JS_ESM}" crossorigin>
 <link rel="preconnect" href="https://assets.calendariociclismo.app">{page_id_meta(page_ids)}
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_ES">
@@ -388,7 +383,7 @@ def breadcrumb_html(items):
 
 def jornada_body(display_title, fecha_larga, description, km,
                  start_loc, finish_loc, same_or_one, crumbs,
-                 perfil_url=None):
+                 links_paragraph=""):
     parts = [breadcrumb_html(crumbs)]
     parts.append(f'<h1>{esc(display_title)}</h1>')
     if fecha_larga:
@@ -400,19 +395,18 @@ def jornada_body(display_title, fecha_larga, description, km,
     if start_loc:
         route = start_loc if same_or_one else f"{start_loc} → {finish_loc}"
         parts.append(f'<p class="static-meta"><strong>Recorrido:</strong> {esc(route)}</p>')
-    if perfil_url:
-        parts.append(f'<p class="static-meta"><a href="{esc(perfil_url)}">Ver perfil de elevación</a></p>')
+    parts.append(links_paragraph)
     return ''.join(parts)
 
-def competicion_body(display_title, description, start, end, crumbs, stages=None):
+def competicion_body(display_title, description, start, end, crumbs, race, stages=None):
     parts = [breadcrumb_html(crumbs)]
     parts.append(f'<h1>{esc(display_title)}</h1>')
     if start or end:
-        if start and end and start != end:
-            parts.append(f'<p class="static-date">Del {esc(start)} al {esc(end)}</p>')
-        else:
-            parts.append(f'<p class="static-date">{esc(start or end)}</p>')
+        parts.append(f'<p class="static-date">{esc(date_range_es(start, end))}</p>')
     parts.append(f'<p>{esc(description)}</p>')
+    sl_url = startlist_url(race)
+    if sl_url:
+        parts.append(f'<p class="static-meta static-links"><a href="{esc(sl_url)}">Dorsales e inscritos</a></p>')
     if stages:
         items = []
         for s in stages:
@@ -428,14 +422,20 @@ def competicion_body(display_title, description, start, end, crumbs, stages=None
             if s.get("isRestDay"):
                 items.append(f'<li class="static-rest">{esc(label)}: Descanso</li>')
             else:
-                items.append(f'<li><a href="{BASE_URL}/jornada/{quote(s_slug)}/">{esc(text)}</a></li>')
+                extra = links_html(stage_page_links(s, race), labels={
+                    "perfil": "Perfil", "mapa": "Mapa"})
+                items.append(f'<li><a href="{BASE_URL}/jornada/{quote(s_slug)}/">{esc(text)}</a>'
+                             + (f' · {extra}' if extra else '') + '</li>')
         parts.append(f'<h2>Etapas</h2><ul class="static-stage-list">{"".join(items)}</ul>')
     return ''.join(parts)
 
-def inscritos_body(display_title, description, crumbs):
+def inscritos_body(display_title, description, crumbs, date_text="", context_html=""):
     parts = [breadcrumb_html(crumbs)]
     parts.append(f'<h1>{esc(display_title)}</h1>')
+    if date_text:
+        parts.append(f'<p class="static-date">{esc(date_text)}</p>')
     parts.append(f'<p>{esc(description)}</p>')
+    parts.append(context_html)
     return ''.join(parts)
 
 def start_order_body(display_title, description, crumbs):
@@ -681,6 +681,74 @@ def stage_label(n):
     if n == 0: return "Prólogo"
     return f"Etapa {n}"
 
+def date_range_es(start, end):
+    """'2026-08-22', '2026-09-13' → 'Del 22 de agosto al 13 de septiembre de 2026'."""
+    if start and end and start != end:
+        return f"Del {format_day_month(start, start[:7] != end[:7])} al {format_full_date(end)}"
+    return format_full_date(start or end) if (start or end) else ""
+
+def date_range_en(start, end):
+    """'2026-08-22', '2026-09-13' → '22 August – 13 September 2026'."""
+    if start and end and start != end:
+        start_txt = (str(int(start[8:10])) if start[:7] == end[:7]
+                     else f"{int(start[8:10])} {MONTHS_EN[int(start[5:7]) - 1]}")
+        return f"{start_txt} – {format_full_date_en(end)}"
+    return format_full_date_en(start or end) if (start or end) else ""
+
+# Páginas propias de una jornada, con las condiciones de publicación del
+# sitemap (gen_sitemap.road_sections): perfil con elevationProfile visible,
+# mapa con routeGpxUrl y resultados en toda jornada que no sea descanso.
+STAGE_LINK_LABELS = {
+    "es": {"perfil": "Perfil de elevación", "mapa": "Mapa del recorrido", "resultados": "Resultados"},
+    "en": {"perfil": "Elevation profile", "mapa": "Route map", "resultados": "Results"},
+}
+
+def stage_page_links(rd, race, lang="es", skip=()):
+    """[(clave, url)] de perfil, mapa y resultados de una jornada."""
+    if not rd or rd.get("isRestDay"):
+        return []
+    is_en = lang == "en"
+    base = BASE_URL_EN if is_en else BASE_URL
+    day_slug = (rd.get("slugEn") or rd.get("slug")) if is_en else rd.get("slug")
+    links = []
+    if day_slug and rd.get("elevationProfile") and not rd.get("profileNotViewable"):
+        links.append(("perfil", f"{base}/{'profile' if is_en else 'perfil'}/{quote(day_slug)}/"))
+    if day_slug and rd.get("routeGpxUrl"):
+        links.append(("mapa", f"{base}/{'route-map' if is_en else 'mapa'}/{quote(day_slug)}/"))
+    race_slug = race.get("slugEn") if is_en else race.get("slug")
+    one_day = race.get("raceFormat") == "one_day"
+    stage_num = None if one_day else rd.get("stageNumber")
+    if race_slug and (one_day or stage_num is not None):
+        suffix = stage_suffix_by_day.get(rd.get("id"), "") if stage_num is not None else ""
+        seg = result_segment(stage_num, suffix, is_en=is_en)
+        links.append(("resultados", f"{base}/{'results' if is_en else 'resultados'}/{quote(race_slug)}/"
+                      + (f"{seg}/" if seg else "")))
+    return [(key, url) for key, url in links if key not in skip]
+
+def startlist_url(race, lang="es"):
+    """URL de inscritos de una carrera con equipos cargados (criterio del sitemap)."""
+    is_en = lang == "en"
+    slug = race.get("slugEn") if is_en else race.get("slug")
+    if not slug or not sl_team_counts.get(race.get("id")):
+        return None
+    return f"{BASE_URL_EN}/startlist/{quote(slug)}/" if is_en else f"{BASE_URL}/inscritos/{quote(slug)}/"
+
+def links_html(links, lang="es", labels=None):
+    """Enlaces [(clave, url)] separados por « · »; `labels` sustituye los textos."""
+    names = {**STAGE_LINK_LABELS[lang], **(labels or {})}
+    return " · ".join(f'<a href="{esc(url)}">{esc(names.get(key, key))}</a>' for key, url in links)
+
+def page_links_html(rd, race, lang="es", skip=()):
+    """Párrafo con las páginas propias de la jornada y los inscritos de su carrera."""
+    links = stage_page_links(rd, race, lang, skip)
+    sl_url = startlist_url(race, lang)
+    if sl_url:
+        links.append(("inscritos", sl_url))
+    if not links:
+        return ""
+    labels = {"inscritos": "Startlist" if lang == "en" else "Dorsales e inscritos"}
+    return f'<p class="static-meta static-links">{links_html(links, lang, labels)}</p>'
+
 SITE_HEADER_HTML_EN = (
     # Idéntico al ES; js/header.js detecta el idioma por la ruta /en/.
     '<header class="site-header" id="siteHeader" data-back></header>'
@@ -730,7 +798,6 @@ def og_page_en(title, description, canonical_url,
 <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo" href="{BASE_URL}/atom.xml">
 <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="modulepreload" href="{SUPABASE_JS_ESM}" crossorigin>
 <link rel="preconnect" href="https://assets.calendariociclismo.app">{page_id_meta(page_ids)}
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_GB">
@@ -861,7 +928,8 @@ races = road_get(
     "&slug=not.is.null&order=startDate.desc" + RACE_FILTER
 )
 
-# Conteos de equipos y corredores por carrera (para descripciones de inscritos).
+# Conteos de equipos y corredores por carrera (descripciones de inscritos y
+# enlaces a inscritos desde competiciones y jornadas).
 #
 # Vía RPC startlist_counts() (migración 131), que agrega en el servidor: ~410
 # filas / 26 KB en una petición. NO usar los agregados de PostgREST
@@ -875,7 +943,7 @@ races = road_get(
 sl_team_counts = {}
 sl_rider_counts = {}
 try:
-    for row in (supabase_rpc("startlist_counts") if generation_enabled("extras") else []) or []:
+    for row in (supabase_rpc("startlist_counts") if OG_FAMILIES != {"cx"} else []) or []:
         rid = row.get("raceId")
         if not rid:
             continue
@@ -892,7 +960,7 @@ racedays_all = road_get(
     "race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
     "startLocationEn,finishLocationEn,dateKey,isRestDay,isCancelledDay,updatedAt,"
     "neutralStartTimeUtc,"
-    "countryCode,elevationProfile,profileNotViewable,distanceKm,primaryType,secondaryType,"
+    "countryCode,elevationProfile,profileNotViewable,routeGpxUrl,distanceKm,primaryType,secondaryType,"
     "description,translations"
     "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc" + DAY_FILTER
 )
@@ -909,12 +977,57 @@ for _rd in racedays_all:
     _rid = _rd.get("raceId")
     if _rid:
         stages_by_race.setdefault(_rid, []).append(_rd)
+day_by_id = {_rd["id"]: _rd for _rd in racedays_all if _rd.get("id")}
+# Sufijos A/B de los dobles sectores para enlazar los resultados de cada jornada.
+stage_suffix_by_day = sector_suffixes(racedays_all)
 
 
 def oneday_stage(race):
     """Jornada de una carrera de un día: destino canónico de su competición."""
     return next((s for s in stages_by_race.get(race.get("id"), [])
                  if not s.get("isRestDay") and s.get("slug")), None)
+
+
+def inscritos_context_html(race, lang="es"):
+    """Contenido rastreable de /inscritos/ que no depende de la lista.
+
+    La página se publica antes de que la organización dé la lista: enlaza las
+    jornadas de la carrera (con perfil, mapa y resultados en una de un día) y su
+    HTML estático no queda reducido al título y la descripción."""
+    is_en = lang == "en"
+    base = BASE_URL_EN if is_en else BASE_URL
+    day_path = "stage" if is_en else "jornada"
+    days = [d for d in stages_by_race.get(race.get("id"), [])
+            if not d.get("isRestDay") and d.get("slug")]
+    if not days:
+        return ""
+
+    def day_slug(d):
+        return (d.get("slugEn") or d["slug"]) if is_en else d["slug"]
+
+    if race.get("raceFormat") == "one_day":
+        rd = days[0]
+        links = [("jornada", f"{base}/{day_path}/{quote(day_slug(rd))}/")]
+        links += stage_page_links(rd, race, lang)
+        labels = {"jornada": "Race details" if is_en else "Jornada"}
+        return f'<p class="static-meta static-links">{links_html(links, lang, labels)}</p>'
+
+    items = []
+    for d in days:
+        sn = d.get("stageNumber")
+        if is_en:
+            label = "Prologue" if sn == 0 else (f"Stage {sn}" if sn is not None else "Stage")
+            start_loc = d.get("startLocationEn") or d.get("startLocation") or ""
+            finish_loc = d.get("finishLocationEn") or d.get("finishLocation") or ""
+        else:
+            label = stage_label(sn) if sn is not None else "Jornada"
+            start_loc = d.get("startLocation") or ""
+            finish_loc = d.get("finishLocation") or ""
+        route = start_loc if (not finish_loc or start_loc == finish_loc) else f"{start_loc} › {finish_loc}"
+        text = f"{label}: {route}" if route else label
+        items.append(f'<li><a href="{base}/{day_path}/{quote(day_slug(d))}/">{esc(text)}</a></li>')
+    heading = "Stages" if is_en else "Etapas"
+    return f'<h2>{heading}</h2><ul class="static-stage-list">{"".join(items)}</ul>'
 
 # ── COMPETICIONES: páginas ──
 race_count = 0
@@ -937,8 +1050,10 @@ for race in emit_rows(races, "races"):
     # updateSeoCompeticion de js/competicion.js).
     _comp_days = [d for d in stages_by_race.get(race.get("id"), []) if not d.get("isRestDay")]
     _comp_km = round(sum(float(d.get("distanceKm") or 0) for d in _comp_days))
+    # «Vuelta a España 2026: etapas y recorrido»: nombre de la consulta, como
+    # en jornadas e inscritos. Espejo en updateSeoCompeticion.
     title = (f"{name} {year} - Calendario Ciclismo App" if is_one_day_comp
-             else f"{name} {year}: etapas y recorrido - Calendario Ciclismo App")
+             else f"{race_search_name(race)} {year}: etapas y recorrido - Calendario Ciclismo App")
     art_name = con_articulo(name, name_with_orig, art)
     art_name = art_name[0].upper() + art_name[1:]
     start = race.get("startDate", "")
@@ -1043,7 +1158,7 @@ for race in emit_rows(races, "races"):
                                           "https://schema.org/MobileWebPlatform"]},
         })
 
-    body = competicion_body(display_title, description, start, end, crumbs,
+    body = competicion_body(display_title, description, start, end, crumbs, race,
                             stages=race_stages if len(race_stages) > 1 else None)
 
     dir_path = f"competicion/{slug}"
@@ -1261,12 +1376,10 @@ for rd in emit_rows(racedays, "stages"):
             stage_event["about"] = about
     json_ld_list.append(breadcrumb_list(crumbs))
 
-    # Body — link a perfil de elevación si existe y es visible
-    has_perfil = bool(rd.get("elevationProfile")) and not rd.get("profileNotViewable")
-    perfil_url = f"{BASE_URL}/perfil/{quote(slug)}/" if has_perfil and not is_rest else None
+    # Body — enlaces a perfil, mapa, resultados e inscritos publicados
     body = jornada_body(display_title, fecha_larga, description, km,
                         start_loc, finish_loc, same_or_one, crumbs,
-                        perfil_url=perfil_url)
+                        links_paragraph=page_links_html(rd, race))
 
     dir_path = f"jornada/{slug}"
     os.makedirs(dir_path, exist_ok=True)
@@ -1337,7 +1450,9 @@ for race in emit_rows(races, "extras"):
         (inscritos_label, None),
     ]
     json_ld_list = [breadcrumb_list(crumbs)]
-    body = inscritos_body(display_title, description, crumbs)
+    body = inscritos_body(display_title, description, crumbs,
+                          date_text=date_range_es(race.get("startDate"), race.get("endDate")),
+                          context_html=inscritos_context_html(race))
 
     dir_path = f"inscritos/{slug}"
     os.makedirs(dir_path, exist_ok=True)
@@ -1694,7 +1809,9 @@ for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
                 #  253 km): resultados completos y ganador. Domingo 5 de abril.»
                 description = f"Clasificación {res_de_art} {hero_es}"
                 description += f" ({res_route_km})" if res_route_km else ""
-                description += ": resultados completos y ganador."
+                # Pruebas femeninas: «ganadora».
+                _winner = "ganadora" if race.get("gender") == "female" else "ganador"
+                description += f": resultados completos y {_winner}."
                 if res_date:
                     description += f" {res_date}."
             elif stage_num is not None:
@@ -1915,6 +2032,7 @@ for rd in emit_rows(perfil_rds, "extras"):
     if route_str: parts.append(f'<p class="static-meta"><strong>Recorrido:</strong> {esc(route_str)}</p>')
     if km:        parts.append(f'<p class="static-meta"><strong>Distancia:</strong> {esc(str(km).replace(".", ","))} km</p>')
     if annot_str: parts.append(f'<p class="static-meta">{esc(annot_str)}</p>')
+    parts.append(page_links_html(day_by_id.get(rd.get("id"), rd), race, skip=("perfil",)))
     body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" - Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
 
     json_ld_list = [breadcrumb_list(crumbs)]
@@ -2021,6 +2139,7 @@ for rd in emit_rows(mapa_rds, "extras"):
     parts = []
     if route_str: parts.append(f'<p class="static-meta"><strong>Recorrido:</strong> {esc(route_str)}</p>')
     if km_txt:    parts.append(f'<p class="static-meta"><strong>Distancia:</strong> {esc(km_txt)}</p>')
+    parts.append(page_links_html(day_by_id.get(rd.get("id"), rd), race, skip=("mapa",)))
     body = breadcrumb_html(crumbs) + f'<h1>{esc(title.replace(" - Calendario Ciclismo App", ""))}</h1>' + ''.join(parts)
 
     slug_en = rd.get("slugEn") or slug
@@ -2089,6 +2208,7 @@ for rd in emit_rows(mapa_rds, "extras"):
         parts_en = []
         if route_str_en: parts_en.append(f'<p class="static-meta"><strong>Route:</strong> {esc(route_str_en)}</p>')
         if km_txt_en:    parts_en.append(f'<p class="static-meta"><strong>Distance:</strong> {esc(km_txt_en)}</p>')
+        parts_en.append(page_links_html(day_by_id.get(rd.get("id"), rd), race, "en", skip=("mapa",)))
         body_en = (breadcrumb_html(crumbs_en)
                    + f'<h1>{esc(title_en.replace(" - Calendario Ciclismo", ""))}</h1>' + ''.join(parts_en))
         dir_path_en = f"en/route-map/{slug_en}"
@@ -2207,11 +2327,12 @@ for race in emit_rows(races, "races"):
     # Body HTML EN
     body_parts_en = [breadcrumb_html(crumbs_en)]
     body_parts_en.append(f'<h1>{esc(title_en)}</h1>')
-    if start and end and start != end:
-        body_parts_en.append(f'<p class="static-date">{esc(start)} – {esc(end)}</p>')
-    elif start or end:
-        body_parts_en.append(f'<p class="static-date">{esc(start or end)}</p>')
+    if start or end:
+        body_parts_en.append(f'<p class="static-date">{esc(date_range_en(start, end))}</p>')
     body_parts_en.append(f'<p>{esc(desc_en)}</p>')
+    sl_url_en = startlist_url(race, "en")
+    if sl_url_en:
+        body_parts_en.append(f'<p class="static-meta static-links"><a href="{esc(sl_url_en)}">Startlist</a></p>')
     if race_stages_en and len(race_stages_en) > 1:
         stage_items_en = []
         for _s in race_stages_en:
@@ -2227,7 +2348,10 @@ for race in emit_rows(races, "races"):
             if _s.get("isRestDay"):
                 stage_items_en.append(f'<li class="static-rest">{esc(slen)}: Rest day</li>')
             elif s_slug_en:
-                stage_items_en.append(f'<li><a href="{BASE_URL_EN}/stage/{quote(s_slug_en)}/">{esc(text_s)}</a></li>')
+                extra_en = links_html(stage_page_links(_s, race, "en"), "en", labels={
+                    "perfil": "Profile", "mapa": "Map"})
+                stage_items_en.append(f'<li><a href="{BASE_URL_EN}/stage/{quote(s_slug_en)}/">{esc(text_s)}</a>'
+                                      + (f' · {extra_en}' if extra_en else '') + '</li>')
             else:
                 stage_items_en.append(f'<li>{esc(text_s)}</li>')
         body_parts_en.append(f'<h2>Stages</h2><ul class="static-stage-list">{"".join(stage_items_en)}</ul>')
@@ -2370,14 +2494,11 @@ for rd in emit_rows(racedays, "stages"):
     json_ld_list_en.append(breadcrumb_list(crumbs_en))
 
     # Body HTML EN (pre-render with H1 and breadcrumbs)
-    has_perfil_en = bool(rd.get("elevationProfile")) and not rd.get("profileNotViewable")
-    slug_en_for_perfil = rd.get("slugEn") or slug_es
-    perfil_url_en = f"{BASE_URL_EN}/profile/{quote(slug_en_for_perfil)}/" if has_perfil_en and not is_rest_en and slug_en_for_perfil else None
     parts_en = []
     if route_en: parts_en.append(f'<p class="static-meta"><strong>Route:</strong> {esc(route_en)}</p>')
     if km_txt_en: parts_en.append(f'<p class="static-meta"><strong>Distance:</strong> {esc(km_txt_en)}</p>')
-    if date_key_en: parts_en.append(f'<p class="static-meta"><strong>Date:</strong> {esc(date_key_en)}</p>')
-    if perfil_url_en: parts_en.append(f'<p class="static-meta"><a href="{esc(perfil_url_en)}">View elevation profile</a></p>')
+    if date_key_en: parts_en.append(f'<p class="static-meta"><strong>Date:</strong> {esc(format_full_date_en(date_key_en))}</p>')
+    parts_en.append(page_links_html(rd, race, "en"))
     h1_en = f"{name_en} {year_en}".strip() if year_en else name_en
     body_en = breadcrumb_html(crumbs_en) + f'<h1>{esc(h1_en)}</h1>' + ''.join(parts_en)
 
@@ -2421,7 +2542,10 @@ for race in emit_rows(races, "extras"):
         (f"{name_en} {year}".strip(), f"{BASE_URL_EN}/race/{quote(slug_en)}/"),
         ("Startlist", None),
     ]
-    body_sl = breadcrumb_html(crumbs_sl) + f'<h1>{esc(title_en)}</h1><p>{esc(desc_en)}</p>'
+    date_sl = date_range_en(race.get("startDate"), race.get("endDate"))
+    body_sl = (breadcrumb_html(crumbs_sl) + f'<h1>{esc(title_en)}</h1>'
+               + (f'<p class="static-date">{esc(date_sl)}</p>' if date_sl else "")
+               + f'<p>{esc(desc_en)}</p>' + inscritos_context_html(race, "en"))
     dir_path = f"en/startlist/{slug_en}"
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
@@ -2490,6 +2614,24 @@ for rd in emit_rows(perfil_rds, "extras"):
     canonical_en = f"{BASE_URL_EN}/profile/{quote(slug_en)}/"
     canonical_es = f"{BASE_URL}/perfil/{quote(slug_es)}/" if slug_es else None
 
+    # Cuerpo pre-renderizado: espejo del mapa EN.
+    crumbs_en = [("Home", f"{BASE_URL_EN}/")]
+    if year:
+        crumbs_en.append((f"{year} season", f"{BASE_URL_EN}/calendar/?year={year}"))
+    if slug_en_race and not is_one_day:
+        crumbs_en.append((title_en, f"{BASE_URL_EN}/race/{quote(slug_en_race)}/"))
+    crumbs_en.append((display_title_en if is_one_day else (stage_label_en or display_title_en),
+                      f"{BASE_URL_EN}/stage/{quote(slug_en)}/"))
+    crumbs_en.append(("Elevation profile", None))
+    route_str_en = (start_loc_en if circuit_en and start_loc_en
+                    else (f"{start_loc_en} › {finish_loc_en}" if finish_loc_en else ""))
+    parts_en = []
+    if route_str_en: parts_en.append(f'<p class="static-meta"><strong>Route:</strong> {esc(route_str_en)}</p>')
+    if km_txt_en:    parts_en.append(f'<p class="static-meta"><strong>Distance:</strong> {esc(km_txt_en)}</p>')
+    parts_en.append(page_links_html(day_by_id.get(rd.get("id"), rd), race, "en", skip=("perfil",)))
+    body_en = (breadcrumb_html(crumbs_en)
+               + f'<h1>{esc(f"Profile - {display_title_en}")}</h1>' + ''.join(parts_en))
+
     dir_path = f"en/profile/{slug_en}"
     os.makedirs(dir_path, exist_ok=True)
     with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
@@ -2499,7 +2641,8 @@ for rd in emit_rows(perfil_rds, "extras"):
             canonical_en,
             es_url=canonical_es,
             og_image=DEFAULT_OG_IMAGE,
-            json_ld_objs=None,
+            body_html=body_en,
+            json_ld_objs=[breadcrumb_list(crumbs_en)],
             container_id="perfilEtapaContent",
             spa_script="/js/perfil-pub.js",
             page_ids={"race-day-id": rd.get("id"), "race-id": rd.get("raceId")},

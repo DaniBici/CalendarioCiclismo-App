@@ -152,7 +152,7 @@ Dos tablas separadas (`riders_men`, `riders_women`) con las mismas columnas:
 | `id` | TEXT PK | Slug: `tadej-pogacar`. Colisión de nombre+apellido → añadir año: `carlos-rodriguez-1997` |
 | `firstName` | TEXT | Nombre canónico (formato título) |
 | `lastName` | TEXT | Apellido canónico (formato título) |
-| `otherNames` | TEXT | Comas: alias para matching. Ver sección abajo. |
+| `otherNames` | TEXT | Comas: alias completos para matching. Ver sección abajo. |
 | `nationality` | TEXT | ISO 3166-1 alpha-2: `es`, `fr`, `si` |
 | `birthDate` | DATE | `YYYY-MM-DD` |
 | `currentTeamId` | TEXT FK→teams | Equipo actual. `ON DELETE SET NULL`. |
@@ -191,14 +191,14 @@ Para que apps antiguas (que leen la tabla, no la vista) sigan viendo nombres cor
 
 ### Campo `otherNames`
 
-Separados por coma. Se usa para detectar variantes del nombre que aparecen en startlists importadas (no altera `firstName`/`lastName`):
+Separados por coma. Cada alias es un nombre completo («Nombre Apellidos»); no se guardan nombres ni apellidos sueltos. Se usa para detectar variantes del nombre que aparecen en startlists importadas (no altera `firstName`/`lastName`):
 
-| Caso | `lastName` | `otherNames` | Matchea |
-|---|---|---|---|
-| Segundo apellido español | `Rodríguez` | `Cano` | "Rodríguez Cano Carlos" o "Rodriguez Cano" |
-| Variante sin apóstrofo | `O'Connor` | `OConnor` | "OConnor Ben" |
-| Nombre de pila alternativo | `Pogačar` | — | — (basta con el apellido) |
-| Abreviatura usada en listas | `Quemeneur` | `JB` | "Quemeneur JB" |
+| Caso | `lastName` | `otherNames` |
+|---|---|---|
+| Segundo apellido hispano | `Rodríguez` | `Carlos Rodríguez Cano` |
+| Variante ortográfica | `O'Connor` | `Ben OConnor` |
+| Segundo nombre o apellido intermedio | `Anderson` | `Solbjørk Minke Anderson` |
+| Nombre de pila alternativo | `Warbasse` | `Lawrence Warbasse` |
 
 ### Matching y altas
 
@@ -953,7 +953,7 @@ presentan el mercado el panel y la web.
 | --- | --- | --- | --- |
 | Continúa | `renewal` en rumor solo si está rumoreada | al equipo actual, con año | `contractUntil` sincronizado (también en rumor), salvo 9999 o NULL |
 | En duda | `renewal` `doubt` | al equipo actual | no se toca |
-| Cambia | `transfer` confirmado o rumor | borra la del equipo actual; el editor de equipo no crea la de destino (sí el individual y la confirmación rápida) | según contrato si confirmado |
+| Cambia | `transfer` confirmado o rumor | borra la del equipo actual y, si está confirmado, crea la de destino | según contrato si confirmado |
 | Termina | `retirement`, o `transfer` con destino `?` | borra la del equipo actual | no se toca |
 | Sin decidir | ninguna | borra la del equipo actual | no se toca |
 

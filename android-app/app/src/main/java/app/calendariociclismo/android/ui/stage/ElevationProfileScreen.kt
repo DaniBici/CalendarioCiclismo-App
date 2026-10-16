@@ -37,6 +37,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -67,6 +68,7 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.ElevationPoint
 import app.calendariociclismo.android.data.model.ElevationProfile
 import app.calendariociclismo.android.data.model.ProfileSummit
+import app.calendariociclismo.android.ui.components.adjustedMiniProfileColor
 import app.calendariociclismo.android.data.model.ProfileWaypoint
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
@@ -336,7 +338,13 @@ internal fun ElevationChart(
     // El relleno y la línea del perfil usan el color de la carrera (mismo
     // criterio que iOS: ElevationProfileView.profileColor). Si no hay
     // colorHex, cae al primary del tema, igual que iOS cae a .accentColor.
-    val profileColor = colorFromHex(race?.colorHex, fallback = accentColor)
+    // Como `profileThemeColor()` de la web, un color de carrera sin contraste
+    // frente a la tarjeta se aclara en oscuro y se oscurece en claro.
+    val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val profileColor = adjustedMiniProfileColor(
+        colorFromHex(race?.colorHex, fallback = accentColor),
+        darkTheme = darkTheme,
+    )
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     // Velo fuera del tramo: color de la tarjeta al 72 % (`.stage-profile-dim`).
@@ -354,10 +362,16 @@ internal fun ElevationChart(
     val maxElevRaw = profile.maxElevation ?: points.maxOf { it.alt }
 
     val yMin = maxOf(0.0, minElevRaw - 150.0)
-    val yMax = maxOf(1100.0, maxElevRaw + 200.0)
+    // Suelo de la escala: 1100 m para comparar etapas de montaña entre sí. Un
+    // recorrido de poco relieve lo reduce (cuatro veces su altitud máxima,
+    // entre 100 y 1100 m), como `buildElevationProfileSVG` de la web.
+    val yFloor = (kotlin.math.ceil(maxElevRaw * 4 / 100.0) * 100).coerceIn(100.0, 1100.0)
+    val yMax = maxOf(yFloor, maxElevRaw + minOf(200.0, yFloor * 0.2))
     val yRange = yMax - yMin
 
     val yStep = when {
+        yRange <= 120 -> 25
+        yRange <= 250 -> 50
         yRange < 600 -> 100
         yRange > 2500 -> 500
         else -> 200
@@ -534,13 +548,13 @@ internal fun ElevationChart(
             points.forEach { pt -> fillPath.lineTo(x(pt.km), y(pt.alt.toDouble())) }
             fillPath.lineTo(x(points.last().km), mt + ph)
             fillPath.close()
-            drawPath(path = fillPath, color = profileColor.copy(alpha = 0.30f))
+            drawPath(path = fillPath, color = profileColor.copy(alpha = 0.42f))
 
             // 4. Línea del perfil con el color de la carrera.
             val linePath = Path()
             linePath.moveTo(x(points.first().km), y(points.first().alt.toDouble()))
             points.drop(1).forEach { pt -> linePath.lineTo(x(pt.km), y(pt.alt.toDouble())) }
-            drawPath(linePath, color = profileColor, style = Stroke(width = 1.5.dp.toPx()))
+            drawPath(linePath, color = profileColor, style = Stroke(width = 2.dp.toPx()))
 
             // 5. Pavé/sterrato segments (lengthKm != null)
             waypoints.filter { it.km != null && it.lengthKm != null && it.lengthKm > 0 }.forEach { wp ->

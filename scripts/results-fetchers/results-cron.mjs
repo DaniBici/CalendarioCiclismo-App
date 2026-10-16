@@ -500,6 +500,8 @@ async function main() {
         `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
+                (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
+                  WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."primaryType" = 'itt') AS "ittStages",
                 COALESCE((SELECT min(d2."dateKey") FROM race_days d2
                           WHERE d2."raceId" = r.id
                             AND d2."stageNumber" = COALESCE($2::int, ${LIVE_STAGE_SUBSELECT})),
@@ -595,6 +597,8 @@ async function main() {
                 l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
+                (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
+                  WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."primaryType" = 'itt') AS "ittStages",
                 d."dateKey" AS "scheduledDate",
                 jsonb_build_object('dateKey', d."dateKey", 'neutralStartUtc', d."neutralStartTimeUtc",
                   'startUtc', d."realStartTimeUtc", 'timezone', d.timezone) AS "scheduledTimes",
@@ -719,6 +723,8 @@ async function main() {
         `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
+                (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
+                  WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."primaryType" = 'itt') AS "ittStages",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT min(d."dateKey") FROM race_days d
@@ -1015,11 +1021,13 @@ async function main() {
     } else if (kind === 'maneffic') {
       // Maneffic publica JSON estables por jornada. --expected-date descarta los
       // datos de prueba que pueden existir en esas mismas URLs antes de la carrera.
+      // --itt-stages marca las contrarrelojes, que no se emiten hasta su final.
       srcLabel = ` ← maneffic:${t.manefficCode}`;
       fc = await run(MANEFFIC_FETCH, ['--code', String(t.manefficCode), '--competition-id', String(t.competitionId), '--out', outDir,
         ...(targetStage != null ? ['--stage', String(targetStage)] : []),
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
         ...(t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
+        ...(t.ittStages ? ['--itt-stages', JSON.stringify(t.ittStages)] : []),
         ...(targetStage != null && t.scheduledDate ? ['--expected-date', String(t.scheduledDate)] : [])]);
     } else if (kind === 'bornan') {
       // El sistema Bornan de unos Juegos publica el cuadro Results (PDF) por

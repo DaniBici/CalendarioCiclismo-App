@@ -8,6 +8,7 @@ import {
   stagesFromDocuments,
   startlistPublication,
   suggestCompetitionId,
+  timeTrialLastStarters,
 } from '../results-fetchers/maneffic-results-fetch.mjs';
 
 const code = '2026/ROA/NED_78380';
@@ -145,9 +146,19 @@ describe('prólogo y grafías de jóvenes (Eneco Tour)', () => {
     expect(plannedStageNumbers({ onlyStage: 0, totalStages: 5 })).toEqual([0]);
   });
 
+  const prologueStartlist = {
+    eventName: 'Eneco Tour - Men Elite', raceName: 'Prologue - The Hague', documentName: 'Startlist',
+    generated: '2026-10-12 17:00:32',
+    riders: [[7, '18:34:00'], [1, '21:13:00'], [12, '21:15:00'], [21, '21:17:00'], [31, '21:19:00']]
+      .map(([bib, time]) => ({ bib, TT_starttime: `2026-10-13 ${time}` })),
+  };
+
   it('emite el prólogo como etapa 0 sin tratarlo como final', () => {
     const documents = {
-      'prologue/result.json': prologue('Result', [row(1, 1, '04:26.67')]),
+      'prologue/startlist.json': prologueStartlist,
+      'prologue/result.json': prologue('Result', [
+        row(1, 1, '04:26.67'), row(2, 21, '04:27.00', '+0.33'), row(3, 7, '04:28.00', '+1.33'), row(0, 31, 'DNF'), row(4, 12, '04:30.00', '+3.33'),
+      ]),
       'prologue/result_young.json': prologue('Young', [row(1, 7, '04:30.10')]),
       'classifications/classification_general.json': prologue('General', [row(1, 1, '4:26.67')]),
     };
@@ -155,6 +166,31 @@ describe('prólogo y grafías de jóvenes (Eneco Tour)', () => {
     expect(stages).toHaveLength(1);
     expect(stages[0]).toMatchObject({ stageNumber: 0, isFinalClassification: false, raceType: 'ITT' });
     expect(stages[0].classifications.map((item) => item.classKind)).toEqual(['stage', 'youth', 'gc']);
+    for (const item of stages[0].classifications) expect(item.publication).toMatchObject({ format: 'fixed', sourceStatus: 'official' });
+    expect(stages[0].classifications.find((item) => item.classKind === 'stage').publication.expectedIds).toEqual(['7', '1', '12', '21', '31']);
+  });
+
+  it('retiene la contrarreloj hasta que llegan los tres últimos salidores', () => {
+    const logs = [];
+    const fetch = (documents) => stagesFromDocuments(documents, { code: eneco, onlyStage: 0, totalStages: 5, expectedDate: '2026-10-13', log: (m) => logs.push(m) });
+    const partial = [row(1, 1, '04:26.67'), row(2, 12, '04:27.00', '+0.33'), row(3, 7, '04:28.00', '+1.33')];
+    expect(fetch({ 'prologue/startlist.json': prologueStartlist, 'prologue/result.json': prologue('Result', partial) })).toEqual([]);
+    expect(logs.at(-1)).toContain('dorsales 31, 21');
+    expect(fetch({ 'prologue/result.json': prologue('Result', partial) })).toEqual([]);
+    expect(logs.at(-1)).toContain('sin lista de salida');
+  });
+
+  it('identifica la contrarreloj por la jornada aunque el nombre no lo diga', () => {
+    const name = 'Stage 2 - Tilburg';
+    const result = { eventName: 'Eneco Tour - Men Elite', raceName: name, resultName: 'Result', generated: '2026-10-15 15:00:00', resultRemark: '', resultData: [row(1, 1, '16:00.00')] };
+    const stages = stagesFromDocuments({ 'stage2/result.json': result }, { code: eneco, onlyStage: 2, totalStages: 5, expectedDate: '2026-10-15', ittStages: [0, 2] });
+    expect(stages).toEqual([]);
+    expect(stagesFromDocuments({ 'stage2/result.json': result }, { code: eneco, onlyStage: 2, totalStages: 5, expectedDate: '2026-10-15' })).toHaveLength(1);
+  });
+
+  it('exige también los empatados con el tercer último salidor', () => {
+    const startlist = { ...prologueStartlist, riders: [...prologueStartlist.riders, { bib: 40, TT_starttime: '2026-10-13 21:15:00' }] };
+    expect(timeTrialLastStarters(startlist, prologue('Result', []), eneco, 0)).toEqual(['31', '21', '12', '40']);
   });
 
   it('acepta result_youth y classification_young en las etapas', () => {

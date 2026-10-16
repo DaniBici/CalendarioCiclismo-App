@@ -122,6 +122,17 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 - **Alcance**: se aplica a TODA jornada publicada con un `raceId` válido, exista o no fuente UCI configurada (`race_uci_links`) para esa carrera. Una carrera que nunca llegue a tener resultados in-house queda con una página "aún no disponible" permanente — barato y sin `noindex`, pero si la escala crece mucho conviene revisar si acotar a carreras con fuente configurada.
 - **404.html**: ya cubría `/resultados/` y `/en/results/` (fallback a SPA con querystring) desde antes — sin cambios.
 
+## Inscritos anticipados — URL en el sitemap antes de la lista (2026-10-14)
+
+**Decisión de producto (Dani):** la página `/inscritos/<slug>/` (y `/en/startlist/<slug>/`) entra en el sitemap desde que la carrera tiene jornadas publicadas, no cuando llega la lista. La página estática ya existía para toda carrera con slug; faltaba su descubrimiento (antes el sitemap exigía filas en `startlist_teams`). Mismo patrón que «Resultados adelantados».
+
+- **Criterio** (`startlist_page_listed()` en `tools/site/gen_sitemap.py`): lista cargada (como antes, sin otra condición) **o** carrera con alguna jornada publicada que no sea descanso, no cancelada, sin `races.resultsOnly` y con `endDate` (o `startDate`, o última `dateKey`) igual o posterior a hoy UTC. Una carrera terminada sin lista sale del sitemap; la página y su canonical se conservan.
+- **Mismo título y descripción** con y sin lista. La SPA (`js/inscritos.js`) muestra `startlist.empty` mientras no hay datos. La URL, el canonical y `robots` no cambian al llegar la lista.
+- **Cuerpo estático** (`inscritos_body()` e `inscritos_context_html()` en `gen_og_pages.py`, ES y EN): fecha y enlaces rastreables que no dependen de la lista. Carrera de un día: jornada, perfil, mapa y resultados. Carrera por etapas: lista de etapas con enlace a cada jornada, sin días de descanso.
+- **Enlaces internos sin cambios:** competición, jornada, perfil, orden de salida, resultados y apps siguen enlazando a inscritos solo con `startlistImportedAt` (`startlist_url()` exige equipos). La página anticipada se alcanza por sitemap, buscador o enlace directo.
+- **Pruebas:** `test_sitemap.py` (anticipación y exclusiones) y `test_generated.py` (cuerpo estático).
+- **Pendiente de medir:** comparar en Search Console la indexación de `/inscritos/` anticipadas con la de las `/resultados/` anticipadas. Si Google las clasifica como soft 404, acotar la ventana (p. ej. N días antes de la carrera).
+
 ## Temporadas archivadas 2020-2025 — noindex (2026-09-26)
 
 Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
@@ -180,7 +191,7 @@ Datos de Search Console del 7-07 al 6-10-2026: las páginas `/resultados/` y `/e
 
 ## Sitemap + Atom
 
-`sitemap.yml` genera `sitemap.xml` (URLs limpias `/jornada/{slug}/`, `/competicion/{slug}/`, `/inscritos/{slug}/` solo con startlist) y `atom.xml` (ventana `[hoy-7d, hoy+30d]`, máx. 50 entradas). En local, `tools/site/gen_sitemap.py`.
+`sitemap.yml` genera `sitemap.xml` (URLs limpias `/jornada/{slug}/`, `/competicion/{slug}/`, `/inscritos/{slug}/`: con lista cargada o anticipada, ver «Inscritos anticipados») y `atom.xml` (ventana `[hoy-7d, hoy+30d]`, máx. 50 entradas). En local, `tools/site/gen_sitemap.py`.
 
 ## El sitio inglés vive en `/en/` — `cyclocal.app` es solo un puente de redirección
 

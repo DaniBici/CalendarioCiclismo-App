@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => {
   });
   return { client: {}, area: 'road', fillCxRaceSelect: vi.fn(), confirmDialog: vi.fn(), showToast: vi.fn(), getAuthHeaders: vi.fn() };
 });
-vi.mock('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm', () => ({ createClient: () => mocks.client }));
+vi.mock('../supabase-client.js', () => ({ getSupabaseClient: () => mocks.client }));
 vi.mock('../components/dialog.js', async original => ({ ...await original(), confirmDialog: mocks.confirmDialog }));
 vi.mock('../panel/helpers.js', async original => ({ ...await original(), showToast: mocks.showToast }));
 vi.mock('../panel/uploads.js', async original => ({ ...await original(), getAuthHeaders: mocks.getAuthHeaders }));

@@ -549,6 +549,20 @@ class GeneratedTest(unittest.TestCase):
         alias = pages[base + "/en/stage/vuelta-2026-etapa-2-alias-en"]
         self.assertEqual(alias["canonical"], base + "/en/stage/vuelta-2026-etapa-2-en")
 
+    def test_startlist_page_has_static_context_without_list(self):
+        self.run_generator_script("gen_og_pages.py", self.root / "full", catalog(True))
+        pages = tree(self.root / "full")
+        # r1 tiene lista; r7 (un día) y r4 (etapas) no: ambas llevan fecha y enlaces a sus jornadas.
+        stage_race = pages["inscritos/vuelta-2026/index.html"].decode()
+        self.assertIn("/jornada/vuelta-2026-etapa-1/", stage_race)
+        self.assertIn("/jornada/vuelta-2026-etapa-3/", stage_race)
+        self.assertNotIn("vuelta-2026-descanso", stage_race)
+        one_day = pages["inscritos/gp-nuevo-2026/index.html"].decode()
+        self.assertIn("/jornada/gp-nuevo-2026/", one_day)
+        self.assertIn("/resultados/gp-nuevo-2026/", one_day)
+        english = pages["en/startlist/vuelta-2026-en/index.html"].decode()
+        self.assertIn("/en/stage/vuelta-2026-etapa-2-en/", english)
+
     def test_incremental_og_reads_only_selected_races(self):
         full = self.run_generator_script("gen_og_pages.py", self.root / "full", catalog(True))
         fake = self.run_generator_script("gen_og_pages.py", self.root / "delta", catalog(True),
