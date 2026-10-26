@@ -59,7 +59,7 @@ enum CxDetailSection: String, CaseIterable, Identifiable {
         }
     }
     /// Categorías con horario verificado, por día y hora de salida: la que no
-    /// lo tiene no se lista en Horarios ni en Datos de la jornada.
+    /// lo tiene no se lista en Horarios ni en la columna lateral.
     static func scheduledCategories(_ detail: CxDetail) -> [CxCategory] {
         let actual = actualCategories(detail)
         return detail.race.categories.filter { actual.contains($0.category) && $0.startTimeUtc != nil }.sorted {
@@ -114,7 +114,9 @@ struct CxRaceDetailView: View {
     /// Nombre de la prueba si el llamador lo conoce: rotula la pantalla de carga.
     var titleHint: String? = nil
     @State private var data: CxDetail?
-    @State private var busy = false
+    /// Descargas en curso y orden de lanzamiento: solo la última publica.
+    @State private var inFlight = 0
+    @State private var refreshSequence = 0
     @State private var loaded = false
     @State private var error: String?
     @State private var section = CxDetailSection.programme
@@ -208,8 +210,13 @@ struct CxRaceDetailView: View {
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            // La carga al abrir, al volver a la ficha o a primer plano se
+            // lanza aunque siga en vuelo la de una tarea anterior ya
+            // cancelada; solo el latido de 60 s se omite con una en curso.
+            var heartbeat = false
             while !Task.isCancelled {
-                await refresh()
+                await refresh(heartbeat: heartbeat)
+                heartbeat = true
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
             }
         }
@@ -319,7 +326,7 @@ struct CxRaceDetailView: View {
         AdaptiveLayoutPolicy.divisionSpacing(in: proxy)
     }
     private func tournamentLink(_ tournament: CxTournament, season: String) -> some View {
-        NavigationLink(destination: CyclocrossView(tournament: tournament, season: season)) {
+        NavigationLink(value: CxTournamentDestination(tournament, season: season)) {
             RaceLogo(tournament.logoUrl, size: 24)
                 .frame(width: 44, height: 44).contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel(CyclocrossPresentation.t("Ver torneo \(tournament.name)", "View series \(tournament.nameEn ?? tournament.name)"))
@@ -329,7 +336,7 @@ struct CxRaceDetailView: View {
     @ViewBuilder private func tournamentHeading(_ race: CxRace) -> some View {
         if let tournament = race.tournament {
             HStack(spacing: 6) {
-                NavigationLink(destination: CyclocrossView(tournament: tournament, season: race.seasonKey)) {
+                NavigationLink(value: CxTournamentDestination(tournament, season: race.seasonKey)) {
                     Text(CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name))
                         .ccFont(.s14, weight: .semibold).foregroundStyle(AppTheme.textPrimary).lineLimit(1)
                 }.buttonStyle(.plain)
@@ -374,12 +381,15 @@ struct CxRaceDetailView: View {
         return encoder
     }()
     /// Publicación completa: nada se pinta sin la ronda y, en la primera
-    /// carga, sin el mapa ya descargado.
-    private func publish(_ value: CxCached<CxDetail>, forceArtwork: Bool) async {
+    /// carga, sin el mapa ya descargado. Una descarga superada por otra
+    /// lanzada después no publica nada.
+    private func publish(_ value: CxCached<CxDetail>, forceArtwork: Bool, sequence: Int) async {
         if !loaded { await preloadMap(mapAssetUrl(value.data)) }
         let season = value.data.race.seasonKey
-        tournamentRounds = await CyclocrossRepository.shared.rounds(season: season, force: forceArtwork)
-        round = tournamentRounds[value.data.race.id]
+        let rounds = await CyclocrossRepository.shared.rounds(season: season, force: forceArtwork)
+        guard sequence == refreshSequence else { return }
+        tournamentRounds = rounds
+        round = rounds[value.data.race.id]
         accept(value)
     }
     private func preloadMap(_ url: URL?) async {
@@ -397,27 +407,34 @@ struct CxRaceDetailView: View {
         guard let anchor, anchor.hasPrefix("resultados-") else { return true }
         return CxDetailSelection.resultCategories(detail).contains(String(anchor.dropFirst(11)))
     }
-    private func refresh(forceArtwork: Bool = false) async {
-        guard !busy else { return }
-        busy = true
+    /// El tirón, Reintentar y la carga de apertura se lanzan siempre;
+    /// `heartbeat` (latido de 60 s) se omite si hay una descarga en curso.
+    private func refresh(forceArtwork: Bool = false, heartbeat: Bool = false) async {
+        if heartbeat, inFlight > 0 { return }
+        inFlight += 1
+        defer { inFlight -= 1 }
+        refreshSequence &+= 1
+        let sequence = refreshSequence
         if forceArtwork { ImageRefresh.shared.refresh() }
-        defer { busy = false }
         do {
             // Un detalle en caché anterior a los resultados anunciados por el
             // ancla no se publica: se espera al detalle de red (que ya cae en
             // la caché si no hay conexión) en lugar de abrir en otra sección.
             if !loaded, let cached = await CyclocrossRepository.shared.cachedDetail(id: raceId), cacheSatisfiesAnchor(cached.data) {
-                await publish(cached, forceArtwork: forceArtwork)
+                await publish(cached, forceArtwork: forceArtwork, sequence: sequence)
             }
-            if let fresh = try await CyclocrossRepository.shared.detail(id: raceId) {
-                await publish(fresh, forceArtwork: forceArtwork)
+            let fresh = try await CyclocrossRepository.shared.detail(id: raceId)
+            guard sequence == refreshSequence else { return }
+            if let fresh {
+                await publish(fresh, forceArtwork: forceArtwork, sequence: sequence)
+                guard sequence == refreshSequence else { return }
             } else if !loaded {
                 data = nil
                 loaded = true
             }
             error = nil
         } catch {
-            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            guard sequence == refreshSequence, !Task.isCancelled, !(error is CancellationError) else { return }
             self.error = error.localizedDescription
             loaded = true
         }
@@ -570,7 +587,7 @@ private struct CxRaceDataCard: View {
         let categories = CxDetailSelection.scheduledCategories(detail)
         let multiDate = Set(detail.race.categories.map { $0.dateKey ?? detail.race.dateKey }).count > 1
         VStack(alignment: .leading, spacing: 10) {
-            Text(CyclocrossPresentation.t("Datos de la jornada", "Race data")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
+            Text(CyclocrossPresentation.t("Horarios", "Schedule")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
             ForEach(categories) { category in
                 let active = category.category == activeCategory
                 let time = detail.race.isCancelled || category.isCancelled ? CyclocrossPresentation.t("Cancelada", "Cancelled")
@@ -697,7 +714,7 @@ private struct CxResultsSection: View {
                 .padding(.top, 2)
                 .padding(.bottom, 2)
             ResultsClassificationTable(rows: CyclocrossPresentation.resultRows(rows, matcher: matcher).map { vm in
-                return (vm: vm, kind: vm.valueKind, value: vm.valueText)
+                (vm: vm, kind: vm.valueKind, value: vm.valueKind == .sameTime ? CyclocrossPresentation.t("m.t.", "s.t.") : vm.valueText)
             }, showTeam: rows.contains { !($0.teamName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, showUciPoints: rows.contains { $0.points != nil }, valueHeader: CyclocrossPresentation.t("Tiempo", "Time"))
             ForEach(rows.filter { $0.bonusSeconds != nil }) { row in
                 Text(row.riderDisplay + " · " + CyclocrossPresentation.t("Bonificación: ", "Bonus: ") + String(row.bonusSeconds!) + " s")
@@ -1082,9 +1099,18 @@ private struct CxBroadcastSection: View {
         StagePanel {
             StagePanelTitle(CyclocrossPresentation.t("Revive la carrera", "Race replay"))
         } content: {
+            // Un encabezado por categoría, como en TV y streaming; las filas
+            // comunes van delante sin encabezado.
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(links.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Divider() }
+                    if let code = item.category, index == 0 || links[index - 1].category != code {
+                        Text(CyclocrossPresentation.category(code))
+                            .ccFont(.s14, weight: .semibold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        Divider()
+                    }
                     BroadcastRowView(broadcast: Broadcast(id: item.id, raceDayId: detail.race.id, channel: item.title, startTimeUtc: nil,
                         url: item.url.absoluteString, note: nil, sortOrder: nil, showInRevive: true, country: nil), isRevive: true, hasResults: true, horizontalPadding: 12, onTap: onOpen)
                 }

@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.util
 
+import app.calendariociclismo.android.data.local.dao.CX_FEATURED_CACHE_KEY
 import app.calendariociclismo.android.data.local.dao.CxCacheDao
 import app.calendariociclismo.android.data.local.entity.CxDetailCacheEntity
 import app.calendariociclismo.android.data.local.entity.CxMonthCacheEntity
@@ -7,6 +8,7 @@ import app.calendariociclismo.android.data.model.CxBroadcast
 import app.calendariociclismo.android.data.model.CxCategory
 import app.calendariociclismo.android.data.model.CxDetail
 import app.calendariociclismo.android.data.model.CxRace
+import app.calendariociclismo.android.data.model.CxVideo
 import app.calendariociclismo.android.data.repository.CxRemote
 import app.calendariociclismo.android.data.repository.CyclocrossRepository
 import app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState
@@ -14,7 +16,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.util.Locale
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -36,6 +41,20 @@ class CxAgendaCardTest {
 
     private fun tv(id: String, start: String?, category: String? = null, order: Int = 0, url: String = "https://tv.example/$id") =
         CxBroadcast(id, "cx", category = category, channel = id, startTimeUtc = start, url = url, sortOrder = order)
+
+    private fun clip(id: String, category: String? = null, order: Int = 0, url: String = "https://www.youtube.com/watch?v=${id.padEnd(11, 'x')}") =
+        CxVideo(id, "cx", category = category, title = id, url = url, sortOrder = order)
+
+    @Test fun `el badge de resumen solo aplica a videos del dia`() {
+        fun summary(videos: List<CxVideo>, date: String = day, cancelled: Boolean = false) =
+            CxPresentation.agendaVideo(race.copy(videos = videos, isCancelled = cancelled), date)?.id
+        assertEquals("a", summary(listOf(clip("b", order = 1), clip("a", category = "WE"))))
+        assertNull(summary(listOf(clip("mj", category = "MJ"))))
+        assertNull(summary(listOf(clip("x", url = "https://example.org/video"))))
+        assertNull(summary(emptyList()))
+        assertNull(summary(listOf(clip("a")), date = "2026-11-23"))
+        assertNull(summary(listOf(clip("a")), cancelled = true))
+    }
 
     private fun at(time: String) = Instant.parse("2026-11-22T${time}:00Z")
 
@@ -103,6 +122,23 @@ class CxAgendaCardTest {
         assertEquals(listOf("c2a", "c2b", "cdm", "c1"), CyclocrossLogic.racesOn(races, day, setOf("c2b", "c2a")).map { it.id })
     }
 
+    @Test fun `el dia se ordena por categoria, hora de TV u hora de meta como Hoy de carretera`() {
+        fun at(time: String) = "${day}T$time:00Z"
+        val races = listOf(
+            race.copy(id = "c2", name = "B", raceClass = "C2", categories = listOf(CxCategory("ME", at("09:00"), day)), broadcasts = listOf(tv("c2", null))),
+            race.copy(id = "c2x", name = "A", raceClass = "C2", isCancelled = true, categories = listOf(CxCategory("ME", at("08:00"), day)), broadcasts = listOf(tv("c2x", at("07:00")))),
+            race.copy(id = "cdm", name = "Copa", raceClass = "CDM", categories = listOf(CxCategory("ME", at("14:30"), day))),
+            race.copy(id = "c1", name = "C", raceClass = "C1", categories = listOf(CxCategory("WE", at("10:00"), day), CxCategory("ME", at("12:00"), day)),
+                broadcasts = listOf(tv("c1", at("11:50")))),
+        )
+        fun ids(sort: CxAgendaSort) = CxPresentation.agendaRaces(races, day, setOf("cdm"), sort) { setOf("ALL") }.map { it.id }
+        assertEquals(listOf("cdm", "c1", "c2x", "c2"), ids(CxAgendaSort.CATEGORY))
+        // TV con hora, TV sin hora y sin TV (la cancelada); a igualdad, el canónico sin destacadas.
+        assertEquals(listOf("c1", "c2", "cdm", "c2x"), ids(CxAgendaSort.TV_TIME))
+        // Fin de la última manga (60 min sin duración verificada); la cancelada, al final.
+        assertEquals(listOf("c2", "c1", "cdm", "c2x"), ids(CxAgendaSort.FINISH_TIME))
+    }
+
     @Test fun `la pestana de resultados pone las destacadas primero dentro de cada dia`() {
         fun done(id: String, raceClass: String, date: String) = race.copy(id = id, name = id, raceClass = raceClass, dateKey = date,
             categories = listOf(CxCategory("ME", dateKey = date, resultsStatus = "official", winnerName = "Ganador")))
@@ -129,10 +165,42 @@ class CxAgendaCardTest {
         assertEquals(listOf("cdm", "c2"), fresh.dayRaces.map { it.id })
     }
 
+    @Test fun `al reabrir la agenda la cache se pinta ya con las destacadas`() = runBlocking {
+        val cdm = race.copy(id = "cdm", raceClass = "CDM")
+        val c2 = race.copy(id = "c2", raceClass = "C2")
+        val remote = Remote(listOf(cdm, c2))
+        val dao = MemoryDao()
+        val repo = CyclocrossRepository(dao, remote)
+        CyclocrossAgendaState(repo, { LocalDate.parse(day) }).open("2026-27")
+        // Vuelta desde Ruta (mismo repositorio) y nueva sesión (misma caché
+        // local): con la red retenida, el día pintado desde la caché ya lleva
+        // la destacada delante.
+        for (source in listOf(repo, CyclocrossRepository(dao, remote))) {
+            val gate = CompletableDeferred<Unit>()
+            val entered = CompletableDeferred<Unit>()
+            remote.gate = gate
+            remote.entered = entered
+            val reopened = CyclocrossAgendaState(source, { LocalDate.parse(day) })
+            val opening = launch { reopened.open("2026-27") }
+            withTimeout(2_000) { entered.await() }
+            assertTrue(reopened.loaded)
+            assertEquals(listOf("c2", "cdm"), reopened.dayRaces.map { it.id })
+            gate.complete(Unit)
+            opening.join()
+            assertEquals(listOf("c2", "cdm"), reopened.dayRaces.map { it.id })
+        }
+    }
+
     private class Remote(private val rows: List<CxRace>) : CxRemote {
         var featured: Set<String>? = setOf("c2")
-        override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> =
-            if (month == YearMonth.of(2026, 11)) rows else emptyList()
+        /** Retiene las consultas de meses hasta completarse; [entered] avisa
+         *  de la primera. */
+        var gate: CompletableDeferred<Unit>? = null
+        var entered: CompletableDeferred<Unit>? = null
+        override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> {
+            gate?.let { entered?.complete(Unit); it.await() }
+            return if (month == YearMonth.of(2026, 11)) rows else emptyList()
+        }
         override suspend fun cxNextDate(season: String, date: String): String? = null
         override suspend fun cxDetail(id: String): CxDetail? = null
         override suspend fun cxRaceForSlug(slug: String): CxRace? = null
@@ -141,7 +209,7 @@ class CxAgendaCardTest {
 
     private class MemoryDao : CxCacheDao {
         val months = mutableMapOf<String, CxMonthCacheEntity>()
-        override suspend fun allMonths() = months.values.toList()
+        override suspend fun allMonths() = months.values.filter { it.key != CX_FEATURED_CACHE_KEY }
         override suspend fun allDetails() = emptyList<CxDetailCacheEntity>()
         override suspend fun month(key: String) = months[key]
         override suspend fun months(seasonKey: String) = months.values.filter { it.seasonKey == seasonKey }

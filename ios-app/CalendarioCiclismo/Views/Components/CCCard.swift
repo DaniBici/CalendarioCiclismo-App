@@ -124,10 +124,11 @@ extension View {
             .ccCardShadow()
     }
 
-    /// Sombra única de las tarjetas (negro 6 %, radio 8, y = 3), la misma en
-    /// todas las superficies: cintillo, listados, detalle y Ajustes.
+    /// Sombra única de las tarjetas (negro 6 % en claro y 50 % en oscuro,
+    /// radio 8, y = 3), la misma en todas las superficies: cintillo,
+    /// listados, detalle y Ajustes.
     func ccCardShadow() -> some View {
-        shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
+        shadow(color: AppTheme.cardShadow, radius: 8, x: 0, y: 3)
     }
 }
 

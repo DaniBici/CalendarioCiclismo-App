@@ -1,17 +1,18 @@
-import { teamHeaderColors } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 //  INSCRITOS — lista de equipos y corredores inscritos
 //  URL: inscritos.html?race=RACE_ID  o  /inscritos/RACE_SLUG/
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
+import { supabase, setMeta, setMetaProperty, raceUrl,
          raceName as getRaceName, enBase,
-         seoLongDate, seoDayMonth, articuloNombre, conArticulo, originalNameDistinto, raceSearchName, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
-         isNoTeamPlaceholderTeam, setRaceRobots, setHreflangPair } from './shared.js';
+         seoLongDate, seoDayMonth, articuloNombre, conArticulo, originalNameDistinto, raceSearchName, loadRaceTechnicalGuide, withRaceTechnicalGuide,
+         setRaceRobots, setHreflangPair } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
 import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist/data.js';
 import { setupRiderTooltips } from './rider-tooltip.js';
+import { inscritosHtml, pdfButtonInner } from './inscritos-html.js';
+import { applyPrerenderedHtml } from './html-fingerprint.js';
 
 // ── SEO helpers ──────────────────────────────────────────────────────
 function buildFechaParentesis(race, lang) {
@@ -53,7 +54,7 @@ async function init() {
   await i18nReady;
 
   if (!race) {
-    content.innerHTML = `<div class="startlist-empty">${t('startlist.notFound')}</div>`;
+    applyPrerenderedHtml(content, `<div class="startlist-empty">${t('startlist.notFound')}</div>`);
     return;
   }
 
@@ -77,18 +78,21 @@ async function init() {
   // En one_day el panel de botones muestra el recorrido (rutómetro/perfil/…),
   // que vive en la jornada y sus assets. En vueltas por etapas NO se cargan:
   // el panel solo lleva web oficial + "Ir a la carrera" (la startlist es de la
-  // carrera entera, no de una etapa). Se piden junto con la startlist.
+  // carrera entera, no de una etapa). Se piden junto con la startlist, con el
+  // mismo orden que el build (desempate y documentos por id).
   const oneDayRequest = race.raceFormat === 'one_day'
     ? supabase.from('race_days')
       .select('*,assets(*)').eq('raceId', raceId).eq('editorialStatus', 'published')
-      .order('dateKey', { ascending: true }).limit(1).maybeSingle()
+      .order('dateKey', { ascending: true }).order('id')
+      .order('id', { referencedTable: 'assets' })
+      .limit(1).maybeSingle()
     : Promise.resolve({ data: null });
   const [data, { data: oneDayRow }] = await Promise.all([loadStartlistData(race), oneDayRequest]);
   if (!data) {
-    content.innerHTML = `<div class="startlist-empty">${t('startlist.empty')}</div>`;
+    applyPrerenderedHtml(content, `<div class="startlist-empty">${t('startlist.empty')}</div>`);
     return;
   }
-  const { raceDays, teams, ridersByTeam, globalTeamById, riderOutMap, totalTeams, totalRiders } = data;
+  const { totalTeams, totalRiders } = data;
 
   const { assets: oneDayAssetRows, ...oneDayFields } = oneDayRow || {};
   const oneDayRd = oneDayRow ? oneDayFields : null;
@@ -225,116 +229,13 @@ async function init() {
     }
   }
 
-  // Render
-
-  // Hero secondary info (same as competicion + "Inscritos" highlighted)
-  const { heroLabel, infoParts, heroSubline } = startlistHeroInfo(race, raceDays);
-
-  // Panel de botones (web oficial · "Ir a la carrera" · recorrido en un día),
-  // fuente única en shared.buildActionButtons. En vueltas por etapas solo salen
-  // web oficial + "Ir a la carrera"; en un día, todo el recorrido de la jornada.
-  const actionButtonsHtml = buildActionButtons({
-    race,
-    rd: oneDayRd || { id: race.id, slug: race.slug, slugEn: race.slugEn },
-    view: 'inscritos',
+  // Render: la página generada en el build con el mismo HTML se conserva
+  // (js/html-fingerprint.js) y solo se montan el tooltip y el botón del PDF.
+  const html = inscritosHtml(race, data, {
+    oneDayRd,
     assets: withRaceTechnicalGuide(oneDayAssets, await loadRaceTechnicalGuide(race.id)),
-    hasStartlist: false,
-    style: 'margin:0 auto 0.85rem', standalone: true,
   });
-
-  const pdfAction = `<button class="btn-ical" id="btnDescargarPdf">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          ${t('startlist.downloadPdf')}
-        </button>`;
-  // Sin equipos reales no se muestra "0 equipos": solo el total de corredores.
-  const ridersWord = getLang() === 'en' ? 'riders' : (race.gender === 'female' ? 'corredoras' : 'corredores');
-  const statsLine = totalTeams > 0
-    ? `${totalTeams} ${getLang() === 'en' ? 'teams' : 'equipos'} · ${totalRiders} ${ridersWord}`
-    : `${totalRiders} ${ridersWord}`;
-
-  let html = buildRaceHeader({
-    race,
-    label: heroLabel,
-    detail: infoParts,
-    stats: statsLine,
-    action: pdfAction,
-  }) + `
-    ${actionButtonsHtml}
-    ${(() => {
-      const notes = [];
-      if (race.startlistProvisional) {
-        const provText = getLang() === 'en'
-          ? '<strong>Provisional Startlist</strong>; not considered final until the team managers meeting. This notice will disappear once it is official.'
-          : '<strong>Lista provisional</strong>; no se considera definitiva hasta la reunión de directores. Esta indicación desaparecerá cuando sea oficial.';
-        notes.push(`<span class="startlist-disclaimer startlist-disclaimer--provisional">${provText}</span>`);
-      }
-      return notes.length
-        ? `<div class="startlist-toolbar">${notes.join('')}</div>`
-        : '';
-    })()}
-    <div class="startlist-grid">
-  `;
-
-  teams.forEach(team => {
-    const teamRiders = ridersByTeam[team.id] || [];
-    // Estado sin equipo → ocultación cosmética: los corredores se listan, pero
-    // la tarjeta va SIN cabecera de equipo (ni nombre, ni chapa).
-    const hideHeader = isNoTeamPlaceholderTeam(team);
-    const gTeam = team.teamId ? globalTeamById[team.teamId] : null;
-    const enrichedClass = gTeam ? ' startlist-team__header--enriched' : '';
-    const colors = teamHeaderColors(gTeam);
-    const headerStyle = `background:${colors.background};color:${colors.text}`;
-    // Nombre del equipo como texto plano (las fichas públicas de equipo se retiraron).
-    const nameHtml = `<span class="startlist-team__name">${esc(team.displayName)}</span>`;
-    const confirmHtml = race.startlistProvisional
-      ? `<span class="startlist-team__confirm${team.isConfirmed ? ' startlist-team__confirm--yes' : ''}" title="${team.isConfirmed ? 'Confirmado' : 'Pendiente de confirmar'}">${team.isConfirmed
-          ? `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><rect width="18" height="18" rx="4" fill="var(--accent)"/><path d="M5 9.5L7.5 12L13 6.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-          : `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><rect width="18" height="18" rx="4" fill="#6b7280"/><path d="M6 6L12 12M12 6L6 12" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>`
-        }</span>`
-      : '';
-    const headerHtml = hideHeader ? '' : `
-        <div class="startlist-team__header${enrichedClass}" style="${headerStyle}">
-          ${nameHtml}
-          ${confirmHtml}
-        </div>`;
-    html += `
-      <div class="startlist-team">${headerHtml}
-        <div class="startlist-team__riders">
-    `;
-    teamRiders.forEach(r => {
-      const flagHtml = r.countryCode ? countryFlag(r.countryCode) : '';
-      const flagSpan = r.countryCode ? `<span class="startlist-rider__flag">${flagHtml}</span>` : '';
-      // Fuera de carrera: si tiene globalRiderId y está en el mapa de abandonos.
-      // El atributo lleva "irm|stageNumber" (stageNumber vacío en one-day) para
-      // que el tooltip muestre el motivo ("ABN · etapa 2"). La clase --out tacha.
-      // (Único data-* que sobrevive: las fichas públicas se retiraron.)
-      const out = r.globalRiderId ? riderOutMap.get(r.globalRiderId) : null;
-      const dnfAttr = out
-        ? `data-rider-dnf="${esc(`${out.irm}|${out.stageNumber == null ? '' : out.stageNumber}`)}"`
-        : '';
-      const nameInner = `${esc(r.firstName)} ${esc(r.lastName)}`;
-      const nameHtml = `<span class="startlist-rider__name">${nameInner}</span>`;
-      html += `
-          <div class="startlist-rider${out ? ' startlist-rider--out' : ''}" ${dnfAttr}>
-            <span class="startlist-rider__dorsal">${r.dorsal || ''}</span>
-            ${flagSpan}
-            ${nameHtml}
-          </div>
-      `;
-    });
-    html += `
-        </div>
-      </div>
-    `;
-  });
-
-  html += '</div>';
-
-  content.innerHTML = html;
+  applyPrerenderedHtml(content, html);
 
   // ── Tooltip de corredor (hover en desktop / tap en táctil) ──
   setupRiderTooltips(content);
@@ -348,18 +249,12 @@ async function init() {
       pdfBtn.disabled = true;
       pdfBtn.textContent = t('startlist.generatingPdf');
       try {
-        await generateStartlistPDF(startlistPdfOptions(race, data, { heroLabel, heroSubline }));
+        await generateStartlistPDF(startlistPdfOptions(race, data, startlistHeroInfo(race, data.raceDays)));
       } catch (err) {
         console.error('Error generando PDF:', err);
       } finally {
         pdfBtn.disabled = false;
-        pdfBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          ${t('startlist.downloadPdf')}`;
+        pdfBtn.innerHTML = pdfButtonInner();
       }
     });
   }

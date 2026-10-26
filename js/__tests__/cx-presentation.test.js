@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxRaceMedia,cxCategoryConcludedAt,cxProgrammeOrder,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxLegacyGeneralFragment,cxTournamentPageUrl,cxTournamentPage,cxTournamentGeneralCategories,cxStandingValueCells,cxStandingsBreakdown,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches,cxAgendaBroadcast,cxAgendaStartlistCategory,cxDayRaces} from '../cx/presentation.js';
+import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxRaceMedia,cxCategoryConcludedAt,cxProgrammeOrder,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxLegacyGeneralFragment,cxTournamentPageUrl,cxTournamentPage,cxTournamentGeneralCategories,cxStandingValueCells,cxStandingsBreakdown,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches,cxAgendaBroadcast,cxAgendaVideo,cxAgendaStartlistCategory,cxDayRaces,cxSortDayRaces} from '../cx/presentation.js';
 import {cxMonth,cxNextDate,cxAllRows,cxTournamentRounds,cxSeasonRounds} from '../services/cx-data.js';
 import {cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
 
@@ -265,6 +265,17 @@ describe('agenda y clasificación pública CX',()=>{
     expect(media.revive).toEqual([]);
     expect(cxRaceMedia(race,[{...me,resultsStatus:'pending'},we],rows,[],{at:before}).tv.map(row=>row.id)).toEqual(['g','me','we']);
   });
+  it('muestra el badge de resumen de la Agenda solo con vídeos aplicables al día',()=>{
+    const day={...race,cx_race_categories:[me,we]};
+    const video=(id,category=null,sortOrder=0)=>({id,category,sortOrder,url:`https://www.youtube.com/watch?v=${id.padEnd(11,'x')}`});
+    expect(cxAgendaVideo(day,'2026-10-11',[video('b',null,1),video('a','WE',0)]).id).toBe('a');
+    expect(cxAgendaVideo(day,'2026-10-11',[video('mj','MJ')])).toBeNull();
+    expect(cxAgendaVideo(day,'2026-10-11',[{id:'x',url:'https://example.org/video'}])).toBeNull();
+    expect(cxAgendaVideo(day,'2026-10-11',[])).toBeNull();
+    expect(cxAgendaVideo(day,'2026-10-11',undefined)).toBeNull();
+    expect(cxAgendaVideo(day,'2026-10-12',[video('a')])).toBeNull();
+    expect(cxAgendaVideo({...day,isCancelled:true},'2026-10-11',[video('a')])).toBeNull();
+  });
   it('ordena las categorías en directo como el programa',()=>{
     expect(cxProgrammeOrder(race,[me,we,{category:'MJ'}]).map(c=>c.category)).toEqual(['WE','ME','MJ']);
     const media=cxRaceMedia(race,[{...me,resultsStatus:'pending'},we],[],[],{at:before});
@@ -448,6 +459,23 @@ describe('consultas mensuales y salto puntual CX',()=>{
     expect(cxDayRaces(marked,day).map(r=>r.id)).toEqual(['c2a','c2b','cdm','c1']);
     const failing={from:vi.fn(table=>{const q={};for(const key of ['select','eq','lte','or','order'])q[key]=vi.fn(()=>q);q.then=resolve=>Promise.resolve(resolve(table==='cx_races'?{data:rows.map(r=>({...r})),error:null}:{data:null,error:{message:'sin permiso'}}));return q;})};
     expect(cxDayRaces(await cxMonth(failing,'2026-27',2026,11),day).map(r=>r.id)).toEqual(['cdm','c1','c2a','c2b']);
+  });
+  it('ordena el día por categoría, hora de TV u hora de meta como Hoy de carretera',()=>{
+    const day='2026-11-22',at=time=>`${day}T${time}:00Z`;
+    const tv=(id,time)=>({id,category:null,url:`https://tv.example/${id}`,startTimeUtc:time?at(time):null});
+    const rows=[
+      {id:'c2',name:'B',class:'C2',seasonKey:'2026-27',dateKey:day,cx_race_categories:[{category:'ME',dateKey:day,startTimeUtc:at('09:00')}],cx_broadcasts:[tv('c2',null)]},
+      {id:'c2x',name:'A',class:'C2',seasonKey:'2026-27',dateKey:day,isCancelled:true,cx_race_categories:[{category:'ME',dateKey:day,startTimeUtc:at('08:00')}],cx_broadcasts:[tv('c2x','07:00')]},
+      {id:'cdm',name:'Copa',class:'CDM',seasonKey:'2026-27',dateKey:day,featured:true,cx_race_categories:[{category:'ME',dateKey:day,startTimeUtc:at('14:30')}]},
+      {id:'c1',name:'C',class:'C1',seasonKey:'2026-27',dateKey:day,cx_race_categories:[{category:'WE',dateKey:day,startTimeUtc:at('10:00')},{category:'ME',dateKey:day,startTimeUtc:at('12:00')}],cx_broadcasts:[tv('c1','11:50')]},
+    ];
+    const ids=mode=>cxSortDayRaces(rows,day,mode).map(r=>r.id);
+    expect(ids('category')).toEqual(['cdm','c1','c2x','c2']);
+    // TV con hora, TV sin hora y sin TV (la cancelada); a igualdad, el canónico sin destacadas.
+    expect(ids('tvtime')).toEqual(['c1','c2','cdm','c2x']);
+    // Fin de la última manga (60 min sin duración verificada); la cancelada, al final.
+    expect(ids('finishtime')).toEqual(['c2','c1','cdm','c2x']);
+    expect(cxSortDayRaces(rows,day,'tvtime',()=>[]).map(r=>r.id)).toEqual(['cdm','c1','c2x','c2']);
   });
   it('obtiene la fecha mínima por RPC sin recorrer meses vacíos y propaga errores',async()=>{
     const rpc=vi.fn().mockResolvedValueOnce({data:'2027-01-30'}).mockResolvedValueOnce({data:null}).mockResolvedValueOnce({error:{message:'Error de consulta'}});

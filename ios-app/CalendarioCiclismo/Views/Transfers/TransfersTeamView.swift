@@ -338,7 +338,7 @@ struct TransfersTeamView: View {
         unknownTeam: String
     ) -> some View {
         // Equipos con ficha en el mercado (destino enlazable de un nombre).
-        let marketTeamIds = Set(data.seasons.map(\.teamId))
+        let marketTeamIds = TransfersLogic.marketTeamIds(data.seasons)
         return CCCard {
             movementColumn(
                 moves: moves, data: data, showOrigin: showOrigin,

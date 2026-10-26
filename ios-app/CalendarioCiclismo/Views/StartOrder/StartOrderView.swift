@@ -4,57 +4,68 @@ struct StartOrderView: View {
     @State private var viewModel = StartOrderViewModel()
     let raceDayId: String
     var showDismissButton: Bool = false
+    @State private var safariURL: URL?
+    @State private var quickLookURL: URL?
+    @State private var offlineAlert: OfflineAccessAlert?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// Jornada del orden de salida, con los datos de su ficha.
+    private var stage: StageDetailViewModel { viewModel.stage }
+
     var body: some View {
         ZStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header idéntico al de ElevationProfileView (paridad visual).
-                    if let rd = viewModel.fullRaceDay {
-                        StageInfoHeader(raceDay: rd, race: viewModel.race)
-                    }
-
-                    if horizontalSizeClass == .regular,
-                       let rd = viewModel.fullRaceDay,
-                       let race = viewModel.race,
-                       hasStageContext(rd) {
-                        HStack(alignment: .top, spacing: 16) {
-                            orderContent
-                                .frame(maxWidth: .infinity, alignment: .topLeading)
-                            ResultsStageContext(
-                                raceDay: rd,
-                                race: race
-                            )
-                                .frame(width: 320)
-                        }
-                    } else {
-                        orderContent
-                        if let rd = viewModel.fullRaceDay,
-                           let race = viewModel.race,
-                           hasStageContext(rd) {
-                            ResultsStageContext(
-                                raceDay: rd,
-                                race: race
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical)
-            }
-            .background(AppTheme.background)
-            .refreshable {
-                await viewModel.refresh(raceDayId: raceDayId)
-            }
-
-            if viewModel.isLoading && viewModel.raceDay == nil {
+            // La jornada y el orden de salida se pintan juntos: la pantalla de
+            // carga, sin fondo propio, ocupa el contenido hasta tener ambos.
+            if viewModel.isLoading {
                 LoadingView(title: LocaleService.t("Orden de salida", "Start order"))
-            } else if let error = viewModel.error {
-                ErrorView(message: error, retry: {
-                    Task { await viewModel.load(raceDayId: raceDayId) }
-                })
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Cabecera de la jornada: mismos datos y tira de
+                        // documentación, sin el acceso al orden de salida y con el
+                        // de vuelta a la jornada.
+                        StageHeaderCard(viewModel: stage, context: .startOrder, safariURL: $safariURL,
+                                        quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
+
+                        if horizontalSizeClass == .regular,
+                           let rd = stage.raceDay,
+                           let race = stage.race,
+                           hasStageContext(rd) {
+                            HStack(alignment: .top, spacing: 16) {
+                                orderContent
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                ResultsStageContext(
+                                    raceDay: rd,
+                                    race: race
+                                )
+                                    .frame(width: 320)
+                            }
+                        } else {
+                            orderContent
+                            if let rd = stage.raceDay,
+                               let race = stage.race,
+                               hasStageContext(rd) {
+                                ResultsStageContext(
+                                    raceDay: rd,
+                                    race: race
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical)
+                }
+                .background(AppTheme.background)
+                .refreshable {
+                    await viewModel.refresh(raceDayId: raceDayId)
+                }
+
+                if let error = viewModel.error {
+                    ErrorView(message: error, retry: {
+                        Task { await viewModel.load(raceDayId: raceDayId) }
+                    })
+                }
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
@@ -68,13 +79,16 @@ struct StartOrderView: View {
                 }
             }
         }
+        .safariSheet(url: $safariURL)
+        .quickLookSheet(url: $quickLookURL)
+        .offlineAccessAlert($offlineAlert)
         .task {
             await viewModel.load(raceDayId: raceDayId)
             var soParams: [String: Any] = [
                 "race_day_id": raceDayId,
                 "race_name": viewModel.race?.name ?? "",
             ]
-            if let label = viewModel.fullRaceDay?.stageLabel { soParams["stage_name"] = label }
+            if let label = stage.raceDay?.stageLabel { soParams["stage_name"] = label }
             AnalyticsService.shared.logScreenView("start_order", parameters: soParams)
         }
     }
@@ -114,9 +128,8 @@ struct StartOrderView: View {
 }
 
 // MARK: - Header
-// El header del orden de salida ahora reusa `StageInfoHeader` (mismo que
-// usa ElevationProfileView) para paridad visual con el resto de la app.
-// Ver StageDetailView.swift::StageInfoHeader.
+// El header del orden de salida es `StageHeaderCard`, el de la jornada, con el
+// contexto `.startOrder`. Ver StageDetailView.swift::StageHeaderCard.
 
 // MARK: - Filter bar
 
@@ -253,13 +266,18 @@ struct StartOrderRow: View {
             ))
 
             if viewModel.isTtt {
+                // El casado usa el nombre de la vista; solo el texto visible se traduce.
+                let matchedTeam = UciResultsLogic.findMatchingTeam(entry.teamName, teams: viewModel.teams)
+                let teamName = Team.localizedName(
+                    entry.teamName ?? "", team: matchedTeam, isEnglish: LocaleService.shouldShowEnglishContent
+                )
                 HStack(spacing: 5) {
-                    if let team = UciResultsLogic.findMatchingTeam(entry.teamName, teams: viewModel.teams) {
-                        TeamColorBands(team: team)
+                    if let matchedTeam {
+                        TeamColorBands(team: matchedTeam)
                     }
-                    Text(entry.teamName?.isEmpty == false ? entry.teamName! : "-")
+                    Text(teamName.isEmpty ? "-" : teamName)
                         .ccFont(.s14, weight: .medium)
-                        .foregroundStyle(entry.teamName?.isEmpty == false ? .primary : .secondary)
+                        .foregroundStyle(teamName.isEmpty ? .secondary : .primary)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -281,11 +299,12 @@ struct StartOrderRow: View {
                             .lineLimit(1)
                     }
                     if let team = entry.teamName, !team.isEmpty {
+                        let resolved = UciResultsLogic.findMatchingTeam(team, teams: viewModel.teams)
                         HStack(spacing: 5) {
-                            if let resolved = UciResultsLogic.findMatchingTeam(team, teams: viewModel.teams) {
+                            if let resolved {
                                 TeamColorBands(team: resolved)
                             }
-                            Text(team)
+                            Text(Team.localizedName(team, team: resolved, isEnglish: LocaleService.shouldShowEnglishContent))
                                 .ccFont(.s12)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)

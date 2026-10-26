@@ -30,10 +30,10 @@ describe('caché local', () => {
   it('descarta copias de otra versión de esquema al liberar espacio', () => {
     const storage = memoryStorage(400);
     storage.setItem('cc-cache:v0:antigua', 'x'.repeat(300));
-    storage.setItem('cc-theme', 'dark');
+    storage.setItem('cc_lang', 'en');
     expect(writeCache('nueva', 'y'.repeat(200), { storage })).toBe(true);
     expect(storage.getItem('cc-cache:v0:antigua')).toBeNull();
-    expect(storage.getItem('cc-theme')).toBe('dark');
+    expect(storage.getItem('cc_lang')).toBe('en');
   });
 
   it('rechaza entradas que superan el tamaño máximo', () => {

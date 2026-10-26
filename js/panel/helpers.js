@@ -97,3 +97,8 @@ export function formatTimeHHMM(ts) {
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 }
+
+// ── Iconos SVG inline ─────────────────────────────────────────────
+// Viven en ./icons.js (sin dependencias) para que editor-ui.js y cx.js puedan
+// importarlos sin arrastrar shared.js; se reexportan aquí por comodidad.
+export { panelIconSvg } from './icons.js';

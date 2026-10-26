@@ -10,7 +10,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
@@ -521,6 +524,42 @@ class CyclocrossTest {
         assertFalse(state.hasPendingToday(at))
     }
 
+    @Test fun `la primera pintura de Hoy espera al detalle del dia de apertura`() = runBlocking {
+        val remote = FakeRemote(race)
+        val dao = MemoryDao()
+        val repo = CyclocrossRepository(dao, remote)
+        // Sin copia local y hoy sin carreras: la apertura recae en el 30 de
+        // enero y no se pinta hasta tener el detalle de ese día.
+        val gate = CompletableDeferred<Unit>()
+        val entered = CompletableDeferred<Unit>()
+        remote.dayGate = { date -> if (date == "2027-01-30") { entered.complete(Unit); gate.await() } }
+        val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
+        val opening = launch { state.open("2026-27") }
+        withTimeout(2_000) { entered.await() }
+        assertEquals("2027-01-30", state.dateKey)
+        assertFalse(state.loaded)
+        remote.dayGate = null
+        gate.complete(Unit)
+        opening.join()
+        assertTrue(state.loaded)
+        // Copia local con el índice y sin el día de apertura: tampoco se pinta
+        // el índice solo; se espera al día de la red.
+        dao.months.remove("day:2026-27:2027-01-30")
+        val reopenGate = CompletableDeferred<Unit>()
+        val reentered = CompletableDeferred<Unit>()
+        remote.dayGate = { date -> if (date == "2027-01-30") { reentered.complete(Unit); reopenGate.await() } }
+        val reopened = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(repo, { LocalDate.parse("2026-09-12") })
+        val reopening = launch { reopened.open("2026-27") }
+        withTimeout(2_000) { reentered.await() }
+        assertFalse(reopened.loaded)
+        assertFalse(reopened.agendaReady)
+        remote.dayGate = null
+        reopenGate.complete(Unit)
+        reopening.join()
+        assertTrue(reopened.loaded)
+        assertEquals("2027-01-30", reopened.dateKey)
+    }
+
     @Test fun `medianoche avanza al nuevo dia solo si se mostraba hoy`() = runBlocking {
         var today = LocalDate.parse("2027-01-30")
         val state = app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState(CyclocrossRepository(MemoryDao(), FakeRemote(race)), { today })
@@ -562,10 +601,12 @@ class CyclocrossTest {
         var seasonRounds: Map<String, CxRound> = emptyMap()
         var roundsFailure: Exception? = null
         var roundsCalls = 0
+        /** Retiene la consulta de un día hasta que la prueba la libere. */
+        var dayGate: (suspend (String) -> Unit)? = null
         override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> { monthCalls.add(month); failure?.let { throw it }; return rows }
         override suspend fun cxSeasonIndex(season: String): List<CxRace> { indexCalls++; failure?.let { throw it }; return rows }
         override suspend fun cxDay(season: String, dateKey: String): List<CxRace> {
-            dayCalls.add(dateKey); failure?.let { throw it }
+            dayCalls.add(dateKey); dayGate?.invoke(dateKey); failure?.let { throw it }
             return rows.filter { dateKey in CyclocrossLogic.dates(it) }
         }
         override suspend fun cxNextDate(season: String, date: String): String? { failure?.let { throw it }; return "2027-01-30" }

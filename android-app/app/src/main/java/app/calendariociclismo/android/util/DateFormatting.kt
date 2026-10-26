@@ -88,6 +88,15 @@ object DateFormatting {
             .replaceFirstChar { it.uppercase(locale) }
     }
 
+    /** "8 de abril" / "8 April". Fila de la fecha de Hoy, donde la tira de días
+     *  ya muestra el día de la semana (espejo de `formatDayMonth` en iOS). */
+    fun formatDayMonth(dateKey: String): String {
+        val date = parseLocalDate(dateKey) ?: return dateKey
+        val locale = uiLocale
+        val pattern = if (locale.language == "es") "d 'de' MMMM" else "d MMMM"
+        return date.format(DateTimeFormatter.ofPattern(pattern, locale))
+    }
+
     /** "Mié 8 abr" / "Wed 8 Apr". */
     fun formatDateShort(dateKey: String): String {
         val date = parseDateKey(dateKey) ?: return dateKey

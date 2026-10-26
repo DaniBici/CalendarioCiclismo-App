@@ -12,6 +12,7 @@ import { panelState } from './state.js';
 import { MARKET_SEASON } from './constants.js';
 import { formatCount, showToast, toSlug, uciRankSimple } from './helpers.js';
 import { getAuthHeaders, R2_PUBLIC_BASE, r2PutObject } from './uploads.js';
+import { ensureRaceYearLoaded } from './agenda.js';
 
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE NOTIFICACIONES PUSH
@@ -19,6 +20,35 @@ import { getAuthHeaders, R2_PUBLIC_BASE, r2PutObject } from './uploads.js';
 
 const SEND_PUSH_FN = `${SUPABASE_URL}/functions/v1/send-push`;
 const PUSH_IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+// FCM descarta en Android las imágenes de más de 1 MB sin avisar; APNs y la
+// extensión de iOS también degradan con archivos grandes. Por encima de este
+// peso se reduce y se recodifica a JPEG antes de subir.
+const PUSH_IMAGE_MAX_BYTES = 900 * 1024;
+const PUSH_IMAGE_MAX_SIDE = 1200;
+const PUSH_IMAGE_QUALITIES = [0.88, 0.8, 0.72, 0.64, 0.56];
+
+async function preparePushImage(file) {
+  if (file.size <= PUSH_IMAGE_MAX_BYTES) {
+    return { buf: await file.arrayBuffer(), type: file.type, ext: PUSH_IMAGE_EXT[file.type] || 'jpg' };
+  }
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, PUSH_IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; // el JPEG no admite transparencia
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  let blob = null;
+  for (const quality of PUSH_IMAGE_QUALITIES) {
+    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (blob && blob.size <= PUSH_IMAGE_MAX_BYTES) break;
+  }
+  if (!blob) throw new Error('No se pudo reducir la imagen');
+  return { buf: await blob.arrayBuffer(), type: 'image/jpeg', ext: 'jpg' };
+}
 let _notificationsInitialized = false;
 let _pushRaceDays = []; // cache de jornadas para la carrera seleccionada
 let _pushCxRaceRequest = 0;
@@ -238,14 +268,18 @@ export async function setupNotificationsView() {
     if (typeSelect.value === 'cxRace' && !_pushSending) void populatePushCxRaceList();
   });
 
+  // Temporada en curso y la siguiente: las carreras del año próximo (p. ej. la
+  // presentación de un recorrido en otoño) también admiten avisos. El año se
+  // muestra solo en las de la temporada siguiente.
   function populatePushRaceList(query) {
     const q = (query || '').toLowerCase();
     const year = new Date().getFullYear();
-    let filtered = panelState.allRaces.filter(r => (r.year || year) === year);
+    let filtered = panelState.allRaces.filter(r => [year, year + 1].includes(Number(r.year || year)));
     if (q) filtered = filtered.filter(r => r.name?.toLowerCase().includes(q));
-    filtered.sort((a, b) => uciRankSimple(a.uciCategory) - uciRankSimple(b.uciCategory));
+    filtered.sort((a, b) => uciRankSimple(a.uciCategory) - uciRankSimple(b.uciCategory)
+      || Number(a.year || year) - Number(b.year || year));
     raceSelect.innerHTML = filtered.map(r =>
-      `<option value="${esc(r.id)}">${countryFlag(r.countryCode)} ${esc(r.name)} — ${r.uciCategory || '?'}</option>`
+      `<option value="${esc(r.id)}">${countryFlag(r.countryCode)} ${esc(r.name)}${Number(r.year) === year + 1 ? ` ${year + 1}` : ''} — ${r.uciCategory || '?'}</option>`
     ).join('');
   }
 
@@ -286,7 +320,12 @@ export async function setupNotificationsView() {
     stageSel.style.display = stageLike ? '' : 'none';
     document.getElementById('push-startlistSelector').style.display = t === 'startlist' ? '' : 'none';
     document.getElementById('push-teamSelector').style.display = t === 'team' ? '' : 'none';
-    if (t === 'race' || stageLike) populatePushRaceList('');
+    if (t === 'race' || stageLike) {
+      populatePushRaceList('');
+      void ensureRaceYearLoaded(new Date().getFullYear() + 1)
+        .then(() => { if (typeSelect.value === t) populatePushRaceList(raceSearch.value); })
+        .catch(error => console.warn('[push] Carreras de la temporada siguiente:', error));
+    }
     if (t === 'startlist') populatePushStartlistRaceList('');
     if (t === 'team') populatePushTeamList();
     // Resetear el selector de jornada al cambiar de tipo stage-like.
@@ -371,11 +410,10 @@ export async function setupNotificationsView() {
       try {
         // La Edge Function firma la clave sin codificarla: tildes, signos o
         // paréntesis del nombre original provocan SignatureDoesNotMatch en R2.
-        const ext = PUSH_IMAGE_EXT[file.type] || 'jpg';
+        const { buf, type, ext } = await preparePushImage(file);
         const base = toSlug(file.name.replace(/\.[^.]+$/, '')) || 'imagen';
         const filename = `push/${Date.now()}-${base}.${ext}`;
-        const buf = await file.arrayBuffer();
-        const res = await r2PutObject(filename, buf, file.type);
+        const res = await r2PutObject(filename, buf, type);
         if (!res.ok) {
           const detail = await res.json().then(d => d.error).catch(() => '');
           throw new Error(detail || `Error al subir imagen (${res.status})`);
@@ -496,6 +534,7 @@ async function _loadPushDebugDevices() {
   }
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export function _clearPushForm() {
   ++_pushCxRaceRequest;
   const cxRaceSelect = document.getElementById('push-deepLinkCxRace');
@@ -561,6 +600,7 @@ function pushPlatformsLabel(platforms) {
   return platforms.map(pushPlatformLabel).join(', ');
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export function getPushAudienceTarget() {
   const type = document.getElementById('push-deepLinkType').value;
   if (type === 'cxRace' &&
@@ -570,6 +610,7 @@ export function getPushAudienceTarget() {
   return resolveCxPushTarget({ category: _pushAreaCategory(), deepLink: getComposedDeepLink() });
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export async function sendPushNotification() {
   if (_pushSending) return;
   const errorDiv = document.getElementById('pushSendError');

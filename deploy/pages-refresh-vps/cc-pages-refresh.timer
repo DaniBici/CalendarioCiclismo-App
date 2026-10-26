@@ -1,0 +1,13 @@
+[Unit]
+Description=Calendario Ciclismo - comprobar páginas de Pages desfasadas cada minuto
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/pages-refresh-vps.md
+
+[Timer]
+OnCalendar=*-*-* *:*:30
+AccuracySec=1s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=cc-pages-refresh.service
+
+[Install]
+WantedBy=timers.target

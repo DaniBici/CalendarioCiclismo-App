@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWiclaxCx, wiclaxFileUrl, wiclaxSeconds } from '../results-fetchers/wiclax-cx-fetch.mjs';
+import { parseWiclaxCx, wiclaxCountry, wiclaxFileUrl, wiclaxSeconds } from '../results-fetchers/wiclax-cx-fetch.mjs';
 
 const xml = `<?xml version="1.0"?><Epreuve nom="CX" dt1="2026-10-04">
 <Etapes><Etape finito="1," /></Etapes>
@@ -26,6 +26,11 @@ describe('Wiclax CX', () => {
       .toBe('https://becrono.es/resultados26/CX/a.clax');
     expect(wiclaxSeconds("00h45'44,082")).toBeCloseTo(2744.082);
     expect(wiclaxSeconds('Abandono')).toBeNull();
+  });
+
+  it('convierte nacionalidades IOC, gentilicios y países en castellano a ISO-2', () => {
+    expect(['ESP', 'Española', 'Alemania', 'Estados Unidos', 'Honduras', 'ES', '', 'Marte'].map(wiclaxCountry))
+      .toEqual(['ES', 'ES', 'DE', 'US', 'HN', 'ES', null, null]);
   });
 
   it('ordena por vueltas y paso por meta, con vueltas perdidas y abandonos', () => {

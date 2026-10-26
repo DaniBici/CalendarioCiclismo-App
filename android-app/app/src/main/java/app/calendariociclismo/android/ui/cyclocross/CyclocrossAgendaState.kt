@@ -11,9 +11,11 @@ import app.calendariociclismo.android.data.model.CxRoundRow
 import app.calendariociclismo.android.data.repository.CxCached
 import app.calendariociclismo.android.data.repository.CyclocrossRepository
 import app.calendariociclismo.android.util.CxAgendaFilter
+import app.calendariociclismo.android.util.CxAgendaSort
 import app.calendariociclismo.android.util.CxCategoryCardState
 import app.calendariociclismo.android.util.CxPresentation
 import app.calendariociclismo.android.util.CyclocrossLogic
+import app.calendariociclismo.android.util.RegionDetector
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -67,8 +69,9 @@ class CyclocrossAgendaState(
     var rounds by mutableStateOf<Map<String, CxRound>>(emptyMap())
         private set
     /** Pruebas destacadas (`cx_race_featured`): encabezan su día en la
-     *  agenda y en la pestaña Ciclocross de Resultados. Se leen con cada
-     *  descarga de la temporada; un fallo deja el orden canónico. */
+     *  agenda y en la pestaña Ciclocross de Resultados. La apertura parte de
+     *  la última lectura y cada descarga de la temporada las renueva; sin
+     *  ninguna lectura rige el orden canónico. */
     var featured by mutableStateOf<Set<String>>(emptySet())
         private set
     /** La numeración de rondas es completa: calculada con la temporada entera
@@ -80,11 +83,18 @@ class CyclocrossAgendaState(
     var loaded by mutableStateOf(false)
         private set
 
+    /** Hoy puede pintarse: con datos o, sin ninguno, con el error de la carga.
+     *  Barra de fechas, orden y lista aparecen a la vez. */
+    val agendaReady: Boolean get() = loaded || (!busy && error != null)
+
     // Agenda general.
     var dateKey by mutableStateOf(todayKey())
         private set
     var filter by mutableStateOf(CxAgendaFilter.ALL)
         private set
+    /** Orden del día mostrado (Categoría, Hora TV, Hora de meta), en memoria
+     *  como en Hoy de carretera. */
+    var sort by mutableStateOf(CxAgendaSort.CATEGORY)
     /** El usuario cambió de día desde la apertura: la descarga posterior no
      *  recalcula el día de apertura. */
     var navigated = false
@@ -118,8 +128,9 @@ class CyclocrossAgendaState(
     /** Días de la temporada con carreras del filtro activo. */
     val raceDays: List<String> get() = CyclocrossLogic.raceDays(races)
 
-    /** Carreras del día mostrado, en el orden de la agenda. */
-    val dayRaces: List<CxRace> get() = CyclocrossLogic.racesOn(races, dateKey, featured)
+    /** Carreras del día mostrado, en el orden elegido. */
+    val dayRaces: List<CxRace>
+        get() = CxPresentation.agendaRaces(races, dateKey, featured, sort) { RegionDetector.allowedBroadcastGroups() }
 
     /** Siguiente día con carreras del filtro activo. */
     val nextRaceDay: String? get() = CyclocrossLogic.nextRaceDay(raceDays, dateKey)
@@ -156,6 +167,10 @@ class CyclocrossAgendaState(
         }
         val allowed = CyclocrossLogic.months(season)
         loadCached(generation)
+        if (generation != revision) return
+        // Destacadas de la última lectura: la lista de la caché sale ya en su
+        // orden y la red no la recoloca.
+        featured = repo.cachedFeaturedRaceIds()
         if (generation != revision) return
         // Con la temporada completa en caché la numeración sale ya completa.
         if (cache.size == allowed.size) {
@@ -202,7 +217,8 @@ class CyclocrossAgendaState(
     /**
      * Apertura de Hoy. Primero la copia local (índice y día de apertura); la
      * red trae a la vez el índice, el día, las destacadas y las rondas y, si la
-     * apertura recae en otro día, ese día.
+     * apertura recae en otro día, ese día. La primera pintura ([loaded]) lleva
+     * siempre el día de apertura con su detalle.
      */
     private suspend fun openToday(generation: Int, restoredDay: String?, initialFilter: CxAgendaFilter) {
         val selectedSeason = season
@@ -211,6 +227,10 @@ class CyclocrossAgendaState(
         lastTodayKey = todayKey()
         val restored = restoredDay?.takeIf { it in firstDay..lastDay }
         try {
+            // Destacadas de la última lectura: el día pintado desde la caché
+            // sale ya en su orden y la red no lo recoloca.
+            featured = repo.cachedFeaturedRaceIds()
+            if (generation != revision) return
             repo.cachedIndex(selectedSeason)?.let {
                 if (generation != revision) return
                 index = it
@@ -220,20 +240,30 @@ class CyclocrossAgendaState(
                 showOpening(restored)
                 rounds = localRounds()
                 roundsReady = true
-                loaded = true
             }
             repo.cachedDay(selectedSeason, dateKey)?.let {
                 if (generation != revision) return
                 dayDetails[dateKey] = it
             }
+            // La caché se pinta solo completa: índice y detalle del día de
+            // apertura. Con el índice solo, las tarjetas saldrían sin
+            // documentos, emisiones ni dorsales y cambiarían al llegar el detalle.
+            if (index != null && dayDetails[dateKey] != null) loaded = true
             val requested = dateKey
             val outcome = downloadToday(requested, includeIndex = true, forceRounds = false)
             if (generation != revision) return
             applyToday(outcome, requested)
             if (index == null && dayDetails.isEmpty() && outcome.failure != null) error = outcome.failure.message
             if (!navigated) showOpening(restored) else autoNavigate()
+            // Sin pintura previa, el día de apertura que fija el índice de red
+            // (hoy sin carreras) se pinta ya con su detalle.
+            val painted = loaded
+            if (!painted && dateKey != requested) {
+                loadDay(dateKey, generation)
+                if (generation != revision) return
+            }
             loaded = index != null || dayDetails[requested] != null
-            if (dateKey != requested) loadDay(dateKey, generation)
+            if (painted && dateKey != requested) loadDay(dateKey, generation)
         } catch (failure: Exception) {
             if (failure is CancellationException) throw failure
             if (generation == revision) error = failure.message

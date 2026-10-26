@@ -3,6 +3,7 @@ import {
   dataRideDay,
   matchTodayRace,
   normalizeClass,
+  seasonForRace,
 } from '../results-fetchers/dataride-live-linker.mjs';
 
 const race = {
@@ -61,6 +62,29 @@ describe('enlace live con DataRide', () => {
     const cestMidnight = Date.UTC(2026, 7, 29, 22);
     expect(dataRideDay(`/Date(${cestMidnight})/`)).toBe(Date.UTC(2026, 7, 30));
     expect(normalizeClass(' 1.2 ')).toBe('1.2');
+  });
+
+  describe('temporada', () => {
+    // Límites publicados por GetDisciplineSeasons (medianoche CEST en UTC).
+    const seasons = [
+      { Id: 464, Year: 2026, StartDate: `/Date(${Date.UTC(2025, 9, 19, 22)})/`, EndDate: `/Date(${Date.UTC(2026, 9, 17, 22)})/` },
+      { Id: 444, Year: 2025, StartDate: `/Date(${Date.UTC(2024, 9, 20, 22)})/`, EndDate: `/Date(${Date.UTC(2025, 9, 18, 22)})/` },
+    ];
+
+    it('asigna a la temporada siguiente las carreras posteriores al cierre de octubre', () => {
+      expect(seasonForRace({ year: 2025, startDate: '2025-10-24' }, seasons)?.Id).toBe(464);
+      expect(seasonForRace({ year: 2025, startDate: '2025-10-19' }, seasons)?.Id).toBe(444);
+      expect(seasonForRace({ year: 2026, startDate: '2026-10-18' }, seasons)?.Id).toBe(464);
+    });
+
+    it('no busca en la temporada cerrada mientras DataRide no abre la siguiente', () => {
+      expect(seasonForRace({ year: 2026, startDate: '2026-10-23' }, seasons)).toBeNull();
+    });
+
+    it('recurre al año de la carrera si las fechas no se interpretan', () => {
+      const undated = seasons.map(({ Id, Year }) => ({ Id, Year }));
+      expect(seasonForRace({ year: 2026, startDate: '2026-10-23' }, undated)?.Id).toBe(464);
+    });
   });
 
   describe('tipo de prueba', () => {

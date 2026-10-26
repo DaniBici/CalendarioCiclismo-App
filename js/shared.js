@@ -10,6 +10,7 @@ import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasCustomTeamBadgeColors } from './team-badge.js';
+import { firstTechnicalGuide } from './services/races.js';
 export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
 
@@ -41,11 +42,8 @@ export async function loadRaceTechnicalGuide(raceId) {
   const pending = (async () => {
     const { data: guides, error } = await supabase
       .from('assets').select('*,race_days!inner(dateKey)')
-      .eq('race_days.raceId', raceId).eq('type', 'technicalGuide');
-    if (error || !guides?.length) return null;
-    const [first] = [...guides].sort((a, b) => (a.race_days?.dateKey || '').localeCompare(b.race_days?.dateKey || ''));
-    const { race_days: _day, ...guide } = first;
-    return guide;
+      .eq('race_days.raceId', raceId).eq('type', 'technicalGuide').order('id');
+    return error ? null : firstTechnicalGuide(guides);
   })();
   _technicalGuideCache.set(raceId, pending);
   return pending;
@@ -101,6 +99,19 @@ export function formatDateLabel(dateKey) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+// Fecha de la franja de Hoy y Ciclocross: «Miércoles, 21 de octubre». El día
+// de la semana va aparte para ocultarlo en móvil cuando la fecha comparte fila
+// con los desplegables, como en las apps («21 de octubre»).
+export function agendaDateHtml(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const parts = new Intl.DateTimeFormat(getLocale(), { weekday: 'long', day: 'numeric', month: 'long' })
+    .formatToParts(new Date(y, m - 1, d));
+  const split = parts.findIndex(part => part.type !== 'weekday' && part.type !== 'literal');
+  const text = list => list.map(part => part.value).join('');
+  const weekday = text(parts.slice(0, split));
+  return `<span class="agenda-date__wd">${esc(weekday.charAt(0).toUpperCase() + weekday.slice(1))}</span>${esc(text(parts.slice(split)))}`;
+}
+
 // ── Fechas SEO sin ICU (blindadas contra Googlebot) ──────────────
 // El Chrome headless de Googlebot arrastra ICU sin datos de locale completos,
 // así que `toLocaleDateString('es-ES', …)` cae a inglés en su render. Para las
@@ -146,6 +157,15 @@ export function seoDayMonth(dateKey, lang = _seoLang()) {
   const { mIdx, d } = _seoParts(dateKey);
   const mo = _SEO_MONTHS[lang][mIdx];
   return lang === 'en' ? `${d} ${mo}` : `${d} de ${mo}`;
+}
+
+// Mes abreviado: igual que toLocaleDateString('es-ES' | 'en-GB', { month: 'short' }).
+const _SEO_SHORT_MONTHS = {
+  es: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'],
+};
+export function seoShortMonth(monthIndex, lang = _seoLang()) {
+  return _SEO_SHORT_MONTHS[lang][monthIndex];
 }
 
 // Artículo para el nombre de una carrera: «el Tour…», «la Vuelta…», «los Juegos…».
@@ -228,16 +248,34 @@ export function formatTime(ts) {
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 }
 
+// Formateadores de formatTimeUser por zona: equivalen a toLocaleTimeString
+// ('es-ES', hora y minutos) y a toLocaleString('en-US') con esa zona, sin
+// crear uno nuevo en cada llamada (cada hora de cada página, también en el
+// build).
+const _timeFormatters = new Map();
+function _timeFormatter(kind, timeZone) {
+  const key = `${kind}|${timeZone}`;
+  let formatter = _timeFormatters.get(key);
+  if (!formatter) {
+    formatter = kind === 'time'
+      ? new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', timeZone })
+      : new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', timeZone });
+    _timeFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function formatTimeUser(ts) {
   if (!ts) return null;
   const d = typeof ts === 'string' ? new Date(ts) : (ts.toDate ? ts.toDate() : new Date(ts));
+  const invalid = Number.isNaN(d.getTime());
   const userTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const madridStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-  const madridOffset = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Madrid' })).getTime();
-  const userOffset   = new Date(d.toLocaleString('en-US', { timeZone: userTZ })).getTime();
-  if (Math.round((userOffset - madridOffset) / 60000) === 0) return { display: madridStr, tooltip: null };
-  const localStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: userTZ });
-  return { display: localStr, tooltip: madridStr };
+  // Fecha inválida: Intl.DateTimeFormat#format lanza; toLocale* devuelve «Invalid Date».
+  const time = timeZone => (invalid ? d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone }) : _timeFormatter('time', timeZone).format(d));
+  const wall = timeZone => new Date(invalid ? d.toLocaleString('en-US', { timeZone }) : _timeFormatter('wall', timeZone).format(d)).getTime();
+  const madridStr = time('Europe/Madrid');
+  if (Math.round((wall(userTZ) - wall('Europe/Madrid')) / 60000) === 0) return { display: madridStr, tooltip: null };
+  return { display: time(userTZ), tooltip: madridStr };
 }
 
 // Etiquetas de salida/meta de una jornada: en CRI/CRE ("salida neutralizada"/
@@ -256,17 +294,6 @@ export function startFinishLabels(rd, race) {
                      : isTTT ? t('stage.finishLastTeam')
                      : t('stage.estimatedFinish');
   return { startLabel, finishLabel };
-}
-
-// Devuelve la zona horaria del usuario como offset legible, p.ej. "GMT+2" o "GMT-5"
-export function getUserTimezoneLabel() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const offsetMin = -new Date().getTimezoneOffset();
-  const sign = offsetMin >= 0 ? '+' : '-';
-  const absH = Math.floor(Math.abs(offsetMin) / 60);
-  const absM = Math.abs(offsetMin) % 60;
-  const offset = absM === 0 ? `GMT${sign}${absH}` : `GMT${sign}${absH}:${String(absM).padStart(2, '0')}`;
-  return offset;
 }
 
 // ── Orden y ranking UCI ──────────────────────────────────────────
@@ -606,6 +633,7 @@ export function setMetaProperty(property, content) {
 // Temporadas 2020-2025 archivadas: noindex en todas las páginas de carrera.
 // Espejo de tools/site/archived_seasons.py (páginas pre-renderizadas).
 const ROBOTS_INDEX = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+/** @public Lo consultan las pruebas del módulo importado. */
 export function isArchivedSeason(year) {
   const y = Number(year);
   return Number.isInteger(y) && y >= 2020 && y <= 2025;
@@ -624,27 +652,6 @@ export function setHreflangPair(esUrl, enUrl) {
     if (!href) { el?.remove(); continue; }
     if (!el) { el = document.createElement('link'); el.rel = 'alternate'; el.hreflang = lang; document.head.appendChild(el); }
     el.href = href;
-  }
-}
-
-// Comprueba contra el endpoint público oEmbed si un vídeo de YouTube permite
-// embed (iframe). Devuelve true (embeddable), false (embed deshabilitado o
-// vídeo eliminado/privado) o null si no se ha podido determinar (red, CORS,
-// URL no de YouTube). Render: tratar `null` como "embeddable" para no romper.
-export async function checkYouTubeEmbeddable(url) {
-  const id = extractYouTubeId(url);
-  if (!id) return null;
-  const canonical = `https://www.youtube.com/watch?v=${id}`;
-  const endpoint  = `https://www.youtube.com/oembed?url=${encodeURIComponent(canonical)}&format=json`;
-  try {
-    const res = await fetch(endpoint);
-    if (res.ok) return true;
-    // 401 → embed explícitamente deshabilitado por el creador.
-    // 404 → vídeo no existe / privado / borrado: tampoco se puede embeber.
-    if (res.status === 401 || res.status === 404) return false;
-    return null;
-  } catch {
-    return null;
   }
 }
 
@@ -712,57 +719,10 @@ export function femaleMark({ style = '', cls = '' } = {}) {
          `<span class="sr-only">${label}</span>`;
 }
 
-// apps-modal.js y cookie-consent.js son scripts clásicos (no módulos) y no
-// pueden importar: se les expone el helper por window.
+// apps-modal.js es un script clásico (no módulo) y no puede importar: se le
+// expone el aviso para lectores de pantalla por window.
 if (typeof window !== 'undefined') {
-  window.ccTrapFocus = (...a) => trapFocus(...a);
-  window.ccAnnounce  = (...a) => announce(...a);
-}
-
-const FOCUSABLE = 'a[href],button:not([disabled]),select:not([disabled]),' +
-                  'input:not([disabled]),textarea:not([disabled]),' +
-                  '[tabindex]:not([tabindex="-1"])';
-
-// Lleva el foco al diálogo, lo mantiene dentro mientras está abierto y lo
-// devuelve al elemento que lo abrió. Devuelve la función de limpieza, que
-// hay que llamar al cerrar (WCAG 2.4.3).
-export function trapFocus(modal, opts = {}) {
-  if (!modal) return () => {};
-  const prev = document.activeElement;
-  const visible = () => [...modal.querySelectorAll(FOCUSABLE)]
-    .filter(el => el.offsetParent !== null || el === document.activeElement);
-
-  const first = opts.initial || visible()[0] || modal;
-  if (first === modal && !modal.hasAttribute('tabindex')) {
-    modal.setAttribute('tabindex', '-1');
-  }
-  // El navegador aún no ha pintado el diálogo cuando se abre por JS.
-  requestAnimationFrame(() => { try { first.focus(); } catch { /* noop */ } });
-
-  const onKey = (e) => {
-    if (e.key !== 'Tab') return;
-    const f = visible();
-    if (!f.length) { e.preventDefault(); return; }
-    const a = f[0], z = f[f.length - 1];
-    if (e.shiftKey && (document.activeElement === a || document.activeElement === modal)) {
-      e.preventDefault(); z.focus();
-    } else if (!e.shiftKey && document.activeElement === z) {
-      e.preventDefault(); a.focus();
-    }
-  };
-  modal.addEventListener('keydown', onKey);
-
-  // El resto de la página deja de ser tabulable mientras el diálogo está
-  // abierto, sin recorrer el DOM. El overlay del diálogo queda fuera.
-  const overlay = modal.closest('.rd-modal-overlay, .asset-modal-overlay, .sg-overlay') || modal;
-  const inerted = [...document.body.children].filter(el => el !== overlay && !el.contains(overlay));
-  inerted.forEach(el => { el.inert = true; });
-
-  return () => {
-    modal.removeEventListener('keydown', onKey);
-    inerted.forEach(el => { el.inert = false; });
-    try { prev?.focus?.(); } catch { /* noop */ }
-  };
+  window.ccAnnounce = (...a) => announce(...a);
 }
 
 // ── Modal móvil para data-ph-tooltip ────────────────────────────
@@ -938,8 +898,8 @@ function setPinnedFilter(cat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CA
   } catch { /* storage no disponible */ }
 }
 
-const PIN_SVG_FILLED  = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>';
-const PIN_SVG_OUTLINE = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>';
+export const PIN_SVG_FILLED  = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>';
+export const PIN_SVG_OUTLINE = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>';
 
 /** Re-renderiza las chinchetas en los `.tcat-btn` del contenedor según el
  *  filtro activo y el fijado. No toca la clase `.tcat-btn--active`. */
@@ -987,6 +947,62 @@ export function handleFilterEvent(event, storageKey = PIN_STORAGE_KEY, valid = V
   return { type: 'filter', cat };
 }
 
+// ── Categoría en desplegable (Hoy, móvil) ─────────────────────────
+// Hasta 600 px, la franja de Hoy (carretera y Ciclocross) sustituye los chips
+// de categoría por un desplegable con el aspecto de «Ordenar»: muestra
+// «Categoría» con Todas y, si no, la categoría activa, con la chincheta cuando
+// es la predeterminada. La última opción fija o quita la activa como
+// predeterminada. Desde 601 px siguen los chips. La etiqueta visible
+// (`.agenda-cat-wrap__label`) ajusta el ancho al texto activo; el `select`
+// nativo, transparente encima, abre el selector del sistema.
+const PIN_OPTION = '__pin';
+
+/** Sincroniza el desplegable con la categoría activa. `allowed` limita las
+ *  opciones visibles (semana de Campeonatos); `canPin` ofrece fijar. */
+export function syncCategorySelect(select, activeCat, { storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS, canPin = true, allowed = null } = {}) {
+  if (!select) return;
+  const pinned = getPinnedFilter(storageKey, valid);
+  select.querySelector(`option[value="${PIN_OPTION}"]`)?.remove();
+  for (const option of select.options) {
+    if (!option.value) continue;
+    const off = !!allowed && !allowed.includes(option.value);
+    option.hidden = off;
+    option.disabled = off;
+  }
+  const canPinActive = canPin && valid.includes(activeCat);
+  if (canPinActive) {
+    const label = select.querySelector(`option[value="${activeCat}"]`)?.textContent || activeCat;
+    const option = document.createElement('option');
+    option.value = PIN_OPTION;
+    option.textContent = t(pinned === activeCat ? 'filter.unpinDefault' : 'filter.pinDefault', { cat: label });
+    select.append(option);
+  }
+  select.value = activeCat === 'all' ? '' : activeCat;
+  select.dataset.active = activeCat;
+  const wrap = select.closest('.agenda-cat-wrap');
+  if (!wrap) return;
+  if (!wrap.querySelector('.agenda-cat-wrap__label')) {
+    wrap.insertAdjacentHTML('afterbegin', '<span class="agenda-cat-wrap__label" aria-hidden="true"></span>');
+  }
+  if (!wrap.querySelector('.agenda-cat-wrap__pin')) {
+    select.insertAdjacentHTML('beforebegin', `<span class="agenda-cat-wrap__pin" aria-hidden="true">${PIN_SVG_FILLED}</span>`);
+  }
+  wrap.querySelector('.agenda-cat-wrap__label').textContent = select.options[select.selectedIndex]?.textContent || '';
+  wrap.classList.toggle('agenda-cat-wrap--pinned', canPinActive && pinned === activeCat);
+}
+
+/** Cambio del desplegable de categoría: { type: 'pin', cat } con la
+ *  chincheta ya alternada, { type: 'filter', cat } o null. */
+export function handleCategorySelect(select, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
+  const cat = select.value;
+  if (cat === PIN_OPTION) {
+    const active = select.dataset.active;
+    setPinnedFilter(getPinnedFilter(storageKey, valid) === active ? null : active, storageKey, valid);
+    return { type: 'pin', cat: active };
+  }
+  return cat ? { type: 'filter', cat } : null;
+}
+
 // ── Equipos (chapa + matching) ───────────────────────────────────
 const TEAM_STOPWORDS = new Set([
   'pro','procycling','cycling','team','teams','squad','uci','worldteam',
@@ -1031,15 +1047,12 @@ export function findMatchingTeam(teamName, teams) {
 }
 
 // ── Formato de fecha largo ───────────────────────────────────────
+// Cabecera de carrera: tablas fijas (seoLongDateWeekday), no ICU, para que la
+// jornada generada en el build y el render de Google salgan en su idioma.
 function formatDateKeyLong(dateKey) {
   if (!dateKey) return '';
-  try {
-    const [y, m, d] = dateKey.split('-').map(Number);
-    const str = new Date(y, m - 1, d).toLocaleDateString(getLocale(), {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    });
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  } catch { return dateKey; }
+  const str = seoLongDateWeekday(dateKey);
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ── URL del perfil de elevación ──────────────────────────────────
@@ -1072,17 +1085,18 @@ export function buildStageNav(navSiblings, currentRdId, urlBuilder, raceHref) {
     return `<option value="${s.id}" data-url="${esc(url)}"${s.id === currentRdId ? ' selected' : ''}>${label}${city}</option>`;
   }).join('');
 
+  // Flechas como enlaces reales: se siguen sin JS y los rastreadores
+  // recorren las etapas en cadena. Sin etapa anterior o siguiente, marca inerte.
+  const arrow = (target, label, glyph) => target
+    ? `<a class="stage-nav__arrow" href="${esc(urlBuilder(target))}" aria-label="${esc(label)}"><span aria-hidden="true">${glyph}</span></a>`
+    : `<span class="stage-nav__arrow disabled" aria-hidden="true">${glyph}</span>`;
   return `<div class="stage-nav">
     <div class="stage-nav__picker">
-      <button type="button" class="stage-nav__arrow${!prev ? ' disabled' : ''}"
-        ${prev ? `onclick="location.href='${urlBuilder(prev)}'"` : ''}
-        aria-label="${esc(t('stage.previous'))}"><span aria-hidden="true">‹</span></button>
+      ${arrow(prev, t('stage.previous'), '‹')}
       <select class="stage-nav__select" aria-label="${esc(t('stage.pickStage'))}" onchange="location.href=this.options[this.selectedIndex].dataset.url">
         ${options}
       </select>
-      <button type="button" class="stage-nav__arrow${!next ? ' disabled' : ''}"
-        ${next ? `onclick="location.href='${urlBuilder(next)}'"` : ''}
-        aria-label="${esc(t('stage.next'))}"><span aria-hidden="true">›</span></button>
+      ${arrow(next, t('stage.next'), '›')}
     </div>
     <a class="stage-nav__race" href="${raceHref}">${t('stage.viewAll')}</a>
   </div>`;
@@ -1127,7 +1141,6 @@ const _ACT_SVGS = {
 _ACT_SVGS.mapOfficial = _ACT_SVGS.map;
 _ACT_SVGS.mapInteractive = _ACT_SVGS.map;
 const _actLabel = (key) => `${_ACT_SVGS[key] || ''}<span class="asset-btn__label">${t(`assets.${key}`) || key}</span>`;
-const _actText  = (key) => t(`assets.${key}`) || key;
 
 // startlistUrl ya está definida arriba en este archivo (devuelve la URL de
 // /inscritos/ según idioma y slug). Aquí construimos su versión de botón.
@@ -1240,21 +1253,20 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const sortedAssets = [...validAssets].sort((a, b) =>
       assetOrder.indexOf(a.type) - assetOrder.indexOf(b.type));
 
-    const isMobile = (typeof window !== 'undefined' && window.innerWidth < 768);
+    // Documentos: el mismo enlace en todos los dispositivos (las jornadas se
+    // generan en el build). Los propios llevan data-asset-viewer y en
+    // escritorio los abre en el visor el manejador delegado de openAssetModal.
+    const docLink = (url, labelHtml) => {
+      const own = url.startsWith('https://assets.calendariociclismo.app');
+      return `<a class="asset-btn" href="${esc(url)}" target="_blank" rel="noopener"${own ? ' data-asset-viewer' : ''}>${labelHtml}</a>`;
+    };
 
     function assetBtnHtml(a, labelKey = a.type) {
-      const url = a.url || a.filePath;
       const label = _actLabel(labelKey);
       if (a.type === 'startOrder') {
         return `<a class="asset-btn" href="${startOrderUrl(rd)}">${label}</a>`;
       }
-      const isExternal = !url.startsWith('https://assets.calendariociclismo.app');
-      if (isMobile || isExternal) {
-        return `<a class="asset-btn" href="${url}" target="_blank" rel="noopener">${label}</a>`;
-      }
-      const safeUrl = url.replace(/'/g, "\\'");
-      const safeTxt = _actText(labelKey).replace(/'/g, "\\'");
-      return `<button class="asset-btn" onclick="openAssetModal('${safeUrl}','${safeTxt}')">${label}</button>`;
+      return docLink(a.url || a.filePath, label);
     }
 
     // Perfil dinámico (GPX) sustituye al asset estático.
@@ -1296,17 +1308,10 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const isSterrato = rd.primaryType === 'sterrato';
     const isFrance   = race?.countryCode?.toLowerCase() === 'fr';
 
-    // Botón del asset estático de perfil (modal en desktop, enlace en móvil/externo).
-    const staticProfileBtn = (labelKey) => {
-      if (!profileAsset) return '';
-      const url = (profileAsset.url || profileAsset.filePath).replace(/'/g, "\\'");
-      const external = !url.startsWith('https://assets.calendariociclismo.app');
-      if (isMobile || external) {
-        return `<a class="asset-btn" href="${url}" target="_blank" rel="noopener">${_actLabel(labelKey)}</a>`;
-      }
-      const txt = _actText(labelKey).replace(/'/g, "\\'");
-      return `<button class="asset-btn" onclick="openAssetModal('${url}','${txt}')">${_actLabel(labelKey)}</button>`;
-    };
+    // Botón del asset estático de perfil.
+    const staticProfileBtn = (labelKey) => profileAsset
+      ? docLink(profileAsset.url || profileAsset.filePath, _actLabel(labelKey))
+      : '';
 
     // `dynProfileHtml`: el perfil interactivo (siempre enlace a la página propia).
     const dynProfileHtml = dynProfileUrl
@@ -1329,29 +1334,14 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     } else if (profileAsset) {
       profileHtml = staticProfileBtn(staticKey);
     } else if (portsAsset) {
-      const portsUrl = (portsAsset.url || portsAsset.filePath).replace(/'/g, "\\'");
-      const portsExternal = !portsUrl.startsWith('https://assets.calendariociclismo.app');
       const effectiveKey = isSterrato ? (isFrance ? 'ribinou' : 'sterrato') : 'ports';
-      const modalTitle   = _actText(effectiveKey);
-      if (isMobile || portsExternal) {
-        profileHtml = `<a class="asset-btn" href="${portsUrl}" target="_blank" rel="noopener">${_actLabel(effectiveKey)}</a>`;
-      } else {
-        profileHtml = `<button class="asset-btn" onclick="openAssetModal('${portsUrl}','${modalTitle}')">${_actLabel(effectiveKey)}</button>`;
-      }
+      profileHtml = docLink(portsAsset.url || portsAsset.filePath, _actLabel(effectiveKey));
     }
     // Cuando hay perfil (en 'profile') y además ports, el asset de puertos ocupa
     // su propio slot 'ports' con su etiqueta de puertos/sterrato/ribinou.
     if (hasProfile && portsAsset) {
-      const portsUrl      = (portsAsset.url || portsAsset.filePath).replace(/'/g, "\\'");
-      const portsExternal = !portsUrl.startsWith('https://assets.calendariociclismo.app');
-      const portsKey      = isSterrato ? (isFrance ? 'ribinou' : 'sterrato') : 'ports';
-      const portsLabel    = _actLabel(portsKey);
-      const portsTxt      = _actText(portsKey).replace(/'/g, "\\'");
-      if (isMobile || portsExternal) {
-        portsHtml = `<a class="asset-btn" href="${portsUrl}" target="_blank" rel="noopener">${portsLabel}</a>`;
-      } else {
-        portsHtml = `<button class="asset-btn" onclick="openAssetModal('${portsUrl}','${portsTxt}')">${portsLabel}</button>`;
-      }
+      const portsKey = isSterrato ? (isFrance ? 'ribinou' : 'sterrato') : 'ports';
+      portsHtml = docLink(portsAsset.url || portsAsset.filePath, _actLabel(portsKey));
     }
 
     const mapAsset = sortedAssets.find(a => a.type === 'map');
@@ -1593,12 +1583,16 @@ export function buildTeamBadgeSvg(team, { size = 24, className = 'team-badge' } 
   </svg>`;
 }
 
-// ── Modal de assets (escritorio) ─────────────────────────────────
-function openAssetModal(url, label) {
+// ── Visor de documentos (escritorio) ─────────────────────────────
+// <dialog> único para rutómetros, perfiles y PDF; race-assets.js lo reutiliza
+// para el perfil dinámico. Con showModal() el navegador lleva el foco dentro,
+// deja inerte el resto de la página, lo cierra con Escape y devuelve el foco.
+export function assetModal() {
   let overlay = document.getElementById('assetModalOverlay');
   if (!overlay) {
-    overlay = document.createElement('div');
+    overlay = document.createElement('dialog');
     overlay.id = 'assetModalOverlay';
+    overlay.setAttribute('aria-labelledby', 'assetModalTitle');
     overlay.innerHTML = `
       <div class="asset-modal" id="assetModal">
         <div class="asset-modal__bar">
@@ -1612,9 +1606,21 @@ function openAssetModal(url, label) {
       </div>
     `;
     overlay.addEventListener('click', e => { if (e.target === overlay) closeAssetModal(); });
+    // Vacía el visor al cerrar (detiene PDF e iframes), salvo si se ha vuelto
+    // a abrir entretanto.
+    overlay.addEventListener('close', () => {
+      setTimeout(() => {
+        const body = document.getElementById('assetModalBody');
+        if (body && !overlay.open) body.innerHTML = '';
+      }, 250);
+    });
     document.body.appendChild(overlay);
   }
+  return overlay;
+}
 
+function openAssetModal(url, label) {
+  const overlay = assetModal();
   const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(url);
   const isPdf   = /\.pdf(\?|$)/i.test(url);
 
@@ -1638,22 +1644,24 @@ function openAssetModal(url, label) {
     modal.classList.remove('asset-modal--image');
   }
 
-  overlay.classList.add('asset-modal--open');
-  document.body.style.overflow = 'hidden';
-  _releaseAssetFocus = trapFocus(overlay.querySelector('.asset-modal') || overlay);
+  if (!overlay.open) overlay.showModal();
 }
-let _releaseAssetFocus = null;
 window.openAssetModal = openAssetModal;
+
+// Documentos propios de buildActionButtons (data-asset-viewer): enlace real en
+// todos los dispositivos; en escritorio (≥ 768 px) se abren en el visor. Con
+// tecla modificadora o botón central se respeta la acción del navegador.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => {
+    const link = e.target.closest?.('a[data-asset-viewer]');
+    if (!link || window.innerWidth < 768 || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openAssetModal(link.href, link.textContent.trim());
+  });
+}
 
 function closeAssetModal() {
   const overlay = document.getElementById('assetModalOverlay');
-  if (!overlay) return;
-  overlay.classList.remove('asset-modal--open');
-  document.body.style.overflow = '';
-  if (_releaseAssetFocus) { _releaseAssetFocus(); _releaseAssetFocus = null; }
-  setTimeout(() => {
-    const body = document.getElementById('assetModalBody');
-    if (body) body.innerHTML = '';
-  }, 250);
+  if (overlay?.open) overlay.close();
 }
 window.closeAssetModal = closeAssetModal;

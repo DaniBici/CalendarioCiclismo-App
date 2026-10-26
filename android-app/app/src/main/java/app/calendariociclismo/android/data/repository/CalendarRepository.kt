@@ -35,6 +35,7 @@ import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.ResultsFeedLogic
 import app.calendariociclismo.android.util.StartlistLogic
+import app.calendariociclismo.android.util.TeamNames
 import app.calendariociclismo.android.util.TransfersLogic
 import app.calendariociclismo.android.util.UciResultsLogic
 import kotlinx.coroutines.CancellationException
@@ -1185,8 +1186,8 @@ class CalendarRepository(
                 val slTeamByPk = api.startlistTeamsByPks(
                     pksByEntry.values.filter { it.size == 1 }.map { it.first() },
                 ).associateBy { it.id }
-                val canonNames = try {
-                    api.teamNamesByIds(slTeamByPk.values.mapNotNull { it.teamId })
+                val canonTeams = try {
+                    api.teamsByIds(slTeamByPk.values.mapNotNull { it.teamId }.distinct()).associateBy { it.id }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -1195,11 +1196,13 @@ class CalendarRepository(
                 for ((i, pks) in pksByEntry) {
                     if (pks.size != 1) continue
                     val slTeam = slTeamByPk[pks.first()] ?: continue
-                    val teamWinner = slTeam.teamId?.let { canonNames[it] } ?: slTeam.teamName
+                    val canon = slTeam.teamId?.let { canonTeams[it] }
+                    val teamWinner = canon?.name ?: slTeam.teamName
                     if (teamWinner.isNotEmpty()) {
                         resolved[i] = resolved[i].copy(
-                            winner = ResultsFeedLogic.localizedNationName(
+                            winner = TeamNames.localizedName(
                                 teamWinner,
+                                canon,
                                 LocaleHolder.shouldShowEnglishContent,
                             ),
                         )

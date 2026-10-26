@@ -15,6 +15,9 @@
 //   comparten globals y orden de carga con config.js.
 // - El CSS de `css/*.css` se aplana (`@import` de tokens y tipografías) y se
 //   minifica, lo que elimina la cadena de hojas del primer pintado.
+// - Con `--preload-map <fichero>` escribe, por entrada, los módulos que importa
+//   de forma estática; `version_assets.py` los inyecta en el HTML como
+//   <link rel="modulepreload">.
 //
 // `js/panel/` y `js/vendor/` quedan sin empaquetar: el panel usa el cliente
 // completo de Supabase y carga sus propios módulos. Si un módulo de `js/panel/`
@@ -123,6 +126,33 @@ export function discover(site) {
 
 const format = bytes => `${(bytes / 1024).toFixed(0)} KB`;
 
+/**
+ * URL de cada entrada → URL de los módulos que importa de forma estática
+ * (cierre transitivo; los `import()` quedan fuera porque dependen de la
+ * ejecución). Con ellos en el HTML, el navegador pide los chunks a la vez que
+ * la entrada en lugar de descubrirlos al leerla.
+ */
+export function preloadMap(metafile, site, cwd = process.cwd()) {
+  const url = path => '/' + relative(site, resolve(cwd, path)).split('\\').join('/');
+  const { outputs } = metafile;
+  const map = {};
+  for (const [path, meta] of Object.entries(outputs)) {
+    if (!meta.entryPoint) continue;
+    const seen = new Set();
+    const queue = [path];
+    while (queue.length) {
+      for (const dependency of outputs[queue.pop()]?.imports ?? []) {
+        if (dependency.kind !== 'import-statement' || dependency.external) continue;
+        if (dependency.path === path || seen.has(dependency.path)) continue;
+        seen.add(dependency.path);
+        queue.push(dependency.path);
+      }
+    }
+    if (seen.size) map[url(path)] = [...seen].map(url).sort();
+  }
+  return map;
+}
+
 async function bundleModules(site, entries) {
   const jsDir = join(site, 'js');
   // pdf.js (js/vendor/pdfjs) se carga bajo demanda y es grande: se deja fuera
@@ -211,17 +241,23 @@ export async function bundleSite(site) {
   const metafile = await bundleModules(site, entries);
   await minifyClassic(classic);
   await bundleCss(site);
-  return { entries, classic, outputs: Object.keys(metafile.outputs) };
+  return { entries, classic, outputs: Object.keys(metafile.outputs), preloads: preloadMap(metafile, site) };
 }
 
 async function main(argv) {
   const site = resolve(argv[0] ?? '');
-  if (!argv[0] || !existsSync(join(site, 'index.html'))) {
-    console.error('Uso: bundle_assets.mjs <directorio-del-sitio>');
+  const mapAt = argv.indexOf('--preload-map');
+  const mapFile = mapAt > 0 ? argv[mapAt + 1] : null;
+  if (!argv[0] || !existsSync(join(site, 'index.html')) || (mapAt > 0 && !mapFile)) {
+    console.error('Uso: bundle_assets.mjs <directorio-del-sitio> [--preload-map <fichero>]');
     return 2;
   }
   const started = Date.now();
-  await bundleSite(site);
+  const { preloads } = await bundleSite(site);
+  if (mapFile) {
+    writeFileSync(mapFile, JSON.stringify(preloads, null, 1));
+    console.log(`Precargas: ${Object.keys(preloads).length} entradas con módulos estáticos`);
+  }
   console.log(`Empaquetado en ${((Date.now() - started) / 1000).toFixed(1)} s`);
   return 0;
 }

@@ -16,6 +16,12 @@ struct Team: Codable, Identifiable {
     /// Categoría UCI del equipo (WT/WWT/PT/PRW/CT/…). `var` con default para que
     /// el init memberwise existente (tests, applyingSeason) siga compilando.
     var category: String? = nil
+    /// Identidad de selección (`selection`/`club`, `national`/`regional`) y su
+    /// código: `countryCode` ISO en minúscula o, sin país, `selectionCode`.
+    var teamKind: String? = nil
+    var selectionScope: String? = nil
+    var countryCode: String? = nil
+    var selectionCode: String? = nil
 
     /// La chapa solo se considera disponible cuando los colores del maillot
     /// dejan de ser la paleta predeterminada del catálogo.
@@ -69,7 +75,59 @@ struct Team: Codable, Identifiable {
             headerBg: s.headerBg ?? headerBg,
             headerText: s.headerText ?? headerText,
             nameAliases: nameAliases,
-            category: s.category ?? category
+            category: s.category ?? category,
+            teamKind: teamKind,
+            selectionScope: selectionScope,
+            countryCode: countryCode,
+            selectionCode: selectionCode
         )
+    }
+
+    // MARK: - Selecciones nacionales
+
+    /// Denominaciones fijas: las que difieren del nombre del sistema y las que
+    /// cambiaron entre versiones de CLDR. Clave: countryCode o selectionCode.
+    private static let nationalNamesEs: [String: String] = [
+        "ain": "Deportistas Individuales Neutrales",
+        "ci": "Costa de Marfil",
+        "cz": "República Checa",
+        "gb": "Gran Bretaña",
+        "hk": "Hong Kong",
+        "mk": "Macedonia del Norte",
+        "mo": "Macao",
+    ]
+
+    /// Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
+    /// («France»). En castellano se muestra el país en castellano a partir del
+    /// código de la ficha («Francia»); en inglés, `name` sin cambio. Solo afecta
+    /// a fichas `selection`/`national`. `name` es el texto que se mostraría sin
+    /// traducir; de él se conserva la categoría de edad («Canada U23» →
+    /// «Canadá sub23»). Espejo de `localizedTeamName` en
+    /// `js/services/national-team-name.js`.
+    static func localizedName(_ name: String, team: Team?, isEnglish: Bool) -> String {
+        guard let team else { return name }
+        return localizedName(
+            name, teamKind: team.teamKind, selectionScope: team.selectionScope,
+            countryCode: team.countryCode, selectionCode: team.selectionCode, isEnglish: isEnglish
+        )
+    }
+
+    static func localizedName(
+        _ name: String, teamKind: String?, selectionScope: String?,
+        countryCode: String?, selectionCode: String?, isEnglish: Bool
+    ) -> String {
+        guard !isEnglish, teamKind == "selection", selectionScope == "national" else { return name }
+        let code = ([countryCode, selectionCode].compactMap { $0 }.first { !$0.isEmpty } ?? "").lowercased()
+        var country = nationalNamesEs[code]
+        if country == nil, code.count == 2, code.allSatisfy({ $0.isASCII && $0.isLetter }),
+           let label = Locale(identifier: "es").localizedString(forRegionCode: code.uppercased()),
+           label.uppercased() != code.uppercased() {
+            country = label
+        }
+        guard let country else { return name }
+        if let age = name.range(of: #"\bU\d{2}\b"#, options: [.regularExpression, .caseInsensitive]) {
+            return "\(country) sub\(name[age].dropFirst())"
+        }
+        return country
     }
 }

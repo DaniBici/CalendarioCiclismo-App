@@ -335,8 +335,16 @@ function classification(code, stageNumber, kind, scope, eventName, rows, isTeamE
     ...(expectedRowCount == null ? {} : { expectedRowCount }), rows };
 }
 
-function irmRow(line, irm) {
-  const source = clean(line);
+// `irm` null: la sección no declara el IRM en su cabecera (`CORREDORES RETIRADOS`
+// del Gran Prix Chiriquí) y cada fila lo trae al final (`… SENAFRONT PANAMÁ DNF`).
+function irmRow(line, irm = null) {
+  let source = clean(line);
+  if (!irm) {
+    const trailing = source.match(/\s(DNS|DNF|DSQ)$/i);
+    if (!trailing) return null;
+    irm = trailing[1].toUpperCase();
+    source = source.slice(0, trailing.index);
+  }
   const match = source.match(/^(?:--\s+)?(\d+)\s+(?:(\d{11})\s+)?(.+?)\s+(SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)\s+(?:(\w{3})\s+)?(.+)$/i);
   if (!match) return null;
   const [, bib, , riderDisplay, , nac, teamName] = match;
@@ -395,7 +403,12 @@ function stageRowsWithIrms(text, mainRows) {
   // `CORREDORES FUERA DEL LIMITE EN PUNTO INTERMEDIO_: 65 – 84`).
   const bulletin = sectionAfter(text, /BOLET[IÍ]N\s+(?:DEL\s+)?JURADO\s+DE\s+COMISARIOS[^\n]*/i, /\n\s*FDO\b/i);
   const bulletinBibs = (pattern) => [...String(bulletin || '').matchAll(pattern)].flatMap((match) => match[1].match(/\d+/g) ?? []);
-  const bulletinDnfBibs = bulletinBibs(/^\s*RETIROS?\b\s*:?\s*(?:DORSAL(?:ES)?|CORREDOR(?:ES)?)?\s*([\d\s,–—-]+)$/gim);
+  // Clásica Provincia de Chiriquí 2026: `DNF: 1-5-6-12-…` en una sola línea del
+  // boletín, con guion como separador de la lista.
+  const bulletinDnfBibs = [
+    ...bulletinBibs(/^\s*RETIROS?\b\s*:?\s*(?:DORSAL(?:ES)?|CORREDOR(?:ES)?)?\s*([\d\s,–—-]+)$/gim),
+    ...bulletinBibs(/^\s*DNF\s*:\s*(\d[\d\s,–—-]*)$/gim),
+  ];
   const bulletinOtlBibs = bulletinBibs(/^\s*CORREDORES\s+FUERA\s+DEL\s+L[IÍ]MITE\b[^:\n]*:\s*([\d\s,–—-]+)$/gim);
   const otlBibs = new Set([...bibsFromIrmSection(otlBlock), ...shortIrmBibs('OTL'), ...bulletinOtlBibs]);
   const { classifiedRows, otlRows } = splitMainRows(mainRows, otlBibs);
@@ -452,12 +465,23 @@ export function parseOneDayPdfText(code, text, sourcePdfUrl = null, expectedYear
   const otlBlock = sectionAfter(text, /CORREDORES FUERA DEL LIMITE DE TIEMPO\/OTL[^\n]*/i,
     /\n\s*(?:CORREDORES RETIRADOS\b|FDO\b)/i);
   const dnfBlock = sectionAfter(text, /CORREDORES RETIRADOS\/DNF[^\n]*/i, /\n\s*FDO\b/i);
+  // Gran Prix Chiriquí: una sola sección `CORREDORES RETIRADOS` con el IRM de
+  // cada corredor (DNS o DNF) al final de la fila. Cierra en el listado de OTL,
+  // la clasificación por equipos o el comunicado del jurado.
+  const retiredBlock = sectionAfter(text, /CORREDORES RETIRADOS(?!\s*\/)[^\n]*/i,
+    /\n\s*(?:OTL\b|CLASIFICACI[OÓ]N|COMUNICADO|FDO\b)/i);
+  const retiredRows = irmRowsFromSection(retiredBlock, null);
+  const retiredWith = (irm) => retiredRows.filter((row) => row.irm === irm);
   const otlBibs = new Set(bibsFromIrmSection(otlBlock));
   const { classifiedRows, otlRows } = splitMainRows(mainRows, otlBibs);
+  // Orden de los IRM tras las llegadas: fuera de control (OTL), DNF y DNS.
   const irmRows = [
-    ...irmRowsFromSection(dnsBlock, 'DNS'),
     ...otlRows,
     ...irmRowsFromSection(dnfBlock, 'DNF'),
+    ...retiredWith('DNF'),
+    ...irmRowsFromSection(dnsBlock, 'DNS'),
+    ...retiredWith('DNS'),
+    ...retiredWith('DSQ'),
     ...parseRows(text, standaloneIrmRow),
   ];
   const rows = normalizeTimeRows([...classifiedRows, ...irmRows]);

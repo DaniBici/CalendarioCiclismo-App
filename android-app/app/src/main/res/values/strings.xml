@@ -66,8 +66,13 @@
     <string name="today_prev_day_cd">Día anterior</string>
     <string name="today_next_day_cd">Día siguiente</string>
     <string name="today_refresh_cd">Actualizar</string>
+    <string name="today_category">Categoría</string>
+    <string name="today_category_pin">Fijar «%1$s» como predeterminada</string>
+    <string name="today_category_unpin">Quitar «%1$s» como predeterminada</string>
+    <string name="today_category_a11y">Categoría: %1$s</string>
+    <string name="today_category_pinned_a11y">Categoría: %1$s, predeterminada</string>
     <string name="today_sort_action">Ordenar</string>
-    <string name="today_sort_category">Categoría</string>
+    <string name="today_sort_category">Cat. UCI</string>
     <string name="today_sort_tv_time">Hora TV</string>
     <string name="today_sort_finish_time">Hora de meta</string>
 
@@ -524,7 +529,6 @@
     <string name="transfers_feed_empty">Todavía no hay movimientos confirmados.</string>
     <string name="transfers_teams_title">Equipos %1$d</string>
     <string name="transfers_teams_empty">Sin equipos en esta división.</string>
-    <string name="transfers_renews_with">renueva con</string>
     <string name="transfers_retires">se retira</string>
     <string name="transfers_retired">Se retira</string>
     <string name="transfers_until">%1$d</string>
@@ -575,6 +579,7 @@
     <string name="cx_startlist">Dorsales</string>
     <string name="cx_results">Resultados</string>
     <string name="cx_general">General</string>
+    <string name="cx_summary_badge">Resumen</string>
     <string name="cx_videos">Vídeos</string>
     <string name="cx_back">Volver</string>
     <string name="cx_follow">Seguir carrera CX</string>

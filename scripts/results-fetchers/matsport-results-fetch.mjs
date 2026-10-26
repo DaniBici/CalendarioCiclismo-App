@@ -56,6 +56,17 @@
  * Solo se emiten etapas TERMINADAS (con ITE publicado); la ventana de meta del
  * cron (087) ya garantiza que se consulta cuando toca.
  *
+ * CRONOS SUELTAS (--matsport-stage, Chrono des Nations): Matsport NO publica ITE;
+ *   la meta sale en PAS_A («Arrivée», una fila por corredor que ha llegado) y no
+ *   hay bandera de prueba terminada. Se da por terminada cuando los TRES ÚLTIMOS
+ *   EN SALIR de la categoría ya figuran en PAS_A (ver tailStartersFinished); hasta
+ *   entonces no se emite nada (una clasificación parcial se publicaría como final).
+ *   Si los últimos en salir son bajas que Matsport no marca (sin fila ni status), se
+ *   cierra cuando nadie está en carrera (RUN_A vacío) y su llegada esperada venció
+ *   hace más de 10 min, o la prueba es de un día anterior.
+ *   Al emitirse, el cuadro lleva publication {format:'fixed', sourceStatus:'official'}
+ *   (como EvoData en las cronos cerradas): se publica oficial sin lecturas estables.
+ *
  * COMPETICIÓN MULTIPRUEBA (--matsport-stage N): Matsport agrupa bajo un mismo id
  *   varias pruebas independientes de un día como «etapas» (Chrono des Nations:
  *   2026_HER con una etapa por categoría, la 7 = hombres élite, la 6 = mujeres,
@@ -84,6 +95,9 @@
  *                     real: leer esa, no reconstruirla a mano.
  *   --pretty          además vuelca el JSON a stdout.
  *   --delay           ms entre peticiones (default 150).
+ *   --assume-closed   da por terminada una crono sin ITE aunque falten los últimos en salir
+ *                     (bajas confirmadas por el organizador); solo con --matsport-stage y PAS_A.
+ *   --timezone        zona IANA de las horas que publica Matsport (default Europe/Paris).
  *   --suggest-id      imprime el competitionId sintético sugerido y sale.
  */
 'use strict';
@@ -109,6 +123,8 @@ const MATSPORT_STAGE = getArg('matsport-stage') != null ? parseInt(getArg('matsp
 const OUT = getArg('out') || join(dirname(fileURLToPath(import.meta.url)), '_results_run', `matsport-${COMP}`);
 const PRETTY = hasFlag('pretty');
 const DELAY = parseInt(getArg('delay') || '150', 10);
+const ASSUME_CLOSED = hasFlag('assume-closed');   // cierre manual de una crono con bajas confirmadas (solo --matsport-stage)
+const TIMEZONE = getArg('timezone') || 'Europe/Paris';   // zona de las horas de Matsport (cierre de cronos con bajas sin marcar)
 
 const BASE = 'https://api.cycling.matsport.com';
 const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
@@ -176,6 +192,15 @@ export function normGap(g) {
   return '+' + parts.join(':');
 }
 
+const toSecs = (t) => t.split(':').reduce((a, p) => a * 60 + Number(p), 0);
+// segundos de diferencia → gap estilo BD ("+5", "+1:22", "+1:02:03").
+export function fmtGapSecs(n) {
+  const h = Math.floor(n / 3600), m = Math.floor((n % 3600) / 60), sec = n % 60;
+  if (h) return `+${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  if (m) return `+${m}:${String(sec).padStart(2, '0')}`;
+  return `+${sec}`;
+}
+
 // capital "10:15:27" / "2:53:41" → formato BD. Matsport puede enviar
 // "26:49.95" o "12:10:10."; se truncan las fracciones porque el contrato de
 // resultados de carretera trabaja con segundos enteros. "61 pts" → null.
@@ -189,6 +214,16 @@ export function normAbsTime(v) {
 export function normPoints(v) {
   const m = /^(\d+)\s*(pts?)?$/i.exec(clean(v));
   return m ? m[1] : null;
+}
+
+// Gap de una fila de tiempos. Con décimas ("+03.50", "+1:00.61") normGap devuelve
+// null; se reconstruye como diferencia de los tiempos ya truncados para que gap y
+// tiempos cuadren entre sí.
+function gapOf(r, abs, winnerSecs) {
+  const g = normGap(r.gap);
+  if (g) return g;
+  if (abs && winnerSecs != null && /\./.test(clean(r.gap))) return fmtGapSecs(toSecs(abs) - winnerSecs);
+  return null;
 }
 
 // ── (rankingType) → {classKind, scope, eventName, mapper} ───────────────────
@@ -207,6 +242,9 @@ const TYPE_MAP = {
 // riderByBib: Map(bib → {display, teamName}); teamByNumber: Map(position → name).
 export function mapRows(rankings, spec, riderByBib, teamByNumber) {
   const rows = [];
+  const first = (rankings || []).find((r) => r.position === 1);
+  const firstAbs = first ? normAbsTime(first.capital) : null;
+  const winnerSecs = firstAbs ? toSecs(firstAbs) : null;
   for (const r of rankings || []) {
     const irm = irmOf(r.status);
     if (spec.teamRows) {
@@ -218,7 +256,7 @@ export function mapRows(rankings, spec, riderByBib, teamByNumber) {
       }
       const rank = r.position > 0 ? r.position : null;
       const abs = normAbsTime(r.capital);
-      const gap = rank === 1 ? null : normGap(r.gap);
+      const gap = rank === 1 ? null : gapOf(r, abs, winnerSecs);
       rows.push({ rank, rankText: rank != null ? String(rank) : null, bib: null,
         riderDisplay: teamName, teamName,
         resultValue: rank === 1 ? abs : (gap || abs), timeText: rank === 1 ? abs : null,
@@ -236,7 +274,7 @@ export function mapRows(rankings, spec, riderByBib, teamByNumber) {
     const rank = r.position > 0 ? r.position : null;
     if (spec.time) {
       const abs = normAbsTime(r.capital);
-      const gap = rank === 1 ? null : normGap(r.gap);
+      const gap = rank === 1 ? null : gapOf(r, abs, winnerSecs);
       rows.push({ rank, rankText: rank != null ? String(rank) : null, bib,
         riderDisplay: who.display || null, teamName: who.teamName || null,
         resultValue: rank === 1 ? abs : (gap || abs), timeText: rank === 1 ? abs : null,
@@ -249,6 +287,70 @@ export function mapRows(rankings, spec, riderByBib, teamByNumber) {
     }
   }
   return rows;
+}
+
+// ¿Han llegado los tres últimos en salir de la categoría? Matsport no publica el
+// orden de salida: se deduce de las llegadas (salida = hour − capital). Si las
+// salidas no son monótonas con el dorsal (o hay menos de 4 llegadas) no se puede
+// afirmar nada y se devuelve done=false. Una fila con status (AB, NP…) cuenta
+// como resuelta. La categoría es la centena del dorsal (élite 1–N → 0, sub-23 5xx,
+// mujeres 6xx).
+export function tailStartersFinished(rankings, riderBibs, opts = {}) {
+  const rows = (rankings || []).filter((r) => r && r.bib > 0);
+  const present = new Set(rows.map((r) => Number(r.bib)));
+  const TIME = /^\d+(?::\d{2}){1,2}(?:\.\d*)?$/;
+  const timed = rows
+    .filter((r) => !clean(r.status) && TIME.test(clean(r.hour)) && TIME.test(clean(r.capital)))
+    .map((r) => ({ bib: Number(r.bib), start: toSecs(clean(r.hour)) - toSecs(clean(r.capital)), cap: toSecs(clean(r.capital)) }))
+    .sort((a, b) => a.bib - b.bib);
+  if (timed.length < 4) return { done: false, reason: `solo ${timed.length} llegadas con hora` };
+  let asc = true, desc = true;
+  for (let i = 1; i < timed.length; i++) {
+    if (timed[i].start <= timed[i - 1].start) asc = false;
+    if (timed[i].start >= timed[i - 1].start) desc = false;
+  }
+  if (!asc && !desc) return { done: false, reason: 'orden de salida no monótono con el dorsal' };
+  const hundred = Math.floor(timed[0].bib / 100);
+  const field = [...riderBibs].map(Number).filter((b) => Math.floor(b / 100) === hundred).sort((a, b) => a - b);
+  // salida ascendente con el dorsal → salen últimos los dorsales más altos.
+  const tail = asc ? field.slice(-3) : field.slice(0, 3);
+  const missing = tail.filter((b) => !present.has(b));
+  if (!missing.length) return { done: true, tail, reason: 'llegaron los tres últimos' };
+
+  // Bajas que Matsport no marca (sin fila ni status): los últimos en salir no
+  // aparecen. Se cierra cuando ya no puede llegar nadie: la prueba es de un día
+  // anterior, o hoy no hay nadie en carrera y la llegada esperada de cada ausente
+  // (salida extrapolada del dorsal + el mayor tiempo registrado) pasó hace >10 min.
+  const { now, stageDate, running } = opts;
+  if (now && stageDate) {
+    if (now.date > stageDate) return { done: true, tail, reason: `ausentes ${missing.join(', ')} (día anterior)` };
+    if (now.date === stageDate && running === false) {
+      const first = timed[0], last = timed[timed.length - 1];
+      const slope = (last.start - first.start) / (last.bib - first.bib);
+      const maxCap = Math.max(...timed.map((t) => t.cap));
+      const late = missing.every((b) => first.start + (b - first.bib) * slope + maxCap + 600 <= now.secs);
+      if (late) return { done: true, tail, reason: `ausentes ${missing.join(', ')} sin salir (nadie en carrera, llegada esperada vencida)` };
+    }
+  }
+  return { done: false, tail, reason: `faltan ${missing.join(', ')}` };
+}
+
+// Fecha y segundos del día en la zona de la prueba (las horas de Matsport son locales).
+export function localNow(timeZone, date = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, secs: Number(p.hour) * 3600 + Number(p.minute) * 60 + Number(p.second) };
+}
+
+// Fecha de la prueba de un día: la de la etapa, salvo que caiga fuera de la
+// competición (el Chrono des Nations publica la femenina el 19 siendo del 18).
+function oneDayDateKey(st, comp) {
+  const d = clean(st.date).slice(0, 10);
+  const from = clean(comp.startDate).slice(0, 10), to = clean(comp.endDate).slice(0, 10);
+  if (d && (!from || d >= from) && (!to || d <= to)) return d;
+  return to || d || null;
 }
 
 // ── cliente HTTP ────────────────────────────────────────────────────────────
@@ -333,7 +435,25 @@ async function main() {
       if (!Array.isArray(rt.rankings) || rt.rankings.length === 0) continue;
       byType.set(type, rt);
     }
-    if (!byType.has('ITE')) { log(`  E${stageNumber} sin Stage Classification publicada (no terminada) — omitida`); continue; }
+    let timeRankings = byType.get('ITE') ? byType.get('ITE').rankings : null;
+    let closedTimeTrial = false;   // cuadro de PAS_A con los tres últimos en salir ya en meta
+    if (!timeRankings && MATSPORT_STAGE != null) {
+      const finish = rankingTypes.find((rt) => clean(rt.type) === 'PAS_A' && Array.isArray(rt.rankings) && rt.rankings.length);
+      if (finish) {
+        const runRt = rankingTypes.find((rt) => clean(rt.type) === 'RUN_A');
+        const fin = tailStartersFinished(finish.rankings, riderByBib.keys(), {
+          now: localNow(TIMEZONE),
+          stageDate: oneDayDateKey(st, comp),
+          running: runRt && Array.isArray(runRt.rankings) ? runRt.rankings.length > 0 : undefined,
+        });
+        if (ASSUME_CLOSED && !fin.done) { fin.done = true; fin.tail = fin.tail || []; fin.reason = `cierre manual (${fin.reason})`; }
+        if (!fin.done) { log(`  E${stageNumber} PAS_A con ${finish.rankings.length} llegadas, prueba en curso (${fin.reason}) — omitida`); continue; }
+        log(`  E${stageNumber} sin ITE: se usa PAS_A (${finish.rankings.length} filas; ${fin.reason}: ${fin.tail.join(', ')})`);
+        timeRankings = finish.rankings;
+        closedTimeTrial = true;
+      }
+    }
+    if (!timeRankings) { log(`  E${stageNumber} sin Stage Classification publicada (no terminada) — omitida`); continue; }
 
     const classifications = [];
     const overallsOfStage = [];
@@ -351,17 +471,18 @@ async function main() {
     // de montaña de la propia carrera, NO clasificaciones publicables (espíritu
     // de la whitelist 092) → se DESCARTAN.
     if (isOneDay) {
-      const ite = byType.get('ITE');
-      const rows = mapRows(ite.rankings, TYPE_MAP.ITE, riderByBib, teamByNumber);
+      const rows = mapRows(timeRankings, TYPE_MAP.ITE, riderByBib, teamByNumber);
       const spec = { ...TYPE_MAP.ITE, classKind: 'gc', scope: 'stage', eventName: 'General Classification' };
       const cl = buildClassification(FINAL_SLOT, spec, rows);
+      // Crono cerrada: cada llegada es definitiva, no se espera a lecturas estables.
+      if (closedTimeTrial) cl.publication = { provider: 'matsport', format: 'fixed', sourceStatus: 'official' };
       const dropped = [...byType.keys()].filter((t) => t !== 'ITE');
       stages.push({
         uciRaceId: synthRaceId(FINAL_SLOT),
         stageNumber: null,
         stageName: 'Final Classification',
         isFinalClassification: true,
-        dateKey: clean(st.date).slice(0, 10) || clean(comp.endDate) || null,
+        dateKey: oneDayDateKey(st, comp),
         raceType: null,
         startLocation: null,
         classificationCount: 1,

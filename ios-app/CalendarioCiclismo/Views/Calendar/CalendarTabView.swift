@@ -23,13 +23,13 @@ final class CalendarLink {
     var month = DateFormatting.calendarStart().month
 }
 
-/// Pestaña Calendario. En ancho compacto conserva la alternancia Mes/Temporada;
-/// en tamaño regular amplio presenta ambas superficies dentro del mismo
-/// NavigationStack, de modo que cualquier destino sustituya el conjunto:
-/// Temporada en la columna ancha y la agenda en la estrecha, enlazadas por
-/// `CalendarLink`.
+/// Pestaña Calendario. En ancho compacto conserva la alternancia Mes/Temporada
+/// y, sin subvista guardada, abre en Temporada; en tamaño regular amplio
+/// presenta ambas superficies dentro del mismo NavigationStack, de modo que
+/// cualquier destino sustituya el conjunto: Temporada en la columna ancha y la
+/// agenda en la estrecha, enlazadas por `CalendarLink`.
 struct CalendarTabView: View {
-    @AppStorage("calendar_subview") private var sub: String = "month"
+    @AppStorage("calendar_subview") private var sub: String = "season"
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selection: CalendarSelection?
     @State private var link = CalendarLink()

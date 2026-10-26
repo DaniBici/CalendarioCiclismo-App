@@ -49,6 +49,7 @@ import app.calendariociclismo.android.data.model.*
 import android.os.Bundle
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.TeamNames
 import app.calendariociclismo.android.util.UciResultsLogic
 import kotlinx.coroutines.delay
 
@@ -450,7 +451,11 @@ private fun StartlistTeamCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    globalTeam?.name ?: team.displayName,
+                    TeamNames.localizedName(
+                        globalTeam?.name ?: team.displayName,
+                        globalTeam,
+                        LocaleHolder.shouldShowEnglishContent,
+                    ),
                     modifier = Modifier.weight(1f),
                     style = CCText.S14,
                     fontWeight = FontWeight.Bold,

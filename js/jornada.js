@@ -4,59 +4,20 @@ import { mountStageProfile } from './stage/profile.js';
 //  URL: jornada.html?id=RACE_DAY_ID
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, broadcastRegionBadgeLabel, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
-         resolveTypeBadges, esc,
+import { supabase, stageLabel, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
-         raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
-         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, articuloNombre, conArticulo, deArticulo, originalNameDistinto, raceSearchName, trapFocus, setRaceRobots, setHreflangPair,
+         loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
+         filterBroadcastsByRegion, enBase, seoLongDateWeekday, articuloNombre, conArticulo, deArticulo, originalNameDistinto, raceSearchName, setRaceRobots, setHreflangPair,
          embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
-import { annotateDoubleSectors, buildInhouseResultsMatcher, hasCalendarForYear } from './services/races.js';
-import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
+import { STAGE_SIBLING_COLUMNS, buildInhouseResultsMatcher, hasCalendarForYear, stageSiblings } from './services/races.js';
+import { jornadaHtml, visitorTimeZoneLabel } from './jornada-html.js';
+import { applyPrerenderedHtml } from './html-fingerprint.js';
 
-function descriptionHtml(str) {
-  if (!str) return '';
-  return str.split('\n')
-    .map(line => esc(line)
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/__(.+?)__/g, '<u>$1</u>'))
-    .filter(line => line.replace(/&amp;nbsp;/g, '').replace(/[\u00A0\s]/g, '').length > 0)
-    .map(line => `<p>${line}</p>`)
-    .join('');
-}
-
-// Datos de la guía de horarios de la jornada actual (para el modal).
-
-const TV_STATUS_LABELS = new Proxy({}, {
-  get(_, key) {
-    if (key === 'confirmed_time' || key === 'confirmed_notime') return null;
-    return t(`tv.status.${key}`) || null;
-  },
-});
-
-// URL de la página de resultados PROPIA (in-house, tablas race_uci_*).
-// Espejo del enrutado de js/resultados.js (ES /resultados/<slug>/etapa-N/ · EN /en/results/…).
-function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
-  const isEn = getLang() === 'en';
-  const slug = isEn ? (race.slugEn || race.slug) : race.slug;
-  if (!slug) return null;
-  const base = isEn ? `${enBase()}/results/` : '/resultados/';
-  const sfx = (suffix || '').toLowerCase();   // doble sector: 3A → etapa-3a
-  let seg = '';
-  if (stageNumber === 0) seg = isEn ? 'prologue/' : 'prologo/';
-  else if (stageNumber != null) seg = isEn ? `stage-${stageNumber}${sfx}/` : `etapa-${stageNumber}${sfx}/`;
-  return `${base}${encodeURIComponent(slug)}/${seg}`;
-}
-
-// Bloque de botones de resultados: el CTA propio a /resultados/ se integra como
-// primer botón de la barra de assets (buildActionButtons → resultsUrl). Sin
-// clasificaciones propias no hay botón (no hay fuentes externas de respaldo).
-// ── Render ────────────────────────────────────────────────────────
 function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set()) {
   const color  = race.colorHex || '#888';
   const name   = raceName(race) || t('stage.unknownRace') || 'Carrera desconocida';
@@ -106,270 +67,18 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   content.querySelector('[data-integrated-profile]')?._profileCleanup?.();
   content.style.setProperty('--card-color', color);
 
-  let html = buildRaceHero(rd, race, { showCancelledBanner: true });
-
-  // Clasificaciones propias (in-house): de esta jornada si ya están volcadas;
-  // en su defecto, la GENERAL de la etapa anterior (vueltas por etapas). Una
-  // jornada cancelada siempre tiene página propia. Se ofrece como PRIMER botón
-  // de la barra de assets (buildActionButtons → `.asset-btn--results`).
-  const _navSiblings = siblings.filter(s => !s.isRestDay && !s.isCancelledDay);
-  const _currentIdx  = _navSiblings.findIndex(s => s.id === rd.id);
-  const _prevRd      = _currentIdx > 0 ? _navSiblings[_currentIdx - 1] : null;
-  const _currentResultsAvailable = inhouseStages.has(rd);
-  const _prevHasInhouse = _prevRd && !_currentResultsAvailable && inhouseStages.has(_prevRd);
-  const hasInhouseResults = inhouseStages.has(rd) || rd.isCancelledDay;
-  const hasActualResults = inhouseStages.has(rd);
-  const resultsUrl = hasInhouseResults
-    ? buildInhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix)
-    : (_prevHasInhouse ? buildInhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null);
-  // Paridad con las apps: el botón de la jornada actual se destaca; la general
-  // arrastrada de la etapa anterior sigue siendo una acción secundaria.
-  const resultsHighlighted = hasInhouseResults;
-
-  // Recorrido — panel de botones (clasificaciones · web oficial · inscritos ·
-  // rutómetro · perfil · puertos · mapa · live texto), fuente única en
-  // shared.buildActionButtons.
-  const assetsHtml = buildActionButtons({
-    race, rd, view: 'jornada', assets, hasStartlist, resultsUrl, resultsHighlighted,
-    style: 'margin-bottom:0.85rem',
-  });
-
-  // Horarios (calculados antes del bloque unificado)
-  const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-  const start  = startTU?.display  ?? null;
-  const finish = finishTU?.display ?? null;
-  const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
-  const startMadrid  = startTU?.tooltip  ?? start;
-  const finishMadrid = finishTU?.tooltip ?? finish;
-  const { startLabel, finishLabel } = startFinishLabels(rd, race);
-
-  const hasRecorrido = assetsHtml || rd.startLocation || rd.distanceKm || rd.primaryType;
-  // Una jornada cancelada no se corre: el horario de salida/meta ya no describe
-  // nada. El banner del hero es quien cuenta lo que pasó.
-  const hasHorarios  = !rd.isCancelledDay && (start || finish);
-
-  if (hasRecorrido || hasHorarios) {
-    // SVG flecha vertical compartida
-    const arrowSvg = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="7" y1="0" x2="7" y2="17" stroke-width="1.5" stroke-linecap="round"/><polyline points="3,13 7,19 11,13" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-
-    // — Bloque 1: RECORRIDO —
-    const sameLocation = rd.startLocation && (!rd.finishLocation || rd.startLocation === rd.finishLocation);
-    let recorridoHtml = '';
-    if (rd.startLocation) {
-      if (sameLocation) {
-        recorridoHtml = `<div class="route-block__place route-block__place--solo">${rdLocation(rd, 'startLocation')}</div>
-          <div class="route-block__note">${t('search.startAndFinish')}</div>`;
-      } else {
-        recorridoHtml = `<div class="route-block__place">${rdLocation(rd, 'startLocation')}</div>
-          ${arrowSvg}
-          <div class="route-block__place">${rdLocation(rd, 'finishLocation') || '-'}</div>`;
-      }
-    } else {
-      recorridoHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`;
-    }
-
-    // — Bloque 2: DISTANCIA Y TIPO —
-    const kmFormatted = rd.distanceKm
-      ? Number(rd.distanceKm).toLocaleString(_isEn ? 'en-GB' : 'es-ES')
-      : null;
-    const kmHtml = kmFormatted
-      ? `<div class="route-block__km">${kmFormatted}${_isEn ? 'km' : ' km'}</div>`
-      : `<div class="route-block__km route-block__km--empty">-</div>`;
-    const _elevGain = rd.elevationProfile?.elevationGain;
-    const elevHtml = _elevGain != null
-      ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEn ? ',' : '.')} m</div>`
-      : '';
-    const tipoHtml = rd.primaryType
-      ? `<div class="route-block__type">${resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode)}</div>`
-      : '';
-
-    // — Bloque 3: HORARIOS —
-    // Si el usuario está en una zona diferente a Madrid, el data-tooltip muestra la hora de Madrid
-    const startTipText  = tzDiffers ? `${startLabel} · Madrid: ${startMadrid}`  : startLabel;
-    const finishTipText = tzDiffers ? `${finishLabel} · Madrid: ${finishMadrid}` : finishLabel;
-    let horariosHtml = '';
-    if (start && finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${start}</div>
-        ${arrowSvg}
-        <div class="route-block__place" data-tooltip="${finishTipText}">${finish}</div>`;
-    } else if (start) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${start}</div>
-        <div class="route-block__note">${startLabel}</div>`;
-    } else if (finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTipText}">${finish}</div>
-        <div class="route-block__note">${finishLabel}</div>`;
-    } else {
-      horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
-    }
-
-    // Jornada cancelada → sin bloque de horario ni guía de horarios de paso:
-    // no hay salida ni meta que anunciar (hasHorarios ya es false).
-    const scheduleBlock = rd.isCancelledDay ? '' : `<div class="route-grid__block">
-          <div class="route-grid__title" data-tooltip="${tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone')}">${t('stage.schedule')}</div>
-          <div class="route-grid__body route-grid__body--route">
-            ${horariosHtml}
-          </div>
-        </div>`;
-
-    html += `<div class="jornada-section jornada-section--route-grid">
-      ${assetsHtml}
-      <div class="route-grid">
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('stage.route')}</div>
-          <div class="route-grid__body route-grid__body--route">
-            ${recorridoHtml}
-          </div>
-        </div>
-        <div class="route-grid__block route-grid__block--type">
-          <div class="route-grid__title">${t('stage.distanceAndType')}</div>
-          <div class="route-grid__body">
-            ${kmHtml}
-            ${elevHtml}
-            ${tipoHtml}
-          </div>
-        </div>
-        ${scheduleBlock}
-      </div>
-    </div>`;
-  } // fin bloque unificado
-
-  // Televisión — sección independiente, siempre con título fijo
-  // En la versión EN (/en/), "unavailable_es" es irrelevante: el usuario no está en España.
-  // Tratamos el estado como sin marcar para no mostrar "No TV in Spain" y dejar que
-  // los broadcasts (filtrados por región) hablen por sí solos.
-  const _tvStatus = (_isEn && rd.tvStatus === 'unavailable_es') ? null : rd.tvStatus;
-  const tvLabel = _tvStatus ? TV_STATUS_LABELS[_tvStatus] : null;
-  const hasBroadcasts = broadcasts && broadcasts.length > 0;
-  const isRaceConcluded = _currentResultsAvailable || rd.raceStatus === 'finished';
-  // Revive depende de clasificaciones de ESTA jornada y de un enlace persistente.
-  // La general de la etapa anterior y el estado/horario de meta no lo activan.
-  const hasReviveBroadcast = hasReviveBroadcastsForDay(broadcasts, hasActualResults, rd.isCancelledDay);
-  // Jornada cancelada: solo se conserva el replay explícito si aun así se
-  // publicaron clasificaciones propias de lo disputado.
-  const liveText = !rd.isCancelledDay && !rd.isRestDay && !isRaceConcluded ? assets.find(a => a.type === 'live_text' && (a.url || a.filePath)) : null;
-  const hasTvInfo = liveText || (rd.isCancelledDay ? hasReviveBroadcast : (isRaceConcluded
-    ? hasReviveBroadcast
-    : (hasBroadcasts || allBroadcasts.length > 0 || _tvStatus === 'pending' || _tvStatus === 'none' || _tvStatus === 'unavailable_es')));
-
-  // Broadcasts que el filtro regional ocultó (presentes en allBroadcasts pero no en broadcasts)
-  const filteredOutIds = new Set(broadcasts.map(b => b.id));
-  const hiddenBroadcasts = allBroadcasts.filter(b => !filteredOutIds.has(b.id));
-  const hasHiddenBroadcasts = hiddenBroadcasts.length > 0;
-
-  if (hasTvInfo) {
-    const reviveTitle = race.raceFormat === 'one_day' ? t('tv.reviveRaceTitle') : t('tv.reviveStageTitle');
-    const tvSectionTitle = hasReviveBroadcast ? reviveTitle : t('tv.title');
-    const toggleBtn = hasHiddenBroadcasts && !hasReviveBroadcast
-      ? `<button type="button" class="stage-key-toggle" data-tv-filter="mine">${t('tv.filterAll')}</button>`
-      : '';
-    // Reutiliza el chip naranja de Hoy, también cuando hay un canal provisional.
-    // En Jornada no lo sustituye el Live texto: ambos datos son complementarios.
-    const pendingBadge = !hasReviveBroadcast && _tvStatus === 'pending'
-      ? `<span class="badge badge--pend"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> ${t('tv.status.pending')}</span>`
-      : '';
-    // Mismo panel que Puntos clave: título y acciones en la cabecera, emisoras
-    // como filas separadas por filetes.
-    html += `<section class="jornada-section tv-panel">
-      <header class="stage-profile-heading">
-        <div class="tv-panel__title">
-          <h2>${tvSectionTitle}</h2>
-          ${pendingBadge}
-        </div>
-        <div class="tv-panel__actions">${liveText ? `<a class="stage-key-toggle tv-live-text" href="${esc(liveText.url || liveText.filePath)}" target="_blank" rel="noopener">${t('assets.live_text')}</a>` : ''}${toggleBtn}</div>
-      </header>
-      <div class="tv-panel__list">`;
-
-    if (hasBroadcasts || hasHiddenBroadcasts) {
-      const visibleBroadcasts = hasReviveBroadcast
-        ? reviveBroadcastsForDay(broadcasts, rd.isCancelledDay)
-        : broadcasts;
-
-      // Si el filtro regional dejó sin broadcasts visibles, avisar al usuario antes
-      // de listar los que están ocultos (los muestra al pulsar el toggle "Todas").
-      if (!hasReviveBroadcast && visibleBroadcasts.length === 0 && hasHiddenBroadcasts) {
-        html += `<div class="info-row tv-no-region-msg">
-          <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noTvRegion')}</span>
-        </div>`;
-      }
-
-      const renderEntry = (b, hidden = false) => {
-        const bTimeTU = formatTimeUser(b.startTimeUtc);
-        const bTime   = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
-        const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
-        const regionLabel = filterBroadcastsByRegion([b]).length ? '' : broadcastRegionBadgeLabel(b.country);
-        // `getBroadcastEmbed` aplica la allowlist y respeta embeddable=false.
-        const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
-        return `<div class="tv-entry${hidden ? ' tv-entry--regional-hidden' : ''}"${hidden ? ' style="display:none"' : ''}>
-          <div class="tv-entry__info">
-            <div class="tv-entry__platform-row">
-              <div class="tv-entry__platform">${b.channel || '-'}</div>
-              ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<button type="button" class="tv-entry__note-btn" data-tooltip="${esc(b.note)}" aria-label="${esc(b.note)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>` : ''}
-              ${regionLabel ? `<span class="badge badge--uci tv-region-badge">${regionLabel}</span>` : ''}
-            </div>
-          </div>
-          <div class="tv-entry__actions">
-            ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}
-            ${b.url  ? `<a class="tv-link-btn${broadcastEmbed ? ' tv-link-btn--embed' : ''}" href="${esc(b.url)}" target="_blank" rel="noopener"${broadcastEmbed ? ' data-tv-embed="1"' : ''}>${t('stage.watch')} ↗&#xFE0E;</a>` : ''}
-          </div>
-        </div>`;
-      };
-
-      visibleBroadcasts.forEach(b => { html += renderEntry(b, false); });
-      if (!hasReviveBroadcast) {
-        hiddenBroadcasts.forEach(b => { html += renderEntry(b, true); });
-      }
-    } else if (tvLabel) {
-      html += `<div class="info-row">
-        <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">
-          ${tvLabel}
-        </span>
-      </div>`;
-    } else if (!_tvStatus) {
-      // Solo Live texto: sin emisiones ni estado de TV, el panel indica que no
-      // hay televisión en lugar de quedarse con la cabecera y la lista vacía.
-      html += `<div class="info-row">
-        <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noBroadcast')}</span>
-      </div>`;
-    }
-
-    html += `</div></section>`;
-  } // fin hasTvInfo
-
-  // Editorial — en EN usar solo traducción EN (sin fallback ES)
-  const _enTr   = _isEn ? (rd.translations?.en || {}) : {};
-  const _desc    = _isEn ? (_enTr.description?.value || '') : rd.description;
-  const _bonuses = _isEn ? (_enTr.bonuses?.value     || '') : rd.bonuses;
-  const _notes   = _isEn ? (_enTr.notes?.value       || '') : rd.notes;
-  if (_desc || _bonuses || _notes) {
-    // Mismo panel que Perfil, Puntos clave y Televisión.
-    html += `<section class="jornada-section stage-panel stage-text-panel">
-      <header class="stage-profile-heading"><h2>${race.raceFormat === 'one_day' ? t('stage.descriptionRace') : t('stage.descriptionStage')}${_isEn && _enTr.description?.status !== 'manual' ? ' <span class="jornada-section__ai-note">AI translated from Spanish, might contain errors</span>' : ''}</h2></header>
-      ${_desc    ? `<div class="jornada-description">${descriptionHtml(_desc)}</div>` : ''}
-      ${_bonuses ? `<div class="info-row"><span class="info-row__label">${t('stage.bonuses')}</span>
-                    <span class="info-row__value info-row__value--secondary">${esc(_bonuses)}</span></div>` : ''}
-      ${_notes   ? `<div class="info-row"><span class="info-row__label">${t('stage.notes')}</span>
-                    <span class="info-row__value info-row__value--secondary">${esc(_notes)}</span></div>` : ''}
-    </section>`;
-  }
-
-  // Assets ya integrados en sección Recorrido
-
-  // Navegación entre etapas (solo vueltas por etapas con >1 etapa; excluye jornadas de descanso)
-  const navSiblings = siblings.filter(s => !s.isRestDay);
-  html = buildStageNav(navSiblings, rd.id, jornadaUrl, raceUrl(race)) + html;
+  const timeZoneLabel = visitorTimeZoneLabel();
+  const { html, hasActualResults } = jornadaHtml(rd, race, broadcasts, assets, siblings, hasStartlist, allBroadcasts, inhouseStages,
+    { timeZoneLabel });
 
   // Reportar se mueve al ical-bar (setupIcalModal) para quedar junto a Suscribirse
 
   content.querySelector('[data-integrated-profile]')?._profileCleanup?.();
-  content.innerHTML = html;
-  const routeSection = content.querySelector('.jornada-section--route-grid');
-  const resourceBar = routeSection?.querySelector('.asset-links-wrap');
-  const stageHeader = content.querySelector('.race-header');
-  if (resourceBar && stageHeader) stageHeader.after(resourceBar);
-  const profileHost = document.createElement('div'); profileHost.dataset.integratedProfile = '';
-  (routeSection || resourceBar || stageHeader)?.after(profileHost);
-  mountStageProfile(profileHost, { day:{ ...rd, _hasInhouse:hasActualResults }, race, assets, points:true, temporal:true });
+  // Página generada en el build con el mismo HTML: se conserva el DOM y solo
+  // se monta lo interactivo.
+  applyPrerenderedHtml(content, html);
+  const profileHost = content.querySelector('[data-integrated-profile]');
+  mountStageProfile(profileHost, { day:{ ...rd, _hasInhouse:hasActualResults }, race, assets, points:true, temporal:true, timeZoneLabel });
   syncTvPanelWidth(content);
 
   // ── Setup report modal con datos de la jornada ─────────────────
@@ -611,13 +320,16 @@ function updateSeoJornada(rd, race) {
     'sport': 'Ciclismo en ruta',
     'eventStatus': eventStatus,
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
-    'organizer': {
-      '@type': 'Organization',
-      'name': t('seo.siteName'),
-      'url': origin
-    }
+    // Organizador: la propia carrera con su web oficial (como sports_event en
+    // tools/site/gen_og_pages.py); sin web se omite.
+    ...(race.websiteUrl ? { 'organizer': { '@type': 'Organization', 'name': raceNameStr, 'url': race.websiteUrl } } : {}),
   } : null;
-  if (jsonLd) { jsonLd.startDate = rd.dateKey; jsonLd.endDate = rd.dateKey; }
+  // Salida y llegada estimada con hora y zona si existen (igual que el build,
+  // tools/site/gen_og_pages.py stage_event_bounds); si no, la fecha.
+  if (jsonLd) {
+    jsonLd.startDate = rd.neutralStartTimeUtc || rd.dateKey;
+    jsonLd.endDate = rd.estimatedFinishTimeUtc || jsonLd.startDate;
+  }
   if (jsonLd && ogImage) jsonLd.image = ogImage;
   if (jsonLd) {
     jsonLd.location = { '@type': 'Place', 'name': locationName };
@@ -843,13 +555,16 @@ function setupReportModal(raceDayId, raceName, stageStr) {
   let overlay = document.getElementById('reportModalOverlay');
   if (overlay) overlay.remove();
 
-  overlay = document.createElement('div');
+  // <dialog> modal: foco dentro, resto de la página inerte, Escape y
+  // devolución del foco los resuelve el navegador.
+  overlay = document.createElement('dialog');
   overlay.id = 'reportModalOverlay';
   overlay.className = 'report-modal-overlay';
+  overlay.setAttribute('aria-labelledby', 'reportModalTitle');
   overlay.innerHTML = `
     <div class="report-modal" id="reportModal">
       <div class="report-modal__bar">
-        <span class="report-modal__title">${t('report.title')}</span>
+        <span class="report-modal__title" id="reportModalTitle">${t('report.title')}</span>
         <button class="report-modal__close" onclick="closeReportModal()">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
@@ -986,20 +701,14 @@ window.openReportModal = function() {
   if (success) success.style.display = 'none';
   const submitBtn = form?.querySelector('.report-modal__submit');
   if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('report.submit'); }
-  overlay.classList.add('report-modal--open');
-  document.body.style.overflow = 'hidden';
+  if (!overlay.open) overlay.showModal();
 };
 
 window.closeReportModal = function() {
   const overlay = document.getElementById('reportModalOverlay');
-  if (!overlay) return;
-  overlay.classList.remove('report-modal--open');
-  document.body.style.overflow = '';
+  if (overlay?.open) overlay.close();
 };
 
-// Columnas de las jornadas hermanas: navegación entre etapas
-// (buildStageNav), dobles sectores y resultados de la etapa anterior.
-const SIBLING_COLUMNS = 'id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay,neutralStartTimeUtc,startLocation,startLocationEn,finishLocation,finishLocationEn,slug,slugEn';
 // La jornada lleva la carrera embebida: un viaje menos antes de pintar.
 const DAY_WITH_RACE = '*,race:races(*)';
 
@@ -1046,9 +755,11 @@ async function init() {
   // Lecturas que dependen solo de la jornada o de la carrera. Las hermanas
   // solo en carreras por etapas (en un día no hay navegación entre etapas);
   // con el id incrustado se piden siempre y se descartan si no hacen falta.
+  // Orden total (desempate por id): el prerender del build ordena igual y la
+  // huella del HTML coincide.
   const dayRequests = dayId => [
-    supabase.from('broadcasts').select('*').eq('raceDayId', dayId).order('sortOrder', { ascending: true }),
-    supabase.from('assets').select('*').eq('raceDayId', dayId),
+    supabase.from('broadcasts').select('*').eq('raceDayId', dayId).order('sortOrder', { ascending: true }).order('id'),
+    supabase.from('assets').select('*').eq('raceDayId', dayId).order('id'),
   ];
   const raceRequests = (raceId, withSiblings = true) => [
     // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
@@ -1058,7 +769,7 @@ async function init() {
       : Promise.resolve(null),
     raceId ? loadRaceTechnicalGuide(raceId) : Promise.resolve(null),
     raceId && withSiblings
-      ? supabase.from('race_days').select(SIBLING_COLUMNS).eq('raceId', raceId).eq('editorialStatus', 'published')
+      ? supabase.from('race_days').select(STAGE_SIBLING_COLUMNS).eq('raceId', raceId).eq('editorialStatus', 'published').order('id')
       : Promise.resolve(null),
   ];
   // Las consultas de supabase-js solo se envían al resolverlas: Promise.resolve
@@ -1117,20 +828,10 @@ async function init() {
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     const hasStartlist = !!race.startlistImportedAt;
 
-    // Ordenar etapas hermanas
+    // Ordenar etapas hermanas y marcar dobles sectores
     let siblings = [];
     if (siblingsResult) {
-      siblings = (siblingsResult.data || [])
-        .sort((a, b) => {
-          if ((a.stageNumber !== null && a.stageNumber !== undefined) && (b.stageNumber !== null && b.stageNumber !== undefined)) {
-            if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
-            const tA = a.neutralStartTimeUtc ? new Date(a.neutralStartTimeUtc).getTime() : Infinity;
-            const tB = b.neutralStartTimeUtc ? new Date(b.neutralStartTimeUtc).getTime() : Infinity;
-            return tA - tB;
-          }
-          return (a.dateKey||'').localeCompare(b.dateKey||'');
-        });
-      annotateDoubleSectors(siblings);
+      siblings = stageSiblings(siblingsResult.data || []);
       // Propagar sufijo de doble sector al rd actual desde siblings
       const match = siblings.find(s => s.id === rd.id);
       if (match?._stageSuffix) rd._stageSuffix = match._stageSuffix;
@@ -1147,7 +848,7 @@ async function init() {
     let previous=stateKey(rd,uciResult?.data || []), refreshing=false;
     const refreshState=async()=> {
       const content=document.getElementById('jornadaContent');
-      if(document.hidden || refreshing || !content?.isConnected || document.querySelector('.tv-embed-block,.rd-modal--open,.report-modal--open')) return;
+      if(document.hidden || refreshing || !content?.isConnected || document.querySelector('.tv-embed-block,.rd-modal-overlay[open],.report-modal-overlay[open]')) return;
       if(!isNearToday(rd.dateKey)) return;
       refreshing=true;
       try {
@@ -1190,13 +891,9 @@ async function init() {
 // ── Modal de suscripción iCal por jornada ─────────────────────────────────────
 
 let _icalOverlay = null;
-let _releaseIcalFocus = null;
 
 function closeIcalModal() {
-  if (!_icalOverlay) return;
-  _icalOverlay.classList.remove('rd-modal--open');
-  document.body.style.overflow = '';
-  if (_releaseIcalFocus) { _releaseIcalFocus(); _releaseIcalFocus = null; }
+  if (_icalOverlay?.open) _icalOverlay.close();
 }
 
 // Escritorio con Puntos clave: las acciones van bajo ese panel; en el resto,
@@ -1300,10 +997,13 @@ function setupIcalModal(rd, race) {
 
       const seasonFeeds = FEEDS.map(f => feedCard(feedUrl(f.key), f.label + ' ' + year, f.desc, '')).join('');
 
-      _icalOverlay = document.createElement('div');
+      // <dialog> modal: foco dentro, resto de la página inerte, Escape y
+      // devolución del foco los resuelve el navegador.
+      _icalOverlay = document.createElement('dialog');
       _icalOverlay.className = 'rd-modal-overlay';
+      _icalOverlay.setAttribute('aria-label', t('ical.title'));
       _icalOverlay.innerHTML =
-        '<div class="rd-modal" role="dialog" aria-modal="true" aria-label="' + t('ical.title') + '">' +
+        '<div class="rd-modal">' +
           '<div class="rd-modal__bar">' +
             '<div class="rd-modal__header-text">' +
               '<span class="rd-modal__race-name">' + t('ical.title') + '</span>' +
@@ -1345,14 +1045,9 @@ function setupIcalModal(rd, race) {
       });
 
       document.getElementById('icalModalClose').addEventListener('click', closeIcalModal);
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && _icalOverlay && _icalOverlay.classList.contains('rd-modal--open')) closeIcalModal();
-      });
     }
 
-    _icalOverlay.classList.add('rd-modal--open');
-    document.body.style.overflow = 'hidden';
-    _releaseIcalFocus = trapFocus(_icalOverlay.querySelector('.rd-modal') || _icalOverlay);
+    if (!_icalOverlay.open) _icalOverlay.showModal();
   };
 }
 

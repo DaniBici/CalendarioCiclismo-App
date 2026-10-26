@@ -3,6 +3,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import quote
 from datetime import datetime, timezone
+import site_data
 from archived_seasons import ROBOTS_INDEX, race_robots
 from results_routes import (
     result_entry_key,
@@ -30,6 +31,10 @@ def supabase_get(path):
     # consultas grandes (p. ej. race_days, que ya supera las 1000 filas
     # publicadas) se truncaban silenciosamente y las jornadas con dateKey
     # más tardío (posición >1000 en el orden) no generaban su página.
+    # Con el volcado compartido del build (site_data.py) responde en local.
+    shared = site_data.get(path)
+    if shared is not None:
+        return shared
     PAGE = 1000
     all_rows = []
     offset = 0
@@ -63,6 +68,9 @@ def supabase_rpc(fn, payload=None):
     # startlist_counts() devuelve ~410 filas, pero si el catálogo crece más allá
     # de 1000 PostgREST truncaría la respuesta EN SILENCIO (el mismo fallo que
     # documenta supabase_get para race_days).
+    shared = site_data.rpc(fn) if payload is None else None
+    if shared is not None:
+        return shared
     PAGE = 1000
     all_rows = []
     offset = 0
@@ -130,11 +138,21 @@ def breadcrumb_list(items):
         "itemListElement": element,
     }
 
+def stage_event_bounds(rd, date_key):
+    """startDate y endDate del SportsEvent de una jornada: salida y llegada
+    estimada con hora y zona (ISO 8601) si existen; si no, la fecha. Así
+    buscadores y LLM conocen la hora exacta sin depender del JS."""
+    start = rd.get("neutralStartTimeUtc") or date_key or None
+    end = rd.get("estimatedFinishTimeUtc") or start
+    return start, end
+
+
 def sports_event(name, start_date, end_date, url, description,
                  image=None, location_name=None, location_country=None,
                  cancelled=False,
                  date_published=None, date_modified=None,
-                 organizer_url=None, same_as=None):
+                 organizer_url=None, same_as=None, organizer_name=None,
+                 sport="Ciclismo en ruta"):
     # Google solo considera elegible un Event con nombre, fecha y ubicación
     # física. No publicamos un SportsEvent parcial: el resto del JSON-LD y del
     # SEO de la página se conserva.
@@ -146,16 +164,19 @@ def sports_event(name, start_date, end_date, url, description,
         "name": name,
         "url": url,
         "description": description,
-        "sport": "Ciclismo en ruta",
+        "sport": sport,
         "eventStatus": ("https://schema.org/EventCancelled" if cancelled
                         else "https://schema.org/EventScheduled"),
         "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-        "organizer": {
-            "@type": "Organization",
-            "name": "Calendario Ciclismo",
-            "url": organizer_url or BASE_URL,
-        },
     }
+    # Organizador: la propia carrera con su web oficial. Sin web se omite;
+    # Calendario Ciclismo no organiza las pruebas.
+    if organizer_name and organizer_url:
+        ev["organizer"] = {
+            "@type": "Organization",
+            "name": organizer_name,
+            "url": organizer_url,
+        }
     if start_date:      ev["startDate"]     = start_date
     if end_date:        ev["endDate"]       = end_date
     if date_published:  ev["datePublished"] = date_published
@@ -266,10 +287,12 @@ def page_stylesheets(spa_script):
 # módulo diferido mapa-pub.js se ejecute. Espejo de mapa.html. Sin esto,
 # initRouteMap encuentra `typeof maplibregl === 'undefined'` y sale en
 # silencio → mapa en blanco en TODOS los navegadores.
+# Con `defer` no bloquea el pintado (≈210 KB gzip) y conserva ese orden: los
+# scripts diferidos y los módulos se ejecutan en el orden del documento.
 LEAFLET_HEAD = (
     '<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">'
     '<link rel="preconnect" href="https://tiles.openfreemap.org">'
-    '<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
+    '<script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
 )
 
 def page_id_meta(page_ids):
@@ -309,7 +332,7 @@ def og_page(title, description, canonical_url,
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var l=window.matchMedia("(prefers-color-scheme: light)").matches,d=document.documentElement;d.classList.toggle("light",l);d.classList.toggle("dark",!l);d.style.backgroundColor=l?"#eef1f5":"#0b0c0f";d.style.colorScheme=l?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -783,7 +806,7 @@ def og_page_en(title, description, canonical_url,
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var l=window.matchMedia("(prefers-color-scheme: light)").matches,d=document.documentElement;d.classList.toggle("light",l);d.classList.toggle("dark",!l);d.style.backgroundColor=l?"#eef1f5":"#0b0c0f";d.style.colorScheme=l?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -925,7 +948,7 @@ races = road_get(
     "races?select=id,slug,slugEn,name,nameEn,originalName,year,startDate,endDate,"
     "logoUrl,raceFormat,countryCode,uciCategory,isCancelled,websiteUrl,"
     "startlistProvisional,gender"
-    "&slug=not.is.null&order=startDate.desc" + RACE_FILTER
+    "&slug=not.is.null&order=startDate.desc,id" + RACE_FILTER
 )
 
 # Conteos de equipos y corredores por carrera (descripciones de inscritos y
@@ -959,10 +982,10 @@ except Exception as e:
 racedays_all = road_get(
     "race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
     "startLocationEn,finishLocationEn,dateKey,isRestDay,isCancelledDay,updatedAt,"
-    "neutralStartTimeUtc,"
+    "neutralStartTimeUtc,estimatedFinishTimeUtc,"
     "countryCode,elevationProfile,profileNotViewable,routeGpxUrl,distanceKm,primaryType,secondaryType,"
     "description,translations"
-    "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc" + DAY_FILTER
+    "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc,id" + DAY_FILTER
 )
 if SELECTED_STAGE_SLUGS:
     selected_days = [day for day in racedays_all if day.get("slug") in SELECTED_STAGE_SLUGS]
@@ -1143,6 +1166,7 @@ for race in emit_rows(races, "races"):
             date_published=date_published_comp,
             date_modified=date_modified_comp,
             organizer_url=race_website_url,
+            organizer_name=name,
         )
     json_ld_list = [obj for obj in (competition_event, breadcrumb_list(crumbs)) if obj]
     if il_items and len(race_stages) > 1:
@@ -1211,10 +1235,14 @@ if SELECTED_STAGE_SLUGS:
         if len(set(grouped[canonical_group_key(day)])) > 1:
             raise ValueError("Una jornada nueva comparte canonical con otra; requiere generación completa")
 
+# Mismas etiquetas que `types` de js/i18n.js (valores de primaryType y
+# secondaryType del panel).
 _STAGE_TYPE_ES = {
-    "mountain": "Montaña", "flat": "Llano", "hilly": "Accidentada",
-    "itt": "CRI", "ttt": "CRE", "semi_classic": "Semielásica",
-    "one_day_race": "Clásica", "prologue": "Prólogo",
+    "flat": "Llana", "rolling": "Sinuosa", "cotas": "Cotas",
+    "medium_mountain": "Media montaña", "high_mountain": "Alta montaña",
+    "cobbles": "Adoquines", "sterrato": "Sterrato", "itt": "CRI", "ttt": "CRE",
+    "summit_finish": "Final en alto", "uphill_finish": "Final en repecho",
+    "chrono_climb": "Cronoescalada", "monopuerto": "Monopuerto", "ribinou": "Ribinou",
 }
 
 # Mapa raceId -> race para enriquecer jornadas
@@ -1259,7 +1287,7 @@ for rd in emit_rows(racedays, "stages"):
     sl = stage_label(stage_num) if stage_num is not None else ""
 
     stage_type = (rd.get("primaryType") or rd.get("secondaryType") or "").strip()
-    stage_type_label = _STAGE_TYPE_ES.get(stage_type, stage_type.replace("_", " ").title()) if stage_type else ""
+    stage_type_label = _STAGE_TYPE_ES.get(stage_type, "")
     km_txt = str(km).replace('.', ',') + " km" if km else ""
     route = start_loc if same_or_one else f"{start_loc} › {finish_loc}"
 
@@ -1346,10 +1374,11 @@ for rd in emit_rows(racedays, "stages"):
             location_name = f"{start_loc} → {finish_loc}"
         elif start_loc:
             location_name = start_loc
+        stage_start, stage_end = stage_event_bounds(rd, date_key)
         stage_event = sports_event(
             name=og_title,
-            start_date=date_key or None,
-            end_date=date_key or None,
+            start_date=stage_start,
+            end_date=stage_end,
             url=canonical,
             description=description,
             image=og_image,
@@ -1359,6 +1388,7 @@ for rd in emit_rows(racedays, "stages"):
             date_published=date_key or None,
             date_modified=rd_updated_at or date_key or None,
             organizer_url=race.get("websiteUrl") or None,
+            organizer_name=race_name,
             same_as=race.get("websiteUrl") or None,
         )
         if stage_event:
@@ -1476,7 +1506,7 @@ so_rds_raw = family_get("extras",
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
     "distanceKm,startOrderImportedAt,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&startOrderImportedAt=not.is.null" + DAY_FILTER
+    "&startOrderImportedAt=not.is.null&order=id" + DAY_FILTER
 )
 print(f"  → {len(so_rds_raw)} jornadas con orden de salida")
 so_count = 0
@@ -1661,7 +1691,7 @@ if generation_enabled("results"):
     os.makedirs("resultados", exist_ok=True)
     os.makedirs("en/results", exist_ok=True)
 res_stages_raw = family_get("results",
-    "race_uci_stages?select=raceId,raceDayId,stageNumber&keepForWeb=eq.true"
+    "race_uci_stages?select=raceId,raceDayId,stageNumber&keepForWeb=eq.true&order=id"
 )
 res_suffix_by_day = sector_suffixes(racedays_all) if generation_enabled("results") else {}
 # Agrupar entradas sectorizadas por carrera ((None, '') = final / un día).
@@ -1944,11 +1974,12 @@ os.makedirs("perfil", exist_ok=True)
 perfil_rds_raw = family_get("extras",
     "race_days?select=id,slug,slugEn,raceId,stageNumber,dateKey,isRestDay,"
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
-    "distanceKm,profileSummits,profileWaypoints,updatedAt"
+    "distanceKm,profileSummits,profileWaypoints,profileNotViewable,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&elevationProfile=not.is.null" + DAY_FILTER
+    "&elevationProfile=not.is.null&order=id" + DAY_FILTER
 )
-# Filter out not-viewable in Python so the query works even before migration 026
+# Perfil visible: con elevationProfile y sin profileNotViewable, como el
+# sitemap y los canónicos de assets. Lista común a las páginas ES y EN.
 perfil_rds = [rd for rd in perfil_rds_raw if not rd.get("profileNotViewable")]
 perfil_count = 0
 for rd in emit_rows(perfil_rds, "extras"):
@@ -2068,7 +2099,7 @@ mapa_rds = family_get("extras",
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
     "distanceKm,profileSummits,profileWaypoints,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&routeGpxUrl=not.is.null" + DAY_FILTER
+    "&routeGpxUrl=not.is.null&order=id" + DAY_FILTER
 )
 mapa_count = 0
 mapa_en_count = 0
@@ -2319,6 +2350,8 @@ for race in emit_rows(races, "races"):
             date_published=start or None,
             date_modified=race_updated_en or end or start or None,
             organizer_url=race.get("websiteUrl") or None,
+            organizer_name=name_en,
+            sport="Road cycling",
         )
     json_ld_en = [obj for obj in (competition_event_en, breadcrumb_list(crumbs_en)) if obj]
     if il_items_en and len(race_stages_en) > 1:
@@ -2378,11 +2411,6 @@ for race in emit_rows(races, "races"):
     en_count += 1
 
 # EN — jornadas
-_STAGE_TYPE_EN = {
-    "mountain": "Mountain", "flat": "Flat", "hilly": "Hilly",
-    "itt": "ITT", "ttt": "TTT", "semi_classic": "Semi-classic",
-    "one_day_race": "Classic", "prologue": "Prologue",
-}
 for rd in emit_rows(racedays, "stages"):
     slug_en = rd.get("slugEn")
     if not slug_en:
@@ -2478,16 +2506,20 @@ for rd in emit_rows(racedays, "stages"):
             location_name_en = start_en
         rd_country_en = (rd.get("countryCode") or race.get("countryCode") or "").upper() or None
         og_title_en = f"{name_en} {year_en}".strip() if is_one_day_en and year_en else title_en
+        stage_start_en, stage_end_en = stage_event_bounds(rd, date_key_en)
         stage_event_en = sports_event(
             name=og_title_en,
-            start_date=date_key_en or None,
-            end_date=date_key_en or None,
+            start_date=stage_start_en,
+            end_date=stage_end_en,
             url=canonical_en,
             description=desc_en,
             image=og_img_en,
             location_name=location_name_en,
             location_country=rd_country_en,
             cancelled=is_cancelled_en,
+            organizer_url=race.get("websiteUrl") or None,
+            organizer_name=name_en,
+            sport="Road cycling",
         )
         if stage_event_en:
             json_ld_list_en.append(stage_event_en)
@@ -2661,7 +2693,7 @@ cx_races = family_get("cx",
     "cx_races?select=id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,"
     "countryCode,venue,websiteUrl,logoUrl,isCancelled,createdAt,updatedAt,cx_tournaments(id,name,nameEn,slug,seasonKey,logoUrl,updatedAt),"
     "cx_race_categories(category,dateKey,startTimeUtc,isCancelled,resultsStatus),cx_videos(id,url)"
-    "&editorialStatus=eq.published&order=dateKey"
+    "&editorialStatus=eq.published&order=dateKey,id"
 )
 def cx_round_map(races):
     """Mapa raceId -> (n, total) por torneo con el orden del contrato de generales CX.
@@ -2861,7 +2893,7 @@ def generate_cx_pages(cx_races):
             event = sports_event(name,race["dateKey"],race.get("endDateKey") or race["dateKey"],canonical,description,
                                  image=DEFAULT_OG_IMAGE,location_name=race.get("venue"),
                                  location_country=race.get("countryCode"),cancelled=race.get("isCancelled",False),
-                                 organizer_url=race.get("websiteUrl"),same_as=race.get("websiteUrl"),
+                                 organizer_url=race.get("websiteUrl"),organizer_name=name,same_as=race.get("websiteUrl"),
                                  date_published=(race.get("createdAt") or "")[:10] or None,
                                  date_modified=(race.get("updatedAt") or "")[:10] or None)
             if event:

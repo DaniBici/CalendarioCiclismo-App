@@ -117,7 +117,10 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
     val english = locale.language != "es"
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     var data by remember(raceId) { mutableStateOf<CxCached<CxDetail>?>(null) }
-    var loading by remember(raceId) { mutableStateOf(false) }
+    // Descargas en curso y orden de lanzamiento: solo la última publica.
+    var inFlight by remember(raceId) { mutableIntStateOf(0) }
+    var reloadSequence by remember(raceId) { mutableIntStateOf(0) }
+    val loading = inFlight > 0
     // Hasta la primera carga se muestra la pantalla de carga: sin esto, el primer
     // fotograma mostraba «Carrera no disponible».
     var loadedOnce by remember(raceId) { mutableStateOf(false) }
@@ -158,18 +161,24 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         catch (failure: Exception) { if (failure is CancellationException) throw failure }
     }
     // Publicación completa: nada se pinta sin la ronda y, en la primera carga,
-    // sin el mapa ya en caché.
-    suspend fun publish(value: CxCached<CxDetail>) {
-        seasonRounds = app.cxRepository.rounds(value.data.race.seasonKey)
-        round = seasonRounds[value.data.race.id]
+    // sin el mapa ya en caché. Una descarga superada por otra lanzada después
+    // no publica nada.
+    suspend fun publish(value: CxCached<CxDetail>, sequence: Int) {
+        val rounds = app.cxRepository.rounds(value.data.race.seasonKey)
+        if (sequence != reloadSequence) return
+        seasonRounds = rounds
+        round = rounds[value.data.race.id]
         // El refresco de cada minuto trae un cachedAt nuevo: sin cambios en la
         // jornada no se publica, para no recomponer la ficha ni la clasificación.
         if (data?.data == value.data && data?.offline == value.offline) return
         data = value
     }
-    suspend fun reload() {
-        if (loading) return
-        loading = true
+    // Reintentar y la carga al abrir o al volver a primer plano se lanzan
+    // siempre; `heartbeat` (latido de 60 s) se omite con una descarga en curso.
+    suspend fun reload(heartbeat: Boolean = false) {
+        if (heartbeat && inFlight > 0) return
+        val sequence = ++reloadSequence
+        inFlight++
         try {
             if (data == null) {
                 // Un detalle en caché anterior a los resultados del ancla no se
@@ -180,22 +189,30 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                         initialCategory.removePrefix("resultados-") in CxPresentation.resultCategories(cached.data)
                 }?.let { cached ->
                     preloadMap(mapAssetUrl(cached.data))
-                    publish(cached)
+                    publish(cached, sequence)
                 }
             }
             val fresh = app.cxRepository.detail(raceId)
+            if (sequence != reloadSequence) return
             if (fresh != null) {
                 if (data == null) preloadMap(mapAssetUrl(fresh.data))
-                publish(fresh)
+                publish(fresh, sequence)
+                if (sequence != reloadSequence) return
             }
             error = null
         }
-        catch (failure: Exception) { if (failure is CancellationException) throw failure; error = failure.message }
-        finally { loading = false; loadedOnce = true }
+        catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
+            if (sequence == reloadSequence) error = failure.message
+        }
+        finally { inFlight--; loadedOnce = true }
     }
     LaunchedEffect(raceId, owner) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) { reload(); delay(60_000) }
+            // La primera vuelta (apertura o regreso a primer plano) no se
+            // omite aunque siga en vuelo la de un bloque anterior cancelado.
+            var heartbeat = false
+            while (true) { reload(heartbeat); heartbeat = true; delay(60_000) }
         }
     }
     val detail = data?.data
@@ -610,7 +627,7 @@ private fun CxNotificationChip(isFollowing: Boolean, onClick: () -> Unit) {
 }
 
 // Solo categorías con horario verificado, por día y hora de salida: la que no
-// lo tiene no se lista en Horarios ni en Datos de la jornada.
+// lo tiene no se lista en Horarios ni en la columna lateral.
 private fun cxScheduledCategories(race: CxRace, categories: List<CxCategory>): List<CxCategory> =
     categories.filter { it.startTimeUtc != null }
         .sortedWith(compareBy<CxCategory> { it.dateKey ?: race.dateKey }.thenBy { CyclocrossLogic.parseInstant(it.startTimeUtc) ?: java.time.Instant.MAX })
@@ -623,7 +640,7 @@ private fun CxRaceDataCard(race: CxRace, scheduled: List<CxCategory>, activeCate
     val multiDate = race.categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(LocaleHolder.t("Datos de la jornada", "Race data"))
+            SectionTitle(LocaleHolder.t("Horarios", "Schedule"))
             for (category in scheduled) {
                 val active = category.category == activeCategory
                 val time = if (race.isCancelled || category.isCancelled) stringResource(R.string.cx_cancelled)
@@ -805,8 +822,20 @@ private fun CxTVCard(race: CxRace, media: app.calendariociclismo.android.util.Cx
 private fun CxReviveCard(race: CxRace, revive: List<app.calendariociclismo.android.util.CxReplayLink>, openLink: (String) -> Unit) {
     StagePanel {
         PanelHeader(title = stringResource(R.string.cx_revive))
+        // Un encabezado por categoría, como en TV y streaming; las filas
+        // comunes van delante sin encabezado.
         revive.forEachIndexed { index, link ->
             if (index > 0) PanelDivider()
+            val code = link.category
+            if (code != null && (index == 0 || revive[index - 1].category != code)) {
+                Text(
+                    cxCategoryName(code),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                PanelDivider()
+            }
             BroadcastRow(
                 Broadcast(id = link.url, raceDayId = race.id, channel = link.title, url = link.url, sortOrder = link.sortOrder, showInRevive = true),
                 isRevive = true,

@@ -9,6 +9,7 @@ import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces,cxPanelNearest
 import {cxCategories,cxCategoryCardState,cxTime} from '../cx/presentation.js';
 import {madridDateKey} from '../services/timezone.js';
 import {cxLogoImage} from '../components/cx-logo.js';
+import {panelIconSvg} from './icons.js';
 import {cxAllRows,cxQuery,cxRpc,cxTournamentRounds} from '../services/cx-data.js';
 import {resultsTrophyHtml} from '../services/race-presentation.js';
 import {attachCountryAutocomplete} from '../country-select.js';
@@ -18,6 +19,7 @@ import {CX_DURATION_RULE_VERSION,cxCategoryTiming} from '../cx/timing.js';
 import {cxSeason,cxSeasonBounds,cxDateInSeason} from '../cx/season.js';
 import {isValidRiderSlug} from '../rider-rename-logic.js';
 import {confirmDialog as confirmNative} from '../components/dialog.js';
+import {checkYouTubeEmbeddable} from '../broadcast-embed.js';
 
 // Las carreras existentes conservan sus datos editoriales; lo que UCI publica
 // distinto se lista para revisarlo a mano.
@@ -62,6 +64,7 @@ let commonTournaments=[];
 export const cxCommonTournamentName=id=>commonTournaments.find(t=>t.id===id)?.name;
 export async function loadCxCommonTournaments(client) {commonTournaments=await cxAllRows(client,'cx_tournaments','id,name,nameEn,slug,seasonKey,logoUrl,colorHex');commonTournaments.sort((a,b)=>(b.seasonKey||'').localeCompare(a.seasonKey||'')||a.name.localeCompare(b.name));return commonTournaments;}
 export async function fillCxTournamentSelect(client,node,selected='',{isCurrent=()=>true}={}) {const rows=await loadCxCommonTournaments(client);if(!isCurrent())return;node.innerHTML=option('','Seleccionar torneo CX',selected)+rows.map(t=>option(t.id,`${t.seasonKey||''} · ${t.name}`.trim(),selected)).join('');}
+/** @public Lo consultan las pruebas del módulo importado. */
 export const isCxTab=tab=>Object.hasOwn(TABS,tab);
 function currentSeason() {return cxSeason();}
 let currentArea=/^#cx[A-Z]/.test(location.hash)?'cx':'road';
@@ -71,6 +74,7 @@ const option=(value,label,selected)=>`<option value="${esc(value)}" ${value===se
 const options=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const select=(name,label,values,selected,required=false)=>`<label class="field cx-field">${esc(label)}<select name="${name}" ${required?'required':''}>${values.map(v=>Array.isArray(v)?option(v[0],v[1],selected):option(v,v,selected)).join('')}</select></label>`;
 const logoField=value=>{const id=`cx-logo-${crypto.randomUUID()}`;return `<div class="field cx-field cx-logo-field"><label for="${id}">URL del logo</label><div class="field-upload-wrap"><input id="${id}" name="logoUrl" type="url" value="${esc(value)}" placeholder="Pega la URL de una imagen (https://…)" autocomplete="off" spellcheck="false"></div><div class="cx-logo-preview"><span data-logo-image></span><small data-logo-state role="status"></small><button class="btn btn--ghost" data-logo-clear type="button">Quitar</button></div></div>`;};
+/** @public Lo consultan las pruebas del módulo importado. */
 export function wireLogoField(form) {
   const input=form.querySelector('[name=logoUrl]'),preview=form.querySelector('[data-logo-image]'),state=form.querySelector('[data-logo-state]');
   ctx.attachInlineUpload?.(input,'logo');
@@ -347,8 +351,13 @@ function cxOriginHtml(link,timingLink,lastDumpAt) {
   const both=Boolean(link&&timingLink);
   const dataRide=link?`<div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
     ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}`:'';
-  const acn=timingLink?`<div class="ru-origin__state">${both?'Cronometraje':'Origen'}: <a href="${esc(cxAcnUrl(timingLink))}" target="_blank" rel="noopener">ACN Timing ↗</a>
-      <span class="u-c-dim"> · evento ${esc(timingLink.eventId)} · ${timingLink.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
+  const wiclax=timingLink?.provider==='wiclax',kbwb=timingLink?.provider==='kbwb',smartweb=timingLink?.provider==='smartweb';
+  const timingUrl=wiclax||smartweb?timingLink.sourceUrl:kbwb?'https://cycling.vlaanderen/competitie/uitslagen':timingLink&&cxAcnUrl(timingLink);
+  const timingKeys=()=>Object.entries(timingLink.categoryKeys||{}).map(([key,category])=>`${esc(key)} (${esc(category)})`).join(', ');
+  const timingDetail=wiclax?`${Object.keys(timingLink.categoryKeys||{}).length} recorridos`
+    :kbwb?`pruebas ${timingKeys()}`:smartweb?`clasificaciones ${timingKeys()}`:`evento ${esc(timingLink?.eventId)}`;
+  const acn=timingLink?`<div class="ru-origin__state">${both?'Cronometraje':'Origen'}: <a href="${esc(timingUrl)}" target="_blank" rel="noopener">${wiclax?'Wiclax':kbwb?'KBWB':smartweb?'smartweb':'ACN Timing'} ↗</a>
+      <span class="u-c-dim"> · ${timingDetail} · ${timingLink.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
     ${timingLink.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(timingLink.lastFetchError)}</div>`:''}`:'';
   return `<div class="ru-origin">
     ${dataRide}${acn}
@@ -356,7 +365,7 @@ function cxOriginHtml(link,timingLink,lastDumpAt) {
       <button type="button" class="btn btn--ghost cru-link-edit btn--compact">${link?'Cambiar enlace':'Enlazar fuente'}</button>
       ${link?'<button type="button" class="btn btn--ghost cru-unlink btn--compact u-c-danger">Desenlazar</button>':''}
       ${link?`<button type="button" class="btn btn--primary cru-dump btn--compact"
-        title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">▶ Volcar esta carrera</button>`:''}
+        title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">${panelIconSvg('play')} Volcar esta carrera</button>`:''}
     </div></div>`;
 }
 // ACN Timing (cronometraje del organizador): el enlace lo gestionan los agentes; el panel solo muestra su estado.
@@ -384,7 +393,7 @@ async function resultsView(root,race,categories) {
   const byCategory=new Map(categories.map(c=>[c.category,c]));
   root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,timingLink,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
-    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
+    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">Bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);
   root.querySelectorAll('.cru-link-edit').forEach(button=>button.onclick=()=>{
     const panel=root.querySelector('.cru-link-panel');
@@ -623,16 +632,19 @@ function raceForm(root,race,categories,handle,slugRaces=[]) {
 async function mediaForm(root,race,categories,section) {
   const kind=section==='tv'?'broadcasts':'videos';
   const rows=await cxAllRows(ctx.supabase,`cx_${kind}`,'*',{raceId:race.id});rows.sort((a,b)=>a.sortOrder-b.sortOrder);
+  const previousEmbed=new Map(rows.map(row=>[row.url,row.embeddable]));
   if(!root.isConnected)return;
   root.innerHTML=`<form class="cx-form"><p data-media-empty>No hay ${section==='tv'?'emisiones guardadas':'vídeos guardados'}.</p><div data-media></div><button class="btn btn--ghost" data-add type="button">+ Añadir ${section==='tv'?'emisión':'vídeo'}</button>${actions()}</form>`;
   const form=root.querySelector('form');boxSection(form,section==='tv'?'Televisión':'Vídeos',[form.querySelector('[data-media-empty]'),form.querySelector('[data-media]'),form.querySelector('[data-add]')]);
   const list=form.querySelector('[data-media]');
   const empty=()=>form.querySelector('[data-media-empty]').hidden=Boolean(list.children.length);
+  // Rótulo correlativo de cada fila, como «Emisión N» en carretera.
+  const relabel=()=>[...list.children].forEach((item,i)=>{item.querySelector('.tv-entry-panel__label').textContent=`${section==='tv'?'Emisión':'Vídeo'} ${i+1}`;});
   const add=(row={})=>{
     const item=document.createElement('fieldset');item.dataset.id=row.id||crypto.randomUUID();item.className='cx-media-row';
     const local=cxLocalParts(row.startTimeUtc,race.timezone);item.dataset.utc=row.startTimeUtc||'';item.dataset.local=local?`${local.dateKey}T${local.time}`:'';
-    item.innerHTML=`<div class="cx-grid"><label class="field cx-field">Categoría<select name="category">${categoryOptions(categories,row.category||'',true)}</select></label>${input(section==='tv'?'channel':'title',section==='tv'?'Canal':'Título',section==='tv'?row.channel:row.title,'text','required')}${section==='videos'?input('titleEn','Título (EN)',row.titleEn):''}${input('url',section==='tv'?'Enlace':'Vídeo de YouTube',row.url,'url','required')}${section==='tv'?`${select('country','Región',CX_COUNTRY_GROUPS,row.country||'ALL')}${input('localStart','Inicio local',local?`${local.dateKey}T${local.time}`:'','datetime-local')}${input('note','Nota',row.note)}${checkbox('showInRevive','Disponible en Revive',row.showInRevive)}${checkbox('isSporza','Sporza',row.isSporza)}`:''}</div><button type="button" class="btn btn--ghost" data-remove>Quitar</button>`;
-    item.querySelector('[data-remove]').onclick=async()=>{if(await confirmDialog({title:'Quitar enlace',message:'El enlace se elimina al guardar.',confirmText:'Quitar'})){item.remove();empty();}};list.append(item);empty();
+    item.innerHTML=`<div class="tv-entry-panel__header"><span class="tv-entry-panel__label"></span><button type="button" class="btn btn--ghost" data-remove>Quitar</button></div><div class="cx-grid"><label class="field cx-field">Categoría<select name="category">${categoryOptions(categories,row.category||'',true)}</select></label>${input(section==='tv'?'channel':'title',section==='tv'?'Canal':'Título',section==='tv'?row.channel:row.title,'text','required')}${section==='videos'?input('titleEn','Título (EN)',row.titleEn):''}${input('url',section==='tv'?'Enlace':'Vídeo de YouTube',row.url,'url','required')}${section==='tv'?`${select('country','Región',CX_COUNTRY_GROUPS,row.country||'ALL')}${input('localStart','Inicio local',local?`${local.dateKey}T${local.time}`:'','datetime-local')}${input('note','Nota',row.note)}${checkbox('showInRevive','Disponible en Revive',row.showInRevive)}${checkbox('isSporza','Sporza',row.isSporza)}`:''}</div>${section==='tv'&&row.embeddable===false?`<div class="field-hint u-c-caution u-fs-1 u-mt-025">${panelIconSvg('warning')} Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>`:''}`;
+    item.querySelector('[data-remove]').onclick=async()=>{if(await confirmDialog({title:'Quitar enlace',message:'El enlace se elimina al guardar.',confirmText:'Quitar'})){item.remove();empty();relabel();}};list.append(item);empty();relabel();
   };
   rows.forEach(add);form.querySelector('[data-add]').onclick=()=>add();
   onSubmit(form,async()=>{
@@ -643,6 +655,9 @@ async function mediaForm(root,race,categories,section) {
       if(section==='tv'){const local=value.localStart;value.startTimeUtc=local===item.dataset.local?emptyNull(item.dataset.utc):local?cxLocalToUtc(local.slice(0,10),local.slice(11,16),race.timezone):null;delete value.localStart;}
       return value;
     });
+    // Embed de YouTube validado contra oEmbed, como en carretera: se reutiliza
+    // el valor guardado de la misma URL y se vuelve a consultar si estaba vacío.
+    if(section==='tv')await Promise.all(payload.map(async value=>{value.embeddable=previousEmbed.get(value.url)??await checkYouTubeEmbeddable(value.url);}));
     await cxRpc(ctx.supabase,'cx_save_media',{p_race_id:race.id,p_kind:kind,p_rows:payload});ctx.showToast('Enlaces guardados','success');
   });
 }

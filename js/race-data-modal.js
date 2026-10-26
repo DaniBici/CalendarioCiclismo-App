@@ -3,7 +3,7 @@
 //  Usado desde mes.js y temporada.js
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, trapFocus, femaleMark, needsFemaleMark } from './shared.js';
+import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, femaleMark, needsFemaleMark } from './shared.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
@@ -155,12 +155,15 @@ let _overlay = null;
 
 function _getOverlay() {
   if (_overlay) return _overlay;
-  _overlay = document.createElement('div');
+  // <dialog> modal: foco dentro, resto de la página inerte, Escape y
+  // devolución del foco los resuelve el navegador.
+  _overlay = document.createElement('dialog');
   _overlay.className = 'rd-modal-overlay';
+  _overlay.setAttribute('aria-labelledby', 'rdModalTitle');
   _overlay.innerHTML = `
-    <div class="rd-modal" role="dialog" aria-modal="true">
+    <div class="rd-modal">
       <div class="rd-modal__bar">
-        <div class="rd-modal__header-text"></div>
+        <div class="rd-modal__header-text" id="rdModalTitle"></div>
         <button class="rd-modal__close" aria-label="${getLang() === 'en' ? 'Close' : 'Cerrar'}">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -174,26 +177,20 @@ function _getOverlay() {
   document.body.appendChild(_overlay);
   _overlay.addEventListener('click', e => { if (e.target === _overlay) _close(); });
   _overlay.querySelector('.rd-modal__close').addEventListener('click', _close);
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && _overlay?.classList.contains('rd-modal--open')) _close();
+  // Cualquier cierre, también Escape, detiene la emisión incrustada.
+  _overlay.addEventListener('close', () => {
+    const iframe = _overlay.querySelector('.rd-modal__body iframe');
+    if (iframe) iframe.src = 'about:blank';
   });
   return _overlay;
 }
 
-// Trampa de foco compartida por los tres diálogos de este módulo.
-let _releaseFocus = null;
-function _openFocusTrap(overlay) {
-  if (_releaseFocus) _releaseFocus();
-  _releaseFocus = trapFocus(overlay.querySelector('.rd-modal') || overlay);
+function _open(overlay) {
+  if (!overlay.open) overlay.showModal();
 }
 
 function _close() {
-  if (!_overlay) return;
-  _overlay.classList.remove('rd-modal--open');
-  document.body.style.overflow = '';
-  if (_releaseFocus) { _releaseFocus(); _releaseFocus = null; }
-  const iframe = _overlay.querySelector('.rd-modal__body iframe');
-  if (iframe) iframe.src = 'about:blank';
+  if (_overlay?.open) _overlay.close();
 }
 
 // ── API pública ────────────────────────────────────────────────────
@@ -237,9 +234,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     `${flag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : ''}</span>`;
 
   body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
-  overlay.classList.add('rd-modal--open');
-  document.body.style.overflow = 'hidden';
-  _openFocusTrap(overlay);
+  _open(overlay);
 
   // Registrar apertura del modal como página virtual en GA4
   if (window.gtag) {
@@ -398,8 +393,10 @@ export async function openResultsModal(rdOrId, raceObj) {
 /**
  * Abre un modal con cabecera de carrera + emisión embebida. La URL se valida
  * siempre contra la allowlist de `broadcast-embed.js` antes de crear el iframe.
+ * Una jornada con `dateKey` se usa tal cual (ciclocross pasa solo la fecha);
+ * `label` sustituye a la etapa en el subtítulo (categoría CX).
  */
-export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embeddable = null) {
+export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embeddable = null, { label = '' } = {}) {
   const embed = getBroadcastEmbed(broadcastUrl, embeddable);
   if (!embed) return;
 
@@ -415,9 +412,7 @@ export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embedd
   headerEl.innerHTML = `${flag}<span class="rd-modal__race-name">${esc(_displayName || '')}${femSpan}</span>`;
 
   body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
-  overlay.classList.add('rd-modal--open');
-  document.body.style.overflow = 'hidden';
-  _openFocusTrap(overlay);
+  _open(overlay);
 
   if (window.gtag) {
     const slug = (raceObj.name || '').toLowerCase()
@@ -449,7 +444,7 @@ export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embedd
       headerEl.innerHTML = `${newFlag}<span class="rd-modal__race-name">${esc(_displayName || '')}${femSpan}</span>`;
     }
 
-    const _stage = rd.stageNumber ? stageLabel(rd.stageNumber, rd._stageSuffix) : '';
+    const _stage = label ? esc(label) : rd.stageNumber ? stageLabel(rd.stageNumber, rd._stageSuffix) : '';
     const _date  = rd.dateKey ? _fmtDateLong(rd.dateKey) : '';
     const _sub   = [_stage, _date].filter(Boolean).join(' · ');
     if (_sub) headerEl.innerHTML += `<div class="rd-modal__date">${_sub}</div>`;

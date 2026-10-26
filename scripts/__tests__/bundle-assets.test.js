@@ -59,6 +59,16 @@ describe('bundle_assets', () => {
     expect(readFileSync(join(site, 'css/app.css'), 'utf8')).toContain('--a');
   });
 
+  it('precarga los módulos estáticos de cada entrada, no los import() dinámicos', async () => {
+    const site = makeSite(BASE);
+    const { preloads } = await bundleSite(site);
+    const [chunk] = readdirSync(join(site, 'js/chunks'));
+    expect(preloads).toEqual({
+      '/js/home.js': [`/js/chunks/${chunk}`],
+      '/js/lazy.js': [`/js/chunks/${chunk}`],
+    });
+  });
+
   it('falla si un paquete público arrastra módulos del panel', async () => {
     const site = makeSite({
       ...BASE,

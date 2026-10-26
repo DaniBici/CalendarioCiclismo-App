@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { todayRaceState, profileProgress, hasValidTimeLimit, classificationColor, classificationIsUpdating, formatDurationSeconds, isTttStageClassification, parseDurationText, visibleStageClassifications, loadFeaturedRaces } from '../services/race-presentation.js';
+import { todayRaceState, profileProgress, hasValidTimeLimit, classificationColor, classificationIsUpdating, formatDurationSeconds, isTttStageClassification, parseDurationText, visibleStageClassifications, loadFeaturedRaces, agendaTimeSignature } from '../services/race-presentation.js';
 import { fetchAllRows, fetchByIds } from '../services/paged-query.js';
 import { enrichResultFeed } from '../services/result-feed-context.js';
 import { resultObservation, COVERED_STAGE_REFRESH_SOURCES } from '../../scripts/results-fetchers/result-publication.mjs';
@@ -13,6 +13,12 @@ describe('estado y métricas de jornada', () => {
     for (const estimatedFinishTimeUtc of [null,'invalid']) expect(todayRaceState({...day,estimatedFinishTimeUtc},Date.parse('2026-09-04T15:00:00Z'))).toBe('running');
     expect(todayRaceState({...day,raceStatus:'finished'})).toBe('waiting');
     expect(todayRaceState({...day,_hasInhouse:true})).toBe('results');
+  });
+  it('la firma horaria cambia al empezar una emisión sin que cambien los datos', () => {
+    const withTv={id:'d1',...day,_broadcasts:[{startTimeUtc:'2026-09-04T09:00:00Z'}]};
+    const before=agendaTimeSignature([withTv],Date.parse('2026-09-04T08:59:59Z'));
+    expect(agendaTimeSignature([withTv],Date.parse('2026-09-04T08:30:00Z'))).toBe(before);
+    expect(agendaTimeSignature([withTv],Date.parse('2026-09-04T09:00:00Z'))).not.toBe(before);
   });
   it('descanso y cancelación preceden a los resultados', () => {
     expect(todayRaceState({...day,_hasInhouse:true,isCancelledDay:true})).toBe('cancelled');

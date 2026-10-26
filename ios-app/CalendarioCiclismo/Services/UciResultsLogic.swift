@@ -521,11 +521,14 @@ enum UciResultsLogic {
             let fromSl = lead.dorsalInt.flatMap { byDorsal[$0] }
             let overrideTeam = lead.teamId.flatMap { byTeamOverride[$0] }
             let slTeamName = fromSl?.teamName ?? ""
+            let team = overrideTeam ?? fromSl?.team
             return TttTeamRow(
                 rank: g.lead?.rank,
-                teamName: overrideTeam?.name
-                    ?? (slTeamName.isEmpty ? (lead.riderDisplay ?? "") : slTeamName),
-                team: overrideTeam ?? fromSl?.team,
+                teamName: Team.localizedName(
+                    overrideTeam?.name ?? (slTeamName.isEmpty ? (lead.riderDisplay ?? "") : slTeamName),
+                    team: team, isEnglish: isEn
+                ),
+                team: team,
                 teamTimeText: g.lead?.timeText,
                 uciPoints: g.lead?.uciPoints,
                 teamSecs: g.lead.flatMap { tttToSeconds($0.timeText) },
@@ -788,9 +791,12 @@ enum UciResultsLogic {
             // riderDisplay (fallback de la fuente). La ficha gana al riderDisplay para
             // que las CN sin startlist no muestren el "APELLIDO Nombre" crudo de la UCI.
             let slName = resolved?.name ?? ""
-            let riderName = matchedTeam?.name
+            let riderName = matchedTeam.map { Team.localizedName($0.name, team: $0, isEnglish: isEn) }
                 ?? (slName.isEmpty ? (r.riderDisplay ?? "") : slName)
-            let teamName = overrideTeam?.name ?? (resolved?.teamName ?? "")
+            let teamName = Team.localizedName(
+                overrideTeam?.name ?? (resolved?.teamName ?? ""),
+                team: overrideTeam ?? resolved?.team, isEnglish: isEn
+            )
             let cc = resolved?.countryCode ?? ""
 
             let isWinner = winnerIndex != nil && i == winnerIndex
@@ -900,19 +906,22 @@ enum UciResultsLogic {
     /// Equipos presentes en una clasificación individual (para el filtro),
     /// ordenados alfabéticamente (case-insensitive), como la web. Cae a `byRider`
     /// (globalRiderId) cuando la fila no casa por dorsal (CN sin startlist).
+    /// Los nombres coinciden con `ResultRowVM.teamName` de `buildIndividualRows`.
     static func teamsInClass(
         rows: [RaceUciResultRow],
         byDorsal: [Int: ResolvedRider],
         byRider: [String: ResolvedRider] = [:],
-        byTeamOverride: [String: Team] = [:]
+        byTeamOverride: [String: Team] = [:],
+        isEn: Bool = false
     ) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
         for r in rows {
-            let override = r.teamId.flatMap { byTeamOverride[$0]?.name }
+            let override = r.teamId.flatMap { byTeamOverride[$0] }
             let fromSl = r.dorsalInt.flatMap { byDorsal[$0] }
-            let fromRider = fromSl == nil ? r.globalRiderId.flatMap { byRider[$0] } : nil
-            guard let teamName = override ?? (fromSl ?? fromRider)?.teamName, !teamName.isEmpty else { continue }
+            let resolved = fromSl ?? r.globalRiderId.flatMap { byRider[$0] }
+            guard let raw = override?.name ?? resolved?.teamName, !raw.isEmpty else { continue }
+            let teamName = Team.localizedName(raw, team: override ?? resolved?.team, isEnglish: isEn)
             if seen.insert(teamName).inserted { out.append(teamName) }
         }
         return out.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }

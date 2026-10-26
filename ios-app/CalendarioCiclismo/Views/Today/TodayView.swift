@@ -21,6 +21,9 @@ struct TodayView: View {
     /// `path:` explícito es la causa. El Today embebido en Mes (MonthView) vive en
     /// un stack SIN path-binding → ahí el fallback `item:` es seguro.
     var navigationPath: Binding<NavigationPath>? = nil
+    /// Con Hoy retirada (`RoadTodayAvailability`), Hoy se abre desde la
+    /// pestaña Ciclocross: su barra lleva el conmutador «CX | Ruta» de vuelta.
+    var onSelectCyclocross: (() -> Void)? = nil
     @State private var viewModel = TodayViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
     /// Jornadas visibles con resultados in-house (raceDayId → stageNumber): el
@@ -285,6 +288,9 @@ struct TodayView: View {
 
     private var todayUtilityActions: some View {
         HStack(spacing: 4) {
+            if let onSelectCyclocross {
+                HomeDisciplineSwitch(selection: .road) { if $0 == .cyclocross { onSelectCyclocross() } }
+            }
             Button {
                 showSettings = true
             } label: {
@@ -302,7 +308,8 @@ struct TodayView: View {
     }
 
     private var todayLogo: some View {
-        CCHeaderBrandView()
+        // Con el conmutador «CX | Ruta», solo los símbolos.
+        CCHeaderBrandView(showsTitle: onSelectCyclocross == nil)
             .contentShape(Rectangle())
             .onTapGesture {
                 Haptics.play(.navigation)
@@ -341,28 +348,18 @@ struct TodayView: View {
 
     @ViewBuilder private var normalStack: some View {
         VStack(spacing: 0) {
-            TodayHighlightsBanner(
-                onTapChampionships: goToChampionships,
-                onOpenTarget: openHighlightedTarget
-            )
-                .padding(.top, 8)
-                .padding(.bottom, 10)
+            // Con el conmutador «CX | Ruta», el cintillo común lo aloja
+            // `ContentView` sobre las dos vistas.
+            if onSelectCyclocross == nil {
+                TodayHighlightsBanner(
+                    onTapChampionships: goToChampionships,
+                    onOpenTarget: openHighlightedTarget
+                )
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+            }
 
             dateNavigationBar
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    let chips = champWeekLock
-                        ? ChampionshipsConfig.champWeekHoyFilters
-                        : Constants.CategoryFilter.allCases
-                    ForEach(chips) { filter in
-                        filterChipView(filter: filter)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-            .accessibilityIdentifier(AccessibilityID.categoryFilters)
 
             sortMenuBar
 
@@ -436,7 +433,6 @@ struct TodayView: View {
 
             DateBarView(
                 selectedDate: viewModel.dateKey,
-                lastDate: TodaySeason.lastDay(),
                 onSelect: { newDate in
                     let forward = newDate > viewModel.dateKey
                     animateNavigation(forward: forward) { await viewModel.navigate(to: newDate) }
@@ -456,8 +452,6 @@ struct TodayView: View {
                     .frame(width: 44, height: 60)
             }
             .buttonStyle(.plain)
-            .disabled(!viewModel.canGoToNextDay)
-            .opacity(viewModel.canGoToNextDay ? 1 : 0.3)
             .accessibilityLabel(localeService.t("Día siguiente", "Next day"))
             .accessibilityIdentifier(AccessibilityID.nextDayButton)
             .accessibilityInputLabels([localeService.t("Día siguiente", "Next day"), localeService.t("Siguiente", "Next"), localeService.t("Mañana", "Tomorrow")])
@@ -468,13 +462,20 @@ struct TodayView: View {
 
     // MARK: - Sort menu bar
 
+    /// Fila de la fecha: día y mes (la tira ya muestra el día de la semana) y,
+    /// a la derecha, «Categoría» y «Ordenar». Los desplegables conservan su
+    /// ancho; si no cabe, se acorta la fecha.
     @ViewBuilder private var sortMenuBar: some View {
-        HStack {
-            Text(viewModel.dateLabel)
+        HStack(spacing: 12) {
+            Text(DateFormatting.formatDayMonth(viewModel.dateKey))
                 .ccFont(.s14, weight: .medium)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
 
-            Spacer()
+            Spacer(minLength: 0)
+
+            categoryMenu
+                .fixedSize()
 
             Menu {
                 Picker(localeService.t("Ordenar", "Sort"), selection: $viewModel.sortMode) {
@@ -497,6 +498,7 @@ struct TodayView: View {
             .accessibilityHint(localeService.t("Pulsa dos veces para cambiar el orden", "Double tap to change sort order"))
             .accessibilityIdentifier(AccessibilityID.sortMenu)
             .accessibilityInputLabels([localeService.t("Ordenar", "Sort"), localeService.t("Cambiar orden", "Change order"), localeService.t("Orden", "Order")])
+            .fixedSize()
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -547,8 +549,6 @@ struct TodayView: View {
                     let h = value.translation.width
                     let v = abs(value.translation.height)
                     guard abs(h) > v, abs(h) > 60 else { return }
-                    // Último día de temporada: el gesto hacia delante no navega.
-                    if h < 0, !viewModel.canGoToNextDay { return }
                     Haptics.play(.navigation)
                     if h < 0 {
                         animateNavigation(forward: true) { await viewModel.goToNextDay() }
@@ -618,9 +618,15 @@ struct TodayView: View {
             // Las destacadas solo cambian el orden: misma tarjeta y misma
             // columna que el resto. Una tarjeta suelta conserva media anchura.
             let rows = AdaptiveLayoutPolicy.rows(viewModel.displayItems, columns: columns)
+            // Una jornada única en pantalla ancha: media anchura, centrada.
+            let centersSingle = columns > 1 && viewModel.displayItems.count == 1
             LazyVStack(spacing: 8) {
                 ForEach(rows) { row in
-                    if row.spansAllColumns || columns == 1 {
+                    if centersSingle {
+                        raceItemView(item: row.items[0])
+                            .frame(maxWidth: max(0, (contentWidth - 32 - 8) / 2))
+                            .frame(maxWidth: .infinity)
+                    } else if row.spansAllColumns || columns == 1 {
                         raceItemView(item: row.items[0])
                             .frame(maxWidth: .infinity, alignment: .top)
                     } else {
@@ -643,35 +649,64 @@ struct TodayView: View {
         }
     }
 
-    // MARK: - Filter chip
+    // MARK: - Category menu
 
-    @ViewBuilder
-    private func filterChipView(filter: Constants.CategoryFilter) -> some View {
-        TodayFilterChip(
-            filter: filter,
-            isActive: viewModel.activeFilter == filter,
-            activeFilter: viewModel.activeFilter,
-            // En la semana de Campeonatos el pin está inhibido: sin chincheta.
-            pinnedRawValue: champWeekLock ? "" : storedDefaultFilter,
-            canPin: !champWeekLock && filter != .all,
-            onTap: {
-                if viewModel.activeFilter == filter {
-                    // Fijado inhibido durante la semana de Campeonatos.
-                    if !champWeekLock {
-                        Haptics.play(.primaryAction)
-                        pendingDefaultFilter = filter
-                    }
-                } else {
+    /// Desplegable «Categoría»: muestra «Categoría» con Todas y, si no, la
+    /// categoría activa, con la chincheta cuando es la predeterminada. Al final,
+    /// fijar o quitar la activa como predeterminada (diálogo de siempre). En la
+    /// semana de Campeonatos solo ofrece sus filtros y no permite fijar.
+    private var categoryMenu: some View {
+        let options = champWeekLock ? ChampionshipsConfig.champWeekHoyFilters : Constants.CategoryFilter.allCases
+        let active = viewModel.activeFilter
+        let canPin = !champWeekLock && active != .all
+        let isPinned = canPin && active.rawValue == storedDefaultFilter
+        let title = active == .all ? localeService.t("Categoría", "Category") : active.label
+        return Menu {
+            Picker(localeService.t("Categoría", "Category"), selection: Binding(
+                get: { viewModel.activeFilter },
+                set: { filter in
+                    guard filter != viewModel.activeFilter else { return }
                     Haptics.play(.selection)
                     viewModel.selectFilter(filter)
                 }
-            },
-            onLongPress: {
-                guard !champWeekLock else { return }
-                Haptics.play(.primaryAction)
-                pendingDefaultFilter = filter
+            )) {
+                ForEach(options) { filter in
+                    Text(filter.label).tag(filter)
+                }
             }
-        )
+            if canPin {
+                Divider()
+                Button {
+                    Haptics.play(.primaryAction)
+                    pendingDefaultFilter = active
+                } label: {
+                    Label(isPinned
+                          ? localeService.t("Quitar «\(active.label)» como predeterminada", "Remove «\(active.label)» as default")
+                          : localeService.t("Fijar «\(active.label)» como predeterminada", "Set «\(active.label)» as default"),
+                          systemImage: isPinned ? "pin.slash" : "pin")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease")
+                Text(title)
+                if isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .ccFont(.s13, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        // Control secundario en gris, como «Ordenar».
+        .tint(AppTheme.textMuted)
+        .accessibilityLabel(isPinned
+            ? localeService.t("Categoría: \(title), predeterminada", "Category: \(title), default")
+            : localeService.t("Categoría: \(title)", "Category: \(title)"))
+        .accessibilityHint(localeService.t("Pulsa dos veces para elegir la categoría", "Double tap to choose the category"))
+        .accessibilityIdentifier(AccessibilityID.categoryFilters)
     }
 
     // MARK: - Race item
@@ -814,88 +849,5 @@ struct TodayView: View {
             try? await Task.sleep(for: .milliseconds(200))
             isAnimatingNavigation = false
         }
-    }
-}
-
-// MARK: - Filter chip
-
-/// Chip de filtro de categoría para TodayView.
-/// Extraído en struct propio para que el type-checker de Swift no se ahogue
-/// con la cadena de modificadores + gestures + accesibilidad inline.
-private struct TodayFilterChip: View {
-    let filter: Constants.CategoryFilter
-    let isActive: Bool
-    let activeFilter: Constants.CategoryFilter
-    let pinnedRawValue: String
-    /// Fijado permitido (fuera de la semana de Campeonatos y no en «Todas»).
-    let canPin: Bool
-    let onTap: () -> Void
-    let onLongPress: () -> Void
-
-    private enum PinDisplay { case filled, outline, hidden }
-
-    private var pinDisplay: PinDisplay {
-        if filter == .all || activeFilter == .all { return .hidden }
-        let pinned = Constants.CategoryFilter(rawValue: pinnedRawValue)
-        if let p = pinned, p != .all, p == filter { return .filled }
-        if filter == activeFilter { return .outline }
-        return .hidden
-    }
-
-    /// Botón nativo de filtro. El filtro activo, pulsado de nuevo, abre el
-    /// diálogo de predeterminado; el menú contextual (pulsación larga) ofrece
-    /// la misma acción.
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 4) {
-                Text(filter.label)
-                    .ccFont(.s13, weight: isActive ? .bold : .medium)
-                switch pinDisplay {
-                case .filled:
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                case .outline:
-                    Image(systemName: "pin")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.accentColor)
-                        .opacity(0.55)
-                case .hidden:
-                    EmptyView()
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            // Activo en azul de marca suave (15 %) + texto azul (selección);
-            // inactivo sobre la superficie de tarjeta con texto secundario.
-            .background(isActive ? Color.accentColor.opacity(0.15) : AppTheme.cardBackground)
-            .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            if canPin {
-                Button {
-                    onLongPress()
-                } label: {
-                    Label(
-                        pinDisplay == .filled
-                            ? LocaleService.t("Quitar filtro por defecto", "Remove default filter")
-                            : LocaleService.t("Fijar como filtro por defecto", "Set as default filter"),
-                        systemImage: pinDisplay == .filled ? "pin.slash" : "pin"
-                    )
-                }
-            }
-        }
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
-        .accessibilityLabel(pinDisplay == .filled
-            ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"
-            : "\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
-        .accessibilityHint(isActive
-            ? LocaleService.t("Filtro activo. Pulsa dos veces para establecerlo como filtro por defecto.", "Active filter. Double tap to set it as default filter.")
-            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label).", "Double tap to filter by \(filter.label)."))
-        .accessibilityIdentifier(AccessibilityID.filterButton(filter.rawValue))
     }
 }

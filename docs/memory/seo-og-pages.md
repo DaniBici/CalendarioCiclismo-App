@@ -25,6 +25,141 @@ Esto es clave para contenido recién creado: la página estática la genera `bui
 
 **Defensa en og-pages.yml:** `git add competicion/ jornada/ inscritos/ perfil/` aborta con `bash -eo pipefail` si alguna ruta no existe. Por eso `os.makedirs("perfil", exist_ok=True)` se ejecuta antes del bucle.
 
+## Jornadas con contenido generado en el build (2026-10-21)
+
+Plan: `docs/plans/fase-3-jornadas-estaticas.md`. Operación (interruptor
+`PRERENDER_JORNADAS`, validación, paridad local): «Prerender de jornadas» en
+`docs/runbooks/pages-build-selectivo.md`. Presupuesto del job y fases del
+resto de páginas: `docs/plans/contenido-generado-build.md`.
+
+- `gen_og_pages.py` sigue generando la página completa (`<head>` con título,
+  descripción, canonical, hreflang y JSON-LD; `.static-prerender` en `<main>`).
+  Con el interruptor activo, `tools/site/prerender-jornadas.mjs` sustituye en
+  `_site` el interior de `<main id="jornadaContent">` por `jornadaHtml()` y la
+  cabecera vacía por `headerHtml()`, con el mismo código que el navegador
+  importado en Node. Sin `.static-prerender`, `page-loading.js` no muestra la
+  pantalla de carga.
+- El navegador conserva el DOM generado si su propio HTML tiene la misma
+  huella (`data-prerendered`, FNV-1a de `js/html-fingerprint.js`); si no, lo
+  repinta como antes. La cabecera escrita se conserva siempre (`js/header.js`).
+- ES se pinta con `TZ=Europe/Madrid` y región de España, el caso de un
+  visitante peninsular. EN, en `Etc/GMT`, sin región y con «GMT» escrito junto a
+  las horas. El navegador solo lleva esa etiqueta en EN y en una zona sin
+  desplazamiento en todo el año (`visitorTimeZoneLabel()` de
+  `js/jornada-html.js`): en `Etc/GMT` o `UTC` conserva el DOM; en el resto de
+  zonas repinta con las horas y la región del visitante, sin etiqueta.
+- Frescura: la del build (cada push y 05:00 UTC). Un lector sin JS puede ver
+  datos de hasta ~24 h; con JS, `render()` repinta si la huella no coincide.
+- **Regla de marcado:** el HTML de `jornadaHtml()`, `stageProfileHtml()`,
+  `headerHtml()` y sus dependencias no puede depender del dispositivo, del ancho
+  de pantalla, de `localStorage` ni del momento de carga, y las fechas y
+  decimales salen de tablas fijas (sección «Fechas en SEO»). Lo interactivo se
+  monta después sobre el DOM (`mountStageProfile`, embebidos de TV, visor de
+  documentos por manejador delegado). Las listas que llegan de la base de
+  datos se piden ordenadas por `id` en el navegador y en el build. Si el
+  marcado diverge, la huella no coincide y se pierde el beneficio sin error
+  visible: la comprobación de paridad local
+  (`tools/site/check-prerender-parity.mjs`) es obligatoria antes de integrar
+  cambios en ese código.
+
+## Inscritos con contenido generado en el build (2026-10-21)
+
+Origen: prioridad 1 de `docs/informes/estudio-prerender-paginas-20261021.md`.
+Operación (interruptor `PRERENDER_INSCRITOS`, ámbito, validación, paridad):
+«Prerender de inscritos» en `docs/runbooks/pages-build-selectivo.md`.
+
+- Mismo esquema que las jornadas: `tools/site/prerender-inscritos.mjs`
+  sustituye el interior de `<main id="inscritosContent">` (EN
+  `startlistContent`) por `inscritosHtml()` (`js/inscritos-html.js`) y la
+  cabecera vacía por `headerHtml()`; `js/inscritos.js` conserva el DOM con
+  `applyPrerenderedHtml()` si la huella coincide. La carga y la preparación de
+  la lista viven en `js/startlist/data.js` (`loadStartlistData()` lee;
+  `prepareStartlistData()` prepara sin red y la usa también el build).
+- Interruptor `PRERENDER_INSCRITOS` en `all` desde el 2026-10-21 y en
+  `listas` (todas las carreras con lista, ES y EN) desde el 2026-10-22.
+- Ámbito: carreras con lista y fin en los últimos 7 días o futuras (`es`,
+  `all`) o todas (`listas`). Sin hora, zona ni región en el marcado: la huella
+  coincide en ES y EN en cualquier zona.
+- Datos: del volcado compartido del build (`site_data.py`, solo para el
+  ámbito activo) o, sin él, por la API con las mismas consultas.
+- La regla de marcado de las jornadas se aplica a `inscritosHtml()` y sus
+  dependencias. Los meses abreviados de la cabecera salen de `seoShortMonth()`
+  (`js/shared.js`, igual que `toLocaleDateString('es-ES' | 'en-GB', { month:
+  'short' })`), también en el PDF. Las filas de corredor llevan la bandera sin
+  estilo en línea (tamaño y esquinas en `.startlist-rider__flag img`) y sin
+  sangrado: ~260 B por fila (antes 462 B).
+- Equipos, corredores, documentos de la jornada de un día y filas de abandono
+  se piden con desempate por `id`. Efecto visible: los corredores sin dorsal de
+  un mismo equipo salen por `id` (antes, en el orden arbitrario de la base de
+  datos).
+
+## Resultados: HTML común con el build (2026-10-22)
+
+Fase 2 de `docs/plans/contenido-generado-build.md`. Integradas las subfases 1
+y 2 (navegador) y el prerender (3–5), activado el 2026-10-22
+(`PRERENDER_RESULTADOS=es`; plan, fila 2; operación en
+`docs/runbooks/pages-build-selectivo.md`, «Prerender de resultados»).
+
+- `js/resultados-html.js` produce sin DOM la página de `/resultados/…`:
+  esqueleto (cabecera de carrera, botones, selector de etapas, pestañas,
+  panel del perfil vacío) y huecos (estado de la barra, filtro por equipo,
+  aviso de publicación, tabla con «m.t.» ya calculado, datos de la jornada).
+  `js/resultados.js` conserva lecturas y sondeo; pinta el esqueleto con
+  `applyPrerenderedHtml()` y cada hueco con `updateResultsHtml()`
+  (`js/results/dom.js`), que conserva el contenido generado con la misma
+  huella y, con `data-rows`, añade el resto de filas sin sustituir las
+  primeras.
+- La regla de marcado de las jornadas se aplica a `js/resultados-html.js` y
+  sus dependencias. La hora de salida de los datos de la jornada depende de la
+  zona del visitante y va en su propio hueco; el resto del HTML no depende de
+  la zona. Decimales con `fixedDecimal()` (`useGrouping: 'always'` para el
+  desnivel).
+- Listas con desempate por `id` en el navegador: clasificaciones, jornadas,
+  inscritos, equipos de la lista (`startlistTeamsQuery`, también en orden de
+  salida), documentos y filas.
+- Filas de ~780 B (antes ~1.110): franjas de equipo en un `<span>` con
+  variables (`teamStripes`), bandera sin estilo en línea (`.so-flag > img`),
+  sin sangrado ni `data-gap` vacío.
+- Build: `tools/site/prerender-resultados.mjs` escribe el esqueleto y los
+  huecos de las páginas ES cerradas, con la tabla en 20 filas (`data-rows`);
+  datos del volcado compartido y caché entre builds en
+  `.pages-prerender/resultados`.
+
+## Perfil, mapa y orden de salida con contenido generado en el build (2026-10-22)
+
+Fase 3 de `docs/plans/contenido-generado-build.md`, solo ES. Operación
+(interruptor `PRERENDER_AUXILIARES`, validación, paridad): «Prerender de
+perfiles, mapas y órdenes de salida» en
+`docs/runbooks/pages-build-selectivo.md`.
+
+- `js/perfil-mapa-html.js` (`perfilHtml`, `mapaHtml`) y
+  `js/orden-salida-html.js` (`ordenSalidaHtml`) producen sin DOM el contenido
+  de `/perfil/`, `/mapa/` y `/orden-salida/`. `js/perfil-pub.js`,
+  `js/mapa-pub.js` y `js/orden-salida.js` conservan lecturas, SEO y enlaces
+  de la cabecera; pintan con `applyPrerenderedHtml()` y montan después el
+  perfil interactivo, el mapa y los filtros. `tools/site/prerender-auxiliares.mjs`
+  escribe ese HTML con el núcleo de `prerender-jornadas.mjs`.
+- La regla de marcado de las jornadas se aplica a los dos módulos y sus
+  dependencias. Las horas (rejilla, horas de paso, conversión del orden de
+  salida) van en la zona del visitante: el build ES las pinta en
+  `Europe/Madrid` y en otra zona el navegador repinta. Distancias con
+  `fixedDecimal()`; horas de la rejilla en `<time datetime>`.
+- Perfil y mapa leen las columnas de `PERFIL_DAY_COLUMNS` /
+  `MAPA_DAY_COLUMNS` y `STAGE_PAGE_RACE_COLUMNS` (`js/services/races.js`), las
+  mismas con las que pinta el build. Etapas hermanas (`sortStagePageSiblings`),
+  documentos y filas del orden de salida con desempate por `id`.
+- Filas del orden de salida sin sangrado, con la bandera sin estilo en línea
+  (`.so-flag > img`) y `loading="lazy"`: una CRI lleva hasta ~190 banderas
+  del CDN que, sin diferir, competían con el CSS y el JS (el retraso de LCP
+  medido en inscritos).
+- `/perfil/` y `/en/profile/` solo existen con `elevationProfile` y sin
+  `profileNotViewable`, como en el sitemap y `gen_asset_canonicals.py`
+  (corregido el 2026-10-22: el `select` de `gen_og_pages.py` no leía la
+  columna y generaba 26 páginas de más con «Perfil no disponible»). Una URL
+  retirada pasa por `404.html` a `perfil.html` (`&lang=en` en EN), que muestra
+  el aviso. El aviso del prerender (`notice`) queda para una jornada que cambie
+  entre el bloque OG y el volcado.
+
 ## Imagen OG única
 
 Todas las páginas (HTML estáticos, `js/competicion.js`, `js/jornada.js`, `js/inscritos.js`, `tools/site/gen_og_pages.py`) declaran `og:image` y `twitter:image` con una sola imagen: `https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg` (1200 × 630, JPG de unos 80 KB, bajo el límite de ~300 KB de WhatsApp y Telegram). La constante vive en `DEFAULT_OG_IMAGE` de `gen_og_pages.py` y `gen_sitemap.py`; los tres scripts del navegador la repiten literal.
@@ -101,8 +236,8 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 
 - `lang` por defecto sale de `getLang()` (`'en'`→inglés, resto español). Pasar `'es'` explícito donde la descripción es Spanish-only (competición, inscritos).
 - Salida **byte-idéntica** al ICU del sistema (verificado), así que en navegadores normales no cambia nada; solo arregla el render de Googlebot.
-- Consumidores: `jornada.js` (`fechaLarga` → `seoLongDateWeekday`), `competicion.js` (`fechaFin` → `seoLongDate`, `formatDayMonth` → `seoDayMonth`), `inscritos.js` (`buildFechaParentesis` → `seoLongDate`/`seoDayMonth`).
-- **Solo** para fechas que van al `<head>`. Las fechas visibles en el body (hero `infoParts`, date-bar, chips de tarjeta) siguen con `toLocaleDateString`/`getLocale()` — deben seguir el locale del usuario y no afectan al snippet.
+- Consumidores: `jornada.js` (`fechaLarga` → `seoLongDateWeekday`), `competicion.js` (`fechaFin` → `seoLongDate`, `formatDayMonth` → `seoDayMonth`), `inscritos.js` (`buildFechaParentesis` → `seoLongDate`/`seoDayMonth`), `startlist/data.js` (cabecera de inscritos y PDF → `seoShortMonth`).
+- Para fechas que van al `<head>` y, desde la F0 de `docs/plans/fase-3-jornadas-estaticas.md` (2026-10-21), para el HTML de la jornada, que debe salir igual en el navegador, en el build y en el render de Google: la fecha de la cabecera de carrera (`buildRaceHero` → `formatDateKeyLong`, con mayúscula inicial) usa `seoLongDateWeekday`, y los decimales de `jornadaHtml()` y `js/stage/profile.js` (kilómetros, pendientes) usan `fixedDecimal` (`js/fixed-number.js`, equivalente a `toLocaleString('es-ES' | 'en-GB')`). El resto de fechas visibles del body (date-bar, chips de tarjeta) sigue con `toLocaleDateString`/`getLocale()`.
 - El generador Python `og-pages.yml` ya formatea con arrays fijos (`MESES`/`meses`/`dias`), así que el HTML estático y el hidratado coinciden en idioma.
 
 ### Reglas al modificar
@@ -198,7 +333,7 @@ Datos de Search Console del 7-07 al 6-10-2026: las páginas `/resultados/` y `/e
 **Estado actual (revertido):** el sitio EN se sirve en `calendariociclismo.app/en/` (GitHub Pages). No hay dominio inglés dedicado. La marca de la edición EN es **"Calendario Ciclismo"** (igual que las apps, que no traducen `app_name` en `values-en/`), no "CycloCal".
 
 Cómo lo controla el código:
-- **`CONFIG.enDomain` / `EN_DOMAIN` vacíos** (`js/config.js`, generados por `inject-web-config.yml` desde `js/config.template.js`). Con el valor vacío: `isEnHost()` siempre `false`, `enBase()` (`js/shared.js`) devuelve `'/en'`, y el auto-redirect de `lang-switch.js` lleva a `/en/`. Para reintroducir un dominio EN dedicado bastaría con volver a poner el dominio en esos tres sitios.
+- **`CONFIG.enDomain` / `EN_DOMAIN` vacíos** (`js/config.js`, generados por `inject-web-config.yml` desde `js/config.template.js`). Con el valor vacío: `isEnHost()` siempre `false`, `enBase()` (`js/shared.js`) devuelve `'/en'`, y el auto-redirect de `lang-switch.js` lleva a `/en/` (no se aplica a rastreadores: Googlebot renderiza en inglés y sin estado, y indexaría `/` con el contenido de `/en/`). Para reintroducir un dominio EN dedicado bastaría con volver a poner el dominio en esos tres sitios.
 - **Generador de páginas EN estáticas:** `tools/build-i18n-html.py` (canonical/hreflang/og:url con `base_en = ".../en"`, sin script de redirect, marca sin tocar).
 - **Generador de páginas EN de detalle:** `og-pages.yml` (`EN_BASE_URL` default `.../en`, URLs `/en/race/…`, marca "Calendario Ciclismo"). ⚠️ Si existe la **repo variable `EN_BASE_URL`** (Settings → Variables) apuntando a un dominio, anula el default — verificar que esté vacía o en `.../en`.
 
@@ -212,7 +347,7 @@ Estado, reglas del Worker y tareas de Cloudflare: `docs/memory/i18n-region.md` �
 - **CSS:** `.nav-apps-btn`, `.apps-modal__*` en `css/app.css`.
 - **HTML:** `<button class="nav-apps-btn" id="navAppsBtn">Apps</button>` antes de "Sobre nosotros" en los 10 HTMLs.
 - **Contenido:** iOS → `https://apps.apple.com/app/id6761902611`. Android → card desactivada "Próximamente".
-- **Mobile:** al añadir `<button>` en `.site-nav`, añadir estilos desktop + `@media (max-width: 600px)` imitando `.site-nav .theme-toggle`.
+- **Mobile:** al añadir `<button>` en `.site-nav`, añadir estilos desktop + `@media (max-width: 600px)` imitando `.nav-apps-btn`.
 
 ## Footer "Principales carreras" — ELIMINADO (2026-06-04)
 

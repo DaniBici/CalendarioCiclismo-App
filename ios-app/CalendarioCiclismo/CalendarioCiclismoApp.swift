@@ -270,12 +270,13 @@ private struct SplashView: View {
 
             // Ocupa todo el splash para que el perfil quede anclado al borde
             // inferior, como en la animación web (no centrado bajo el logo).
+            // Línea y punto en el acento en ambos temas, como la pantalla de
+            // carga de la web.
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 AnimatedRouteProfile(
-                    lineColor: Color(light: "1a73e8", dark: "7fcfff"),
-                    fillColor: Color(light: "1a73e8", dark: "7fcfff").opacity(0.18),
-                    riderColor: Color(light: "1a73e8", dark: "ffffff")
+                    lineColor: AppTheme.brandAccent,
+                    fillColor: AppTheme.brandAccent.opacity(0.18)
                 )
                 .frame(height: 230)
             }
@@ -293,10 +294,10 @@ private struct SplashView: View {
             VStack(spacing: 6) {
                 Text("Calendario Ciclismo")
                     .ccFont(.s28, weight: .bold)
-                    .foregroundStyle(Color(light: "1f2937", dark: "ffffff"))
+                    .foregroundStyle(Color(light: "1f2937", dark: "f2f3f5"))
                 Text("Ciclismo, al instante.")
                     .ccFont(.s16)
-                    .foregroundStyle(Color(light: "536174", dark: "c4ccd7"))
+                    .foregroundStyle(Color(light: "536174", dark: "a9adb5"))
             }
             .offset(y: 98)
             .opacity(textOpacity)

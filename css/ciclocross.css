@@ -1,6 +1,5 @@
 
 .cx-race-sections,#cxAgendaError {width:var(--page-width);max-width:var(--content-max);margin:0 auto;padding:1rem 0;box-sizing:border-box}
-#cxRaceContent>.race-header .race-header__main,#cxAgendaContent .race-header__main {flex:1 1 auto}
 #cxRaceContent>.cx-race-sections {padding-top:0}
 #cxRaceContent>.cx-race-docs {width:var(--page-width);max-width:var(--content-max);margin-inline:auto;padding:0;box-sizing:border-box}
 #cxRaceContent>.cx-sticky-nav .res-tabs {padding-top:.25rem}
@@ -24,7 +23,7 @@
 .cx-day-list:has(.loading) {min-height:calc(100svh - 200px)}
 .cx-day-list .empty-state .btn {margin-top:1rem}
 @media(max-width:600px){.cx-day-list {padding-bottom:1rem}}
-@media(min-width:761px){.cx-day-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-day-list>:is(.loading,.empty-state,.day-load-error) {grid-column:1/-1}}
+@media(min-width:761px){.cx-day-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-day-list>:is(.loading,.empty-state,.day-load-error) {grid-column:1/-1}.cx-day-list>.race-card:only-child {grid-column:1/-1;justify-self:center;width:calc((100% - .5rem)/2)}}
 .cx-empty {color:var(--text-muted);font-size: var(--fs-3);line-height:1.5}#cxAgendaError:empty {display:none}#cxAgendaError {color:var(--red)}
 .race-card--cx .race-card__name a:not(.race-card__overview-btn) {color:inherit;text-decoration:none}.race-card--cx .race-card__name a:not(.race-card__overview-btn):hover {text-decoration:underline}.race-card--cx .race-card__name {display:flex;gap:.4rem;align-items:center;flex-wrap:nowrap}.race-card--cx .cat-badge {font-size: var(--fs-1);color:var(--text-muted)}
 .race-card--cx .race-card__logo {flex:0 0 32px;width:32px;position:static;transform:none}.race-card--cx [data-cx-logo-race] {display:block;width:32px;height:32px}.race-card--cx .race-logo-img {width:32px;height:32px;object-fit:contain}
@@ -63,13 +62,15 @@
 /* Con horarios: caja solo con el código (mismo ancho, menos alta) y horario
    o copa debajo, fuera de la caja, con la tipografía de salida/meta de Hoy. */
 .cx-category-cell {display:flex;flex-direction:column;align-items:center;gap:2px}
-.cx-category-box {display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:24px;min-height:24px;border-radius:var(--radius-btn);padding:1px 5px;background:var(--badge-neutral-bg);color:var(--text-muted);font: 600 var(--fs-1)/1.15 var(--font-body);text-decoration:none;white-space:nowrap}
+/* Posicionada para quedar por encima del objetivo táctil de la copa, que
+   desborda hacia ella: la caja conserva entero su toque. */
+.cx-category-box {position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:24px;min-height:24px;border-radius:var(--radius-btn);padding:1px 5px;background:var(--badge-neutral-bg);color:var(--text-muted);font: 600 var(--fs-1)/1.15 var(--font-body);text-decoration:none;white-space:nowrap}
 /* Caja de categoría neutra, como las etiquetas de categoría de Hoy. */
 .cx-category-box:hover {background:var(--badge-neutral-hover);color:var(--text)}
 /* Altura única de las tarjetas CX en Hoy y en Torneos: la fila de estado
-   reserva siempre el objetivo táctil de la copa (2.1rem), más alto que el
-   horario; la prueba sin horarios reserva caja más estado (badges). */
-.cx-category-state {display:flex;align-items:center;justify-content:center;min-height:2.1rem;color:var(--text);font: 600 var(--fs-1) var(--font-body);white-space:nowrap}
+   mide lo que el glifo de la copa (20 px), con horario, copa, espera o aspa;
+   la prueba sin horarios reserva caja más estado (badges). */
+.cx-category-state {display:flex;align-items:center;justify-content:center;min-height:20px;color:var(--text);font: 600 var(--fs-1) var(--font-body);white-space:nowrap}
 .cx-category-hour {font: 600 var(--fs-4) var(--font-body);font-variant-numeric:tabular-nums;color:var(--text)}
 .cx-category-cancelled {color:var(--text-muted);font-size: var(--fs-1)}
 .cx-category-section {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + 1rem);margin-bottom:16px;overflow:hidden}.cx-category-content {padding:10px 12px}.cx-category-header p {font-size: var(--fs-3);color:var(--text-muted);margin:0}.cx-category-section .res-table-wrap {width:100%;max-width:none;padding:.4rem 0}.cx-category-section .res-publication {padding:.3rem 0}.cx-category-content>h3 {font: 600 var(--fs-3) var(--font-body);margin:1rem 0 .5rem}
@@ -109,7 +110,9 @@
 .cx-category-state>svg {width:20px;height:20px;color:var(--text-muted)}
 .cx-category-state:has(>.cx-category-cross) {align-self:stretch}
 .cx-category-state>.cx-category-cross {width:50%;height:14px;margin-block:3px;overflow:visible;fill:none;stroke:var(--red);stroke-width:4;stroke-linecap:round}
-.cx-category-state>.badge--icon {min-height:20px;padding-block:0}.cx-category-state>.badge--icon svg {width:20px;height:20px}
+/* El objetivo táctil de la copa (2.1rem) desborda la fila de 20 px con margen
+   negativo, sin sumar altura a la tarjeta. */
+.cx-category-state>.badge--icon {min-height:20px;padding-block:0;margin-block:calc((20px - 2.1rem) / 2)}.cx-category-state>.badge--icon svg {width:20px;height:20px}
 .cx-category-state .race-card__schedule--waiting {display:inline-flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;width:auto;max-width:none;margin:0}
 .cx-category-state .race-card__schedule--waiting>svg {width:16px;height:16px}
 @media(max-width:600px){.cx-category-cell {gap:1px}.cx-category-hour {font-size: var(--fs-3)}}
@@ -157,8 +160,8 @@
 
 /* Prueba sin horarios: los indicadores de categoría pasan a badges con la
    estética de la vista Hoy, con el mismo tinte neutro que los cuadros. */
-.race-card--cx .race-card__meta.cx-category-times--badges {display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:4px;grid-template-columns:none;width:100%;min-height:calc(24px + 2px + 2.1rem);align-content:flex-start}
-@media(max-width:600px){.race-card--cx .race-card__meta.cx-category-times--badges {min-height:calc(24px + 1px + 2.1rem)}}
+.race-card--cx .race-card__meta.cx-category-times--badges {display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:4px;grid-template-columns:none;width:100%;min-height:calc(24px + 2px + 20px);align-content:flex-start}
+@media(max-width:600px){.race-card--cx .race-card__meta.cx-category-times--badges {min-height:calc(24px + 1px + 20px)}}
 /* Indicadores de categoría CX neutros con o sin datos (paridad apps): el
    badge hereda el tinte pálido de .badge--uci pero el texto apagado de la
    caja, no el azul de acento. */
@@ -174,6 +177,8 @@
 .cx-results-context {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;align-items:start}
 .cx-context-map {overflow:hidden}
 .cx-context-map .cx-map-preview img {max-height:420px;object-fit:contain}
+/* Hasta que el mapa recibe sus dimensiones (js/cx-race.js). */
+.cx-results-context--pending {visibility:hidden}
 .cx-results-context .res-stage-data dl>div {padding:2px 0}
 .cx-results-context .res-stage-data__active dt,.cx-results-context .res-stage-data__active dd {color:var(--text);font-weight:700}
 /* «vuelta perdida» / «-2 vueltas» van en una línea, con la altura de las
@@ -191,8 +196,8 @@
    puesto y corredor fijos a la izquierda y el equipo como subtítulo. */
 .cx-standings-scroll {overflow-x:auto;-webkit-overflow-scrolling:touch}
 .cx-standings-table--rounds {table-layout:auto!important;width:max-content;min-width:100%}
-.cx-standings-table--rounds .res-th--rank,.cx-standings-table--rounds .res-td--rank {position:sticky;left:0;z-index:2;width:2.25rem;min-width:2.25rem;background:#252e3b}
-.cx-standings-table--rounds .res-th--rider,.cx-standings-table--rounds .res-td--rider {position:sticky;left:2.25rem;z-index:2;min-width:11rem;max-width:16rem;white-space:nowrap;background:#252e3b}
+.cx-standings-table--rounds .res-th--rank,.cx-standings-table--rounds .res-td--rank {position:sticky;left:0;z-index:2;width:2.25rem;min-width:2.25rem;background:var(--bg-card)}
+.cx-standings-table--rounds .res-th--rider,.cx-standings-table--rounds .res-td--rider {position:sticky;left:2.25rem;z-index:2;min-width:11rem;max-width:16rem;white-space:nowrap;background:var(--bg-card)}
 html.light .cx-standings-table--rounds .res-th--rank,html.light .cx-standings-table--rounds .res-td--rank,html.light .cx-standings-table--rounds .res-th--rider,html.light .cx-standings-table--rounds .res-td--rider {background:#fff}
 /* Dentro del desplazamiento horizontal la cabecera no se fija en vertical. */
 .cx-standings-table--rounds thead .so-th {position:static;top:auto}
@@ -219,7 +224,7 @@ html.light .cx-standings-table--rounds .res-th--rank,html.light .cx-standings-ta
    fondo de la tabla y flecha a la altura de la cabecera. */
 /* La sombra va en el contenedor con desplazamiento (como la de .res-table):
    dentro de él la recortaría el desbordamiento. */
-.cx-standings-rounds {position:relative;padding:.4rem 0 2rem;--cx-table-bg:#252e3b}
+.cx-standings-rounds {position:relative;padding:.4rem 0 2rem;--cx-table-bg:var(--bg-card)}
 .cx-standings-rounds>.cx-standings-scroll {padding:0;box-shadow:var(--card-shadow)}
 .cx-standings-table--rounds {box-shadow:none}
 html.light .cx-standings-rounds {--cx-table-bg:#fff}

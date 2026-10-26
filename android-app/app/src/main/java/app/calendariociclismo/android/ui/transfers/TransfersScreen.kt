@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -64,6 +65,7 @@ import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
 import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.components.CCCard
+import app.calendariociclismo.android.ui.components.WholeWordText
 import app.calendariociclismo.android.ui.components.CCHeaderMark
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RouteLoadingView
@@ -86,6 +88,9 @@ private sealed class MarketState {
 
 /** Altura fija de la lista de cada panel en pantallas anchas (22rem web). */
 private val FEED_HEIGHT = 352.dp
+
+/** Altura de cada fila del feed: con la cabecera de día caben nueve filas en FEED_HEIGHT. */
+private val FEED_ROW_HEIGHT = 35.dp
 
 /**
  * Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
@@ -265,6 +270,7 @@ private fun MarketContent(
                                 feed = feeds[kind].orEmpty(),
                                 data = data,
                                 onTeamTap = onTeamTap,
+                                wide = true,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -366,6 +372,7 @@ private fun FeedPanel(
     data: TransfersLogic.MarketData,
     onTeamTap: (String) -> Unit,
     modifier: Modifier = Modifier,
+    wide: Boolean = false,
 ) {
     CCCard(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth()) {
@@ -383,7 +390,7 @@ private fun FeedPanel(
                 }
                 HorizontalDivider()
             }
-            val rows: @Composable () -> Unit = { FeedRows(feed, data, onTeamTap) }
+            val rows: @Composable () -> Unit = { FeedRows(feed, data, onTeamTap, wide) }
             Column(Modifier.fillMaxWidth().height(FEED_HEIGHT).verticalScroll(rememberScrollState())) {
                 rows()
             }
@@ -396,6 +403,7 @@ private fun FeedRows(
     feed: List<RiderTransfer>,
     data: TransfersLogic.MarketData,
     onTeamTap: (String) -> Unit,
+    wide: Boolean,
 ) {
     if (feed.isEmpty()) {
         Text(
@@ -415,7 +423,7 @@ private fun FeedRows(
             modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
         )
         moves.forEach { move ->
-            TransferFeedRow(transfer = move, data = data, onLinkTeam = onTeamTap)
+            TransferFeedRow(transfer = move, data = data, onLinkTeam = onTeamTap, wide = wide)
             HorizontalDivider()
         }
     }
@@ -424,7 +432,7 @@ private fun FeedRows(
 private enum class TransfersFeed { Signings, Renewals }
 
 /**
- * Fila del feed: bandera + "Corredor → Destino" + año de contrato o
+ * Fila del feed: bandera + "Corredor → Destino" ("Corredor · Equipo" en renovaciones) + año de contrato o
  * «M. temporada» como texto gris. Sin superficie propia: va dentro del panel.
  */
 @Composable
@@ -432,16 +440,16 @@ fun TransferFeedRow(
     transfer: RiderTransfer,
     data: TransfersLogic.MarketData,
     onLinkTeam: (String) -> Unit,
+    wide: Boolean = false,
 ) {
     // Strings hoisted: buildAnnotatedString no admite llamadas @Composable.
     val unknownTeam = stringResource(R.string.transfers_unknown_team)
-    val renewsWith = stringResource(R.string.transfers_renews_with)
     val retires = stringResource(R.string.transfers_retires)
     val rider = data.ridersById[transfer.riderId]
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
     // El feed contiene solo fichajes reales: enlaza al equipo de DESTINO si
     // ese equipo tiene ficha en el mercado 2027.
-    val marketTeamIds = remember(data.seasons) { data.seasons.map { it.teamId }.toHashSet() }
+    val marketTeamIds = remember(data.seasons) { TransfersLogic.marketTeamIds(data.seasons) }
     val linkTeamId = transfer.toTeamId?.takeIf { it in marketTeamIds }
     val moveText = buildAnnotatedString {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
@@ -449,8 +457,8 @@ fun TransferFeedRow(
         }
         when (transfer.type) {
             "renewal" -> {
-                // Al no haber flecha, se separa explícitamente del nombre.
-                append(" $renewsWith ")
+                // Punto central en todos los anchos (sin «renueva con»).
+                withStyle(SpanStyle(color = dimColor)) { append(" · ") }
                 append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
             }
             "retirement" -> {
@@ -466,7 +474,8 @@ fun TransferFeedRow(
                 // de DESTINO (a dónde va), no el de origen. La flecha ya separa el
                 // nombre del destino. El destino NO va en negrita: el nombre del
                 // corredor ya lo está. Decisión Dani 2026-07-20.
-                withStyle(SpanStyle(color = dimColor)) { append(" → ") }
+                // El glifo «→» asienta cerca de la línea base: se sube para centrarlo.
+                withStyle(SpanStyle(color = dimColor, baselineShift = BaselineShift(0.2f))) { append(" → ") }
                 append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
             }
         }
@@ -475,7 +484,8 @@ fun TransferFeedRow(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (linkTeamId != null) Modifier.clickable { onLinkTeam(linkTeamId) } else Modifier)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .height(FEED_ROW_HEIGHT)
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -540,16 +550,18 @@ private fun TeamTile(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     TransfersLogic.stripesTeam(season, prev)?.let { TeamColorBands(it) }
-                    Text(
+                    // Sin partir palabras: la que no cabe baja a la segunda línea y,
+                    // si tampoco cabe allí, termina en puntos suspensivos.
+                    WholeWordText(
                         text = season.name.orEmpty(),
                         style = CCText.S14,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 if (season.continuityDoubt) {

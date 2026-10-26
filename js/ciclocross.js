@@ -2,18 +2,20 @@ import {initCintillo} from './cintillo.js';
 import {cyclocrossHome} from './services/today-season.js';
 import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml} from './services/race-presentation.js';
 import {dateNavigationButton} from './components/date-navigation.js';
+import {disciplineSwitchHtml} from './components/discipline-switch.js';
 import {initDaySwipe} from './components/day-swipe.js';
 import {cxLogoImage} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
-import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed,announce,filterBroadcastsByRegion} from './shared.js';
+import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,syncCategorySelect,handleCategorySelect,setPressed,announce,filterBroadcastsByRegion,agendaDateHtml} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxCategoryTiming} from './cx/timing.js';
 import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxAgendaBroadcast,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
+import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxAgendaBroadcast,cxAgendaVideo,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxDayRaces,cxSortDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
 import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
 import {cxTournamentDescription} from './cx/tournament-seo.js';
 import {cxClampDay,cxRaceDays,cxAdjacentRaceDay,cxStepDay,cxDateStrip} from './cx/today.js';
+import {cxTvEmbedAttrs,cxOpenTvEmbed} from './cx/tv-modal.js';
 
 // El diccionario EN se carga a la vez que los metadatos del torneo.
 const i18nReady=initI18n();
@@ -60,7 +62,16 @@ const heading=tournamentId?buildRaceHeader({race:{...tournament,name:tournamentN
 const CX_PIN_KEY='cc_cx_default_filter',CX_PIN_CATS=['big','pro','spain'];
 let agendaFilter=tournamentMode?'all':getPinnedFilter(CX_PIN_KEY,CX_PIN_CATS)||'all';
 const filterCats=['all','big','pro','spain'];
-const filterBarHtml=()=>`<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner"><div class="agenda-filter-cats" id="cxAgendaFilterCats">${filterCats.map(key=>`<button type="button" aria-pressed="${key===agendaFilter}" class="tcat-btn${key===agendaFilter?' tcat-btn--active':''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('')}</div></div></section>`;
+// Orden de la lista del día, con el desplegable y las opciones de Hoy de
+// carretera: 'category' | 'tvtime' | 'finishtime'.
+let agendaSort='category';
+const sortSelectHtml=()=>`<div class="agenda-filter-divider"></div><div class="agenda-sort-wrap"><select class="agenda-sort-select" id="cxAgendaSortSelect" aria-label="${esc(t('sort.label'))}"><option value="" disabled selected>${esc(t('sort.label'))}</option>${['category','tvtime','finishtime'].map(key=>`<option value="${key}">${esc(t(`sort.${key}`))}</option>`).join('')}</select></div>`;
+// Categoría en desplegable: sustituye a los chips en móvil y tablet, como en
+// Hoy de carretera (`syncCategorySelect`).
+const categorySelectHtml=()=>`<div class="agenda-cat-wrap"><span class="agenda-cat-wrap__label" aria-hidden="true">${esc(t('filter.category'))}</span><select class="agenda-cat-select" id="cxAgendaCatSelect" aria-label="${esc(t('filter.category'))}"><option value="" disabled selected>${esc(t('filter.category'))}</option>${filterCats.map(key=>`<option value="${key}">${esc(t(`cx.filter.${key}`))}</option>`).join('')}</select></div>`;
+// Mientras Ciclocross es la home, el conmutador CX / Ruta abre la franja y
+// lleva a Hoy de carretera; sigue la fecha y, a la derecha, filtros y «Ordenar».
+const filterBarHtml=()=>`<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${cyclocrossHome(today())?disciplineSwitchHtml('cyclocross',today()):''}<span class="agenda-date"></span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${filterCats.map(key=>`<button type="button" aria-pressed="${key===agendaFilter}" class="tcat-btn${key===agendaFilter?' tcat-btn--active':''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('')}</div>${categorySelectHtml()}${sortSelectHtml()}</div></section>`;
 // Secciones del torneo, como las de la ficha de carrera: Calendario y, cuando
 // hay generales publicadas, Clasificación general.
 const standingCategories=tournamentMode?CX_CATEGORIES.filter(code=>tournament.pointsScheme?.categories?.[code]):[];
@@ -72,19 +83,37 @@ const list=root.querySelector('#cxAgendaList'),error=root.querySelector('#cxAgen
 const filterCatsNode=root.querySelector('#cxAgendaFilterCats');
 const filteredRows=rows=>agendaFilter==='all'?rows:rows.filter(race=>cxAgendaFilterMatches(race,agendaFilter));
 function refreshFilter(){ if(currentDay)void goDay(currentDay); }
+const catSelect=root.querySelector('#cxAgendaCatSelect');
+const syncCatSelect=()=>syncCategorySelect(catSelect,agendaFilter,{storageKey:CX_PIN_KEY,valid:CX_PIN_CATS});
+// Chips y desplegable comparten el filtro y la chincheta.
+function pickFilter(cat){
+  const changed=agendaFilter!==cat;agendaFilter=cat;
+  for(const node of filterCatsNode.querySelectorAll('.tcat-btn'))setPressed(node,node.dataset.cat===agendaFilter);
+  renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);syncCatSelect();
+  if(changed)void refreshFilter();
+}
 if(filterCatsNode){
-  renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);
+  renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);syncCatSelect();
   const onFilterEvent=event=>{
     const res=handleFilterEvent(event,CX_PIN_KEY,CX_PIN_CATS);if(!res)return;
-    if(res.type==='pin'){renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);return;}
-    const changed=agendaFilter!==res.cat;agendaFilter=res.cat;
-    for(const node of filterCatsNode.querySelectorAll('.tcat-btn'))setPressed(node,node.dataset.cat===agendaFilter);
-    renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);
-    if(changed)void refreshFilter();
+    if(res.type==='pin'){renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);syncCatSelect();return;}
+    pickFilter(res.cat);
   };
   filterCatsNode.addEventListener('click',onFilterEvent);
   filterCatsNode.addEventListener('keydown',onFilterEvent);
+  catSelect?.addEventListener('change',()=>{
+    const res=handleCategorySelect(catSelect,CX_PIN_KEY,CX_PIN_CATS);
+    if(res?.type==='filter')return pickFilter(res.cat);
+    if(res?.type==='pin')renderFilterPins(filterCatsNode,agendaFilter,CX_PIN_KEY,CX_PIN_CATS);
+    syncCatSelect();
+  });
 }
+const sortSelect=root.querySelector('#cxAgendaSortSelect');
+sortSelect?.addEventListener('change',()=>{
+  if(!sortSelect.value)return;
+  agendaSort=sortSelect.value;
+  if(currentDay)showDay(currentDay);
+});
 let measureNavigation=()=>{};
 if(tournamentMode) {
   const header=root.querySelector('.cx-agenda-sticky');
@@ -142,16 +171,23 @@ function refreshTiming() {
 }
 // Badge de TV de la Agenda (cxAgendaBroadcast): hora de la primera emisión
 // del día en la región del usuario y «En directo» desde que empieza hasta que
-// concluyen todas las categorías; enlaza a la última emisión ya iniciada.
+// concluyen todas las categorías; enlaza a la última emisión ya iniciada, que
+// se abre en el modal de TV cuando es embebible.
 function tvBadgeHtml(race,date) {
   const row=cxAgendaBroadcast(race,date,filterBroadcastsByRegion(race.cx_broadcasts||[]));
   if(!row)return '';
   const label=row.live?t('tv.live'):row.firstStartUtc?cxTime(row.firstStartUtc,locale):'TV';
-  return `<a class="badge badge--tv badge--tv-link${row.live?' badge--tv--live':''}" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(row.channel||'')}">${tvIconHtml} ${esc(label)}</a>`;
+  return `<a class="badge badge--tv badge--tv-link${row.live?' badge--tv--live':''}" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(row.channel||'')}"${cxTvEmbedAttrs(row)}>${tvIconHtml} ${esc(label)}</a>`;
+}
+// Badge de resumen: vídeos de YouTube de la prueba; abre la vista de vídeos de
+// la ficha. Solo en tarjetas que abren la ficha.
+function summaryBadgeHtml(race,date,open) {
+  if(!open||!cxAgendaVideo(race,date,race.cx_videos))return '';
+  return `<a class="badge badge--tv badge--tv-link badge--summary" href="${esc(cxRacePageUrl(race,lang,'videos'))}">${tvIconHtml} <span class="badge__text">${esc(t('cx.summary'))}</span></a>`;
 }
 function badgesHtml(race,date,open) {
   const startlist=open?cxAgendaStartlistCategory(race,date):null;
-  return `${tvBadgeHtml(race,date)}${startlist?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,lang,'startlist',startlist.category))}">${startlistCyclistHtml} <span class="badge__text">${esc(t('stage.startlistLabel'))}</span></a>`:''}`;
+  return `${tvBadgeHtml(race,date)}${summaryBadgeHtml(race,date,open)}${startlist?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,lang,'startlist',startlist.category))}">${startlistCyclistHtml} <span class="badge__text">${esc(t('stage.startlistLabel'))}</span></a>`:''}`;
 }
 function card(race,date) {
   const url=cxRaceUrl(race,lang),color=cxColor(race);
@@ -231,6 +267,7 @@ function writeDayUrl() {
 }
 function buildDateBar() {
   const bar=root.querySelector('#cxDateBar'),days=visibleRaceDays(),todayKey=agendaToday();
+  root.querySelector('.agenda-date').innerHTML=agendaDateHtml(currentDay);
   const left=document.createElement('div'),pillsWrap=document.createElement('div'),pills=document.createElement('div'),right=document.createElement('div');
   left.className='date-bar__left';pillsWrap.className='date-bar__pills-wrap';pills.className='date-bar__pills';right.className='date-bar__right';
   const previous=dateNavigationButton({kind:'arrow',direction:'prev',label:t('today.prevDayLabel'),onClick:()=>step(false)});
@@ -253,7 +290,7 @@ function buildDateBar() {
 function showDay(dateKey,{skipEmpty=false}={}) {
   if(!seasonRows)return;
   currentDay=cxClampDay(dateKey,season);
-  const all=cxDayRaces(seasonRows,currentDay),races=cxDayRaces(filteredRows(seasonRows),currentDay);
+  const all=cxDayRaces(seasonRows,currentDay),races=cxSortDayRaces(filteredRows(seasonRows),currentDay,agendaSort,race=>filterBroadcastsByRegion(race.cx_broadcasts||[]));
   const next=races.length?null:cxAdjacentRaceDay(visibleRaceDays(),currentDay,1,season);
   // Auto-navegación de Hoy: en la apertura y, después, solo con el filtro Todas.
   if(next&&(skipEmpty||agendaFilter==='all'))return showDay(next);
@@ -445,6 +482,11 @@ async function open() {
   }
   await showSection();
 }
+// Badge de TV embebible: modal de TV con la prueba y la fecha de su tarjeta.
+list.addEventListener('click',event=>cxOpenTvEmbed(event,link=>{
+  const entry=renderedCategories.get(`badges:${link.closest('[data-cx-badges]')?.dataset.cxBadges}`);
+  return entry&&{race:entry[0],dateKey:entry[1],category:link.dataset.tvCategory};
+}));
 list.onclick=event=>{if(event.target.closest('a,button,input,select'))return;const url=event.target.closest('[data-href]')?.dataset.href;if(url)window.location.href=url;};
 // Aviso de las cards placeholder, igual que en Hoy en Carretera: tooltip que
 // sigue al cursor en escritorio y modal centrado en móvil. Delegado en la
@@ -478,6 +520,11 @@ document.addEventListener('visibilitychange',refreshTiming);
 startTiming();
 if(tournamentId)window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/ciclocross/',label:t('cx.back')});
 // Mientras Ciclocross es la home (Hoy de carretera fuera del menú), su
-// cintillo es único: entradas de Ciclocross seguidas de las de carretera.
-if(!tournamentId)initCintillo(cyclocrossHome(today())?['cx','road']:'cx');
-await open();
+// cintillo es único: entradas de Ciclocross seguidas de las de carretera. La
+// pantalla de carga lo espera: aparece sobre la agenda y la desplazaría.
+if(!tournamentId){const cintillo=initCintillo(cyclocrossHome(today())?['cx','road']:'cx');window.ccPageLoading?.waitFor(cintillo);}
+// La lista del torneo nace vacía, sin marcador de carga: la pantalla de carga
+// espera a la apertura (calendario o general) y no se cierra antes de pintarla.
+const opened=open();
+if(tournamentMode)window.ccPageLoading?.waitFor(opened);
+await opened;

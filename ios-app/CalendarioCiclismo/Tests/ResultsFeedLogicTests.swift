@@ -437,11 +437,27 @@ final class ResultsFeedLogicTests: XCTestCase {
     // MARK: - Selecciones nacionales
 
     func testSeleccionesNacionalesConNombreDelPaisEnCastellano() {
-        XCTAssertEqual(ResultsFeedLogic.localizedNationName("France", isEnglish: false), "Francia")
-        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Great Britain", isEnglish: false), "Gran Bretaña")
-        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Netherlands", isEnglish: false), "Países Bajos")
-        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Team Visma | Lease a Bike", isEnglish: false), "Team Visma | Lease a Bike")
-        XCTAssertEqual(ResultsFeedLogic.localizedNationName("France", isEnglish: true), "France")
+        func nation(_ name: String, _ code: String?, selectionCode: String? = nil, isEnglish: Bool = false) -> String {
+            Team.localizedName(
+                name, teamKind: "selection", selectionScope: "national",
+                countryCode: code, selectionCode: selectionCode ?? code, isEnglish: isEnglish
+            )
+        }
+        XCTAssertEqual(nation("France", "fr"), "Francia")
+        XCTAssertEqual(nation("Great Britain", "gb"), "Gran Bretaña")
+        XCTAssertEqual(nation("Czech Republic", "cz"), "República Checa")
+        XCTAssertEqual(nation("Ivory Coast", "ci"), "Costa de Marfil")
+        XCTAssertEqual(nation("NICARAGUA", "ni"), "Nicaragua")
+        XCTAssertEqual(nation("Individual Neutral Athletes", nil, selectionCode: "ain"), "Deportistas Individuales Neutrales")
+        XCTAssertEqual(nation("Canada U23", "ca"), "Canadá sub23")
+        XCTAssertEqual(nation("Refugee Cycling Team", nil, selectionCode: "ref"), "Refugee Cycling Team")
+        XCTAssertEqual(nation("France", "fr", isEnglish: true), "France")
+        XCTAssertEqual(
+            Team.localizedName("Euskadi", teamKind: "selection", selectionScope: "regional",
+                               countryCode: "es", selectionCode: "eus", isEnglish: false),
+            "Euskadi"
+        )
+        XCTAssertEqual(Team.localizedName("Kenya", team: nil, isEnglish: false), "Kenya")
     }
 
     // MARK: - Pestañas de Resultados

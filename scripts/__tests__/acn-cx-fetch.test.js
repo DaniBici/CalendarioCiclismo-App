@@ -102,6 +102,7 @@ describe('enlazador ACN CX', () => {
     const event = { EventId: 1, StartDate: '2026-10-11T00:00:00', Country: 'BEL', Location: 'Dendermonde' };
     expect(matchAcnEvent(race, [event]).status).toBe('match');
     expect(matchAcnEvent(race, [{ ...event, Country: 'NED' }]).status).toBe('none');
+    expect(matchAcnEvent({ ...race, countryCode: 'NL', venue: 'Heerde' }, [{ ...event, Country: 'NLD', Location: 'Heerde' }]).status).toBe('match');
     expect(matchAcnEvent(race, [{ ...event, StartDate: '2026-10-18T00:00:00' }]).status).toBe('none');
     expect(matchAcnEvent(race, [event, { ...event, EventId: 2 }]).status).toBe('ambiguous');
     expect(matchAcnEvent({ ...race, venue: null }, [event]).status).toBe('none');

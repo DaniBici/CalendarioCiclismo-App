@@ -28,6 +28,11 @@ const DRY_RUN = args.includes('--dry-run');
 const MAX_LINKS = Math.max(1, parseInt(getArg('limit') || '8', 10) || 8);
 const MAX_EVENT_LOOKUPS = 12;
 
+// `Event/view` publica el país en ISO 3166-1 alfa-3 (`NLD`), no con el código UCI
+// (`NED`). Solo se listan los códigos que difieren entre ambos sistemas.
+const ISO_ALPHA3 = Object.freeze({ NLD: 'nl', DEU: 'de', CHE: 'ch', DNK: 'dk', PRT: 'pt', HRV: 'hr', GRC: 'gr', LVA: 'lv', BGR: 'bg' });
+const eventCountry = code => (ISO_ALPHA3[String(code ?? '').toUpperCase()] || countryCode(code))?.toUpperCase() || null;
+
 const fold = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Enlaces ACN de una página de organizador: `{ eventId, ctx|null }`, sin duplicados.
@@ -58,7 +63,7 @@ export function matchAcnEvent(race, events, { slackDays = 1 } = {}) {
     const day = Date.parse(String(event.StartDate || '').slice(0, 10));
     const place = fold(event.Location);
     return Number.isFinite(day) && day >= start && day <= end
-      && countryCode(event.Country)?.toUpperCase() === race.countryCode
+      && eventCountry(event.Country) === race.countryCode
       && place && (place === venue || venue.includes(place) || place.includes(venue));
   });
   if (!matches.length) return { status: 'none', reason: 'Sin evento ACN dentro de criterios' };

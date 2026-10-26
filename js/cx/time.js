@@ -4,8 +4,12 @@ const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
 // DataRide CX expresa algunos tiempos inferiores a una hora como MM:SS:ff y
 // los que superan una hora como H:MM:SS. El contrato no identifica la escala
 // de ff: solo se convierte cuando es 00, que equivale exactamente a segundos.
+// Una fracción tras el último bloque («00:37:57.563», Munich 2026) solo puede
+// ser de segundos: fija H:MM:SS y se trunca al segundo entero.
 export function cxDataRideSeconds(value, { gap = false, format = 'auto' } = {}) {
-  const text = clean(value);
+  const fraction = /^(.*:\d{2})[.,]\d+$/.exec(clean(value));
+  const text = fraction ? fraction[1] : clean(value);
+  if (fraction) format = 'hms';
   const underHour = !gap && format !== 'hms' && /^(\d{2}):(\d{2}):(\d{2})$/.exec(text);
   if (underHour && Number(underHour[1]) > 0) {
     const minutes = Number(underHour[1]);

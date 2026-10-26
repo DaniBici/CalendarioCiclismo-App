@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────
 //  RACE ASSETS — botones de assets + badge de TV + modales de asset/perfil
 //  Extraído de competicion.js para compartir entre competición y la
-//  página de Campeonatos. Importar este módulo instala los globals
-//  window.openAssetModal / window.openDynPerfilModal como efecto secundario.
+//  página de Campeonatos. Importar este módulo instala window.openDynPerfilModal
+//  como efecto secundario; window.openAssetModal llega con shared.js.
 // ─────────────────────────────────────────────────────────────────
 
-import { formatTime, tsSeconds, rdLocation, enBase, esc } from './shared.js';
+import { formatTime, tsSeconds, rdLocation, enBase, assetModal } from './shared.js';
 import { pickBadgeBroadcast } from './broadcast-priority.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
@@ -147,65 +147,6 @@ export function buildAssetButtons(rd, { colorHex = null } = {}) {
   return assetBtnsArr.join('');
 }
 
-// ── Modal de assets ───────────────────────────────────────────────
-window.openAssetModal = function(url, label) {
-  let overlay = document.getElementById('assetModalOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'assetModalOverlay';
-    overlay.innerHTML = `
-      <div class="asset-modal" id="assetModal">
-        <div class="asset-modal__bar">
-          <span class="asset-modal__title" id="assetModalTitle"></span>
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <a class="asset-modal__external" id="assetModalExternal" target="_blank" rel="noopener">↗ Nueva pestaña</a>
-            <button class="asset-modal__close" onclick="closeAssetModal()"><svg xmlns="http://www.w3.org/2000/svg" width="14px" height="14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-          </div>
-        </div>
-        <div class="asset-modal__body" id="assetModalBody"></div>
-      </div>
-    `;
-    overlay.addEventListener('click', e => { if (e.target === overlay) closeAssetModal(); });
-    document.body.appendChild(overlay);
-  }
-
-  const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(url);
-  const isPdf   = /\.pdf(\?|$)/i.test(url);
-
-  document.getElementById('assetModalTitle').textContent = label;
-  document.getElementById('assetModalExternal').href = url;
-
-  const body  = document.getElementById('assetModalBody');
-  const modal = document.querySelector('.asset-modal');
-  if (isImage) {
-    body.innerHTML = `<img src="${url}" alt="${esc(label)}" style="width:100%;height:auto;display:block">`;
-    modal.classList.add('asset-modal--image');
-    modal.classList.remove('asset-modal--document');
-  } else if (isPdf) {
-    body.innerHTML = `<embed src="${url}" type="application/pdf" style="width:100%;height:100%;border:none">`;
-    modal.classList.add('asset-modal--document');
-    modal.classList.remove('asset-modal--image');
-  } else {
-    body.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>`;
-    modal.classList.add('asset-modal--document');
-    modal.classList.remove('asset-modal--image');
-  }
-
-  overlay.classList.add('asset-modal--open');
-  document.body.style.overflow = 'hidden';
-};
-
-window.closeAssetModal = function() {
-  const overlay = document.getElementById('assetModalOverlay');
-  if (!overlay) return;
-  overlay.classList.remove('asset-modal--open');
-  document.body.style.overflow = '';
-  setTimeout(() => {
-    const body = document.getElementById('assetModalBody');
-    if (body) body.innerHTML = '';
-  }, 250);
-};
-
 // ── Modal de perfil SVG dinámico ─────────────────────────────────
 window.openDynPerfilModal = function(rdId, externalUrl) {
   const rd = _dynPerfilRdMap[rdId];
@@ -225,24 +166,7 @@ window.openDynPerfilModal = function(rdId, externalUrl) {
     lang:   getLang(),
   });
 
-  let overlay = document.getElementById('assetModalOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'assetModalOverlay';
-    overlay.innerHTML = `
-      <div class="asset-modal" id="assetModal">
-        <div class="asset-modal__bar">
-          <span class="asset-modal__title" id="assetModalTitle"></span>
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <a class="asset-modal__external" id="assetModalExternal" target="_blank" rel="noopener">↗ Nueva pestaña</a>
-            <button class="asset-modal__close" onclick="closeAssetModal()"><svg xmlns="http://www.w3.org/2000/svg" width="14px" height="14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-          </div>
-        </div>
-        <div class="asset-modal__body" id="assetModalBody"></div>
-      </div>`;
-    overlay.addEventListener('click', e => { if (e.target === overlay) closeAssetModal(); });
-    document.body.appendChild(overlay);
-  }
+  const overlay = assetModal();
 
   document.getElementById('assetModalTitle').textContent = t('assets.profile');
   document.getElementById('assetModalExternal').textContent = getLang() === 'en' ? '↗ New tab' : '↗ Nueva pestaña';
@@ -254,8 +178,7 @@ window.openDynPerfilModal = function(rdId, externalUrl) {
   modal.classList.add('asset-modal--image');
   modal.classList.remove('asset-modal--document');
 
-  overlay.classList.add('asset-modal--open');
-  document.body.style.overflow = 'hidden';
+  if (!overlay.open) overlay.showModal();
 
   // Setup interactive hover effect
   if (hoverData) {

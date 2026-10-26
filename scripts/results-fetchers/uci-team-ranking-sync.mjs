@@ -58,14 +58,10 @@ function microsoftDateMillis(value) {
   return match ? Number(match[1]) : Number.NaN;
 }
 
-function currentSeason(seasons) {
-  const now = Date.now();
-  const active = seasons.find((season) => {
-    const start = microsoftDateMillis(season.StartDate);
-    const end = microsoftDateMillis(season.EndDate);
-    return Number.isFinite(start) && Number.isFinite(end) && start <= now && now <= end;
-  });
-  return active || [...seasons].sort((a, b) => Number(b.Year) - Number(a.Year))[0];
+function isActiveSeason(season, now) {
+  const start = microsoftDateMillis(season.StartDate);
+  const end = microsoftDateMillis(season.EndDate);
+  return Number.isFinite(start) && Number.isFinite(end) && start <= now && now <= end;
 }
 
 function rankingDate(moment) {
@@ -87,17 +83,34 @@ function appendFilter(params, index, field, value) {
   params.set(`filter[filters][${index}][value]`, String(value ?? ''));
 }
 
-async function fetchRanking(config, season) {
+async function fetchLatestMoment(config, season) {
   const moments = await fetchJson(
     `/GetRankingMoments/?disciplineId=${DISCIPLINE_ID}` +
     `&disciplineSeasonId=${season.Id}&rankingId=${config.rankingId}`,
   );
-  const moment = moments
+  return moments
     .filter((item) => Number(item.Id) > 0)
-    .sort((a, b) => momentTimestamp(b) - momentTimestamp(a))[0]
-    || moments.find((item) => Number(item.Id) > 0);
-  invariant(moment, `DataRide no ofrece fechas para ${config.gender}`);
+    .sort((a, b) => momentTimestamp(b) - momentTimestamp(a))[0] || null;
+}
 
+/**
+ * Temporada activa si ya publica fechas en ambos rankings; si no, la más
+ * reciente que las tenga. DataRide cerró 2025 el 19/10 con un ránking final
+ * de esa fecha, y la temporada 2026 (desde el 20/10/2025) no tuvo fechas
+ * hasta el 20/01/2026.
+ */
+export async function resolveSeason(seasons, latestMomentFor = fetchLatestMoment, now = Date.now()) {
+  const ordered = [...seasons].sort((a, b) =>
+    Number(isActiveSeason(b, now)) - Number(isActiveSeason(a, now)) ||
+    Number(b.Year) - Number(a.Year));
+  for (const season of ordered.slice(0, 3)) {
+    const moments = await Promise.all(RANKINGS.map((config) => latestMomentFor(config, season)));
+    if (moments.every(Boolean)) return { season, moments };
+  }
+  throw new Error('DataRide no ofrece fechas de ránking en las temporadas recientes');
+}
+
+async function fetchRanking(config, season, moment) {
   const params = new URLSearchParams({
     rankingId: String(config.rankingId),
     disciplineId: String(DISCIPLINE_ID),
@@ -382,14 +395,25 @@ async function replaceSnapshot(client, rows) {
 const SNAPSHOT_FIELDS = [
   'gender', 'rank', 'previousRank', 'uciTeamId', 'teamId', 'teamCategory',
   'sourceName', 'displayName', 'teamCode', 'countryCode', 'points', 'rankingDate',
+  'sourceUrl',
 ];
 
 function snapshotKey(row) {
   return `${row.gender}:${row.uciTeamId}`;
 }
 
+// points es numeric(…, 2): pg devuelve "2018.00" y DataRide, 2018.
+function signatureValue(field, value) {
+  if (value === null || value === undefined) return '';
+  return field === 'points' ? Number(value).toFixed(2) : String(value);
+}
+
 function snapshotSignature(row) {
-  return SNAPSHOT_FIELDS.map((field) => String(row[field] ?? '')).join('\u001f');
+  return SNAPSHOT_FIELDS.map((field) => signatureValue(field, row[field])).join('\u001f');
+}
+
+export function storedSnapshot(rows) {
+  return new Map(rows.map((row) => [snapshotKey(row), snapshotSignature(row)]));
 }
 
 export function snapshotIsCurrent(rows, storedRows) {
@@ -397,22 +421,39 @@ export function snapshotIsCurrent(rows, storedRows) {
   return rows.every((row) => snapshotSignature(row) === storedRows.get(snapshotKey(row)));
 }
 
-async function loadStoredSnapshot(client) {
+/**
+ * Una instantánea provisional cargada desde otra fuente (momentId 0) lleva una
+ * fecha posterior a la última de DataRide; no se sustituye por una publicación
+ * más antigua. La primera fecha oficial igual o posterior la reemplaza.
+ */
+export function storedIsNewer(rows, storedRows) {
+  const latest = new Map();
+  for (const row of storedRows) {
+    if (!latest.has(row.gender) || row.rankingDate > latest.get(row.gender)) {
+      latest.set(row.gender, row.rankingDate);
+    }
+  }
+  return rows.some((row) => latest.has(row.gender) && latest.get(row.gender) > row.rankingDate);
+}
+
+async function loadStoredRows(client) {
   const { rows } = await client.query(
     `select gender, rank, "previousRank", "uciTeamId", "teamId", "teamCategory",
             "sourceName", "displayName", "teamCode", "countryCode", points,
-            "rankingDate"::text as "rankingDate"
+            "rankingDate"::text as "rankingDate", "sourceUrl"
      from public.uci_team_rankings`,
   );
-  return new Map(rows.map((row) => [snapshotKey(row), snapshotSignature(row)]));
+  return rows;
 }
 
 async function main() {
   const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
-  const season = currentSeason(seasons);
+  const { season, moments } = await resolveSeason(seasons);
   invariant(season?.Id && season?.Year, 'No se pudo determinar la temporada de DataRide');
 
-  const rankingGroups = await Promise.all(RANKINGS.map((config) => fetchRanking(config, season)));
+  const rankingGroups = await Promise.all(
+    RANKINGS.map((config, index) => fetchRanking(config, season, moments[index])),
+  );
   const rawRows = rankingGroups.flat();
 
   if (fetchOnly) {
@@ -448,10 +489,12 @@ async function main() {
         unmatched.map((row) => `- ${row.gender} #${row.rank} ${row.sourceName} (${row.matchIssue})`).join('\n'),
       );
     }
-    const alreadyCurrent = shouldApply
-      ? snapshotIsCurrent(rows, await loadStoredSnapshot(client))
-      : false;
-    if (shouldApply && !alreadyCurrent) await replaceSnapshot(client, rows);
+    const storedRows = shouldApply ? await loadStoredRows(client) : [];
+    const storedNewer = shouldApply && storedIsNewer(rows, storedRows);
+    const alreadyCurrent = shouldApply && !storedNewer &&
+      snapshotIsCurrent(rows, storedSnapshot(storedRows));
+    const applied = shouldApply && !storedNewer && !alreadyCurrent;
+    if (applied) await replaceSnapshot(client, rows);
 
     console.log(JSON.stringify({
       ok: true,
@@ -463,8 +506,9 @@ async function main() {
       })),
       matched: rows.length - unmatched.length,
       unmatched: unmatched.length,
-      applied: shouldApply && !alreadyCurrent,
+      applied,
       alreadyCurrent,
+      storedNewer,
     }));
   } finally {
     await client.end();

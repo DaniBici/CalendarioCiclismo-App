@@ -4,7 +4,7 @@ import SwiftUI
 /// miniperfil y al perfil de la jornada. Conserva el
 /// matiz original y mezcla solo lo necesario hacia blanco en tema oscuro o
 /// hacia negro en tema claro. Los umbrales corresponden a un contraste superior
-/// a 4,5:1 sobre las tarjetas `#1e2632` y `#fafbfc`.
+/// a 4,5:1 sobre las tarjetas `#24262b` y `#fafbfc`.
 enum ProfileColorContrast {
     static let darkMinimumLuminance = 0.27
     static let lightMaximumLuminance = 0.17

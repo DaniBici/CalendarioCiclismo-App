@@ -373,7 +373,8 @@ mínima con nombre combinado ni una opción de lista sin enriquecer.
 
 1. `prepare_startlist_import`: valida recuentos e identidades, conserva el documento
    y una instantánea de la lista en `private.startlist_imports` y devuelve solo
-   recuentos y excepciones. No escribe equipos ni fichas públicas.
+   recuentos y excepciones. Una importación no aplicada caduca a los 30 días; las
+   aplicadas, a los 180 salvo la última de cada carrera. No escribe equipos ni fichas públicas.
 2. `apply_startlist_import`: aplica por `importId`, con correcciones por dorsal o
    índice de equipo si hacen falta. Recomprueba el estado actual y guarda las
    altas y la lista en una transacción. Conserva los ids por dorsal y actualiza
@@ -876,6 +877,28 @@ inicializado desde `timeUtc` con `formatTimeHHMM`. `_saveRaceDay` añade
 si vacío, como `startKm`/`lengthKm`).
 
 ## Resultados: fuentes e importación manual
+
+### Orden de los IRM
+
+`private.order_uci_irm_results(raceId)` fija `race_uci_results."sortOrder"` y
+`resolve_uci_results` lo ejecuta tras cada carga (cron, fetchers y panel). Orden
+dentro de una clasificación:
+
+1. Clasificados: sin IRM, o con `LAP`/`OVL`/`REL` y puesto.
+2. `DF`, `NR` y `LAP`/`OVL`/`REL` sin puesto: la prueba terminó sin resultado;
+   van antes que los expulsados.
+3. `DSQ` (expulsados).
+4. `OTL` (fuera de control).
+5. `DNF`/`ABD` (no terminó).
+6. `DNS` (no salió).
+7. Cualquier otro código.
+
+El grupo depende del IRM, no del puesto (una general puede dejar a los retirados
+con un puesto de relleno). Dentro de un grupo, los corredores del mismo equipo
+van juntos, con los equipos por orden de primera aparición. El equipo sale del
+`teamId` de la fila, de la startlist por dorsal o por corredor, o del equipo de
+la fuente. Copia del orden previo a la corrección de 2026:
+`private.race_uci_results_irm_order_20261017_backup`.
 
 ### Fuentes fuente externa y clasificaciones secundarias
 

@@ -323,6 +323,417 @@ extension View {
     }
 }
 
+// MARK: - Cabecera de la jornada
+
+/// Pantalla que muestra la cabecera de la jornada.
+enum StageHeaderContext {
+    /// La propia jornada.
+    case stage
+    /// Orden de salida: la tira omite su acceso y añade el de vuelta a la
+    /// jornada («Ir a la carrera» o «Ir a la etapa»).
+    case startOrder
+}
+
+/// Apertura de un asset de la jornada (rutómetro, perfil, mapa…): con fichero
+/// local, QuickLook; sin él, un asset propio (R2) aplica las reglas sin
+/// conexión y el resto se abre como enlace externo.
+@MainActor
+enum StageAssetOpener {
+    static func open(
+        _ asset: Asset,
+        remote: URL,
+        safariURL: Binding<URL?>,
+        quickLookURL: Binding<URL?>,
+        offlineAlert: Binding<OfflineAccessAlert?>
+    ) {
+        Task {
+            // 1. Si está descargado localmente, siempre abrir — no necesita red.
+            if let localURL = await CacheManager.shared.localAssetURL(for: asset) {
+                quickLookURL.wrappedValue = localURL
+                return
+            }
+            // 2. Sin fichero local: si es R2 (propio) aplicar reglas de offline.
+            //    Si no hay red y no hay caché, el modal depende de que el modo
+            //    sin conexión esté activo o no.
+            if asset.isDownloadableR2 {
+                if NetworkMonitor.shared.isOnline {
+                    safariURL.wrappedValue = remote
+                } else if OfflineManager.shared.isEnabled {
+                    offlineAlert.wrappedValue = .outOfRange
+                } else {
+                    offlineAlert.wrappedValue = .offlineDisabled
+                }
+            } else {
+                // 3. Si la URL no es nuestra (live_text u otras externas), tratarla
+                //    como enlace externo estándar.
+                ExternalLinkOpener.open(remote, safariURL: safariURL, offlineAlert: offlineAlert)
+            }
+        }
+    }
+}
+
+/// Primera tarjeta de la jornada: datos de la etapa (`StageInfoHeader`) y tira
+/// de documentación. La comparten Jornada y Orden de salida con los datos de
+/// `StageDetailViewModel`.
+struct StageHeaderCard: View {
+    let viewModel: StageDetailViewModel
+    var context: StageHeaderContext = .stage
+    @Binding var safariURL: URL?
+    @Binding var quickLookURL: URL?
+    @Binding var offlineAlert: OfflineAccessAlert?
+
+    var body: some View {
+        if let rd = viewModel.raceDay {
+            VStack(alignment: .leading, spacing: 8) {
+                StageInfoHeader(raceDay: rd, race: viewModel.race)
+
+                // Enlaces de documentación — integrados en la primera card para
+                // exponerlos arriba del todo, como hace la web. Sin titular.
+                documentationChips(rd)
+            }
+            .padding()
+            .ccCardSurface()
+            .accessibilityIdentifier(AccessibilityID.stageHeader)
+        }
+    }
+
+    /// Chips de documentación (web oficial, inscritos, assets R2). Viven dentro
+    /// de la primera card, debajo de los badges, para replicar la disposición
+    /// de la web, donde estos enlaces aparecen en la parte superior de la
+    /// jornada. No llevan titular propio; un divider los separa del bloque
+    /// previo de datos de la etapa.
+    private var icalSubscribeURL: URL? {
+        guard RaceLogic.hasCalendarForYear(viewModel.race?.year),
+              let slug = viewModel.raceDay?.slug,
+              !slug.isEmpty,
+              viewModel.raceDay?.isRestDay != true,
+              viewModel.raceDay?.isCancelledDay != true else { return nil }
+        return URL(string: "webcal://calendariociclismo.app/feed/event/\(slug).ics")
+    }
+
+    @ViewBuilder
+    private func documentationChips(_ rd: RaceDay) -> some View {
+        let hasGPXProfile = rd.hasElevationProfile
+        let hasRouteMap = rd.routeGpxUrl?.isEmpty == false
+        // Cuando existen AMBOS (perfil interactivo GPX + asset estático) se
+        // ofrecen los dos chips: "Perfil interactivo" (nativo) + "Perfil oficial"
+        // (asset). Con uno solo, la etiqueta es simplemente "Perfil".
+        let hasStaticProfile = viewModel.assets.contains(where: { $0.type == "profile" })
+        let bothProfiles = hasGPXProfile && hasStaticProfile
+        let hasStaticMap = viewModel.assets.contains(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
+        let bothMaps = hasRouteMap && hasStaticMap
+        let isStartOrder = context == .startOrder
+        // Dividimos los assets en dos grupos respecto al índice de "profile"
+        // en assetOrder para que el chip web SVG aparezca siempre después
+        // del rutómetro y antes (o junto) al asset estático de perfil. En el
+        // orden de salida se omite su propio acceso.
+        let allAssets = viewModel.sortedAssets.filter {
+            $0.type != "live_text" && !(rd.profileNotViewable && $0.type == "profile")
+                && !(isStartOrder && $0.type == "startOrder")
+        }
+        let profileIdx = Constants.assetOrder.firstIndex(of: "profile") ?? Constants.assetOrder.count
+        // El Libro de Ruta pertenece a toda la competición y, igual que en la
+        // web, ocupa la posición fija entre la web oficial y los dorsales.
+        // Se extrae del resto para no heredarlo en la posición anterior.
+        let technicalGuideAsset = allAssets.first {
+            $0.type == "technicalGuide" && !($0.url ?? "").isEmpty
+        }
+        let assetsBeforeProfile = allAssets.filter { a in
+            a.type != "technicalGuide" &&
+            (Constants.assetOrder.firstIndex(of: a.type ?? "") ?? Constants.assetOrder.count) < profileIdx
+        }
+        let assetsFromProfile = allAssets.filter { a in
+            let idx = Constants.assetOrder.firstIndex(of: a.type ?? "") ?? Constants.assetOrder.count
+            // El asset estático de tipo "profile" NO se muestra en este grupo:
+            //  - Si solo hay perfil SVG web (sin ambos), se oculta por completo.
+            //  - Si están ambos ("Perfil oficial" + "Perfil interactivo"), el
+            //    oficial se renderiza aparte, JUSTO ANTES del interactivo (para
+            //    que el orden sea Rutómetro → oficial → interactivo → Mapa), así
+            //    que también se excluye de aquí.
+            if a.type == "profile" && hasGPXProfile { return false }
+            // Con mapa interactivo y oficial, el oficial se renderiza aparte,
+            // justo antes del interactivo, como sucede con los perfiles.
+            if a.type == "map" && bothMaps { return false }
+            return idx >= profileIdx
+        }
+        // Asset estático de perfil que se muestra como "Perfil oficial" cuando
+        // coexisten ambos perfiles (se renderiza antes del interactivo).
+        let officialProfileAsset: Asset? = bothProfiles
+            ? viewModel.sortedAssets.first(where: { $0.type == "profile" && !($0.url ?? "").isEmpty })
+            : nil
+        let officialMapAsset: Asset? = bothMaps
+            ? viewModel.sortedAssets.first(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
+            : nil
+        // Clasificaciones propias (in-house): de esta jornada si ya están
+        // volcadas; en su defecto, la GENERAL de la etapa anterior (vueltas por
+        // etapas). Se ofrece como PRIMER chip de la tira; sin clasificaciones
+        // propias no hay chip. Espejo de jornada.js (web) y StageScreen (Android).
+        let showCurrentResults = viewModel.areInhouseGatesResolved && viewModel.hasInhouseResults
+        let showPrevResults = viewModel.areInhouseGatesResolved
+            && viewModel.prevHasInhouse && !viewModel.hasInhouseResults
+        let hasResultsChip = (showCurrentResults || showPrevResults) && viewModel.race != nil
+        let hasNotificationsChip = !rd.isRestDay && !rd.isCancelledDay
+        if isStartOrder || !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasNotificationsChip || hasGPXProfile || hasRouteMap || hasResultsChip {
+            Divider()
+            ResultsScrollRail(height: 60, spacing: 0, framed: true) {
+                // Clasificaciones propias (in-house) — primer chip de la tira,
+                // en azul de marca. Sin clasificaciones no hay chip.
+                if let race = viewModel.race {
+                    if showCurrentResults {
+                        NavigationLink(destination: ResultsView(
+                            raceId: race.id,
+                            initialStageNumber: viewModel.resultsStageNumber,
+                            initialStageSuffix: rd.stageSuffix,
+                            initialClassKind: nil
+                        )) {
+                            ActionStripTile(
+                                icon: "trophy",
+                                label: LocaleService.t("Clasificaciones", "Classifications"),
+                                highlighted: true
+                            )
+                        }
+                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
+                    } else if showPrevResults, let prevRd = viewModel.previousStage {
+                        NavigationLink(destination: ResultsView(
+                            raceId: race.id,
+                            initialStageNumber: viewModel.prevResultsStageNumber,
+                            initialStageSuffix: prevRd.stageSuffix,
+                            initialClassKind: "gc"
+                        )) {
+                            ActionStripTile(
+                                icon: "trophy",
+                                label: LocaleService.t("Clasificaciones", "Classifications")
+                            )
+                        }
+                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
+                    }
+                }
+
+                // Web oficial — siempre primero si existe
+                if let websiteStr = viewModel.race?.websiteUrl,
+                   let websiteURL = URL(string: websiteStr) {
+                    Button { tapExternal(url: websiteURL) } label: {
+                        ActionStripTile(icon: "globe", label: LocaleService.t("Web oficial", "Official website"))
+                    }
+                    .accessibilityLabel(LocaleService.t("Web oficial", "Official website"))
+                    .accessibilityHint(LocaleService.t("Se abrirá en el navegador", "Will open in browser"))
+                }
+                // Libro de Ruta: fijo tras la web oficial, antes de Dorsales.
+                if let asset = technicalGuideAsset,
+                   let urlStr = asset.url,
+                   let url = URL(string: urlStr) {
+                    let displayLabel = Constants.assetTexts["technicalGuide"] ?? asset.typeLabel
+                    Button {
+                        tapAsset(asset, remote: url)
+                    } label: {
+                        ActionStripTile(icon: assetIcon(for: "technicalGuide"), label: displayLabel)
+                    }
+                    .accessibilityLabel("Ver \(displayLabel)")
+                    .accessibilityHint(asset.isDownloadableR2
+                                       ? "Se abrirá en la app"
+                                       : "Se abrirá en el navegador")
+                }
+
+                // Orden de salida: vuelta a la jornada tras el Libro de Ruta,
+                // en la posición que ocupa en Clasificaciones.
+                if isStartOrder {
+                    NavigationLink(destination: StageDetailView(
+                        raceDayId: rd.id,
+                        raceIdHint: rd.raceId,
+                        titleHint: StageDetailView.title(raceName: viewModel.race?.localizedName, raceDay: rd)
+                    )) {
+                        ActionStripTile(icon: "cc.cursor", label: goToStageLabel)
+                    }
+                    .accessibilityLabel(goToStageLabel)
+                }
+
+                // Dorsales van tras el Libro de Ruta cuando está disponible.
+                if viewModel.hasStartlist, let race = viewModel.race {
+                    let provisional = race.startlistProvisional == true
+                    let startlistLabel = provisional
+                        ? LocaleService.t("Lista provisional", "Provisional Startlist")
+                        : LocaleService.t("Dorsales", "Startlist")
+                    NavigationLink(destination: StartlistView(raceId: race.id)) {
+                        ActionStripTile(icon: LogoCyclistIcon.name, label: startlistLabel)
+                    }
+                    .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View Provisional Startlist") : LocaleService.t("Ver dorsales", "View Startlist"))
+                }
+
+                // Otros assets antes de la posición de "profile" (orden de
+                // salida, rutómetro); el Libro de Ruta ya se ha renderizado.
+                ForEach(assetsBeforeProfile) { asset in
+                    // Caso especial: el asset startOrder ahora abre la vista nativa
+                    // de orden de salida en vez de la web.
+                    if asset.type == "startOrder" {
+                        NavigationLink(destination: StartOrderView(raceDayId: rd.id)) {
+                            ActionStripTile(icon: "timer", label: LocaleService.t("Orden de salida", "Start order"))
+                        }
+                        .accessibilityLabel(LocaleService.t("Ver orden de salida", "View start order"))
+                    } else if let urlStr = asset.url, let url = URL(string: urlStr) {
+                        let hasProfile = viewModel.assets.contains(where: { $0.type == "profile" })
+                        let isSterratiPorts = asset.type == "ports" && !hasProfile
+                            && rd.primaryType == "sterrato"
+                        let isFrance = viewModel.race?.countryCode?.uppercased() == "FR"
+                        let effectiveType = isSterratiPorts
+                            ? (isFrance ? "ribinou" : "sterrato")
+                            : (asset.type ?? "")
+                        let displayLabel = Constants.assetTexts[effectiveType] ?? asset.typeLabel
+                        let displayIcon  = assetIcon(for: effectiveType.isEmpty ? asset.type : effectiveType)
+                        Button {
+                            tapAsset(asset, remote: url)
+                        } label: {
+                            ActionStripTile(icon: displayIcon, label: displayLabel)
+                        }
+                        .accessibilityLabel("Ver \(displayLabel)")
+                        .accessibilityHint(asset.isDownloadableR2
+                                           ? "Se abrirá en la app"
+                                           : "Se abrirá en el navegador")
+                    }
+                }
+
+                // Perfil oficial (asset estático) — solo cuando coexisten ambos.
+                // Va JUSTO DESPUÉS del rutómetro y ANTES del perfil interactivo.
+                if let asset = officialProfileAsset, let urlStr = asset.url, let url = URL(string: urlStr) {
+                    Button {
+                        tapAsset(asset, remote: url)
+                    } label: {
+                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: LocaleService.t("Perfil oficial", "Official profile"))
+                    }
+                    .accessibilityLabel(LocaleService.t("Ver perfil oficial", "View official profile"))
+                    .accessibilityHint(asset.isDownloadableR2
+                                       ? "Se abrirá en la app"
+                                       : "Se abrirá en el navegador")
+                }
+
+                // Perfil SVG — abre la vista nativa del perfil; aparece siempre
+                // después del rutómetro (y del perfil oficial, si lo hay). Con
+                // asset estático además, este es el "Perfil interactivo"; si no,
+                // solo "Perfil".
+                if hasGPXProfile {
+                    NavigationLink(destination: ElevationProfileView(raceDay: rd, race: viewModel.race)) {
+                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: bothProfiles
+                                        ? LocaleService.t("Perfil interactivo", "Interactive profile")
+                                        : LocaleService.t("Perfil", "Profile"))
+                    }
+                    .accessibilityLabel(LocaleService.t("Ver perfil de altimetría", "View elevation profile"))
+                    .accessibilityHint(LocaleService.t("Abre el perfil interactivo de la etapa", "Opens the interactive stage profile"))
+                }
+
+                // Mapa oficial — cuando también existe mapa interactivo, va primero.
+                if let asset = officialMapAsset, let urlStr = asset.url, let url = URL(string: urlStr) {
+                    Button {
+                        tapAsset(asset, remote: url)
+                    } label: {
+                        ActionStripTile(icon: "map", label: LocaleService.t("Mapa", "Map"))
+                    }
+                    .accessibilityLabel(LocaleService.t("Ver mapa oficial", "View official map"))
+                    .accessibilityHint(asset.isDownloadableR2
+                                       ? "Se abrirá en la app"
+                                       : "Se abrirá en el navegador")
+                }
+
+                // Mapa interactivo nativo. Con el oficial, se etiqueta como
+                // "Mapa interactivo" y queda inmediatamente después.
+                if hasRouteMap {
+                    NavigationLink(destination: RouteMapView(raceDay: rd, race: viewModel.race)) {
+                        ActionStripTile(icon: "map", label: bothMaps
+                                        ? LocaleService.t("Mapa 3D", "3D Map")
+                                        : LocaleService.t("Mapa", "Map"))
+                    }
+                    .accessibilityLabel(LocaleService.t("Ver mapa del recorrido", "View route map"))
+                    .accessibilityHint(LocaleService.t("Abre el mapa interactivo de la etapa", "Opens the interactive stage map"))
+                }
+
+                // Assets desde la posición de "profile" en adelante
+                // (profile estático, ports, map, live_text)
+                ForEach(assetsFromProfile) { asset in
+                    if let urlStr = asset.url, let url = URL(string: urlStr) {
+                        let hasProfile = viewModel.assets.contains(where: { $0.type == "profile" })
+                        let isSterratiPorts = asset.type == "ports" && !hasProfile
+                            && rd.primaryType == "sterrato"
+                        let isFrance = viewModel.race?.countryCode?.uppercased() == "FR"
+                        let effectiveType = isSterratiPorts
+                            ? (isFrance ? "ribinou" : "sterrato")
+                            : (asset.type ?? "")
+                        let displayLabel = Constants.assetTexts[effectiveType] ?? asset.typeLabel
+                        let displayIcon  = assetIcon(for: effectiveType.isEmpty ? asset.type : effectiveType)
+                        Button {
+                            tapAsset(asset, remote: url)
+                        } label: {
+                            ActionStripTile(icon: displayIcon, label: displayLabel)
+                        }
+                        .accessibilityLabel("Ver \(displayLabel)")
+                        .accessibilityHint(asset.isDownloadableR2
+                                           ? "Se abrirá en la app"
+                                           : "Se abrirá en el navegador")
+                    }
+                }
+
+                // La acción también sirve de entrada a las notificaciones: no
+                // se oculta antes de que el usuario conceda los permisos.
+                if hasNotificationsChip {
+                    StageNotificationChip(raceDayId: rd.id)
+                }
+
+
+                // iCal — suscripción individual a esta jornada (último),
+                // como enlace neutro en gris.
+                if let icalURL = icalSubscribeURL {
+                    Button {
+                        UIApplication.shared.open(icalURL)
+                        Haptics.play(.primaryAction)
+                    } label: {
+                        ActionStripTile(
+                            icon: "calendar.badge.plus",
+                            label: LocaleService.t("Añadir al calendario", "Add to calendar"),
+                            tint: AppTheme.textMuted
+                        )
+                    }
+                    .accessibilityLabel(LocaleService.t("Añadir al calendario", "Add to calendar"))
+                    .accessibilityHint(LocaleService.t("Añade esta jornada a tu aplicación de calendario", "Adds this day to your calendar app"))
+                }
+            }
+            // Unos pocos píxeles extra por encima del FlowLayout para que los
+            // chips respiren respecto al divider y no queden pegados al
+            // bloque de datos de la etapa.
+            .padding(.top, 4)
+            .accessibilityIdentifier(AccessibilityID.assetSection)
+        }
+    }
+
+    /// Acceso de vuelta a la jornada desde el orden de salida, rotulado como
+    /// en Clasificaciones.
+    private var goToStageLabel: String {
+        viewModel.race?.isOneDay == true
+            ? LocaleService.t("Ir a la carrera", "Go to the race")
+            : LocaleService.t("Ir a la etapa", "Go to the stage")
+    }
+
+    private func tapAsset(_ asset: Asset, remote: URL) {
+        StageAssetOpener.open(asset, remote: remote, safariURL: $safariURL,
+                              quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
+    }
+
+    /// Enlace externo (web oficial): sin red, modal "Enlace externo"; con red,
+    /// app nativa si la hay y, si no, navegador interno.
+    private func tapExternal(url: URL) {
+        ExternalLinkOpener.open(url, safariURL: $safariURL, offlineAlert: $offlineAlert)
+    }
+
+    private func assetIcon(for type: String?) -> String {
+        switch type {
+        case "startOrder": return "timer"
+        case "profile": return "chart.line.uptrend.xyaxis"
+        case "map": return "map"
+        case "roadbook": return "doc.text"
+        case "ports": return "mountain.2"
+        case "live_text": return "text.bubble"
+        case "sterrato", "ribinou": return "circle.grid.3x3.fill"
+        default: return "doc"
+        }
+    }
+}
+
 /// Vista de detalle de etapa/jornada — equivalente a `jornada.html` + `jornada.js`.
 struct StageDetailView: View {
     let raceDayId: String
@@ -497,7 +908,8 @@ struct StageDetailView: View {
         let mainWidth = hasSide ? contentWidth - Self.sideColumnWidth - gap : contentWidth
         let readoutInline = proxy.size.width > 600
         VStack(spacing: 16) {
-            stageHeader(rd)
+            StageHeaderCard(viewModel: viewModel, safariURL: $safariURL,
+                            quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
             if wide {
                 if hasTimes(rd) && hasMetrics(rd) {
                     HStack(alignment: .top, spacing: gap) {
@@ -558,20 +970,6 @@ struct StageDetailView: View {
 
     private func detailColumnSpacing(in proxy: GeometryProxy) -> CGFloat {
         AdaptiveLayoutPolicy.divisionSpacing(in: proxy)
-    }
-
-    @ViewBuilder
-    private func stageHeader(_ rd: RaceDay) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            StageInfoHeader(raceDay: rd, race: viewModel.race)
-
-            // Enlaces de documentación — integrados en la primera card para
-            // exponerlos arriba del todo, como hace la web. Sin titular.
-            documentationChips
-        }
-        .padding()
-        .ccCardSurface()
-        .accessibilityIdentifier(AccessibilityID.stageHeader)
     }
 
     // Una CRI/CRE no tiene "salida neutralizada"/"meta estimada" (cada
@@ -985,7 +1383,7 @@ struct StageDetailView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     StagePanelTitle(viewModel.race?.isOneDay == true
                                     ? localeService.t("Descripción de la carrera", "Race description")
-                                    : localeService.t("Descripción de la etapa", "Stage description"))
+                                    : localeService.t("Info de la etapa", "Stage info"))
                     if rd.isDescriptionAutoTranslated && !paragraphs.isEmpty {
                         Text("AI translated from Spanish, might contain errors")
                             .ccFont(.s12)
@@ -1162,327 +1560,13 @@ struct StageDetailView: View {
         }
     }
 
-    /// Chips de documentación (web oficial, inscritos, assets R2). Viven dentro
-    /// de la primera card, debajo de los badges, para replicar la disposición
-    /// de la web, donde estos enlaces aparecen en la parte superior de la
-    /// jornada. No llevan titular propio; un divider los separa del bloque
-    /// previo de datos de la etapa.
-    private var icalSubscribeURL: URL? {
-        guard RaceLogic.hasCalendarForYear(viewModel.race?.year),
-              let slug = viewModel.raceDay?.slug,
-              !slug.isEmpty,
-              viewModel.raceDay?.isRestDay != true,
-              viewModel.raceDay?.isCancelledDay != true else { return nil }
-        return URL(string: "webcal://calendariociclismo.app/feed/event/\(slug).ics")
-    }
-
-    @ViewBuilder
-    private var documentationChips: some View {
-        let hasGPXProfile = viewModel.raceDay?.hasElevationProfile == true
-        let hasRouteMap = viewModel.raceDay?.routeGpxUrl?.isEmpty == false
-        // Cuando existen AMBOS (perfil interactivo GPX + asset estático) se
-        // ofrecen los dos chips: "Perfil interactivo" (nativo) + "Perfil oficial"
-        // (asset). Con uno solo, la etiqueta es simplemente "Perfil".
-        let hasStaticProfile = viewModel.assets.contains(where: { $0.type == "profile" })
-        let bothProfiles = hasGPXProfile && hasStaticProfile
-        let hasStaticMap = viewModel.assets.contains(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
-        let bothMaps = hasRouteMap && hasStaticMap
-        // Dividimos los assets en dos grupos respecto al índice de "profile"
-        // en assetOrder para que el chip web SVG aparezca siempre después
-        // del rutómetro y antes (o junto) al asset estático de perfil.
-        let allAssets = viewModel.sortedAssets.filter {
-            $0.type != "live_text" && !(viewModel.raceDay?.profileNotViewable == true && $0.type == "profile")
-        }
-        let profileIdx = Constants.assetOrder.firstIndex(of: "profile") ?? Constants.assetOrder.count
-        // El Libro de Ruta pertenece a toda la competición y, igual que en la
-        // web, ocupa la posición fija entre la web oficial y los dorsales.
-        // Se extrae del resto para no heredarlo en la posición anterior.
-        let technicalGuideAsset = allAssets.first {
-            $0.type == "technicalGuide" && !($0.url ?? "").isEmpty
-        }
-        let assetsBeforeProfile = allAssets.filter { a in
-            a.type != "technicalGuide" &&
-            (Constants.assetOrder.firstIndex(of: a.type ?? "") ?? Constants.assetOrder.count) < profileIdx
-        }
-        let assetsFromProfile = allAssets.filter { a in
-            let idx = Constants.assetOrder.firstIndex(of: a.type ?? "") ?? Constants.assetOrder.count
-            // El asset estático de tipo "profile" NO se muestra en este grupo:
-            //  - Si solo hay perfil SVG web (sin ambos), se oculta por completo.
-            //  - Si están ambos ("Perfil oficial" + "Perfil interactivo"), el
-            //    oficial se renderiza aparte, JUSTO ANTES del interactivo (para
-            //    que el orden sea Rutómetro → oficial → interactivo → Mapa), así
-            //    que también se excluye de aquí.
-            if a.type == "profile" && hasGPXProfile { return false }
-            // Con mapa interactivo y oficial, el oficial se renderiza aparte,
-            // justo antes del interactivo, como sucede con los perfiles.
-            if a.type == "map" && bothMaps { return false }
-            return idx >= profileIdx
-        }
-        // Asset estático de perfil que se muestra como "Perfil oficial" cuando
-        // coexisten ambos perfiles (se renderiza antes del interactivo).
-        let officialProfileAsset: Asset? = bothProfiles
-            ? viewModel.sortedAssets.first(where: { $0.type == "profile" && !($0.url ?? "").isEmpty })
-            : nil
-        let officialMapAsset: Asset? = bothMaps
-            ? viewModel.sortedAssets.first(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
-            : nil
-        // Clasificaciones propias (in-house): de esta jornada si ya están
-        // volcadas; en su defecto, la GENERAL de la etapa anterior (vueltas por
-        // etapas). Se ofrece como PRIMER chip de la tira; sin clasificaciones
-        // propias no hay chip. Espejo de jornada.js (web) y StageScreen (Android).
-        let showCurrentResults = viewModel.areInhouseGatesResolved && viewModel.hasInhouseResults
-        let showPrevResults = viewModel.areInhouseGatesResolved
-            && viewModel.prevHasInhouse && !viewModel.hasInhouseResults
-        let hasResultsChip = (showCurrentResults || showPrevResults) && viewModel.race != nil
-        let hasNotificationsChip = viewModel.raceDay?.isRestDay != true && viewModel.raceDay?.isCancelledDay != true
-        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasNotificationsChip || hasGPXProfile || hasRouteMap || hasResultsChip {
-            Divider()
-            ResultsScrollRail(height: 60, spacing: 0, framed: true) {
-                // Clasificaciones propias (in-house) — primer chip de la tira,
-                // en azul de marca. Sin clasificaciones no hay chip.
-                if let race = viewModel.race {
-                    if showCurrentResults {
-                        NavigationLink(destination: ResultsView(
-                            raceId: race.id,
-                            initialStageNumber: viewModel.resultsStageNumber,
-                            initialStageSuffix: viewModel.raceDay?.stageSuffix,
-                            initialClassKind: nil
-                        )) {
-                            ActionStripTile(
-                                icon: "trophy",
-                                label: LocaleService.t("Clasificaciones", "Classifications"),
-                                highlighted: true
-                            )
-                        }
-                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
-                    } else if showPrevResults, let prevRd = viewModel.previousStage {
-                        NavigationLink(destination: ResultsView(
-                            raceId: race.id,
-                            initialStageNumber: viewModel.prevResultsStageNumber,
-                            initialStageSuffix: prevRd.stageSuffix,
-                            initialClassKind: "gc"
-                        )) {
-                            ActionStripTile(
-                                icon: "trophy",
-                                label: LocaleService.t("Clasificaciones", "Classifications")
-                            )
-                        }
-                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
-                    }
-                }
-
-                // Web oficial — siempre primero si existe
-                if let websiteStr = viewModel.race?.websiteUrl,
-                   let websiteURL = URL(string: websiteStr) {
-                    Button { tapExternal(url: websiteURL) } label: {
-                        ActionStripTile(icon: "globe", label: LocaleService.t("Web oficial", "Official website"))
-                    }
-                    .accessibilityLabel(LocaleService.t("Web oficial", "Official website"))
-                    .accessibilityHint(LocaleService.t("Se abrirá en el navegador", "Will open in browser"))
-                }
-                // Libro de Ruta: fijo tras la web oficial, antes de Dorsales.
-                if let asset = technicalGuideAsset,
-                   let urlStr = asset.url,
-                   let url = URL(string: urlStr) {
-                    let displayLabel = Constants.assetTexts["technicalGuide"] ?? asset.typeLabel
-                    Button {
-                        tapAsset(asset, remote: url)
-                    } label: {
-                        ActionStripTile(icon: assetIcon(for: "technicalGuide"), label: displayLabel)
-                    }
-                    .accessibilityLabel("Ver \(displayLabel)")
-                    .accessibilityHint(asset.isDownloadableR2
-                                       ? "Se abrirá en la app"
-                                       : "Se abrirá en el navegador")
-                }
-
-                // Dorsales van tras el Libro de Ruta cuando está disponible.
-                if viewModel.hasStartlist, let race = viewModel.race {
-                    let provisional = race.startlistProvisional == true
-                    let startlistLabel = provisional
-                        ? LocaleService.t("Lista provisional", "Provisional Startlist")
-                        : LocaleService.t("Dorsales", "Startlist")
-                    NavigationLink(destination: StartlistView(raceId: race.id)) {
-                        ActionStripTile(icon: LogoCyclistIcon.name, label: startlistLabel)
-                    }
-                    .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View Provisional Startlist") : LocaleService.t("Ver dorsales", "View Startlist"))
-                }
-
-                // Otros assets antes de la posición de "profile" (orden de
-                // salida, rutómetro); el Libro de Ruta ya se ha renderizado.
-                ForEach(assetsBeforeProfile) { asset in
-                    // Caso especial: el asset startOrder ahora abre la vista nativa
-                    // de orden de salida en vez de la web.
-                    if asset.type == "startOrder", let rdId = viewModel.raceDay?.id {
-                        NavigationLink(destination: StartOrderView(raceDayId: rdId)) {
-                            ActionStripTile(icon: "timer", label: LocaleService.t("Orden de salida", "Start order"))
-                        }
-                        .accessibilityLabel(LocaleService.t("Ver orden de salida", "View start order"))
-                    } else if let urlStr = asset.url, let url = URL(string: urlStr) {
-                        let hasProfile = viewModel.assets.contains(where: { $0.type == "profile" })
-                        let isSterratiPorts = asset.type == "ports" && !hasProfile
-                            && viewModel.raceDay?.primaryType == "sterrato"
-                        let isFrance = viewModel.race?.countryCode?.uppercased() == "FR"
-                        let effectiveType = isSterratiPorts
-                            ? (isFrance ? "ribinou" : "sterrato")
-                            : (asset.type ?? "")
-                        let displayLabel = Constants.assetTexts[effectiveType] ?? asset.typeLabel
-                        let displayIcon  = assetIcon(for: effectiveType.isEmpty ? asset.type : effectiveType)
-                        Button {
-                            tapAsset(asset, remote: url)
-                        } label: {
-                            ActionStripTile(icon: displayIcon, label: displayLabel)
-                        }
-                        .accessibilityLabel("Ver \(displayLabel)")
-                        .accessibilityHint(asset.isDownloadableR2
-                                           ? "Se abrirá en la app"
-                                           : "Se abrirá en el navegador")
-                    }
-                }
-
-                // Perfil oficial (asset estático) — solo cuando coexisten ambos.
-                // Va JUSTO DESPUÉS del rutómetro y ANTES del perfil interactivo.
-                if let asset = officialProfileAsset, let urlStr = asset.url, let url = URL(string: urlStr) {
-                    Button {
-                        tapAsset(asset, remote: url)
-                    } label: {
-                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: LocaleService.t("Perfil oficial", "Official profile"))
-                    }
-                    .accessibilityLabel(LocaleService.t("Ver perfil oficial", "View official profile"))
-                    .accessibilityHint(asset.isDownloadableR2
-                                       ? "Se abrirá en la app"
-                                       : "Se abrirá en el navegador")
-                }
-
-                // Perfil SVG — abre la vista nativa del perfil; aparece siempre
-                // después del rutómetro (y del perfil oficial, si lo hay). Con
-                // asset estático además, este es el "Perfil interactivo"; si no,
-                // solo "Perfil".
-                if hasGPXProfile, let rd = viewModel.raceDay {
-                    NavigationLink(destination: ElevationProfileView(raceDay: rd, race: viewModel.race)) {
-                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: bothProfiles
-                                        ? LocaleService.t("Perfil interactivo", "Interactive profile")
-                                        : LocaleService.t("Perfil", "Profile"))
-                    }
-                    .accessibilityLabel(LocaleService.t("Ver perfil de altimetría", "View elevation profile"))
-                    .accessibilityHint(LocaleService.t("Abre el perfil interactivo de la etapa", "Opens the interactive stage profile"))
-                }
-
-                // Mapa oficial — cuando también existe mapa interactivo, va primero.
-                if let asset = officialMapAsset, let urlStr = asset.url, let url = URL(string: urlStr) {
-                    Button {
-                        tapAsset(asset, remote: url)
-                    } label: {
-                        ActionStripTile(icon: "map", label: LocaleService.t("Mapa", "Map"))
-                    }
-                    .accessibilityLabel(LocaleService.t("Ver mapa oficial", "View official map"))
-                    .accessibilityHint(asset.isDownloadableR2
-                                       ? "Se abrirá en la app"
-                                       : "Se abrirá en el navegador")
-                }
-
-                // Mapa interactivo nativo. Con el oficial, se etiqueta como
-                // "Mapa interactivo" y queda inmediatamente después.
-                if hasRouteMap, let rd = viewModel.raceDay {
-                    NavigationLink(destination: RouteMapView(raceDay: rd, race: viewModel.race)) {
-                        ActionStripTile(icon: "map", label: bothMaps
-                                        ? LocaleService.t("Mapa 3D", "3D Map")
-                                        : LocaleService.t("Mapa", "Map"))
-                    }
-                    .accessibilityLabel(LocaleService.t("Ver mapa del recorrido", "View route map"))
-                    .accessibilityHint(LocaleService.t("Abre el mapa interactivo de la etapa", "Opens the interactive stage map"))
-                }
-
-                // Assets desde la posición de "profile" en adelante
-                // (profile estático, ports, map, live_text)
-                ForEach(assetsFromProfile) { asset in
-                    if let urlStr = asset.url, let url = URL(string: urlStr) {
-                        let hasProfile = viewModel.assets.contains(where: { $0.type == "profile" })
-                        let isSterratiPorts = asset.type == "ports" && !hasProfile
-                            && viewModel.raceDay?.primaryType == "sterrato"
-                        let isFrance = viewModel.race?.countryCode?.uppercased() == "FR"
-                        let effectiveType = isSterratiPorts
-                            ? (isFrance ? "ribinou" : "sterrato")
-                            : (asset.type ?? "")
-                        let displayLabel = Constants.assetTexts[effectiveType] ?? asset.typeLabel
-                        let displayIcon  = assetIcon(for: effectiveType.isEmpty ? asset.type : effectiveType)
-                        Button {
-                            tapAsset(asset, remote: url)
-                        } label: {
-                            ActionStripTile(icon: displayIcon, label: displayLabel)
-                        }
-                        .accessibilityLabel("Ver \(displayLabel)")
-                        .accessibilityHint(asset.isDownloadableR2
-                                           ? "Se abrirá en la app"
-                                           : "Se abrirá en el navegador")
-                    }
-                }
-
-                // La acción también sirve de entrada a las notificaciones: no
-                // se oculta antes de que el usuario conceda los permisos.
-                if viewModel.raceDay?.isRestDay != true,
-                   viewModel.raceDay?.isCancelledDay != true {
-                    StageNotificationChip(raceDayId: raceDayId)
-                }
-
-
-                // iCal — suscripción individual a esta jornada (último),
-                // como enlace neutro en gris.
-                if let icalURL = icalSubscribeURL {
-                    Button {
-                        UIApplication.shared.open(icalURL)
-                        Haptics.play(.primaryAction)
-                    } label: {
-                        ActionStripTile(
-                            icon: "calendar.badge.plus",
-                            label: LocaleService.t("Añadir al calendario", "Add to calendar"),
-                            tint: AppTheme.textMuted
-                        )
-                    }
-                    .accessibilityLabel(LocaleService.t("Añadir al calendario", "Add to calendar"))
-                    .accessibilityHint(LocaleService.t("Añade esta jornada a tu aplicación de calendario", "Adds this day to your calendar app"))
-                }
-            }
-            // Unos pocos píxeles extra por encima del FlowLayout para que los
-            // chips respiren respecto al divider y no queden pegados al
-            // bloque de datos de la etapa.
-            .padding(.top, 4)
-            .accessibilityIdentifier(AccessibilityID.assetSection)
-        }
-    }
-
     // MARK: - Lógica de apertura de enlaces (online / offline)
 
     /// Tap en un asset R2 (roadbook, perfil, mapa, etc.). Abre con QuickLook si
     /// hay fichero local descargado; si no, intenta red y muestra modal si falta.
     private func tapAsset(_ asset: Asset, remote: URL) {
-        Task {
-            // 1. Si está descargado localmente, siempre abrir — no necesita red.
-            if let localURL = await CacheManager.shared.localAssetURL(for: asset) {
-                quickLookURL = localURL
-                return
-            }
-            // 2. Sin fichero local: si es R2 (propio) aplicar reglas de offline.
-            if asset.isDownloadableR2 {
-                tapOwnR2(url: remote)
-            } else {
-                // 3. Si la URL no es nuestra (live_text u otras externas), tratarla
-                //    como enlace externo estándar.
-                tapExternal(url: remote)
-            }
-        }
-    }
-
-    /// Abre una URL propia (R2 o interna de la app) — como inscritos. Si no hay
-    /// red y no hay caché, muestra modal según offline esté activo o no.
-    private func tapOwnR2(url: URL) {
-        if network.isOnline {
-            safariURL = url
-        } else if offline.isEnabled {
-            offlineAlert = .outOfRange
-        } else {
-            offlineAlert = .offlineDisabled
-        }
+        StageAssetOpener.open(asset, remote: remote, safariURL: $safariURL,
+                              quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
     }
 
     /// Abre una URL externa (web oficial, broadcast TV, live_text, inscritos web).
@@ -1521,19 +1605,6 @@ struct StageDetailView: View {
     /// enlace universal no tiene receptor, usa `SFSafariViewController` in-app.
     private func tapBroadcast(url: URL) {
         ExternalLinkOpener.open(url, safariURL: $safariURL, offlineAlert: $offlineAlert)
-    }
-
-    private func assetIcon(for type: String?) -> String {
-        switch type {
-        case "startOrder": return "timer"
-        case "profile": return "chart.line.uptrend.xyaxis"
-        case "map": return "map"
-        case "roadbook": return "doc.text"
-        case "ports": return "mountain.2"
-        case "live_text": return "text.bubble"
-        case "sterrato", "ribinou": return "circle.grid.3x3.fill"
-        default: return "doc"
-        }
     }
 }
 
@@ -1890,7 +1961,9 @@ private struct QuickLookSheet: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
+    /// Vista previa QuickLook de un asset descargado, compartida por Jornada y
+    /// Orden de salida.
     func quickLookSheet(url: Binding<URL?>) -> some View {
         modifier(QuickLookSheet(url: url))
     }

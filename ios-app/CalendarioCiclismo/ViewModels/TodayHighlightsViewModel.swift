@@ -10,9 +10,10 @@ final class TodayHighlightsViewModel {
     /// Sección del cintillo: "road" (Hoy y carretera) o "cx" (agenda Ciclocross).
     /// Cada scope tiene su propio contenido editorial y su propio dismiss.
     let scope: String
-    /// Cintillo único de la vista Hoy de Ciclocross mientras Hoy de carretera
-    /// está oculta (`RoadTodayAvailability`): entradas `cx` seguidas de las
-    /// `road`, cada grupo por `position`, con el dismiss de Ciclocross.
+    /// Cintillo único de la pestaña inicial mientras Hoy de carretera está
+    /// oculta (`RoadTodayAvailability`), común a Ciclocross y Ruta: entradas
+    /// `cx` seguidas de las `road`, cada grupo por `position`, con el dismiss
+    /// de Ciclocross.
     let includesRoad: Bool
     private var dismissKey: String { scope == "cx" ? "cc_giro_dismissed_hash_cx" : "cc_giro_dismissed_hash" }
     /// Scopes leídos, en el orden de presentación.

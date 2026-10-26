@@ -4,7 +4,7 @@
 
 import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
          categoryBadge, setMeta, setMetaProperty, initPhTooltip,
-         bulkCacheRaces, enBase,
+         bulkCacheRaces,
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
          needsFemaleMark, cleanFeminineName }
          from './shared.js';
@@ -71,6 +71,7 @@ function formatDateRange(days) {
 // ── Estado ───────────────────────────────────────────────────────
 let allRaces          = [];   // [{...raceData, id, _days:[{dateKey}]}]
 let allChallengeGroups = [];  // [{...groupData, id, _races:[raceObj]}]
+const expandedChallenges = new Set(); // ids de challenges desplegados (sobrevive a los repintados)
 // Año por defecto: el siguiente tras el cierre de la temporada de carretera
 // (services/today-season.js).
 const _now = new Date();
@@ -187,9 +188,15 @@ window._temporadaCat = activeCat;
     if (raceObj) openRaceDataModal(rdId, raceObj);
   });
 
+  // Desplegar o plegar un challenge
+  document.getElementById('temporadaContent').addEventListener('click', e => {
+    const el = e.target.closest('.t-race--challenge');
+    if (el) toggleChallenge(el);
+  });
+
   // Guardar estado de navegación (incluido scroll) al salir a una carrera
   document.getElementById('temporadaContent').addEventListener('click', e => {
-    if (e.target.closest('.t-race')) {
+    if (e.target.closest('.t-race:not(.t-race--challenge))')) {
       sessionStorage.setItem('cc_nav', JSON.stringify({
         from: 'temporada', year: activeYear, cat: activeCat,
         scrollY: Math.round(window.scrollY)
@@ -467,6 +474,28 @@ async function _loadMonth(monthKey) {
 
   // Re-renderizar solo la sección del mes afectado
   _rerenderMonth(monthKey);
+  // Un challenge desplegado muestra pruebas de otros meses: se repinta su fila.
+  _rerenderExpandedChallengeMonths(monthKey);
+}
+
+// Repinta los meses cuyo challenge desplegado incluye pruebas del mes recién cargado.
+function _rerenderExpandedChallengeMonths(loadedMonthKey) {
+  const months = new Set();
+  allChallengeGroups.forEach(cg => {
+    if (!expandedChallenges.has(cg.id)) return;
+    if (!cg._races.some(r => (r.startDate || '').slice(0, 7) === loadedMonthKey)) return;
+    const first = _firstDateKeyGroup(cg).slice(0, 7);
+    if (first !== loadedMonthKey) months.add(first);
+  });
+  months.forEach(month => _rerenderMonthKeepingFocus(month));
+}
+
+// Repinta un mes conservando el foco del botón de challenge que lo tuviera.
+function _rerenderMonthKeepingFocus(monthKey) {
+  const focused = document.activeElement?.closest?.('[data-cgid]');
+  const cgId = focused ? focused.dataset.cgid : null;
+  _rerenderMonth(monthKey);
+  if (cgId) document.querySelector(`.t-race--challenge[data-cgid="${CSS.escape(cgId)}"]`)?.focus();
 }
 
 // Re-renderiza el contenido de un mes concreto sin tocar el resto
@@ -960,7 +989,11 @@ function renderRaceRow(race) {
   return `<div class="t-race t-race--placeholder" style="${colorStyle}" data-ph-tooltip="${phTooltip}">${inner}</div>`;
 }
 
-// ── Renderiza un challenge group (fila expandible) ────────────────
+// ── Renderiza un challenge group (fila desplegable) ───────────────
+// La fila es un botón que despliega bajo ella las pruebas del grupo, igual que
+// las apps.
+const CHEVRON_SVG = '<svg class="t-race__chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>';
+
 function renderChallengeGroup(cg) {
   const allDays  = cg._races.flatMap(r => r._days);
   // Fallback de fechas para challenges con carreras placeholder (sin race_days)
@@ -979,15 +1012,8 @@ function renderChallengeGroup(cg) {
   const flag       = countryFlag(cg.countryCode);
   const color      = raceColor(cg.colorHex);
   const colorStyle = `--rc:${color}`;
-
-  // Si todas las carreras del grupo son placeholder (sin race_days), tratar el challenge como placeholder
-  const allPlaceholder = cg._races.every(r => !r._days || r._days.length === 0);
-
-  const href = (!allPlaceholder && cg.slug)
-    ? (getLang() === 'en'
-        ? `${enBase()}/race/?challenge=${cg.slug}`
-        : `/competicion.html?challenge=${cg.slug}`)
-    : null;
+  const expanded   = expandedChallenges.has(cg.id);
+  const panelId    = `cg-panel-${cg.id}`;
 
   const showFemale = needsFemaleMark(cg, activeCat);
   const displayName = cleanFeminineName(cg.name, activeCat);
@@ -995,24 +1021,37 @@ function renderChallengeGroup(cg) {
     ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
     : '';
 
-  const inner = `
-    <span class="t-race__flag">${flag}</span>
-    ${cg.logoUrl
-      ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-      : '<span class="t-race__logo-empty"></span>'
-    }
-    <span class="t-race__name">${displayName}${femaleSuffix}</span>
-    <span class="t-race__dates">${dateStr}</span>
-    ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
-  `;
+  const members = [...cg._races].sort((a, b) => _firstDateKey(a).localeCompare(_firstDateKey(b)));
 
-  if (href) {
-    return `<a class="t-race" href="${href}" style="${colorStyle}">${inner}</a>`;
-  }
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const starts   = cg._races.map(r => r.startDate).filter(Boolean).sort();
-  const phTooltip = (starts[0] && todayStr < starts[0]) ? 'Por ahora sin información extra' : 'Sin información extra';
-  return `<div class="t-race t-race--placeholder" style="${colorStyle}" data-ph-tooltip="${phTooltip}">${inner}</div>`;
+  return `<div class="t-challenge">
+    <button type="button" class="t-race t-race--challenge" style="${colorStyle}" data-cgid="${cg.id}" aria-expanded="${expanded}" aria-controls="${panelId}">
+      <span class="t-race__flag">${flag}</span>
+      ${cg.logoUrl
+        ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+        : '<span class="t-race__logo-empty"></span>'
+      }
+      <span class="t-race__name t-race__name--group"><span class="t-race__name-text">${displayName}${femaleSuffix}</span>${CHEVRON_SVG}</span>
+      <span class="t-race__dates">${dateStr}</span>
+      ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
+    </button>
+    <div class="t-challenge__races" id="${panelId}"${expanded ? '' : ' hidden'}>
+      ${members.map(renderRaceRow).join('')}
+    </div>
+  </div>`;
+}
+
+// Despliega o pliega un challenge sin repintar la lista.
+function toggleChallenge(button) {
+  const id = button.dataset.cgid;
+  const open = !expandedChallenges.has(id);
+  if (open) expandedChallenges.add(id); else expandedChallenges.delete(id);
+  button.setAttribute('aria-expanded', String(open));
+  const panel = document.getElementById(button.getAttribute('aria-controls'));
+  if (panel) panel.hidden = !open;
+  if (!open) return;
+  // Las jornadas de los meses aún sin cargar dan enlace a sus pruebas.
+  const cg = allChallengeGroups.find(g => g.id === id);
+  if (cg) new Set(cg._races.map(r => (r.startDate || '').slice(0, 7)).filter(Boolean)).forEach(_loadMonth);
 }
 
 initPhTooltip();

@@ -49,6 +49,7 @@ const LOCALES = {
       "tv": "TV y streaming",
       "revive": "Revive",
       "videos": "Vídeos",
+      "summary": "Resumen",
       "noVideos": "Vídeos pendientes.",
       "standings": "Clasificación general",
       "general": "General",
@@ -88,7 +89,7 @@ const LOCALES = {
     },
     nav: {
       today: 'Hoy', month: 'Mes', apps: 'Apps', about: 'Sobre',
-      search: 'Buscar', themeToggle: 'Cambiar tema',
+      search: 'Buscar',
       subscribe: 'Suscribirse', icalCalendar: 'Calendario iCal', privacy: 'Privacidad',
     },
     cal: {
@@ -103,7 +104,6 @@ const LOCALES = {
       feedRenewals: 'Renovaciones',
       feedEmpty: 'Todavía no hay movimientos confirmados.',
       loadMore: 'Cargar más',
-      renews: 'renueva con',
       retires: 'se retira',
       retired: 'Se retira',
       until: '{year}',
@@ -149,7 +149,7 @@ const LOCALES = {
       sameTime: 'm.t.',
       alsoOn: 'También en',
       previousResults: 'Así está la carrera',
-      descriptionRace: 'Descripción de la carrera', descriptionStage: 'Descripción de la etapa',
+      descriptionRace: 'Descripción de la carrera', descriptionStage: 'Info de la etapa',
       bonuses: 'Bonificaciones', notes: 'Notas',
       websiteLabel: 'Web oficial', startlistLabel: 'Dorsales', startlistLabelFemale: 'Dorsales', startlistProvisional: 'Lista provisional',
       stagesCount_one: '{n} etapa', stagesCount_other: '{n} etapas',
@@ -202,6 +202,7 @@ const LOCALES = {
     filter: {
       all: 'Todas', pro: 'Pro', worldtour: 'WorldTour', wwt: 'WWT',
       male: 'Masculino', female: 'Femenino', male_short: 'Masc', female_short: 'Fem',
+      category: 'Categoría', pinDefault: 'Fijar «{cat}» como predeterminada', unpinDefault: 'Quitar «{cat}» como predeterminada',
     },
     sort: { label: 'Ordenar', category: 'Cat. UCI', tvtime: 'Hora TV', finishtime: 'Hora de meta' },
     search: {
@@ -242,6 +243,9 @@ const LOCALES = {
       prevDayLabel: 'Día anterior',
       nextDayLabel: 'Día siguiente',
       racesFor: '{n} · {date}',
+      discipline: 'Disciplina',
+      cyclocross: 'Ciclocross', cyclocrossShort: 'CX',
+      road: 'Carretera', roadShort: 'Ruta',
     },
     report: {
       title: 'Reportar cambio',

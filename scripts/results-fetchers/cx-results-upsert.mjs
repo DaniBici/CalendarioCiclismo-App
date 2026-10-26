@@ -39,7 +39,7 @@ function birthDate(value) {
 
 /** Preparación sin efectos. context procede del catálogo CX, nunca de carretera. */
 export function prepareCxResults(document, context, { status = 'provisional', category = null, officialUciResults = false } = {}) {
-  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn'].includes(document.source)
+  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb'].includes(document.source)
     || !Array.isArray(document.categories) || !['pending', 'provisional', 'official'].includes(status)
     || category != null && !CATEGORIES.includes(category)
     || officialUciResults && (document.source !== 'dataride' || status !== 'official')) throw new Error('Contrato CX, categoría, fuente o estado inválidos');
@@ -57,6 +57,19 @@ export function prepareCxResults(document, context, { status = 'provisional', ca
   if (document.source === 'acn' && (!timing || timing.raceId !== race.id || timing.provider !== 'acn'
     || document.evidence?.acn?.eventId !== timing.eventId || document.evidence?.acn?.ctx !== timing.ctx)) {
     throw new Error('Correspondencia ACN no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'wiclax' && (!timing || timing.raceId !== race.id || timing.provider !== 'wiclax'
+    || !timing.sourceUrl || document.evidence?.wiclax?.sourceUrl !== timing.sourceUrl)) {
+    throw new Error('Correspondencia Wiclax no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'kbwb' && (!timing || timing.raceId !== race.id || timing.provider !== 'kbwb'
+    || document.categories.some(item => timing.categoryKeys?.[item.evidence?.kbwb?.raceId] !== item.category))) {
+    throw new Error('Correspondencia KBWB no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'smartweb' && (!timing || timing.raceId !== race.id || timing.provider !== 'smartweb' || !timing.sourceUrl
+    || document.categories.some(item => item.evidence?.smartweb?.sourceUrl !== timing.sourceUrl
+      || timing.categoryKeys?.[item.evidence?.smartweb?.label] !== item.category))) {
+    throw new Error('Correspondencia smartweb no verificada en cx_race_timing_links');
   }
   const prepared = { raceId: race.id, seasonKey: race.seasonKey, source: document.source, status, imports: [], skipped: [], warnings: [] };
   const seen = new Set();

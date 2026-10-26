@@ -139,7 +139,11 @@ final class StartlistViewModel {
                 .map { $0.applyingSeason(teamDTO.teamId.flatMap { seasonMap[$0] }) }
             // Un equipo filial se distingue por su propia ficha en `teams`
             // (nombre y chapa propios), no por un sufijo. Ver migración 063.
-            let displayName = globalTeam?.name ?? teamDTO.teamName
+            // Las selecciones nacionales, en el idioma de la app.
+            let displayName = Team.localizedName(
+                globalTeam?.name ?? teamDTO.teamName,
+                team: globalTeam, isEnglish: LocaleService.shouldShowEnglishContent
+            )
 
             let riders = (ridersByTeam[teamDTO.id] ?? [])
                 .sorted {

@@ -18,11 +18,14 @@
 
   function _getOverlay() {
     if (_overlay) return _overlay;
-    _overlay = document.createElement('div');
+    // <dialog> modal: el navegador lleva el foco dentro, deja inerte el resto
+    // de la página, lo cierra con Escape y devuelve el foco al abrirlo.
+    _overlay = document.createElement('dialog');
     _overlay.className = 'rd-modal-overlay';
     _overlay.id = 'apps-modal-overlay';
+    _overlay.setAttribute('aria-label', isEN ? 'Apps' : 'Aplicaciones');
     _overlay.innerHTML =
-      '<div class="rd-modal" role="dialog" aria-modal="true" aria-label="' + (isEN ? 'Apps' : 'Aplicaciones') + '">' +
+      '<div class="rd-modal">' +
         '<div class="rd-modal__bar">' +
           '<div class="apps-modal__header-logo">' +
             CALENDAR_SVG + BIKE_SVG +
@@ -65,26 +68,21 @@
     });
     document.getElementById('appsModalClose').addEventListener('click', _close);
     document.getElementById('appsModalContinue').addEventListener('click', _close);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && _overlay && _overlay.classList.contains('rd-modal--open')) _close();
-    });
+    _overlay.addEventListener('close', _onClose);
     return _overlay;
   }
 
   var POPUP_KEY  = 'cc_apps_popup_dismissed';
   var _autoMode  = false;
 
-  // Devuelve el foco al elemento que abrió el diálogo y suelta la trampa.
-  var _releaseFocus = null;
-
   function _close() {
-    if (!_overlay) return;
-    _overlay.classList.remove('rd-modal--open');
-    document.body.style.overflow = '';
-    if (_releaseFocus) { _releaseFocus(); _releaseFocus = null; }
-    // Si el modal se abrió automáticamente (4ª página), cualquier cierre
-    // —botón ✕, clic fuera, Escape o "Seguir en la web"— lo silencia para
-    // siempre (hasta que el usuario borre cookies/caché).
+    if (_overlay && _overlay.open) _overlay.close();
+  }
+
+  // Cualquier cierre —botón ✕, clic fuera, Escape o "Seguir en la web"—
+  // llega aquí. Si el modal se abrió automáticamente (4ª página), lo silencia
+  // para siempre (hasta que el usuario borre cookies/caché).
+  function _onClose() {
     if (_autoMode) {
       _autoMode = false;
       try { localStorage.setItem(POPUP_KEY, '1'); } catch (e) {}
@@ -97,14 +95,9 @@
     var ov = _getOverlay();
     var cont = document.getElementById('appsModalContinue');
     if (cont) cont.hidden = !_autoMode;
-    ov.classList.add('rd-modal--open');
-    document.body.style.overflow = 'hidden';
-    // Sin esto el foco se queda detrás del diálogo: con teclado el modal
-    // automático de la 4ª página aparece sin que se note (WCAG 2.4.3).
-    var dialog = ov.querySelector('.rd-modal') || ov;
-    if (typeof window.ccTrapFocus === 'function') {
-      _releaseFocus = window.ccTrapFocus(dialog);
-    }
+    // showModal() lleva el foco al diálogo: con teclado, el modal automático
+    // de la 4ª página no aparece sin que se note (WCAG 2.4.3).
+    if (!ov.open) ov.showModal();
     // Abierto sin que el usuario lo pidiera: se anuncia, además de recibir
     // el foco, para que no aparezca en silencio (WCAG 3.2.5).
     if (_autoMode && typeof window.ccAnnounce === 'function') {

@@ -16,6 +16,11 @@
   margin: auto;
 }
 .res-main, .res-context { min-width: 0; }
+/* Página generada de una carrera, hasta que se pinta: el pie nace justo bajo
+   el borde de la pantalla (alto menos la cabecera, 3,5rem, y su margen, 2rem)
+   y no se ve bajar cuando llega el contenido. La reserva se suelta al pintar:
+   un aviso corto («sin resultados») no deja el pie al fondo con un hueco. */
+#resultsContent:has(> .prerender-loading) { min-height: calc(100svh - 5.5rem); }
 .res-main > .so-table-wrap:first-child { margin-top: 0; }
 /* Orden de salida: como en Resultados, la barra de filtros queda fija bajo la
    navegación y la fila de columnas debajo (--res-tabs-h, medido en
@@ -117,7 +122,9 @@
   scrollbar-width: none;
 }
 .res-tabs__inner::-webkit-scrollbar { display: none; }
-.res-tabs__filter { flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+/* El desplegable llega con la tabla: su alto (.res-teamfilter__select) queda
+   reservado desde el primer pintado y la barra no crece. */
+.res-tabs__filter { flex: 0 0 auto; max-width: 100%; min-height: 36px; margin-left: auto; }
 /* Carreras de un día: sin pestañas, el estado ocupa el lado izquierdo de la
    fila del filtro. */
 .res-tabs__scroll:not(:has(.res-tab)) { display: none; }
@@ -253,14 +260,19 @@
   padding: 0.4rem 0 2rem;
   overflow: visible;
 }
+/* Primera carga de la clasificación: la tabla ocupa la pantalla, y la columna
+   lateral (debajo en una columna) y el pie no aparecen para bajar después. Al
+   cambiar de pestaña manda el alto que fija resultados.js en línea. */
+.res-table-wrap:has(> .loading) { min-height: 100svh; }
 .res-table {
   min-width: 18rem;
-  background: #252e3b;
-  color: #f4f6fa;
+  background: var(--bg-card);
+  color: #f2f3f5;
   box-shadow: var(--card-shadow);
   font-variant-numeric: tabular-nums;
-  --text: #f4f6fa;
-  --text-muted: #c4cbd5;
+  /* Secundario más claro que el general para la lectura de filas densas. */
+  --text: #f2f3f5;
+  --text-muted: #c4c7cd;
 }
 html.light .res-table {
   background: #fff;
@@ -277,7 +289,7 @@ html.light .res-table {
      arriba y dejaría una rendija por la que asoman las filas. */
   top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--res-tabs-h, 0px) - 1px);
   z-index: 20;
-  background: #252e3b;
+  background: var(--bg-card);
   box-shadow: 0 1px 0 var(--border);
 }
 html.light .res-table thead .so-th { background: #fff; }
@@ -396,6 +408,11 @@ html.light .res-table thead .so-th { background: #fff; }
 /* Las dos vistas hacen de título de la página: texto a tamaño de título, la
    activa con el subrayado del menú principal y la otra en gris. */
 .feed-hero > .feed-view-tabs { gap: 1.5rem; margin-top: 0; }
+/* Con Ciclocross, Carretera y Ránking UCI, las vistas forman el conmutador de
+   Hoy (`.discipline-switch`, css/app.css). */
+.feed-hero > .feed-view-switch { margin-bottom: 0.4rem; }
+/* Mientras carga, el panel conserva la altura de la pantalla: el pie no sube. */
+#resultsFeedPanel:has(> .loading) { min-height: calc(100svh - 200px); }
 .feed-hero > .feed-view-tabs .feed-view-tab,
 .feed-hero > .feed-view-tabs .feed-view-tab:hover {
   position: relative;
@@ -407,12 +424,6 @@ html.light .res-table thead .so-th { background: #fff; }
 }
 .feed-hero > .feed-view-tabs .feed-view-tab:hover { color: var(--text); }
 .feed-hero > .feed-view-tabs .feed-view-tab--active { color: var(--text); }
-/* Tres vistas (Ciclocross, Carretera y Ránking UCI): una sola fila también en
-   móvil, con el texto a tamaño de subtítulo. */
-@media (max-width: 600px) {
-  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) { flex-wrap: nowrap; gap: 1rem; }
-  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) .feed-view-tab { font-size: var(--fs-4); white-space: nowrap; }
-}
 .feed-hero > .feed-view-tabs .feed-view-tab--active::after {
   content: '';
   position: absolute;
@@ -651,7 +662,7 @@ button.feed-row {
 .uci-ranking-table {
   display: grid;
   align-self: start;
-  background: #252e3b;
+  background: var(--bg-card);
   box-shadow: var(--card-shadow);
 }
 html.light .uci-ranking-table { background: #fff; }

@@ -16,7 +16,7 @@ const positiveId = value => Number.isSafeInteger(Number(value)) && Number(value)
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const PARTICLES = new Set(['van', 'de', 'der', 'den', 'di', 'da', 'del', 'della', 'von', 'zu', 'ter', 'ten', 'dos', 'das', 'du', 'la', 'le', 'el']);
-function personCase(name) {
+export function personCase(name) {
   const cap = name.toLocaleLowerCase().replace(/(^|[-'’\s])(\p{L})/gu, (_, sep, ch) => sep + ch.toLocaleUpperCase());
   return cap.split(' ').map((word, index) => PARTICLES.has(word.toLowerCase()) && index > 0 ? word.toLowerCase() : word).join(' ');
 }
@@ -75,7 +75,7 @@ export function normalizeCxDataRideRows(sourceRows) {
   // como MM:SS:ff daría una meta de cero a dos minutos, imposible en CX.
   const sourceWinner = sourceRows.find(row => !clean(row.Irm)
     && Number(row.RankNumber || row.Rank) === 1);
-  const format = /^0?[0-2]:[0-5]\d:[0-5]\d$/.test(clean(sourceWinner?.ResultValue)) ? 'hms' : 'auto';
+  const format = /^0?[0-2]:[0-5]\d:[0-5]\d(?:[.,]\d+)?$/.test(clean(sourceWinner?.ResultValue)) ? 'hms' : 'auto';
   const rows = sourceRows.filter(row => !/^race\s+cancelled$/i.test(clean(row.DisplayName || row.IndividualDisplayName))).map((raw, index) => {
     const normalized = normalizeRow(raw);
     const value = clean(raw.ResultValue) || null;

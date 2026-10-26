@@ -48,15 +48,18 @@
 :root {
   --profile-dark-correction: 1;
   --profile-light-correction: 0;
-  /* A 55% sobre --bg-card compone un gris azulado oscuro: mantiene visible la
+  /* A 55% sobre --bg-card compone un gris grafito oscuro: mantiene visible la
      silueta pendiente y deja al menos ~3:1 frente a colores de carrera desde
      la luminancia mínima corregida. El gris claro anterior componía #838990 y
      se confundía con identificativos claros como el #999999 de Flandrien. */
-  --profile-pending-color: #465568;
+  --profile-pending-color: #53575f;
   --page-width: min(var(--content-max), calc(100vw - 2 * var(--page-gutter)));
   /* La navegación vive dentro de la cabecera: no añade altura propia. */
   --primary-nav-h: 0px;
-  --dorsal-bg-a: #1c2030;
+  --dorsal-bg-a: #1c1e22;
+  /* Relleno y suelo del perfil de la pantalla de carga: en oscuro, la
+     superficie de ficha; el acento al 10 % componía una franja azul marino. */
+  --loading-terrain: var(--bg-card);
   /* Los diálogos consumen la misma jerarquía cromática que la web. Estos
      alias evitan que una superficie modal conserve una paleta independiente
      cuando cambian los fondos, bordes o cabeceras globales. */
@@ -74,6 +77,7 @@ html.light {
   --profile-light-correction: 1;
   --profile-pending-color: #657185;
   --dorsal-bg-a: #eeeff2;
+  --loading-terrain: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 /* Reset. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -94,6 +98,30 @@ body {
 }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
+/* Títulos repartidos en líneas de longitud parecida y párrafos sin una
+   palabra suelta en la última línea. Solo el estilo de corte: el modo
+   (wrap / nowrap) lo siguen fijando las reglas de cada componente. */
+h1, h2, h3, h4, h5, h6 { text-wrap-style: balance; }
+p { text-wrap-style: pretty; }
+/* Transiciones entre páginas: fundido del contenido al navegar dentro del
+   sitio. Sin transición con movimiento reducido ni en navegadores sin
+   soporte. La cabecera y la barra de vistas no se mueven ni se funden:
+   js/header.js las monta después del primer pintado, cuando la página nueva
+   ya se ha capturado, así que durante el fundido se ve la captura de la
+   página anterior y al terminar, la real (con la vista activa nueva). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 0.2s; }
+.site-header { view-transition-name: site-header; }
+.primary-nav { view-transition-name: primary-nav; }
+::view-transition-group(site-header),
+::view-transition-group(primary-nav),
+::view-transition-old(site-header),
+::view-transition-old(primary-nav) { animation: none; }
+::view-transition-new(site-header),
+::view-transition-new(primary-nav) { animation: none; opacity: 0; }
 /* Accesibilidad. Suelo de foco global: garantiza un indicador visible en todo control
    enfocable con teclado. Los componentes pueden afinarlo, pero ninguno
    se queda sin nada. :where() mantiene especificidad 0. */
@@ -154,6 +182,8 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   padding-inline: 0;
 }
 .cc-public-document { padding-block: 3rem; }
+/* Anclas (privacidad.html#cookies): el título no queda bajo la cabecera fija. */
+.cc-public-document [id] { scroll-margin-top: calc(var(--site-header-h, 0px) + 1rem); }
 .cc-public-document>p,
 .cc-public-document>section,
 .cc-public-document>div,
@@ -250,11 +280,12 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 }
 .back-btn:hover { color: var(--header-text); background: var(--hover-bg); }
 .back-btn svg { display: block; }
-/* Sin destino de vuelta (Hoy): el hueco se conserva para no desplazar nada. */
+/* Sin destino de vuelta (Hoy): en tableta y escritorio el hueco se conserva
+   para no desplazar nada; en móvil se retira y la marca queda al margen. */
 .back-btn--placeholder { visibility: hidden; pointer-events: none; }
 button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
 
-/* Acciones: Apps · Apoyar · idioma · tema. */
+/* Acciones: Apps · Apoyar · idioma. */
 .header-actions {
   display: flex;
   align-items: center;
@@ -309,22 +340,6 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
 .lang-btn:hover { color: var(--header-text); background: var(--hover-bg); }
 .lang-btn--active { color: var(--accent-text); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 
-.theme-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color var(--transition), background var(--transition);
-}
-.theme-toggle:hover { color: var(--header-text); background: var(--hover-bg); }
-
 /* Flechas de desplazamiento compartidas (js/scroll-rail.js): zona propia,
    separadores y extremos desactivados. */
 .cc-scroll-arrow {
@@ -357,7 +372,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   transform: rotate(90deg);
 }
 
-/* Navegación principal (js/header.js): cinco destinos (cuatro con la home cedida a Ciclocross). */
+/* Navegación principal (js/header.js): cinco destinos (cuatro con la home cedida a Ciclocross, en la que Hoy alberga las dos disciplinas). */
 .primary-nav { flex: 1 1 auto; min-width: 0; align-self: stretch; }
 .primary-nav__inner {
   display: flex;
@@ -450,6 +465,24 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   border-top: 1px solid var(--border);
   text-align: center;
 }
+/* Pie sin pintar mientras la pantalla de carga está abierta
+   (js/page-loading.js), que ya lo tapa: el contenido que llega lo desplaza y
+   Chrome no cuenta en el CLS los desplazamientos de un elemento invisible. Al
+   cerrarse la capa el pie ya está en su sitio. Ligado a la carga y sin alto
+   reservado, como #raceList:has(.loading): una página más corta que la
+   pantalla no deja hueco, y la del torneo de ciclocross, que salta al día en
+   curso en el mismo fotograma en que pinta, no lo arrastra a la vista. */
+body:has(> .page-loading:not(.page-loading--hide)) > .site-footer { visibility: hidden; }
+/* Contenedor de la portada, la agenda de Ciclocross, el calendario y
+   Campeonatos sin pintar mientras conserva su marcador de carga bajo la capa.
+   Chrome cuenta el desplazamiento de su caja aunque la capa la tape y aunque
+   solo contenga el marcador: lo movían el cintillo al montarse encima, la
+   barra de fechas de la agenda al rellenarse y la barra de filtros del
+   calendario al cambiar de fuente. Hasta entonces solo alberga el marcador, el
+   esqueleto de la agenda y el texto estático recortado de portada y
+   calendario; las tarjetas se pintan, como antes, en el mismo fotograma en que
+   se retira el marcador. */
+body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaContent, #calMain, #campeonatosContent):has(.loading) { visibility: hidden; }
 .site-footer p {
   font-family: var(--font-display);
   font-size: var(--fs-1);
@@ -493,10 +526,10 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display: none; }
   .nav-apps-btn, .header-support-link { width: 40px; padding: 0; justify-content: center; }
   /* Zona táctil de 44 px; la cabecera mide 56 px y no crece. */
-  .nav-apps-btn, .header-support-link, .lang-btn, .theme-toggle, .back-btn { min-height: 44px; }
-  .lang-btn, .theme-toggle { min-width: 40px; }
-  .theme-toggle { width: 40px; height: 44px; }
+  .nav-apps-btn, .header-support-link, .lang-btn, .back-btn { min-height: 44px; }
+  .lang-btn { min-width: 40px; }
   .back-btn { width: 40px; height: 44px; }
+  .back-btn--placeholder { display: none; }
   /* Barra inferior: celdas iguales, sin desplazamiento. */
   .primary-nav {
     position: fixed;
@@ -700,10 +733,9 @@ html.cc-booting::before {
 .page-loading__svgwrap svg { display: block; width: 100%; height: clamp(120px, 24vh, 260px); }
 .page-loading__ground {
   flex: 1;
-  background: var(--accent);
-  opacity: 0.10;   /* mismo tinte que .page-loading__fill */
+  background: var(--loading-terrain);   /* mismo tinte que .page-loading__fill */
 }
-.page-loading__fill { fill: var(--accent); opacity: 0.10; }
+.page-loading__fill { fill: var(--loading-terrain); }
 .page-loading__line {
   fill: none;
   stroke: var(--accent);
@@ -713,24 +745,33 @@ html.cc-booting::before {
   /* preserveAspectRatio="none" estira el viewBox → mantener grosor real */
   vector-effect: non-scaling-stroke;
 }
-/* Punto del "ciclista": span HTML que JS posiciona en % del svgwrap;
-   el halo pulsante es su ::after. */
+/* Punto del "ciclista": span HTML del tamaño del svgwrap que JS desplaza con
+   transform en % de su propio tamaño (el del svgwrap); el punto es su ::before,
+   en la esquina superior izquierda, y el halo pulsante su ::after. Con
+   left/top, Chrome contaba cada fotograma como desplazamiento y el salto de
+   vuelta al inicio del perfil elevaba el CLS del fotograma que coincidía con
+   otro movimiento. */
 .page-loading__rider {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
+  pointer-events: none;
+}
+.page-loading__rider::before,
+.page-loading__rider::after {
+  content: '';
+  position: absolute;
+  top: -4.5px;
+  left: -4.5px;
   width: 9px;
   height: 9px;
-  margin: -4.5px 0 0 -4.5px;
   border-radius: 50%;
   background: var(--accent);
 }
 .page-loading__rider::after {
-  content: '';
-  position: absolute;
-  inset: -5px;
-  border-radius: 50%;
-  background: var(--accent);
+  top: -9.5px;
+  left: -9.5px;
+  width: 19px;
+  height: 19px;
   opacity: 0.25;
   animation: cc-rider-halo 1.4s ease-in-out infinite;
 }
@@ -749,29 +790,41 @@ html.cc-booting::before {
 
 /* ═══ Filtros y controles compartidos ═══════════════════════════════════ */
 
-/* Filtros de la agenda (Hoy y Ciclocross): categorías a la izquierda y
-   «Ordenar» en el extremo derecho. */
+/* Franja de la agenda (Hoy y Ciclocross), como la fila de la fecha de las
+   apps: conmutador «CX | Ruta» (mientras exista) y fecha a la izquierda,
+   categoría y «Ordenar» a la derecha y filete antes de las tarjetas. */
 .agenda-filters__inner {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.75rem;
   width: var(--page-width);
   max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.25rem 0 0.6rem;
+  border-bottom: 1px solid var(--border);
   background: transparent;
 }
+/* El margen automático empuja categoría y «Ordenar» al extremo derecho. */
+.agenda-date {
+  min-width: 0;
+  margin-right: auto;
+  font: 600 var(--fs-2) var(--font-body);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .agenda-filter-cats { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.agenda-filter-divider { display: none; }   /* sin divisor: «Ordenar» va al extremo */
+.agenda-filter-divider { display: none; }
 .agenda-sort-wrap {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  margin-left: auto;
 }
-/* Desplegable compartido con .res-teamfilter__select. */
-.agenda-sort-select {
+/* Desplegable compartido con .res-teamfilter__select y con la etiqueta del
+   desplegable de categoría de Hoy (.agenda-cat-wrap). */
+.agenda-sort-select, .agenda-cat-wrap {
   min-height: 36px;
   max-width: 100%;
   padding: 7px 30px 7px 10px;
@@ -791,6 +844,82 @@ html.cc-booting::before {
 }
 .agenda-sort-select:hover, .agenda-sort-select:focus { color: var(--text); }
 .agenda-sort-select:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+/* Categoría en desplegable (Hoy): solo hasta 600 px, en lugar de los chips.
+   La etiqueta da el ancho; el select nativo, transparente, la cubre y abre el
+   selector del sistema. Con la predeterminada activa, chincheta tras el texto. */
+.agenda-cat-wrap { display: none; position: relative; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+.agenda-cat-wrap:hover { color: var(--text); }
+.agenda-cat-wrap:has(.agenda-cat-select:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.agenda-cat-wrap__label { white-space: nowrap; }
+.agenda-cat-wrap__pin { display: none; width: 12px; height: 12px; color: var(--accent-text); }
+.agenda-cat-wrap__pin svg { width: 100%; height: 100%; display: block; }
+.agenda-cat-wrap--pinned .agenda-cat-wrap__pin { display: block; }
+.agenda-cat-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px; /* sin zoom de iOS al enfocar */
+  cursor: pointer;
+}
+/* Conmutador Ciclocross / Carretera (js/components/discipline-switch.js): dos
+   opciones en una sola pieza tras los filtros; la activa, como el chip activo. */
+.discipline-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--card-shadow);
+  background: var(--bg-card);
+}
+.discipline-switch__option {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius-pill);
+  font: 500 var(--fs-2) var(--font-body);
+  white-space: nowrap;
+  color: var(--text-muted);
+  transition: color var(--transition), background var(--transition);
+}
+/* Resultados usa botones en lugar de enlaces (js/resultados-feed.js). */
+:where(button.discipline-switch__option) { border: 0; background: none; cursor: pointer; }
+.discipline-switch__option:is(a, button, :has(> .discipline-switch__select)):not(.discipline-switch__option--active):hover { color: var(--text); background: var(--bg-card-hover); }
+.discipline-switch__option--active { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); font-weight: 700; }
+/* Chincheta de Carretera, la de los chips (`.tcat-pin`): botón en Hoy de
+   carretera y en Resultados; en la agenda de Ciclocross, solo el icono cuando
+   está fijada. En Resultados, el botón de la vista ocupa toda la opción y la
+   chincheta queda por encima. */
+.discipline-switch__option { gap: 0.3rem; }
+button.discipline-switch__pin { margin-block: -0.25rem; padding: 0; border: 0; background: none; font: inherit; }
+span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
+.discipline-switch__option:has(> .discipline-switch__select) { position: relative; }
+.discipline-switch__select { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.discipline-switch__select::before { content: ''; position: absolute; inset: 0; }
+.discipline-switch__option > button.discipline-switch__pin { position: relative; z-index: 1; }
+/* Franja de Hoy en escritorio: chips, desplegables y conmutador a la misma
+   altura que este (28 px); los desplegables medían 36 px. En móvil los iguala
+   la regla de hasta 600 px (32 px). */
+@media (min-width: 601px) {
+  .agenda-filters .tcat-btn, .agenda-filters .agenda-sort-select, .agenda-filters .agenda-cat-wrap { min-height: 28px; }
+  .agenda-filters .agenda-sort-select, .agenda-filters .agenda-cat-wrap { padding-block: 0; }
+}
+/* Los chips de carretera, la fecha completa y el conmutador con la chincheta
+   de Carretera piden unos 980 px: por debajo, la categoría pasa al
+   desplegable, como en móvil. Sin conmutador los chips caben desde unos
+   800 px. */
+@media (min-width: 601px) and (max-width: 1079px) {
+  .agenda-filters__inner:has(.discipline-switch) .agenda-filter-cats { display: none; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-cat-wrap { display: flex; }
+}
+@media (min-width: 601px) and (max-width: 859px) {
+  .agenda-filters .agenda-filter-cats { display: none; }
+  .agenda-filters .agenda-cat-wrap { display: flex; }
+}
 
 /* Etiquetas de botón: versión corta en móvil, completa en escritorio. */
 .btn-label-short { display: none; }
@@ -948,8 +1077,27 @@ html.cc-booting::before {
   }
   .agenda-filter-cats::-webkit-scrollbar { display: none; }
   .agenda-filters .tcat-btn { padding: 0.3rem 0.7rem; }
+  /* Hoy: la categoría pasa de chips a desplegable. */
+  .agenda-filters .agenda-filter-cats { display: none; }
+  .agenda-filters .agenda-cat-wrap { display: flex; }
   /* «Ordenar» a su contenido: los filtros conservan el ancho disponible. */
   .agenda-sort-select { width: auto; max-width: 7.5rem; min-height: 32px; padding-block: 4px; }
+  .agenda-cat-wrap { min-height: 32px; padding-block: 4px; }
+  /* Conmutador a la altura de los desplegables de la franja. */
+  .agenda-filters .discipline-switch { min-height: 32px; }
+  /* Chincheta de 12 px, como la del desplegable «Categoría», con 24 px de
+     alto táctil sin elevar el conmutador. Con ella, conmutador, «Categoría» y
+     «Ordenar» siguen en una fila desde 375 px. */
+  .discipline-switch__option { padding-inline: 0.6rem; }
+  button.discipline-switch__pin { width: 0.875rem; height: 1.5rem; margin: -0.25rem -0.35rem -0.25rem -0.1rem; }
+  .discipline-switch__pin .tcat-pin__svg { width: 0.75rem; height: 0.75rem; }
+  /* Con el conmutador, la fecha no cabe en la fila: pasa debajo, completa,
+     sobre el filete. Sin él comparte fila con los desplegables y omite el día
+     de la semana, que ya da la tira, como en las apps. */
+  .agenda-filters__inner:has(.discipline-switch) { flex-wrap: wrap; row-gap: 0.5rem; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-date { order: 1; flex-basis: 100%; margin-right: 0; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-cat-wrap { margin-left: auto; }
+  .agenda-filters__inner:not(:has(.discipline-switch)) .agenda-date__wd { display: none; }
   /* Móvil: botón iCal de la fila 1 visible, solo con icono; el de la fila 2, oculto. */
   .btn-ical--inline {
     display: inline-flex;
@@ -1148,6 +1296,8 @@ html.cc-booting::before {
   /* Rejilla de dos columnas; los estados de carga, vacío y error ocupan la fila. */
   #raceList { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
   #raceList>:is(.loading,.empty-state,.day-load-error) { grid-column: 1/-1; }
+  /* Una sola jornada: media anchura, centrada. */
+  #raceList>.race-card:only-child { grid-column: 1/-1; justify-self: center; width: calc((100% - 0.5rem) / 2); }
 }
 
 
@@ -1663,6 +1813,13 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   #competicionContent :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
 }
 
+/* Lista de jornadas de Competición: una columna en móvil y dos desde 761 px,
+   como la lista de Hoy. */
+.stage-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0.5rem; }
+@media (min-width: 761px) {
+  .stage-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
 @media (min-width: 761px) {
   #raceList>.race-card { align-items: start; padding: 1rem 1.25rem 58px; }
   /* Competición: contenido e iconos alineados arriba, como en Hoy. */
@@ -1697,9 +1854,12 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   align-items: flex-end;
   gap: 1rem;
 }
-/* Logo y bandera centrados verticalmente respecto al bloque de texto. */
+/* Logo y bandera centrados verticalmente respecto al bloque de texto. Ocupa
+   el ancho libre: con su ancho de contenido, un texto de menos de 200 px (la
+   base de .race-header__text) bajaba bajo el logo, como «Giro d'Italia». */
 .race-header__main {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 1.25rem;
   min-width: 0;
@@ -1712,8 +1872,13 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   gap: 0.35rem;
   flex-shrink: 0;
 }
+/* Caja reservada desde el principio: alto fijo y, mientras no llega la imagen
+   (diferida y sin dimensiones), ancho cuadrado. Con alto máximo medía 0 × 0
+   hasta recibir la imagen y la cabecera crecía con el contenido ya a la vista
+   (tarjetas de competición en móvil, +7 px). */
 .race-header__logo {
-  max-height: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
   width: auto;
   object-fit: contain;
   border-radius: var(--radius-sm);
@@ -2156,6 +2321,27 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   scrollbar-width: none;
 }
 .asset-links::-webkit-scrollbar { display: none; }
+/* Flechas desde el primer pintado: la línea de tiempo del carril solo está
+   activa si desborda. Mientras js/scroll-rail.js no las muestra, cada flecha
+   queda sin ancho ni visibilidad y la animación le da su sitio en el mismo
+   caso en que el JS la mostrará; los botones no se desplazan al ejecutarse.
+   Sin soporte de animaciones por desplazamiento, las muestra el JS. */
+@supports (timeline-scope: --a) and (animation-timeline: --a) {
+  .asset-links-wrap { timeline-scope: --cc-asset-rail; }
+  .asset-links { scroll-timeline: --cc-asset-rail inline; }
+  .asset-links-wrap>.cc-scroll-arrow[hidden] {
+    display: inline-flex;
+    flex-basis: 0;
+    width: 0;
+    min-width: 0;
+    visibility: hidden;
+    animation: cc-rail-overflow linear both;
+    animation-timeline: --cc-asset-rail;
+  }
+  /* El carril empieza al inicio: «‹» desactivada, como la deja el JS. */
+  .asset-links-wrap>.cc-scroll-arrow[data-direction=prev][hidden] { opacity: 0.3; }
+}
+@keyframes cc-rail-overflow { from, to { flex-basis: 28px; width: 28px; min-width: 28px; visibility: visible; } }
 .asset-btn {
   display: inline-flex;
   flex: 0 0 auto;
@@ -2267,6 +2453,12 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   grid-template-columns: minmax(0,1fr);
   gap: 24px;
   margin-block: 20px;
+}
+/* Gráfico del perfil aún sin dibujar (jornadas generadas en el build): el
+   mismo alto que le dará js/stage/profile.js, máx(264, mín(400, ancho × 0,4)). */
+.stage-profile-graphic:empty { height: clamp(264px, 40cqi, 400px); }
+@media (min-width: 1024px) {
+  .stage-profile-layout--points .stage-profile-graphic:empty { height: clamp(264px, calc((100cqi - 354px) * .4), 400px); }
 }
 .stage-profile-panel, .stage-key-panel {
   min-width: 0;
@@ -2528,8 +2720,11 @@ button.stage-key-row { cursor: pointer; }
   border: 1px solid var(--border-light);
   vertical-align: -2px;
   margin-right: 5px;
+  background: linear-gradient(90deg, var(--a) calc(100% / 3), var(--b) 0 calc(200% / 3), var(--c) 0) padding-box no-repeat;
 }
-.team-stripes i { flex: 1; min-width: 0; }
+/* Franjas en un solo elemento (teamStripes): un hijo vacío conserva la línea
+   base de la caja con hijos, y con ella su posición vertical. */
+.team-stripes::before { content: ''; flex: 1; }
 .startlist-team__riders { padding: 0.4rem 0; }
 .startlist-rider {
   display: flex;
@@ -2559,7 +2754,7 @@ button.stage-key-row { cursor: pointer; }
   width: 1.4em;
   flex-shrink: 0;
 }
-.startlist-rider__flag img { width: 1.2em; height: 0.9em; display: block; }
+.startlist-rider__flag img { width: 1.2em; height: 0.9em; display: block; object-fit: cover; border-radius: 2px; }
 .startlist-rider__name {
   color: var(--text);
   overflow: hidden;
@@ -2672,6 +2867,9 @@ button.stage-key-row { cursor: pointer; }
   color: var(--text-muted);
 }
 .so-flag { margin-right: 0.4rem; }
+/* Bandera de las tablas de resultados sin estilo en línea (una por fila): el
+   mismo tamaño y recorte que countryFlag(). */
+.so-flag > img { display: inline-block; width: 1.2em; height: 0.9em; object-fit: cover; border-radius: 2px; vertical-align: -0.05em; }
 /* CRE (contrarreloj por equipos): el equipo es la columna principal, no la
    secundaria muteada. Mismo peso/color/tamaño que el corredor en CRI. */
 .so-table--teams .so-th--team { width: auto; min-width: 14rem; color: var(--text-muted); }
@@ -2831,6 +3029,9 @@ button.stage-key-row { cursor: pointer; }
   overflow: hidden;
   background: var(--bg-subtle, var(--bg-card));
 }
+/* Contenedor sin montar (página generada en el build, antes de mountRouteMap):
+   el mismo alto que con el mapa, padding incluido. */
+.cc-map-wrap:empty { height: calc(560px + 0.8rem); }
 .cc-map .maplibregl-map { border-radius: inherit; }
 /* Marcadores: el badge SVG del perfil dentro de un pin con sombra. En MapLibre
    el .cc-map-pin es la RAÍZ del marcador (sin wrapper de tamaño fijo como el
@@ -2999,25 +3200,42 @@ body.cc-map-expanded-lock { overflow: hidden; }   /* sin desplazamiento de fondo
   .pfe-grid--single .pfe-box { columns: 1; }
   .pfe-wrap .jornada-section--route-grid { display: none; }
   .cc-map { height: 420px; }
+  .cc-map-wrap:empty { height: calc(420px + 0.8rem); }
 }
 
 /* ═══ Modales ═══════════════════════════════════════════════════════════ */
 
 /* Todos los diálogos usan la paleta modal común (--modal-*). */
 
+/* Visor de documentos, avisos, datos de carrera, iCal y Apps: <dialog>
+   abierto con showModal(). El navegador los pone en la capa superior (sin
+   z-index), deja inerte el resto de la página, los cierra con Escape y
+   devuelve el foco al control que los abrió. El propio <dialog> es el velo a
+   pantalla completa; ::backdrop queda vacío. */
+dialog:is(#assetModalOverlay, .report-modal-overlay, .rd-modal-overlay) {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+}
+dialog:is(#assetModalOverlay, .report-modal-overlay, .rd-modal-overlay)::backdrop { background: none; }
+body:has(dialog:modal) { overflow: hidden; }
+
 /* Visor de documentos (rutómetros, perfiles, PDF). */
 #assetModalOverlay {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1000;
   background: var(--modal-scrim);
   align-items: center;
   justify-content: center;
   padding: 1rem;
   backdrop-filter: blur(4px);
 }
-#assetModalOverlay.asset-modal--open { display: flex; }
+#assetModalOverlay[open] { display: flex; }
 .asset-modal {
   background: var(--modal-surface);
   color: var(--text);
@@ -3099,13 +3317,12 @@ body.cc-map-expanded-lock { overflow: hidden; }   /* sin desplazamiento de fondo
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 2000;
   align-items: center;
   justify-content: center;
   padding: 1rem;
   background: var(--modal-scrim);
 }
-.report-modal-overlay.report-modal--open { display: flex; }
+.report-modal-overlay[open] { display: flex; }
 .report-modal {
   position: relative;
   background: var(--modal-surface);
@@ -3275,14 +3492,13 @@ body.cc-map-expanded-lock { overflow: hidden; }   /* sin desplazamiento de fondo
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1500;
   align-items: center;
   justify-content: center;
   padding: 1rem;
   background: var(--modal-scrim);
   backdrop-filter: blur(2px);
 }
-.rd-modal-overlay.rd-modal--open { display: flex; }
+.rd-modal-overlay[open] { display: flex; }
 .rd-modal {
   position: relative;
   background: var(--modal-surface);
@@ -3444,63 +3660,6 @@ body.cc-map-expanded-lock { overflow: hidden; }   /* sin desplazamiento de fondo
 .apps-modal__continue:hover { color: var(--text); background: var(--modal-field); }
 .apps-modal__continue[hidden] { display: none; }
 
-/* Gestión de cookies. */
-.cookie-modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-.cookie-modal--open { display: flex; }
-.cookie-modal__overlay { position: absolute; inset: 0; background: var(--modal-scrim); }
-.cookie-modal__box {
-  position: relative;
-  background: var(--modal-surface);
-  box-shadow: var(--card-shadow);
-  color: var(--text);
-  border-radius: calc(var(--radius) * 2);
-  width: 100%;
-  max-width: 480px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.cookie-modal__close {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  transition: color var(--transition);
-}
-.cookie-modal__close:hover { color: var(--text); }
-.cookie-modal__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-4);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text);
-  margin: 0;
-}
-.cookie-modal__text {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-3);
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-.cookie-modal__buttons { display: flex; gap: 0.5rem; justify-content: flex-end; }
-
 /* Suscripción iCal: tarjetas de calendario (compartidas con /suscripcion/). */
 .sus-feeds { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
 .sus-feed {
@@ -3660,100 +3819,66 @@ html.cc-android-banner-pending body::before { content: ''; display: block; heigh
 }
 .android-app-banner__btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 
-/* Aviso de cookies. Va superpuesto al borde superior y entra por transform:
-   al insertarse dentro del flujo y animar max-height empujaba toda la página
-   (≈120 px en móvil, en ocho pasos) y era la mayor parte del CLS de la
-   primera visita. */
-.cookie-banner {
+/* Aviso de analítica (js/cookie-consent.js): panel no modal en la esquina
+   inferior. No tapa la cabecera ni la barra inferior de móvil y la página
+   sigue usable hasta que se elige. Los dos botones son idénticos. */
+.cookie-panel {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 3000;
+  right: var(--page-gutter);
+  bottom: var(--page-gutter);
+  z-index: 300;
+  width: min(24rem, calc(100% - 2 * var(--page-gutter)));
+  max-height: calc(100dvh - 2 * var(--page-gutter));
+  overflow-y: auto;
+  padding: 1rem;
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  transform: translateY(-100%);
-  transition: transform 0.4s ease;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
 }
-.cookie-banner--visible { transform: translateY(0); }
-.cookie-banner__inner {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  width: var(--page-width);
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: 0.85rem 0;
-}
-.cookie-banner__text {
-  flex: 1;
+.cookie-panel__title {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-2);
-  line-height: 1.45;
+  font: 600 var(--fs-4)/1.3 var(--font-display);
+  color: var(--text);
+}
+.cookie-panel__text, .cookie-panel__status {
+  margin: 0.5rem 0 0;
+  font: var(--fs-3)/1.5 var(--font-body);
   color: var(--text-muted);
 }
-.cookie-banner__buttons {
-  display: flex;
+.cookie-panel__text a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.cookie-panel__status { color: var(--text); }
+.cookie-panel__status:empty { display: none; }
+.cookie-panel__buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
-  flex-shrink: 0;
-  align-items: center;
+  margin-top: 0.875rem;
 }
-.cookie-banner__btn {
-  font-family: var(--font-display);
-  font-size: var(--fs-1);
-  font-weight: 600;
-  letter-spacing: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 0.42rem 0.9rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--transition), color var(--transition);
-}
-.cookie-banner__btn--accept, .cookie-banner__btn--reject {
+.cookie-panel__btn {
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: var(--accent-dim);
   color: var(--accent-text);
+  font: 600 var(--fs-3)/1.2 var(--font-display);
+  cursor: pointer;
+  transition: background var(--transition);
 }
-.cookie-banner__btn--accept:hover, .cookie-banner__btn--reject:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-/* Botón de rueda «Elegiré más tarde». */
-.cookie-banner__btn--later {
-  background: var(--bg-card-hover);
-  padding: 0.4rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-}
-.cookie-banner__btn--later:hover { background: var(--accent-dim); color: var(--text); }
-/* Ayuda que sigue al ratón (solo escritorio). */
-.cookie-tooltip {
-  position: fixed;
-  pointer-events: none;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: var(--fs-1);
-  font-weight: 500;
-  white-space: nowrap;
-  padding: 0.3rem 0.55rem;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--card-shadow);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 3100;
-}
-.cookie-tooltip--visible { opacity: 1; }
+.cookie-panel__btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 
 @media (max-width: 600px) {
-  .cookie-tooltip { display: none; }
-  .cookie-banner__inner {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.65rem;
-    padding-block: 0.75rem;
+  /* Sobre la barra inferior: 60 px de celda, 1 px de filete y zona segura. */
+  body:has(.primary-nav) .cookie-panel {
+    bottom: calc(61px + env(safe-area-inset-bottom) + var(--page-gutter));
+    max-height: calc(100dvh - 61px - env(safe-area-inset-bottom) - 2 * var(--page-gutter));
   }
-  .cookie-banner__buttons { justify-content: flex-end; }
+  .cookie-panel__btn { min-height: 44px; }
 }

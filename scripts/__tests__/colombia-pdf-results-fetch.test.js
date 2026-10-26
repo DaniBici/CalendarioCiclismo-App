@@ -170,14 +170,49 @@ Corredores clasificados : 6`;
     expect(rows[5]).toMatchObject({ bib: '48', resultValue: '+15:39', timeText: null, gapText: '+15:39' });
   });
 
-  it('procesa una carrera de un día y traslada DNS, OTL y DNF al final', () => {
+  it('procesa una carrera de un día y traslada OTL, DNF y DNS al final, en ese orden', () => {
     const { stage } = parseOneDayPdfText('gran-prix-chitre-2026', oneDayLayout, 'https://example.test/chitre.pdf');
     const classification = stage.classifications[0];
     expect(stage).toMatchObject({ stageNumber: null, isFinalClassification: true, dateKey: '2026-08-27', sourcePdfUrl: 'https://example.test/chitre.pdf' });
     expect(classification).toMatchObject({ classKind: 'gc', scope: 'stage', rowCount: 6, expectedRowCount: 6 });
     expect(classification.rows.slice(0, 3).map((row) => row.rank)).toEqual([1, 2, 3]);
-    expect(classification.rows.slice(3).map((row) => [row.bib, row.irm])).toEqual([['111', 'DNS'], ['64', 'OTL'], ['35', 'DNF']]);
+    expect(classification.rows.slice(3).map((row) => [row.bib, row.irm])).toEqual([['64', 'OTL'], ['35', 'DNF'], ['111', 'DNS']]);
     expect(classification.rows[1]).toMatchObject({ resultValue: '+0', gapText: '+0' });
+  });
+
+  it('lee la sección CORREDORES RETIRADOS sin sufijo, con el IRM al final de cada fila', () => {
+    const chiriqui = `
+CLASIFICACION GRAND PRIX CHIRIQUI
+Fecha                 : 16/10/26
+Cls     Dor UCI-ID        Apellido,Nombre     Categ Nac Equipo                       Tiempos Diferen.
+------------------------------------------------------------------------------------------------------
+  1       61 10023556331 BERASATEGI, Xabier   ELITE ESP EUSKALTEL - EUSKADI          04:02:26
+  2       62 10042287738 ISASA, Xabier        ELITE ESP EUSKALTEL - EUSKADI               mt.
+  3 Fc     3 10015238882 STRAH, Alex          ELITE PAN SENAFRONT PANAMÁ             04:27:09    24:43
+Corredores clasificados : 3
+
+CORREDORES RETIRADOS
+ --------------------------------------------------------------------------------
+  --      25 10138667140 BARRIENTOS, Gabriel ELITE CRC MANZATÉ LA SELVA SCOTT                DNS
+  --       1 10076057377 ARCHIBOLD, Franklin ELITE PAN SENAFRONT PANAMÁ                      DNF
+  --      14 10131806311 BRICENO, Jaylen       SUB23 BIZ SELECCIÓN DE BELICE                 DNF
+
+OTL
+ --------------------------------------------------------------------------------
+      3 STRAH, Alex
+
+CLASIFICACION POR EQUIPOS / TEAM CLASSIFICATION
+   1   EUSKALTEL - EUSKADI            12:07:18
+
+COMUNICADO DEL JURADO DE COMISARIOS
+57 JEFERSON RUIZ – UCI ID 10069640627 – SELECCIÓN COLOMBIA
+`;
+    const { stage } = parseOneDayPdfText('grand-prix-chiriqui', chiriqui, null, 2026);
+    const { rows, rowCount, expectedRowCount } = stage.classifications[0];
+    expect([rowCount, expectedRowCount]).toEqual([6, 6]);
+    expect(rows.slice(2).map((row) => [row.bib, row.irm])).toEqual([['3', 'OTL'], ['1', 'DNF'], ['14', 'DNF'], ['25', 'DNS']]);
+    expect(rows[5]).toMatchObject({ riderDisplay: 'BARRIENTOS, Gabriel', teamName: 'MANZATÉ LA SELVA SCOTT', isoCode2: 'cr' });
+    expect(rows[4]).toMatchObject({ teamName: 'SELECCIÓN DE BELICE', isoCode2: null });
   });
 
   it('conserva IRM de una etapa y genera la clasificación final de Azuero en la etapa 2', () => {
@@ -315,6 +350,31 @@ FDO
     const rows = contradictory.stage.classifications.find((item) => item.classKind === 'stage').rows;
     expect(rows.map(({ bib, rank, irm }) => [bib, rank, irm])).toEqual([
       ['44', 1, null], ['3', 2, null], ['65', null, 'OTL'], ['84', null, 'OTL'], ['113', null, 'OTL'], ['83', null, 'DNF'], ['165', null, 'DNF'],
+    ]);
+  });
+
+  it('lee la lista `DNF: 1-5-6` del boletín de comisarios de la Clásica Provincia de Chiriquí', () => {
+    const chiriqui = `CLASIFICACION SEGUNDA ETAPA / STAGE CLASSIFICATION
+                                               CIRCUITO DAVID 149 KM
+Fecha                 : 18/10/26
+Cls     Dor UCI-ID        Apellido,Nombre     Categ Nac Equipo                       Tiempos Diferen. Bonif
+  1       71 10009724939 GONZALEZ, Roberto    ELITE PAN SOLUTION TECH NIPPO RALI     03:26:48          -16
+  2       63 10009110607 MARTIN, Gotzon       ELITE ESP EUSKALTEL - EUSKADI               mt.          -12
+Corredores clasificados : 2
+\f
+                                           BOLETIN JURADO DE COMISARIOS
+                                          ETAPA 2 – CIRCUITO DAVID 149 KM
+
+DNF: 1-5-6-12-97
+
+1. 2.12.007 / 4.11
+Corredores:
+No 35 – Cristopher Vargas – AERONAVAL – POLICIA NACIONAL – UCI ID 10082273057
+`;
+    const rows = parsePdfText('clasica-provincia-de-chiriqui', 2, chiriqui, null, 2026, '2026-10-18')
+      .stage.classifications.find((item) => item.classKind === 'stage').rows;
+    expect(rows.map(({ bib, rank, irm }) => [bib, rank, irm])).toEqual([
+      ['71', 1, null], ['63', 2, null], ['1', null, 'DNF'], ['5', null, 'DNF'], ['6', null, 'DNF'], ['12', null, 'DNF'], ['97', null, 'DNF'],
     ]);
   });
 

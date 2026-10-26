@@ -40,6 +40,7 @@
     "tv": "TV and streaming",
     "revive": "Replay",
     "videos": "Videos",
+    "summary": "Summary",
     "noVideos": "Videos pending.",
     "standings": "Overall standings",
     "general": "Standings",
@@ -83,7 +84,6 @@
     "apps": "Apps",
     "about": "About",
     "search": "Search",
-    "themeToggle": "Change theme",
     "subscribe": "Subscribe",
     "icalCalendar": "iCal calendar",
     "privacy": "Privacy"
@@ -118,7 +118,7 @@
     "alsoOn": "Also on",
     "previousResults": "Standings",
     "descriptionRace": "Race description",
-    "descriptionStage": "Stage description",
+    "descriptionStage": "Stage info",
     "bonuses": "Bonuses",
     "notes": "Notes",
     "websiteLabel": "Website",
@@ -243,7 +243,10 @@
     "male": "Men",
     "female": "Women",
     "male_short": "Men",
-    "female_short": "Women"
+    "female_short": "Women",
+    "category": "Category",
+    "pinDefault": "Set «{cat}» as default",
+    "unpinDefault": "Remove «{cat}» as default"
   },
   "sort": {
     "label": "Sort",
@@ -307,7 +310,12 @@
     "nextDay": "Go to next day with races →",
     "prevDayLabel": "Previous day",
     "nextDayLabel": "Next day",
-    "racesFor": "{n} · {date}"
+    "racesFor": "{n} · {date}",
+    "discipline": "Discipline",
+    "cyclocross": "Cyclocross",
+    "cyclocrossShort": "CX",
+    "road": "Road",
+    "roadShort": "Road"
   },
   "report": {
     "title": "Report a change",
@@ -405,7 +413,6 @@
     "feedRenewals": "Renewals",
     "feedEmpty": "No confirmed moves yet.",
     "loadMore": "Load more",
-    "renews": "renews with",
     "retires": "retires",
     "retired": "Retires",
     "until": "{year}",

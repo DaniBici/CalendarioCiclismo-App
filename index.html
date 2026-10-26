@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <script>!function(){var l=window.matchMedia("(prefers-color-scheme: light)").matches,d=document.documentElement;d.classList.toggle("light",l);d.classList.toggle("dark",!l);d.style.backgroundColor=l?"#eef1f5":"#0b0c0f";d.style.colorScheme=l?"light":"dark"}()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -85,6 +85,8 @@
 
   <section class="agenda-filters" id="agendaFilters" aria-label="Filtros y orden">
   <div class="agenda-filters__inner">
+    <span class="agenda-date" id="agendaDate"></span>
+
     <div class="agenda-filter-cats" id="agendaFilterCats">
       <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="all"><span class="btn-label-full" data-i18n="filter.all">Todas</span><span class="btn-label-short" data-i18n="filter.all">Todas</span></button>
       <button type="button" aria-pressed="false" class="tcat-btn" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem"><span class="btn-label-full" data-i18n="filter.pro">Pro</span><span class="btn-label-short" data-i18n="filter.pro">Pro</span></button>
@@ -92,6 +94,19 @@
       <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt"><span class="btn-label-full" data-i18n="filter.wwt">WWT</span><span class="btn-label-short" data-i18n="filter.wwt">WWT</span></button>
       <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Masculino</span><span class="btn-label-short" data-i18n="filter.male_short">Masc</span></button>
       <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Femenino</span><span class="btn-label-short" data-i18n="filter.female_short">Fem</span></button>
+    </div>
+
+    <div class="agenda-cat-wrap">
+      <span class="agenda-cat-wrap__label" aria-hidden="true" data-i18n="filter.category">Categoría</span>
+      <select class="agenda-cat-select" id="agendaCatSelect" aria-label="Categoría">
+        <option value="" disabled selected data-i18n="filter.category">Categoría</option>
+        <option value="all" data-i18n="filter.all">Todas</option>
+        <option value="pro" data-i18n="filter.pro">Pro</option>
+        <option value="uwt" data-i18n="filter.worldtour">WorldTour</option>
+        <option value="wwt" data-i18n="filter.wwt">WWT</option>
+        <option value="male" data-i18n="filter.male">Masculino</option>
+        <option value="female" data-i18n="filter.female">Femenino</option>
+      </select>
     </div>
 
     <div class="agenda-filter-divider"></div>

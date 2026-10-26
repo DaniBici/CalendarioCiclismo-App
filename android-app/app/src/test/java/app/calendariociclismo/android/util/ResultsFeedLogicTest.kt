@@ -397,10 +397,18 @@ class ResultsFeedLogicTest {
 
     @Test
     fun `selecciones nacionales con el nombre del pais en castellano`() {
-        assertEquals("Francia", ResultsFeedLogic.localizedNationName("France", isEnglish = false))
-        assertEquals("Gran Bretaña", ResultsFeedLogic.localizedNationName("Great Britain", isEnglish = false))
-        assertEquals("Países Bajos", ResultsFeedLogic.localizedNationName("Netherlands", isEnglish = false))
-        assertEquals("Team Visma | Lease a Bike", ResultsFeedLogic.localizedNationName("Team Visma | Lease a Bike", isEnglish = false))
-        assertEquals("France", ResultsFeedLogic.localizedNationName("France", isEnglish = true))
+        fun nation(name: String, code: String?, selectionCode: String? = code, isEnglish: Boolean = false) =
+            TeamNames.localizedName(name, "selection", "national", code, selectionCode, isEnglish)
+        assertEquals("Francia", nation("France", "fr"))
+        assertEquals("Gran Bretaña", nation("Great Britain", "gb"))
+        assertEquals("República Checa", nation("Czech Republic", "cz"))
+        assertEquals("Costa de Marfil", nation("Ivory Coast", "ci"))
+        assertEquals("Nicaragua", nation("NICARAGUA", "ni"))
+        assertEquals("Deportistas Individuales Neutrales", nation("Individual Neutral Athletes", null, "ain"))
+        assertEquals("Canadá sub23", nation("Canada U23", "ca"))
+        assertEquals("Refugee Cycling Team", nation("Refugee Cycling Team", null, "ref"))
+        assertEquals("France", nation("France", "fr", isEnglish = true))
+        assertEquals("Euskadi", TeamNames.localizedName("Euskadi", "selection", "regional", "es", "eus", false))
+        assertEquals("Kenya", TeamNames.localizedName("Kenya", null, false))
     }
 }

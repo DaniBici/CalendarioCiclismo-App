@@ -1,6 +1,7 @@
 """Versionado de JS/CSS en _site."""
 import contextlib
 import io
+import json
 import re
 import tempfile
 import unittest
@@ -75,6 +76,24 @@ const cdn = import('https://cdn.jsdelivr.net/npm/x@1/x.mjs');
             "@font-face { src: url(/fonts/a.woff2) format('woff2'); }\n"
             ".x { background: url(\"../img/a.png\"); }\n@import url(https://fonts.example/a.css);\n"))
 
+    def test_rewrite_versions_every_reference(self):
+        # El build no vuelve a recorrer la salida: toda referencia que el
+        # escáner encuentra en ella debe llevar ya la versión.
+        sources = {
+            ".html": ('<script src="a.js?x=1#f"></script><link HREF = \'/css/b.css?\'>'
+                      '<link rel="modulepreload" href="/js/c.js"><img data-src="d.js">'
+                      '<script type="module">import"./e.js";import("./f.mjs")</script>'),
+            ".js": ("import a from'./a.js';export*from\"./b.js?v=1\";import('./c.js#x');"
+                    "new URL('./d.mjs',import.meta.url);import \"./e.js\""),
+            ".css": "@import 'a.css';@import url(b.css?x);.x{background:url(\"c.css#y\")}",
+        }
+        for suffix, source in sources.items():
+            found = len(list(va.references(source.encode(), suffix)))
+            output = va.rewrite(source.encode(), suffix, "abc")
+            queries = [match.group("query") for _, _, match in va.references(output, suffix)]
+            self.assertEqual(len(queries), found, suffix)
+            self.assertTrue(all(query[1:].split(b"&")[-1] == b"v=abc" for query in queries), suffix)
+
     def test_strip_and_idempotence(self):
         source = "import a from './a.js?v=old';\nimport b from './b.js';\n"
         stripped = self.js(source, None)
@@ -82,6 +101,40 @@ const cdn = import('https://cdn.jsdelivr.net/npm/x@1/x.mjs');
         once = self.js(source)
         self.assertEqual(self.js(once), once)
         self.assertEqual(self.js(once, None), stripped)
+
+
+class PreloadTest(unittest.TestCase):
+    PRELOADS = {
+        "/js/home.js": ["/js/chunks/a.js", "/js/chunks/b.js"],
+        "/js/header.js": ["/js/chunks/a.js", "/js/home.js"],
+    }
+
+    def inject(self, text, name="index.html"):
+        return va.inject_preloads(text.encode(), name, self.PRELOADS).decode()
+
+    def test_links_before_head_end(self):
+        page = ('<html><head><title>x</title></head><body>'
+                '<script type="module" src="../js/header.js?v=old"></script>'
+                '<script src="/js/theme.js"></script>'
+                '<script type="module" src="/js/home.js"></script></body></html>')
+        # Ruta relativa desde un subdirectorio, sin duplicados y sin las entradas de la página.
+        self.assertEqual(self.inject(page, "en/index.html"), page.replace("</head>", (
+            '<link rel="modulepreload" href="/js/chunks/a.js">\n'
+            '<link rel="modulepreload" href="/js/chunks/b.js">\n</head>')))
+
+    def test_idempotent_after_versioning(self):
+        page = '<head></head><script type="module" src="js/home.js"></script>'
+        once = va.rewrite(self.inject(page).encode(), ".html", "abc").decode()
+        self.assertIn('href="/js/chunks/a.js?v=abc"', once)
+        self.assertIn('src="js/home.js?v=abc"', once)
+        again = va.rewrite(self.inject(once).encode(), ".html", "abc").decode()
+        self.assertEqual(again, once)
+
+    def test_without_entries_or_head(self):
+        stale = '<head><link rel="modulepreload" href="/js/chunks/old.js?v=x">\n</head><p>sin módulos</p>'
+        self.assertEqual(self.inject(stale), "<head></head><p>sin módulos</p>")
+        headless = '<script type="module" src="/js/home.js"></script>'
+        self.assertEqual(self.inject(headless), headless)
 
 
 class SiteTest(unittest.TestCase):
@@ -130,6 +183,19 @@ class SiteTest(unittest.TestCase):
         self.assertEqual((self.site / "js/vendor/lib.mjs").read_text(), "import x from './other.js';")
         self.assertEqual(va.site_version(self.site), version)
         self.assertEqual(self.run_main()[0], 0)
+
+    def test_preload_map_in_rewritten_html(self):
+        (self.site / "js/chunks").mkdir()
+        (self.site / "js/chunks/c.js").write_text("export const c = 1;")
+        (self.site / "index.html").write_text('<head></head><script type="module" src="/js/app.js"></script>')
+        preload_map = Path(self.temp.name) / "preload.json"
+        preload_map.write_text(json.dumps({"/js/app.js": ["/js/chunks/c.js"]}))
+        version = va.site_version(self.site)
+        code, _ = self.run_main("--preload-map", str(preload_map))
+        self.assertEqual(code, 0)
+        self.assertIn(f'<link rel="modulepreload" href="/js/chunks/c.js?v={version}">',
+                      (self.site / "index.html").read_text())
+        self.assertNotIn("modulepreload", (self.site / "jornada/a/index.html").read_text())
 
     def test_version_follows_asset_content_only(self):
         version = va.site_version(self.site)

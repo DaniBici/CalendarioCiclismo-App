@@ -112,10 +112,16 @@ describe('mangas CX y normalización DataRide', () => {
     expect(rows[2]).toMatchObject({ rank: null, rankText: 'DNF', irm: 'DNF', timeSeconds: null, sourceSortOrder: 2 });
     expect(rows[3]).toMatchObject({ rank: null, rankText: 'DNS', irm: 'DNS', timeSeconds: null });
   });
-  it('no reinterpreta un absoluto inferior al ganador ni redondea centésimas', () => {
+  it('no reinterpreta un absoluto inferior al ganador y trunca las fracciones de segundo', () => {
     const rows = normalizeCxDataRideRows([sourceRow(1, 1, '1:00:00'), sourceRow(2, 2, '00:00:07'), sourceRow(3, 3, '1:00:15.52')]);
     expect(rows[1].sourceConflict).toMatch(/inferior/); expect(rows[1].timeText).toBe('00:00:07');
-    expect(rows[2]).toMatchObject({ timeText: '1:00:15.52', timeSeconds: null });
+    expect(rows[2]).toMatchObject({ timeText: '1:00:15.52', timeSeconds: '3615', gapText: '+15' });
+  });
+  it('lee los absolutos con milésimas como H:MM:SS aunque superen la hora (Munich 2026)', () => {
+    const junior = normalizeCxDataRideRows([sourceRow(1, 1, '00:37:57.563'), sourceRow(2, 2, '00:38:13.051')]);
+    expect(junior.map(row => [row.timeSeconds, row.gapText])).toEqual([['2277', null], ['2293', '+16']]);
+    const elite = normalizeCxDataRideRows([sourceRow(1, 1, '01:00:41.498'), sourceRow(2, 2, '01:01:46.061')]);
+    expect(elite.map(row => [row.timeSeconds, row.gapText])).toEqual([['3641', null], ['3706', '+65']]);
   });
   it('guarda los déficits numéricos como vueltas solo cuando la fuente acredita LAP', () => {
     const rows = normalizeCxDataRideRows([sourceRow(1, 1, '00:58:10'),
@@ -149,7 +155,9 @@ describe('mangas CX y normalización DataRide', () => {
   it('parsea segundos como BIGINT y rechaza formatos/valores no representables', () => {
     expect(cxDataRideSeconds('2501999792983:36:33')).toBe('9007199254740993');
     expect(cxDataRideSeconds('+1:00:01', { gap: true })).toBe('3601');
-    for (const text of ['1:60:00', '1:00:61', '1:00:00.5', '-1 LAP', '123']) expect(cxDataRideSeconds(text)).toBeNull();
+    for (const text of ['1:60:00', '1:00:61', '1:60:00.5', '15.488', '-1 LAP', '123']) expect(cxDataRideSeconds(text)).toBeNull();
+    expect(cxDataRideSeconds('58:10,25')).toBe('3490');
+    expect(cxDataRideSeconds('+0:15.488', { gap: true })).toBe('15');
     expect(cxDataRideSeconds('999999999999999999999:00:00')).toBeNull();
   });
 });

@@ -101,6 +101,16 @@ enum DateFormatting {
         return str.prefix(1).uppercased() + str.dropFirst()
     }
 
+    /// "8 de abril" / "8 April". Fila de la fecha de Hoy, donde la tira de días
+    /// ya muestra el día de la semana.
+    static func formatDayMonth(_ dateKey: String) -> String {
+        guard let date = date(from: dateKey) else { return dateKey }
+        let f = DateFormatter()
+        f.locale = nonIsolatedUILocale
+        f.dateFormat = isSpanish ? "d 'de' MMMM" : "d MMMM"
+        return f.string(from: date)
+    }
+
     /// "Mié 8 abr" / "Wed 8 Apr"
     static func formatDateShort(_ dateKey: String) -> String {
         guard let date = date(from: dateKey) else { return dateKey }

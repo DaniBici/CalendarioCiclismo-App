@@ -60,7 +60,7 @@ async function open({ rows = [], monthRows = null, tournamentId = null, tourname
   const root = new mocks.Element();
   root.dataset = { cxTournamentId: tournamentId };
   root.style = { setProperty: vi.fn() };
-  const nodes = { '#cxAgendaList': list, '#cxDateBar': bar, '#cxAgendaError': error, '.cx-agenda-sticky': navigation,
+  const nodes = { '#cxAgendaList': list, '#cxDateBar': bar, '.agenda-date': new mocks.Element(), '#cxAgendaError': error, '.cx-agenda-sticky': navigation,
     '#cxStandings': standingsNode, '[data-cx-general-nav]': generalNav, '[data-cx-tournament-sections]': sections };
   root.querySelector = selector => nodes[selector];
   const clicks = [];

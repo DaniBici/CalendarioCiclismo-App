@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import app.calendariociclismo.android.ui.components.ccSegmentedColors
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -1034,8 +1035,14 @@ internal fun FeedComplementaryLine(label: String, value: String, colorHex: Strin
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Contorno interior tenue, como `.feed-row__leader-dot`: un maillot
+        // blanco o muy oscuro no desaparece sobre la tarjeta.
         colorHex?.let {
-            Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(colorFromHex(it)))
+            val circle = androidx.compose.foundation.shape.CircleShape
+            Box(
+                Modifier.size(7.dp).clip(circle).background(colorFromHex(it))
+                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), circle),
+            )
         }
         Text(
             label,

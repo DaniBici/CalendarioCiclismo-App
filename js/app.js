@@ -1,6 +1,6 @@
 import {dateNavigationButton} from './components/date-navigation.js';
 import { initDaySwipe } from './components/day-swipe.js';
-import { loadFeaturedRaces, todayRaceState, startlistCyclistHtml } from './services/race-presentation.js';
+import { loadFeaturedRaces, todayRaceState, startlistCyclistHtml, agendaTimeSignature } from './services/race-presentation.js';
 // ─────────────────────────────────────────────────────────────────
 //  APP PÚBLICA — index.html
 // ─────────────────────────────────────────────────────────────────
@@ -10,9 +10,9 @@ import { supabase, toDateKey, formatTime, formatTimeUser,
          countryFlag, effectiveCountryCode, resolveTypeBadges,
          categoryBadge, raceUrl, raceName, rdLocation, setMeta, setMetaProperty,
          setCachedRace, tsSeconds, initPhTooltip, needsFemaleMark, cleanFeminineName,
-         getPinnedFilter, renderFilterPins, handleFilterEvent,
+         getPinnedFilter, renderFilterPins, handleFilterEvent, syncCategorySelect, handleCategorySelect,
          filterBroadcastsByRegion, startlistUrl, startOrderUrl,
-         setPressed, announce }
+         setPressed, announce, agendaDateHtml }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
@@ -31,7 +31,8 @@ import { championshipMatchesCategoryFilter,
 import { pickBadgeBroadcast } from './broadcast-priority.js';
 import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js';
 import { sortAgenda } from './services/today-agenda-order.js';
-import { cyclocrossHome } from './services/today-season.js';
+import { cyclocrossHome, cyclocrossLanding } from './services/today-season.js';
+import { mountDisciplineSwitch } from './components/discipline-switch.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
@@ -148,6 +149,7 @@ let currentDateKey = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDa
 
 function buildDateBar() {
   const bar = document.getElementById('dateBar');
+  document.getElementById('agendaDate').innerHTML = agendaDateHtml(currentDateKey);
 
   // 7 días centrados en el día activo (3 antes + activo + 3 después).
   const [cy, cm, cd] = currentDateKey.split('-').map(Number);
@@ -235,6 +237,16 @@ function buildDateBar() {
 }
 
 
+// URL del día sin recargar. Con la home cedida a Ciclocross
+// (services/today-season.js) y Carretera sin fijar, `/` sin fecha pinta
+// Ciclocross: el día de hoy de carretera conserva `?date=`.
+function syncDayUrl(dateKey) {
+  const newUrl = dateKey === today && !cyclocrossLanding(today)
+    ? window.location.pathname
+    : `${window.location.pathname}?date=${dateKey}`;
+  history.replaceState(null, '', newUrl);
+}
+
 // ── Cargar jornadas de un día ─────────────────────────────────────
 // Jornada con su carrera, emisiones, assets y filas de resultados propios.
 const DAY_SELECT = '*,race:races(*,race_uci_stages(raceId,raceDayId,stageNumber)),broadcasts(*),assets(id,raceDayId,type,url)';
@@ -256,13 +268,7 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   applyChampWeekLock(dateKey);
   buildDateBar();
 
-  // Actualizar URL sin recargar
-  // Con la home cedida a Ciclocross (services/today-season.js), `/` sin fecha
-  // pinta Ciclocross: el día de hoy de carretera conserva `?date=`.
-  const newUrl = dateKey === today && !cyclocrossHome(today)
-    ? window.location.pathname
-    : `${window.location.pathname}?date=${dateKey}`;
-  history.replaceState(null, '', newUrl);
+  syncDayUrl(dateKey);
 
   const list  = document.getElementById('raceList');
 
@@ -342,6 +348,7 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     _dayProbe = {
       dateKey, raceIds, rdIds, days: raceDays,
       signature: daySignature(raceDays, bcastRows, assetRows, rd => rd._hasInhouse),
+      timeSignature: agendaTimeSignature(raceDays),
     };
 
     // ⚠️ NO vaciar la lista aquí: por debajo quedan awaits (ensureYearRacesCached,
@@ -919,7 +926,31 @@ function applyChampWeekLock(dateKey) {
     if (lockNow) cats.querySelectorAll('.tcat-pin').forEach(p => p.remove());
     else renderFilterPins(cats, _agendaCat);
   }
+  syncAgendaCatSelect();
   return catChanged;
+}
+
+// Desplegable de categoría de la franja en móvil, con las reglas de los chips:
+// dentro de la ventana de Campeonatos, solo sus filtros y sin fijar.
+function syncAgendaCatSelect() {
+  syncCategorySelect(document.getElementById('agendaCatSelect'), _agendaCat, {
+    canPin: !_champLockOn,
+    allowed: _champLockOn ? CHAMP_WEEK_HOY_FILTERS : null,
+  });
+}
+
+// Cambio de categoría desde los chips o el desplegable. El cambio manual dentro
+// de la ventana de Campeonatos es contextual: NO toca `_preChampCat`, de modo
+// que al salir se restaura el filtro que el usuario tenía antes de entrar (su
+// pin / "fuera funciona normal").
+function pickAgendaCat(cat) {
+  const cats = document.getElementById('agendaFilterCats');
+  cats?.querySelectorAll('.tcat-btn').forEach(b => setPressed(b, b.dataset.cat === cat));
+  _agendaCat = cat;
+  window._agendaCat = _agendaCat;
+  if (!_champLockOn) renderFilterPins(cats, _agendaCat);
+  syncAgendaCatSelect();
+  loadDay(currentDateKey);
 }
 
 function initAgendaFilters() {
@@ -934,21 +965,28 @@ function initAgendaFilters() {
       if (res.type === 'pin') {
         // Pin inhibido dentro de la ventana (no se pintan chinchetas).
         if (!_champLockOn) renderFilterPins(cats, _agendaCat);
+        syncAgendaCatSelect();
         return;
       }
-      cats.querySelectorAll('.tcat-btn').forEach(b =>
-        setPressed(b, b.dataset.cat === res.cat)
-      );
-      _agendaCat = res.cat;
-      // El cambio manual dentro de la ventana es contextual a los Campeonatos:
-      // NO toca `_preChampCat`, de modo que al salir se restaura el filtro que el
-      // usuario tenía antes de entrar (su pin / "fuera funciona normal").
-      window._agendaCat = _agendaCat;
-      if (!_champLockOn) renderFilterPins(cats, _agendaCat);
-      loadDay(currentDateKey);
+      pickAgendaCat(res.cat);
     };
     cats.addEventListener('click', onEvent);
     cats.addEventListener('keydown', onEvent);
+  }
+
+  // Categoría en desplegable (móvil): mismas acciones que los chips.
+  const catSelect = document.getElementById('agendaCatSelect');
+  if (catSelect) {
+    syncAgendaCatSelect();
+    catSelect.addEventListener('change', () => {
+      const res = handleCategorySelect(catSelect);
+      if (!res || res.type === 'pin' || res.cat === _agendaCat) {
+        if (res?.type === 'pin' && !_champLockOn) renderFilterPins(cats, _agendaCat);
+        syncAgendaCatSelect();
+        return;
+      }
+      pickAgendaCat(res.cat);
+    });
   }
 
   const sortSel = document.getElementById('agendaSortSelect');
@@ -1032,6 +1070,13 @@ initI18n().then(() => {
     const val = t(el.getAttribute('data-i18n'));
     if (typeof val === 'string') el.textContent = val;
   });
+  // Con la home cedida a Ciclocross, el conmutador CX / Ruta abre la franja
+  // de filtros y vuelve a la agenda de Ciclocross. Su chincheta fija Carretera
+  // como vista de `/`: el día de hoy pierde o recupera `?date=`.
+  if (cyclocrossHome(today)) {
+    mountDisciplineSwitch(document.querySelector('#agendaFilters .agenda-filters__inner'),
+      'road', today, () => syncDayUrl(currentDateKey));
+  }
   buildDateBar();
   loadDay(currentDateKey, { skipEmptyDay: true });
 });
@@ -1099,7 +1144,10 @@ const refreshToday = async () => {
   if (!probe.days.some(rd => ['scheduled', 'running', 'waiting'].includes(todayRaceState(rd)))) return;
   dayProbing = true;
   try {
-    if (await dayChanged(probe) && currentDateKey === probe.dateKey) loadDay(currentDateKey, { refresh: true });
+    // Los badges dependen de la hora (TV → En directo, Live texto): un umbral
+    // cruzado obliga a repintar aunque los datos no hayan cambiado.
+    const timeChanged = agendaTimeSignature(probe.days) !== probe.timeSignature;
+    if ((timeChanged || await dayChanged(probe)) && currentDateKey === probe.dateKey) loadDay(currentDateKey, { refresh: true });
   } catch { /* Sin red: se conserva la agenda visible hasta la siguiente lectura. */ }
   finally { dayProbing = false; }
 };

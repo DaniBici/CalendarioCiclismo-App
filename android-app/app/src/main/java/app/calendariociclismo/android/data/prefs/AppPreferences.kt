@@ -428,10 +428,11 @@ class AppPreferences(private val context: Context) {
     }
     suspend fun snapshotFollowedStageIds(): Set<String> = followedStageIds.first()
 
+    // Sin subvista guardada, Calendario abre en Temporada.
     val calendarSubview: Flow<String> = data.map { prefs ->
         when (val stored = prefs[Keys.CALENDAR_SUBVIEW]) {
             "month", "season" -> stored
-            else -> "month"
+            else -> "season"
         }
     }
     suspend fun setCalendarSubview(value: String) {

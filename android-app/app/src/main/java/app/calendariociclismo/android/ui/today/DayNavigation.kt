@@ -6,12 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,7 +38,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.theme.CCRadius
@@ -55,7 +57,6 @@ import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.LocaleHolder
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
-import kotlinx.coroutines.flow.first
 
 /**
  * Navegación por días compartida por Hoy en carretera y la agenda de
@@ -64,6 +65,22 @@ import kotlinx.coroutines.flow.first
 
 /** Días a cada lado del seleccionado en la tira de la barra de fechas. */
 internal const val DATE_BAR_RADIUS = 45
+
+/** Separación entre celdas de la tira de días. */
+private val DATE_CELL_GAP = 4.dp
+
+/**
+ * Celdas visibles en la tira de [width]: siempre impar, para centrar el día
+ * seleccionado. Tantas de unos 48 dp como quepan y, si son menos de siete,
+ * siete mientras cada una mida al menos 36 dp (como la semana de iOS).
+ */
+private fun dateBarCellCount(width: Dp): Int {
+    fun oddFit(cell: Dp): Int {
+        val fit = ((width + DATE_CELL_GAP) / (cell + DATE_CELL_GAP)).toInt().coerceAtLeast(1)
+        return if (fit % 2 == 0) fit - 1 else fit
+    }
+    return maxOf(oddFit(48.dp), minOf(7, oddFit(36.dp)))
+}
 
 /** Desliza el contenido fuera, ejecuta [action] y desliza el nuevo. */
 internal suspend fun animateDayNavigation(
@@ -142,18 +159,6 @@ internal fun DateBarWithControls(
     val density = LocalDensity.current
     val listState = rememberLazyListState()
     val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
-    LaunchedEffect(selectedDateKey) {
-        snapshotFlow { listState.layoutInfo.viewportSize.width }
-            .first { it > 0 }
-        val viewportWidth = listState.layoutInfo.viewportSize.width
-        val itemHalfWidthPx = with(density) { 24.dp.roundToPx() }
-        val offset = -(viewportWidth / 2 - itemHalfWidthPx)
-        if (animationsEnabled) {
-            listState.animateScrollToItem(index = selectedIndex, scrollOffset = offset)
-        } else {
-            listState.scrollToItem(index = selectedIndex, scrollOffset = offset)
-        }
-    }
 
     Row(
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
@@ -179,18 +184,38 @@ internal fun DateBarWithControls(
             Spacer(Modifier.width(8.dp))
         }
 
-        LazyRow(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(dateKeys, key = { it }) { dateKey ->
-                DateBarItem(
-                    dateKey = dateKey,
-                    isSelected = dateKey == selectedDateKey,
-                    onClick = { onSelect(dateKey) },
-                )
+        // Solo días enteros, como en iOS: un número impar de celdas reparte todo
+        // el ancho, con el seleccionado en el centro. Con celdas de ancho fijo,
+        // al estrecharse el hueco por «Hoy» asomaba un trozo del día contiguo.
+        // El ancho de cada día se fija al medir (fracción de la tira), no al
+        // componer: un parámetro de ancho dejaba los días visibles con el ancho
+        // anterior a la aparición de «Hoy».
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val count = dateBarCellCount(maxWidth)
+            LaunchedEffect(selectedDateKey, maxWidth) {
+                // (count - 1) / 2 días enteros a cada lado del seleccionado.
+                val offset = -with(density) { (maxWidth / count * ((count - 1) / 2)).roundToPx() }
+                if (animationsEnabled) {
+                    listState.animateScrollToItem(index = selectedIndex, scrollOffset = offset)
+                } else {
+                    listState.scrollToItem(index = selectedIndex, scrollOffset = offset)
+                }
+            }
+            LazyRow(
+                state = listState,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                items(dateKeys, key = { it }) { dateKey ->
+                    DateBarItem(
+                        dateKey = dateKey,
+                        modifier = Modifier
+                            .fillParentMaxWidth(1f / count)
+                            .padding(horizontal = DATE_CELL_GAP / 2),
+                        isSelected = dateKey == selectedDateKey,
+                        onClick = { onSelect(dateKey) },
+                    )
+                }
             }
         }
 
@@ -208,6 +233,7 @@ internal fun DateBarWithControls(
 @Composable
 private fun DateBarItem(
     dateKey: String,
+    modifier: Modifier,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -232,8 +258,7 @@ private fun DateBarItem(
     Surface(
         selected = isSelected,
         onClick = onClick,
-        modifier = Modifier
-            .width(48.dp)
+        modifier = modifier
             .height(56.dp)
             .semantics { contentDescription = cellLabel },
         shape = RoundedCornerShape(CCRadius.Surface),

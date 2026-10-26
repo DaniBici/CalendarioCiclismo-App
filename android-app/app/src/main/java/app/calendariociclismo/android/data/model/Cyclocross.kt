@@ -142,6 +142,9 @@ data class CxRace(
     /** Emisiones de la prueba en la consulta de la agenda (badge de TV de la
      *  tarjeta); la ficha las lee aparte en [CxDetail.broadcasts]. */
     @SerialName("cx_broadcasts") val broadcasts: List<CxBroadcast> = emptyList(),
+    /** Vídeos de la prueba en la consulta de la agenda (badge de resumen de la
+     *  tarjeta); la ficha los lee aparte en [CxDetail.videos]. */
+    @SerialName("cx_videos") val videos: List<CxVideo> = emptyList(),
 )
 
 @Serializable

@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, urlsplit
 import build_generated as build
 import gen_feeds
 import gen_sitemap
+import site_data
 import version_assets
 from check_seo_output import check_paths
 import check_hreflang
@@ -39,7 +40,10 @@ def sitemap_fixture(count=100):
 
 
 class FakePostgrest:
-    """PostgREST en memoria: filtros eq/in/gte/lte/not.is.null y order."""
+    """PostgREST en memoria: select, filtros eq/in/gte/lte/ilike/not.is.null y order.
+
+    Como PostgreSQL, NULL ordena último en asc y primero en desc; una columna
+    seleccionada que falta en la fila vale null."""
 
     def __init__(self, tables):
         self.tables = tables
@@ -57,22 +61,43 @@ class FakePostgrest:
                     else str(value) == operand)
         if value is None:
             return False
+        if operator == "ilike":
+            return re.fullmatch(re.escape(operand).replace(r"\*", ".*"), str(value), re.I) is not None
         left, right = (value, int(operand)) if isinstance(value, int) else (str(value), operand)
         return left >= right if operator == "gte" else left <= right
+
+    @staticmethod
+    def project(row, items):
+        if items[0][0] == "*":
+            return dict(row)
+        result = {}
+        for name, nested in items:
+            value = row.get(name)
+            if nested is not None and isinstance(value, list):
+                value = [FakePostgrest.project(item, nested) for item in value]
+            elif nested is not None and isinstance(value, dict):
+                value = FakePostgrest.project(value, nested)
+            result[name] = value
+        return result
 
     def __call__(self, request, *args, **kwargs):
         url = urlsplit(request.full_url)
         table = url.path.split("/rest/v1/", 1)[1]
         self.calls.append(table + "?" + url.query)
         rows = list(self.tables.get(table, []))
+        select = [("*", None)]
         for key, condition in parse_qsl(url.query):
             if key == "order":
                 for part in reversed(condition.split(",")):
                     field, _, direction = part.partition(".")
-                    rows.sort(key=lambda row: str(row.get(field) or ""), reverse=direction == "desc")
-            elif key not in ("select", "limit"):
+                    rows.sort(key=lambda row: (True,) if row.get(field) is None else (False, row.get(field)),
+                              reverse=direction == "desc")
+            elif key == "select":
+                with contextlib.suppress(site_data.Unsupported):  # embebidos con !inner: sin proyectar
+                    select = site_data.parse_select(condition)
+            elif key != "limit":
                 rows = [row for row in rows if self.matches(row, condition, row.get(key))]
-        return io.BytesIO(json.dumps(rows).encode())
+        return io.BytesIO(json.dumps([self.project(row, select) for row in rows]).encode())
 
 
 def catalog_race(race_id, slug, year=2026, race_format="stage_race", start="2026-09-20", end="2026-09-24", **extra):
@@ -164,9 +189,8 @@ class GeneratedTest(unittest.TestCase):
             path = payload / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
-        inventory = build.inventory(payload)
         archive = directory / "output.tar"
-        sha = build.archive_output(payload, inventory, archive)
+        inventory, sha = build.archive_output(payload, build.file_names(payload), archive)
         shutil.rmtree(payload)
         metadata = {"prefix": self.state["blocks"][name]["prefix"],
                     "started": (self.now - timedelta(seconds=1)).isoformat(),
@@ -211,6 +235,21 @@ class GeneratedTest(unittest.TestCase):
             return io.BytesIO(json.dumps({"workflow_runs": [
                 {"event": event, "head_branch": "main", "created_at": incremental_request,
                  "display_title": "stage-incremental"},
+                {"event": event, "head_branch": "main", "created_at": full_request,
+                 "display_title": "Construir y desplegar el sitio"},
+            ]}).encode())
+
+        with patch.object(build, "urlopen", response):
+            self.assertEqual(build.latest_requests("fixture/repo", "fixture"), (full_request, None))
+
+    def test_refresh_dispatch_is_not_a_request(self):
+        full_request = (self.now - timedelta(hours=2)).isoformat()
+
+        def response(request, **kwargs):
+            event = "workflow_dispatch" if "workflow_dispatch" in request.full_url else "schedule"
+            return io.BytesIO(json.dumps({"workflow_runs": [
+                {"event": event, "head_branch": "main", "created_at": self.now.isoformat(),
+                 "display_title": "prerender-refresh"},
                 {"event": event, "head_branch": "main", "created_at": full_request,
                  "display_title": "Construir y desplegar el sitio"},
             ]}).encode())
@@ -388,21 +427,7 @@ class GeneratedTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
 
-    def test_versioning_legacy_cache_rewrites_site_only(self):
-        self.assets()
-        html = '<script src="/js/app.js?v=old"></script><link href="/css/app.css">'
-        archive, metadata = self.block("og-results", {"resultados/a/index.html": html,
-                                                        "en/results/a/index.html": html})
-        build.extract_archive(archive, metadata["files"])
-        version = build.version_published_assets(self.root / "_site", metadata["files"])
-        published = (self.root / "_site/resultados/a/index.html").read_text()
-        self.assertEqual(version, version_assets.site_version(self.root / "_site"))
-        self.assertIn("/js/app.js?v=" + version, published)
-        self.assertIn("/css/app.css?v=" + version, published)
-        self.assertNotIn("v=old", published)
-        self.assertEqual(self.cache.joinpath("og-results/output.tar").read_bytes(), archive.read_bytes())
-
-    def test_cached_version_skips_rewrite_until_an_asset_changes(self):
+    def test_cache_keeps_generator_html_and_site_is_versioned_on_composition(self):
         self.assets()
         html = '<script src="/js/app.js"></script><link href="/css/app.css">'
 
@@ -415,38 +440,22 @@ class GeneratedTest(unittest.TestCase):
         with patch.object(build.subprocess, "run", side_effect=generate):
             build.run_block("og-results")
         metadata = build.read_manifest("og-results")
-        version = metadata["asset_version"]
-        self.assertEqual(version, version_assets.site_version(self.root / "_site"))
-        # El tar guarda el HTML ya versionado.
+        self.assertNotIn("asset_version", metadata)
         with tarfile.open(self.cache / "og-results/output.tar") as stream:
-            cached = stream.extractfile("resultados/a/index.html").read().decode()
-        self.assertIn("/js/app.js?v=" + version, cached)
+            self.assertEqual(stream.extractfile("resultados/a/index.html").read().decode(), html)
         metadata["verified"] = True
         (self.cache / "og-results/manifest.json").write_text(json.dumps(metadata))
         shutil.rmtree(self.root / "_site/resultados")
-        with patch.object(build, "version_published_assets", wraps=build.version_published_assets) as versioning:
-            build.run_block("og-results")
-            versioning.assert_not_called()
-        self.assertEqual((self.root / "_site/resultados/a/index.html").read_text(), cached)
-        self.assertEqual(version_assets.current_generated_files(self.cache, version), set(metadata["files"]))
-        # Un JS cambiado deja la familia pendiente para el paso final de _site.
-        self.assets(js="changed")
-        shutil.rmtree(self.root / "_site/resultados")
-        with patch.object(build, "version_published_assets", wraps=build.version_published_assets) as versioning:
-            build.run_block("og-results")
-            versioning.assert_not_called()
-        current = version_assets.site_version(self.root / "_site")
-        self.assertNotEqual(current, version)
-        self.assertEqual(version_assets.current_generated_files(self.cache, current), set())
+        build.run_block("og-results")
+        self.assertEqual((self.root / "_site/resultados/a/index.html").read_text(), html)
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(version_assets.main([str(self.root / "_site"),
-                                                  "--generated-cache", str(self.cache)]), 0)
+            self.assertEqual(version_assets.main([str(self.root / "_site")]), 0)
+        version = version_assets.site_version(self.root / "_site")
         published = (self.root / "_site/resultados/a/index.html").read_text()
-        self.assertIn("/js/app.js?v=" + current, published)
-        self.assertNotIn(version, published)
+        self.assertIn("/js/app.js?v=" + version, published)
+        self.assertIn("/css/app.css?v=" + version, published)
 
-    def test_extension_versions_and_validates_only_new_pages(self):
-        self.assets()
+    def test_extension_appends_and_validates_only_new_pages(self):
         validator = self.root / "tools/site/check_seo_output.py"
         validator.parent.mkdir(parents=True)
         validator.write_text("validator")
@@ -455,12 +464,10 @@ class GeneratedTest(unittest.TestCase):
                  "eventStatus": "https://schema.org/EventScheduled"}
         html = ('<script src="/js/app.js"></script><script type="application/ld+json">'
                 + json.dumps(event) + '</script>')
-        version = build.asset_version()
-        versioned = html.replace("/js/app.js", "/js/app.js?v=" + version)
-        archive, metadata = self.block("og-stages", {f"{directory}/old-{index}/index.html": versioned
+        archive, metadata = self.block("og-stages", {f"{directory}/old-{index}/index.html": html
                                                      for directory in build.OG_FAMILIES["og-stages"]
                                                      for index in range(100)})
-        metadata.update(asset_version=version, seo={"validator": build.digest(validator), "html": 200, "events": 200})
+        metadata.update(seo={"validator": build.digest(validator), "html": 200, "events": 200})
         (self.cache / "og-stages/manifest.json").write_text(json.dumps(metadata))
         self.state["stage_slugs"] = ["new-stage"]
         self.state_path.write_text(json.dumps(self.state))
@@ -475,17 +482,16 @@ class GeneratedTest(unittest.TestCase):
 
         actual_run = build.subprocess.run
         with patch.object(build.subprocess, "run", side_effect=generate), patch.object(
-                build, "version_published_assets", wraps=build.version_published_assets) as versioning:
+                build, "archive_output", wraps=build.archive_output) as rewrite:
             build.run_block("og-stages")
-        self.assertEqual([sorted(call.args[1]) for call in versioning.call_args_list],
-                         [["en/stage/new-stage/index.html", "jornada/new-stage/index.html"]])
+        rewrite.assert_not_called()  # sin sustituciones se añaden miembros al tar
         updated = build.read_manifest("og-stages")
         self.assertEqual(len(updated["files"]), 202)
         self.assertEqual(updated["files"]["jornada/old-0/index.html"], metadata["files"]["jornada/old-0/index.html"])
         self.assertEqual(build.digest(archive), updated["archive_sha256"])
         with tarfile.open(archive) as stream:
             self.assertEqual(len(stream.getmembers()), 202)
-        self.assertIn("?v=" + version, (self.root / "_site/jornada/new-stage/index.html").read_text())
+            self.assertEqual(stream.extractfile("jornada/new-stage/index.html").read().decode(), html)
         with patch.object(build, "check_paths", wraps=build.check_paths) as seo:
             self.assertEqual(build.validate_catalog_seo("og-stages", updated, build.digest(validator)),
                              (202, 202))
@@ -696,7 +702,9 @@ class GeneratedTest(unittest.TestCase):
         for block in build.OG_FAMILIES:
             metadata = build.read_manifest(block)
             self.assertTrue(build.complete_files(block, metadata["files"], self.state["day"]))
+            # Inventario y hash del tar salen de la misma escritura.
             self.assertEqual(build.digest(self.cache / block / "output.tar"), metadata["archive_sha256"])
+            self.assertEqual(metadata["files"], build.inventory(self.cache / block / "output"))
             self.assertTrue(build.read_state()["blocks"][block]["prefilled"])
         build.run_block("og-races")
         self.assertTrue((self.root / "_site/competicion/fixture-0/index.html").is_file())
@@ -724,6 +732,26 @@ class GeneratedTest(unittest.TestCase):
                 build.prepare()
                 self.assertTrue(build.read_state()["force"])
                 self.assertEqual(lookup.call_count, 1 if event == "push" else 0)
+
+    def test_refresh_dispatch_plans_like_a_push(self):
+        previous = (self.now - timedelta(minutes=5)).isoformat()
+        env = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main",
+               "GITHUB_REPOSITORY": "fixture/repo", "GITHUB_TOKEN": "fixture", "PAGES_REFRESH": "true"}
+        with patch.dict(os.environ, env), patch.object(
+                build, "cache_prefix", side_effect=lambda block, now: block + "-fixture-"), patch.object(
+                build, "latest_requests", return_value=(previous, None)):
+            build.prepare()
+        state = build.read_state()
+        self.assertFalse(state["force"])
+        self.assertEqual(state["requested"], previous)
+        self.assertEqual(state["stage_slugs"], [])
+        with patch.dict(os.environ, {**env, "GITHUB_REF": "refs/heads/other"}), patch.object(
+                build, "cache_prefix", side_effect=lambda block, now: block + "-fixture-"):
+            build.prepare()
+        self.assertTrue(build.read_state()["force"])
+        with patch.dict(os.environ, {**env, "GITHUB_EVENT_NAME": "push"}):
+            with self.assertRaisesRegex(ValueError, "workflow_dispatch"):
+                build.prepare()
 
     def test_stage_dispatch_selects_incremental_mode(self):
         previous = (self.now - timedelta(minutes=5)).isoformat()

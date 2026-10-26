@@ -9,7 +9,7 @@ import { setGenderToggleActive, wireGenderToggle } from '../components/gender-to
 import { automaticTeamHeaderText } from '../team-appearance.js';
 import { panelState } from './state.js';
 import { CURRENT_TEAM_SEASON, MARKET_SEASON } from './constants.js';
-import { showToast } from './helpers.js';
+import { showToast, panelIconSvg } from './helpers.js';
 import { _slRiderFlagPreview } from './startlist-picker.js';
 import {
   closeTeamEditor, DEFAULT_TEAM, fetchTeamSeasonsForYear, fetchTeamSeasonYears,
@@ -153,7 +153,7 @@ function renderTeamRoster() {
     if (!r) {
       // Afiliación huérfana (el corredor ya no existe): fila degradada.
       return `<div class="roster-row roster-row--error" data-affiliation-id="${esc(row.id)}" data-rider-id="${esc(row.riderId)}" data-gender="${esc(row.riderGender)}">
-        <span class="u-grow u-fs-2 u-c-red">⚠ Corredor no encontrado — ${esc(row.riderId)} (${esc(row.riderGender)})</span>
+        <span class="u-grow u-fs-2 u-c-red">${panelIconSvg('warning')} Corredor no encontrado — ${esc(row.riderId)} (${esc(row.riderGender)})</span>
         ${row.readOnly ? '' : '<button class="btn btn--ghost roster-clean-orphan u-btn-xs u-c-red">Limpiar afiliación</button>'}
       </div>`;
     }
@@ -173,8 +173,8 @@ function renderTeamRoster() {
       <label class="u-row u-row--gap-xs u-fs-1 u-c-dim">Hasta
         <input type="date" class="roster-to u-chip-input" value="${esc(row.dateTo || '')}">
       </label>
-      <button class="btn btn--ghost roster-save-dates u-btn-xs" title="Guardar fechas de vínculo (vacío = toda la temporada)">💾</button>` : ''}
-      <button class="btn btn--ghost roster-edit-rider u-btn-xs" title="Editar datos del corredor">✎</button>
+      <button class="btn btn--ghost roster-save-dates u-btn-xs" title="Guardar fechas de vínculo (vacío = toda la temporada)">${panelIconSvg('save')}</button>` : ''}
+      <button class="btn btn--ghost roster-edit-rider u-btn-xs" title="Editar datos del corredor">${panelIconSvg('pencil')}</button>
       ${row.readOnly
         ? '<span class="u-fs-1 u-c-dim" title="Observación anual oficial sin fechas contractuales">Solo lectura</span>'
         : isTrainee
@@ -233,7 +233,7 @@ export async function saveAffiliationDates(riderId, riderGender, dateFrom, dateT
     console.error('[saveAffiliationDates]', err);
     showToast('Error: ' + (err.message || err), 'error');
   } finally {
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '💾'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = panelIconSvg('save'); }
   }
 }
 

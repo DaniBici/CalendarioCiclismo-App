@@ -1,5 +1,5 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {collectCxAcnRace,collectCxRace,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
+import {collectCxAcnRace,collectCxKbwbRace,collectCxRace,collectCxSmartwebRace,collectCxWiclaxRace,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
 import {applyCxResults,loadCxResultsContext} from '../results-fetchers/cx-results-upsert.mjs';
 import {finishAutomationRun,recordAutomationSourceRun,startAutomationRun} from '../automation-monitor.mjs';
 
@@ -266,5 +266,139 @@ describe('recogida CX desde ACN Timing',()=>{
     const acn=sourceRun('acn_cx');
     expect([acn.itemsFound,acn.itemsMatched,acn.itemsChanged,acn.errors]).toEqual([1,1,1,0]);
     expect(sourceRun('dataride_cx').status).toBe('noop');
+  });
+});
+
+function wiclaxFixture(id='own-wiclax'){
+  const {context}=fixture(id);context.link=null;
+  context.categories[0].startTimeUtc='2026-11-01T13:00:00Z';
+  context.categories.push({...context.categories[0],category:'MJ'});
+  context.timingLink={raceId:id,provider:'wiclax',sourceUrl:'https://rs-sport.es/live/g-live.html?f=../CLASIF26/X/X.clax',
+    categoryKeys:{'ELITE SUB-23':'ME',JUNIOR:'MJ'},syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  const xml=`<Epreuve nom="CX" dt1="2026-11-01"><Etape finito="1," /><Parcours><Pcs nom="ELITE SUB-23" /><Pcs nom="JUNIOR" /></Parcours>
+<Engages><E d="1" n="PRUEBA A" c="CICLOS ZUBERO CLUB DEPORTIVO" na="Española" p="ELITE SUB-23" /><E d="2" n="OTRO Juan" c="DESNIVEL +, C.D." na="Española" p="ELITE SUB-23" />
+<E d="31" n="JOVEN Luis" c="CLUB X" na="Española" p="JUNIOR" /></Engages>
+<Resultats><R d="1" t="01h00'00" b="15h00'00,100" to="7" /><R d="2" t="01h00'05" b="15h00'05,000" to="7" /><R d="31" t="00h20'00" b="14h20'00,000" to="2" /></Resultats></Epreuve>`;
+  return {context,fetchClax:async url=>({fileUrl:'https://rs-sport.es/CLASIF26/X/X.clax',xml,url})};
+}
+describe('recogida CX desde Wiclax',()=>{
+  it('importa provisional los recorridos terminados con equipos sin mayúsculas sostenidas',async()=>{
+    const {context,fetchClax}=wiclaxFixture();
+    const client=collectorClient([context]);
+    const value=await collectCxWiclaxRace(client,context.race.id,{now,fetchClax});
+    // La ficha nueva queda en aviso, como en ACN: la pasada se marca parcial y la fila se importa.
+    expect(value).toMatchObject({provider:'wiclax',status:'partial',rowsFound:2,rowsChanged:2,reviews:[]});
+    expect(value.warnings).toMatchObject([{riderDisplay:'Juan Otro',reason:'unresolved'}]);
+    expect(value.pending).toEqual([{category:'MJ',reason:'Recorrido sin terminar en el cronometraje; se reintenta en la siguiente pasada'}]);
+    expect(client.ingests).toHaveLength(1);const [prepared]=client.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'wiclax',wiclax:{sourceUrl:context.timingLink.sourceUrl}});
+    expect(prepared.imports[0].rows.map(row=>row.teamName)).toEqual(['Ciclos Zubero Club Deportivo','Desnivel +, C.D.']);
+    expect(prepared.imports[0].rows[0]).toMatchObject({globalRiderId:'own-rider',timeSeconds:'3600'});
+  });
+  it('no sustituye categorías oficiales y despacha desde collectCxRace',async()=>{
+    const official=wiclaxFixture('official');Object.assign(official.context.categories[0],{resultsProvider:'wiclax',resultsStatus:'official'});
+    const officialClient=collectorClient([official.context]);
+    const kept=await collectCxWiclaxRace(officialClient,'official',{now,fetchClax:official.fetchClax});
+    expect(kept.skipped[0].reason).toContain('ya oficiales');expect(officialClient.ingests).toHaveLength(0);
+
+    const only=wiclaxFixture('only');const client=collectorClient([only.context]);let acn=0;
+    const value=await collectCxRace(client,'only',{now,fetchClax:only.fetchClax,fetchTables:async()=>{acn++;}});
+    expect(value).toMatchObject({provider:'wiclax',rowsChanged:2});expect(acn).toBe(0);
+  });
+});
+
+function kbwbFixture(id='own-kbwb'){
+  const {context}=fixture(id);context.link=null;
+  context.categories[0].startTimeUtc='2026-11-01T13:00:00Z';
+  context.categories.push({...context.categories[0],category:'MJ'});
+  context.timingLink={raceId:id,provider:'kbwb',categoryKeys:{'14927':'ME','14928':'MJ'},syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  const person=(first,last)=>({first_name:first,last_name:last,uci_code:'ESP20000101'});
+  const races=[{key:'14927',category:'ME',details:{id:14927,date:'2026-11-01',result:1},results:[{name:'ME',race_result_lines:[
+    {place:1,state:'finished',number_of_laps:0,chrono_in_seconds:3600,deficit_chrono_in_seconds:0,team:'TEAM X',person:person('A','PRUEBA')}]}]},
+    {key:'14928',category:'MJ',details:{id:14928,date:'2026-11-01',result:0},results:[]}];
+  return {context,fetchRaces:async map=>races.filter(race=>race.key in map)};
+}
+describe('recogida CX desde KBWB',()=>{
+  it('importa provisional las pruebas publicadas y deja pendientes las demás',async()=>{
+    const {context,fetchRaces}=kbwbFixture();
+    const client=collectorClient([context]);
+    const value=await collectCxKbwbRace(client,context.race.id,{now,fetchRaces});
+    expect(value).toMatchObject({provider:'kbwb',status:'ok',rowsFound:1,rowsChanged:1,reviews:[]});
+    expect(value.pending).toEqual([{category:'MJ',reason:'Resultados aún sin publicar en KBWB; se reintenta en la siguiente pasada'}]);
+    const [prepared]=client.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'kbwb',kbwb:{raceId:'14927'}});
+    expect(prepared.imports[0].rows[0]).toMatchObject({globalRiderId:'own-rider',timeSeconds:'3600'});
+  });
+  it('no sustituye categorías oficiales y despacha desde collectCxRace',async()=>{
+    const official=kbwbFixture('official');Object.assign(official.context.categories[0],{resultsProvider:'kbwb',resultsStatus:'official'});
+    const officialClient=collectorClient([official.context]);
+    const kept=await collectCxKbwbRace(officialClient,'official',{now,fetchRaces:official.fetchRaces});
+    expect(kept.skipped[0].reason).toContain('ya oficiales');expect(officialClient.ingests).toHaveLength(0);
+
+    const only=kbwbFixture('only');const client=collectorClient([only.context]);let acn=0;
+    const value=await collectCxRace(client,'only',{now,fetchRaces:only.fetchRaces,fetchTables:async()=>{acn++;}});
+    expect(value).toMatchObject({provider:'kbwb',rowsChanged:1});expect(acn).toBe(0);
+  });
+});
+
+const SMARTWEB_URL='https://fccv.es/index.php/smartweb/inscripciones/clasificacion/35255';
+function smartwebFixture(id='own-smartweb'){
+  const {context}=fixture(id);context.link=null;
+  context.categories[0].startTimeUtc='2026-11-01T13:00:00Z';
+  context.categories.push({...context.categories[0],category:'MJ'});
+  context.timingLink={raceId:id,provider:'smartweb',sourceUrl:SMARTWEB_URL,categoryKeys:{'ELITE-SUB23':'ME','JUNIOR':'MJ'},
+    syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  const table=rows=>`<table><tr><th>Pos.</th><th>Dorsal</th><th>Nombre</th><th>Apellidos</th><th>Club\\Equipo</th><th>C.A Participante</th><th>Tiempo</th></tr>
+    ${rows.map(row=>`<tr>${row.map(cell=>`<td>${cell}</td>`).join('')}</tr>`).join('')}</table>`;
+  const fetched={indexUrl:SMARTWEB_URL,index:{dateKey:'2026-11-01',options:[{variant:'fichero',id:'1',label:'ELITE-SUB23'}]},
+    pages:{'fichero:1':table([['1','12','A','PRUEBA','CLUB CICLISTA X','VLC','01:00:00.500']])}};
+  return {context,fetchRace:async()=>fetched};
+}
+// Responde a la huella de la tabla con la marca indicada; registra el SQL de cada sentencia.
+function smartwebClient(contexts,since){
+  const client=collectorClient(contexts);const statements=[];
+  client.statements=statements;
+  client.query=async(sql,params=[])=>{statements.push(sql);client.calls.push(params);
+    if(sql.includes('"sourceDigestAt"'))return {rows:JSON.parse(params[1]).map(({category})=>({category,sourceDigestAt:since}))};
+    return {rows:[]};};
+  return client;
+}
+describe('recogida CX desde smartweb',()=>{
+  it('espera una segunda lectura igual y después importa provisional',async()=>{
+    const first=smartwebFixture();const fresh=smartwebClient([first.context],now.toISOString());
+    const waiting=await collectCxSmartwebRace(fresh,first.context.race.id,{now,fetchRace:first.fetchRace});
+    expect(waiting).toMatchObject({provider:'smartweb',status:'ok',rowsChanged:0});
+    expect(waiting.pending.map(item=>item.category)).toEqual(['MJ','ME']);expect(fresh.ingests).toHaveLength(0);
+
+    const second=smartwebFixture();const stable=smartwebClient([second.context],new Date(now.getTime()-5*60000).toISOString());
+    const value=await collectCxSmartwebRace(stable,second.context.race.id,{now,fetchRace:second.fetchRace});
+    expect(value).toMatchObject({provider:'smartweb',status:'ok',rowsFound:1,rowsChanged:1,reviews:[]});
+    const [prepared]=stable.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'smartweb',smartweb:{sourceUrl:SMARTWEB_URL,label:'ELITE-SUB23',variant:'fichero'}});
+    expect(prepared.imports[0].rows[0]).toMatchObject({globalRiderId:'own-rider',timeSeconds:'3600',teamName:'Club Ciclista X',isoCode2:'ES'});
+  });
+  it('no publica un ganador por debajo del 80 % de la duración ni sustituye oficiales',async()=>{
+    const short=smartwebFixture('short');short.context.categories[0].durationMinutes=90;
+    const client=smartwebClient([short.context],new Date(now.getTime()-5*60000).toISOString());
+    const value=await collectCxSmartwebRace(client,'short',{now,fetchRace:short.fetchRace});
+    expect(value.reviews[0].reason).toContain('80 %');expect(client.ingests).toHaveLength(0);
+
+    const official=smartwebFixture('official');Object.assign(official.context.categories[0],{resultsProvider:'smartweb',resultsStatus:'official'});
+    const officialClient=smartwebClient([official.context],now.toISOString());
+    const kept=await collectCxSmartwebRace(officialClient,'official',{now,fetchRace:official.fetchRace});
+    expect(kept.skipped[0].reason).toContain('ya oficiales');expect(officialClient.ingests).toHaveLength(0);
+  });
+  it('prepara en seco sin escribir y despacha desde collectCxRace',async()=>{
+    const shadow=smartwebFixture('shadow');shadow.context.timingLink.syncEnabled=false;
+    const client=smartwebClient([shadow.context],now.toISOString());
+    const value=await collectCxSmartwebRace(client,'shadow',{now,dryRun:true,fetchRace:shadow.fetchRace});
+    expect(value).toMatchObject({status:'dry_run',prepared:[{category:'ME',rows:1,linked:1}]});
+    expect(client.ingests).toHaveLength(0);expect(client.statements.every(sql=>/^\s*SELECT/i.test(sql))).toBe(true);
+
+    const only=smartwebFixture('only');const routed=smartwebClient([only.context],new Date(now.getTime()-5*60000).toISOString());
+    expect(await collectCxRace(routed,'only',{now,fetchRace:only.fetchRace})).toMatchObject({provider:'smartweb',rowsChanged:1});
   });
 });

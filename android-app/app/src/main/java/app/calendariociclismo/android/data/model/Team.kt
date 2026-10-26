@@ -18,6 +18,12 @@ data class Team(
     /** Categoría UCI (WT/WWT/PT/PRW/CT/CTW/NTM/NTW/CLUBM/CLUBW).
      *  Opcional con default para no romper selects existentes. */
     val category: String? = null,
+    /** Identidad de selección (`selection`/`club`, `national`/`regional`) y su
+     *  código: `countryCode` ISO en minúscula o, sin país, `selectionCode`. */
+    val teamKind: String? = null,
+    val selectionScope: String? = null,
+    val countryCode: String? = null,
+    val selectionCode: String? = null,
 ) {
     /** La chapa solo se muestra con colores de equipación curados. */
     val hasVisibleBadge: Boolean

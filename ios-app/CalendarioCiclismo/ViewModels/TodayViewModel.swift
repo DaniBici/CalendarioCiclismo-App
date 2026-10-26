@@ -1,34 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// Último día de la temporada de carretera en Hoy, por año natural. Desde el
-/// día siguiente y hasta el 31 de diciembre de ese año, Hoy no muestra ni
-/// permite alcanzar fechas posteriores: el selector termina en este día y la
-/// vista se queda en él. Un año sin entrada no tiene límite.
-/// Espejo de `js/services/today-season.js` y de `TodaySeason` en Android.
-enum TodaySeason {
-    static let lastDayByYear: [Int: String] = [
-        2026: "2026-10-18",
-    ]
-
-    /// Último día navegable según la fecha local actual, o nil.
-    static func lastDay(today: String = DateFormatting.todayKey()) -> String? {
-        guard let year = Int(today.prefix(4)) else { return nil }
-        return lastDayByYear[year]
-    }
-
-    /// La propia fecha o, si lo supera, el último día de temporada.
-    static func clamp(_ dateKey: String, today: String = DateFormatting.todayKey()) -> String {
-        guard let last = lastDay(today: today), dateKey > last else { return dateKey }
-        return last
-    }
-
-    static func contains(_ dateKey: String, today: String = DateFormatting.todayKey()) -> Bool {
-        guard let last = lastDay(today: today) else { return true }
-        return dateKey <= last
-    }
-}
-
 /// Pestaña Hoy de carretera: retirada hasta `returnDate` y visible desde ese
 /// día civil local. Mientras está retirada, Ciclocross ocupa la primera
 /// posición y es la pestaña inicial. Espejo de `RoadTodayAvailability` en
@@ -66,7 +38,7 @@ enum RoadTodayAvailability {
 @MainActor
 @Observable
 final class TodayViewModel {
-    var dateKey: String = TodaySeason.clamp(DateFormatting.todayKey())
+    var dateKey: String = DateFormatting.todayKey()
     var items: [EnrichedRaceDay] = []
     var allRaces: [Race] = []
     var isLoading = false
@@ -104,7 +76,8 @@ final class TodayViewModel {
 
         var label: String {
             switch self {
-            case .category:   return LocaleService.t("Categoría", "Category")
+            // «Cat. UCI», como en la web: «Categoría» es el desplegable del filtro.
+            case .category:   return LocaleService.t("Cat. UCI", "UCI Cat.")
             case .tvTime:     return LocaleService.t("Hora TV", "TV time")
             case .finishTime: return LocaleService.t("Hora de meta", "Finish time")
             }
@@ -175,25 +148,19 @@ final class TodayViewModel {
         dateKey == DateFormatting.todayKey()
     }
 
-    /// Día al que lleva «Hoy»: la fecha actual o, tras el cierre de temporada,
-    /// el último día navegable.
+    /// Día al que lleva «Hoy»: la fecha actual.
     var currentDayKey: String {
-        TodaySeason.clamp(DateFormatting.todayKey())
+        DateFormatting.todayKey()
     }
 
     var isShowingCurrentDay: Bool {
         dateKey == currentDayKey
     }
 
-    /// False en el último día de temporada: no hay día siguiente navegable.
-    var canGoToNextDay: Bool {
-        DateFormatting.nextDay(dateKey).map { TodaySeason.contains($0) } ?? false
-    }
-
     // Última fecha local que se mostró COMO "hoy". Permite distinguir "el usuario
     // está en hoy y ha cruzado la medianoche local" (→ auto-avanzar) de "navegó a
     // otro día a mano" (→ no tocar). Se sincroniza cuando el día mostrado es hoy.
-    private var lastTodayKey: String = TodaySeason.clamp(DateFormatting.todayKey())
+    private var lastTodayKey: String = DateFormatting.todayKey()
 
     // Auto-avance de medianoche: si el día mostrado seguía siendo el "hoy" anterior
     // y la fecha local ya cambió, salta al nuevo hoy. Si el usuario navegó a otro
@@ -451,10 +418,7 @@ final class TodayViewModel {
 
     /// Ajusta `dateKey` y `activeFilter` según el bloqueo de Campeonatos de la
     /// jornada destino (entrar/salir de la ventana). NO dispara la carga.
-    func applyDateForChampLock(_ requestedDate: String) {
-        // Ninguna ruta de navegación (flechas, gestos, selector, deep links)
-        // supera el último día de temporada.
-        let newDate = TodaySeason.clamp(requestedDate)
+    func applyDateForChampLock(_ newDate: String) {
         let wasLock = ChampionshipsConfig.isChampWeekFilterLock(today: dateKey)
         let nowLock = ChampionshipsConfig.isChampWeekFilterLock(today: newDate)
         if nowLock && !wasLock {
@@ -486,7 +450,6 @@ final class TodayViewModel {
     }
 
     func goToNextDay() async {
-        guard canGoToNextDay else { return }
         if let next = nextDayMatchingFilter(after: dateKey) {
             await navigate(to: next)
         } else if let next = DateFormatting.nextDay(dateKey) {
@@ -526,12 +489,12 @@ final class TodayViewModel {
     // MARK: - Filter-aware day scanning
 
     /// Busca el siguiente día con carreras que coincidan con el filtro activo.
-    /// Escanea hasta 180 días hacia delante, sin pasar del último día de temporada.
+    /// Escanea hasta 180 días hacia delante.
     func nextDayMatchingFilter(after dateKey: String) -> String? {
         guard !allRaces.isEmpty else { return nil }
         var candidate = dateKey
         for _ in 0..<180 {
-            guard let next = DateFormatting.nextDay(candidate), TodaySeason.contains(next) else { break }
+            guard let next = DateFormatting.nextDay(candidate) else { break }
             candidate = next
             if hasMatchingRaces(on: candidate, filter: activeFilter) {
                 return candidate

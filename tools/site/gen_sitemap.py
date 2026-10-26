@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import quote
 from datetime import datetime, timezone, timedelta, date as dt_date
+import site_data
 from archived_seasons import race_is_archived
 from cx_calendar import cx_race_in_season
 from results_routes import sector_suffixes, result_entry_key, result_entry_sort_key, result_segment, without_ambiguous_plain_entries
@@ -18,6 +19,10 @@ def supabase_get(path):
     # Range hasta agotar resultados (una página corta = fin). Sin esto, las
     # consultas grandes (race_days ya supera las 1000 publicadas) se truncaban
     # y faltaban URLs en el sitemap.
+    # Con el volcado compartido del build (site_data.py) responde en local.
+    shared = site_data.get(path)
+    if shared is not None:
+        return shared
     PAGE = 1000
     all_rows = []
     offset = 0
@@ -118,12 +123,12 @@ def canonical_group_key(rd):
 
 RACE_SELECT = ("races?select=id,slug,slugEn,name,nameEn,originalName,year,startDate,endDate,"
                "uciCategory,logoUrl,countryCode,raceFormat,isCancelled,resultsOnly"
-               "&slug=not.is.null&order=startDate.desc")
+               "&slug=not.is.null&order=startDate.desc,id")
 DAY_SELECT = ("race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
               "dateKey,updatedAt,isRestDay,isCancelledDay,neutralStartTimeUtc,elevationProfile,profileNotViewable,routeGpxUrl"
-              "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.desc")
+              "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.desc,id")
 CX_SELECT = ("cx_races?select=id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,"
-             "logoUrl,isCancelled,createdAt,updatedAt,cx_tournaments(id,slug,updatedAt)&editorialStatus=eq.published&order=dateKey")
+             "logoUrl,isCancelled,createdAt,updatedAt,cx_tournaments(id,slug,updatedAt)&editorialStatus=eq.published&order=dateKey,id")
 
 
 def indexable(races, racedays):
@@ -141,14 +146,14 @@ def fetch_road(race_ids=None):
     all_races = supabase_get(RACE_SELECT + race_filter)
     all_racedays = supabase_get(DAY_SELECT + day_filter)
     races, racedays = indexable(all_races, all_racedays)
-    startlist_teams = supabase_get("startlist_teams?select=raceId&order=raceId" + day_filter)
+    startlist_teams = supabase_get("startlist_teams?select=raceId&order=id" + day_filter)
     so_racedays = supabase_get(
         "race_days?select=id,slug,slugEn,raceId,startOrderImportedAt,updatedAt"
         "&editorialStatus=eq.published&slug=not.is.null"
-        "&startOrderImportedAt=not.is.null" + day_filter
+        "&startOrderImportedAt=not.is.null&order=id" + day_filter
     )
     res_stages = supabase_get("race_uci_stages?select=raceId,raceDayId,stageNumber,updatedAt&keepForWeb=eq.true"
-                              + day_filter)
+                              "&order=id" + day_filter)
     return {"all_races": all_races, "all_racedays": all_racedays, "races": races,
             "racedays": racedays, "startlist_teams": startlist_teams,
             "so_racedays": so_racedays, "res_stages": res_stages}

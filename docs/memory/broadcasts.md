@@ -82,7 +82,9 @@ crear o actualizar la emisión; nunca retira una marca Revive existente.
 
 ## Embed YouTube en web (`broadcasts.embeddable`)
 
-`BOOLEAN nullable`. Al guardar en panel se valida la URL contra `https://www.youtube.com/oembed` (`checkYouTubeEmbeddable` en `js/shared.js`). 200 → `true`, 401/404 → `false`, red/CORS → `null`. Solo se revalida cuando la URL cambia. `js/jornada.js` monta el iframe inline solo si `b.embeddable !== false`; cuando es `false` el botón "Ver" abre en pestaña nueva. El editor muestra `⚠ Embed deshabilitado en YouTube`.
+`BOOLEAN nullable`. Al guardar en panel se valida la URL contra `https://www.youtube.com/oembed` (`checkYouTubeEmbeddable` en `js/broadcast-embed.js`). 200 → `true`, 401/404 → `false`, red/CORS → `null`. Solo se revalida cuando la URL cambia. `js/jornada.js` monta el iframe inline solo si `b.embeddable !== false`; cuando es `false` el botón "Ver" abre en pestaña nueva. El editor muestra `⚠ Embed deshabilitado en YouTube`.
+
+`cx_broadcasts.embeddable` (2026-10-20) sigue la misma regla: el panel CX lo valida al guardar y vuelve a consultar los `null` de YouTube; `cx_save_media` conserva el valor de una fila con la misma URL cuando la petición no trae la clave. Con `false`, el badge de TV de Ciclocross y "Ver" de la ficha CX abren la pestaña nueva en lugar del modal de TV.
 
 ## Grupos regionales (`broadcasts.country`) — 17 valores
 

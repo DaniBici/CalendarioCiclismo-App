@@ -13,7 +13,7 @@ import {
   RESULT_SYNC_DAY_STATE_SELECT, resultSyncDefaultScope, resultSyncScopeOptionsVisible,
   resolveResultLeaderName,
 } from '../results/panel-logic.js';
-import { formatDateTime, formatTimeHHMM, showToast } from './helpers.js';
+import { formatDateTime, formatTimeHHMM, showToast, panelIconSvg } from './helpers.js';
 import { buildResolvedRiderMapForRace } from './start-order.js';
 import {
   _deleteUciLink, _UCI_SEASON, _writeUciLink,
@@ -71,6 +71,7 @@ const UCI_SOURCE_LABELS = {
   mikatiming: 'mika:timing',
   ficr: 'FICR',
   lapclip: 'LAPCLIP (Matrix Sports)',
+  acn: 'ACN Timing',
 };
 
 // La cabecera del panel debe llevar a quien realmente cronometra la carrera, no
@@ -102,6 +103,7 @@ const UCI_SOURCE_URLS = {
   mikatiming: 'https://www.mikatiming.com/',
   ficr: 'https://ciclismo.ficr.it/',
   lapclip: 'https://matrix-sports.jp/lap/',
+  acn: 'https://www.acn-timing.com/',
 };
 
 function _ruSourceLink(source) {
@@ -229,7 +231,7 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   // cron parezca activo. En PDF el volcado manual ya queda explícito en el origen.
   const manualWarn = UCI_MANUAL_SOURCES.has(src) && src !== 'pdf'
     ? `<div class="ru-origin__warn u-c-pending u-fs-1 u-mt-030">
-        ⚠ Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
+        ${panelIconSvg('warning')} Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
         Sus resultados se mantienen manualmente; no se puede programar un volcado automático para esta fuente.
       </div>`
     : '';
@@ -237,10 +239,10 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   const canDumpStage = !UCI_MANUAL_SOURCES.has(src) && rd.stageNumber != null;
   const dumpButton = isOneDay
     ? `<button type="button" class="btn btn--primary ru-run-cron btn--compact"
-        title="Re-vuelca esta carrera, respetando las clasificaciones bloqueadas manualmente.">▶ Volcar esta carrera</button>`
+        title="Re-vuelca esta carrera, respetando las clasificaciones bloqueadas manualmente.">${panelIconSvg('play')} Volcar esta carrera</button>`
     : (canDumpStage
         ? `<button type="button" class="btn btn--primary ru-run-cron-stage btn--compact"
-            title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">▶ Volcar esta etapa</button>`
+            title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">${panelIconSvg('play')} Volcar esta etapa</button>`
         : '');
   return `<div class="ru-origin">
     <div class="ru-origin__state">

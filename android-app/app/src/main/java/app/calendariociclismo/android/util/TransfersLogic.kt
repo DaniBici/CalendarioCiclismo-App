@@ -36,6 +36,12 @@ object TransfersLogic {
     /** Las 4 divisiones del mercado, en el orden de los botones. */
     val DIVISIONS = listOf("WT", "PT", "WWT", "PRW")
 
+    /** Equipos con vista propia en el mercado: los de las 4 divisiones. Un
+     *  equipo de otra categoría con fila team_seasons (filial, continental) no
+     *  enlaza. */
+    fun marketTeamIds(seasons: List<TeamSeason>): Set<String> =
+        seasons.filter { it.category in DIVISIONS }.map { it.teamId }.toHashSet()
+
     /** Género de la tabla riders_* por división (para cargar la plantilla). */
     fun divisionGender(category: String?): String? = when (category) {
         "WT", "PT", "CT", "NTM", "CLUBM" -> "male"

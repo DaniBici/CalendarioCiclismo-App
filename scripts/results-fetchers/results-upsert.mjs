@@ -169,10 +169,13 @@ const LINK_CODE_SOURCES = [
   { source: 'domtel', column: 'domtelCode', flag: 'domtel-code' },
   { source: 'livetiming', column: 'livetimingCode', flag: 'livetiming-code' },
 ].map((entry) => ({ ...entry, flagValue: getArg(entry.flag) }));
-if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults', 'mikatiming', 'ficr', 'lapclip', 'kyushu'].includes(SOURCE)) {
-  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults|mikatiming|ficr|lapclip|kyushu (recibido "${SOURCE}")`); process.exit(1);
+if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults', 'mikatiming', 'ficr', 'lapclip', 'kyushu', 'acn'].includes(SOURCE)) {
+  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults|mikatiming|ficr|lapclip|kyushu|acn (recibido "${SOURCE}")`); process.exit(1);
 }
 const GENDER = getArg('gender'); // 'male'|'female': habilita el enlace por NOMBRE (Fase 6) para carreras sin startlist
+if (GENDER != null && !['male', 'female'].includes(GENDER)) {
+  log(`FATAL: --gender debe ser male|female; en carreras mixtas se omite (recibido "${GENDER}")`); process.exit(1);
+}
 const SEED_STARTLIST = hasFlag('seed-startlist'); // Fase 6: sembrar startlist_teams/riders desde el volcado UCI (solo carreras sin startlist curada)
 const RESOLVE_BIBS_BY_NAME = hasFlag('resolve-bibs-by-name'); // Fase 6: results-only, enlazar dorsales por nombre sin crear startlist
 // --fill-dnf-from-startlist: para cada clasificación de ETAPA volcada, marca como

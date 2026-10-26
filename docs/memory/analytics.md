@@ -4,16 +4,23 @@ Documentación técnica de Google Analytics.
 
 ## Web — Google Analytics 4
 
-- **ID de medición:** `G-80SPH05B5W` (en `js/config.js`).
-- **Archivo:** `js/analytics.js`. Carga `gtag.js` dinámicamente.
-- **Banner de cookies:** `js/cookie-consent.js`. Estado en `localStorage` clave `cc-cookie-consent` con valores `accepted` / `rejected`.
-- **Lógica de consentimiento** (lee `window.__cookieConsent`):
-  - `'accepted'` → carga GA inmediatamente.
-  - `'rejected'` → no carga.
-  - `'pending'` → expone `window.__loadAnalytics()` para que el banner la invoque.
-- **Auto-aceptación:** banner cierra y acepta tras 10 s (botón "Elegiré más tarde" cancela).
-- **Page view manual:** `gtag` se inicializa con `send_page_view: false`; cada SPA dispara `page_view` manualmente al navegar.
-- **Exclusión admin:** detecta token de Supabase Auth en `localStorage` y no carga GA en `panel/`.
+- **ID de medición:** `G-80SPH05B5W` (secret `GA_MEASUREMENT_ID`, inyectado en `js/config.js` por `build-site.yml`).
+- **Consentimiento previo estricto** (`js/cookie-consent.js`, desde el 2026-10-21): sin elección no se pide nada a Google. No hay temporizador ni cierre sin elegir.
+  - Panel no modal (`<section class="cookie-panel">`, primer hijo de `<body>`) abajo a la derecha; en móvil, sobre la barra inferior. Título «Analítica opcional», texto con enlace a `privacidad.html#cookies` (`/en/privacy/#cookies`) y dos botones idénticos: «Aceptar analítica» y «Rechazar analítica».
+  - Elección en `localStorage`, clave `cc-cookie-consent`: `{v: 1, choice: 'accepted' | 'rejected', decidedAt, expiresAt}`. Caduca a los 180 días (`TTL`); un registro caducado, mal formado o del formato anterior (texto `accepted` / `rejected`) se borra y el panel vuelve a mostrarse. La clave de sesión retirada `cc-cookie-later` se borra.
+  - «Gestión de cookies» en el pie reabre el mismo panel, con el foco en el título y la elección vigente en la línea de estado (`role="status"`). Con elección vigente, Escape lo cierra sin cambiarla.
+  - Si el almacenamiento falla, la analítica no arranca y un rechazo se aplica a la página abierta (`ccConsent.saved()` = `false`).
+  - API: `window.ccConsent.get()` → `'accepted' | 'rejected' | null`, `.expiresAt()`, `.saved()`; evento `cc-consent` en `window` con la elección en `detail`. Se reconcilia con otras pestañas (`storage`), la caché de ida y vuelta (`pageshow`) y la caducidad (`visibilitychange`).
+- **Carga de GA** (`js/analytics.js`, tras `cookie-consent.js`):
+  - Solo con `ccConsent.get() === 'accepted'`, al cargar o al aceptar. `ga-disable-<ID>` queda en `true` mientras no se acepta.
+  - Consent Mode por defecto: `analytics_storage: 'granted'`; `ad_storage`, `ad_user_data` y `ad_personalization`: `'denied'`. `allow_google_signals` y `allow_ad_personalization_signals` en `false`.
+  - `cookie_expires` = segundos que faltan para `expiresAt`: las cookies `_ga` y `_ga_*` no sobreviven a la elección.
+  - Sin aceptación vigente, borra al cargar las cookies `_ga`, `_ga_*`, `_gid` y `_gat*` del host y de sus dominios padre (restos del aviso anterior incluidos).
+  - Retirada (rechazo, caducidad u otra pestaña con GA cargado): `ga-disable` a `true`, vacía `dataLayer`, quita el script, borra las cookies y recarga la página.
+  - No se recortan el referer ni los parámetros de campaña: el panel consulta `sessionSource` y `pagePath`.
+- **Page view manual:** `gtag` se inicializa con `send_page_view: false`; cada SPA dispara `page_view` al navegar (`window.__spaDrivenAnalytics`) y las páginas estáticas reciben uno en `load`. Si la aceptación llega con la página abierta, se envía un `page_view` de la página actual, porque el de la carga no llegó a enviarse.
+- **Exclusión admin:** detecta token de Supabase Auth en `localStorage` y no carga GA.
+- **Serie histórica:** hasta el 2026-10-21 el aviso se autoaceptaba a los 10 s y medía casi todas las visitas web. Desde esa fecha solo cuenta a quien acepta; las cifras web de Métricas no son comparables entre ambos periodos.
 
 ## iOS — Firebase Analytics
 
@@ -80,7 +87,7 @@ Emitidos en **ambas plataformas** con los mismos nombres y parámetros:
 
 ## Privacidad — resumen
 
-- **iOS y Android: Default ON (opt-out).** La web sí es opt-in (el banner requiere aceptación explícita).
+- **iOS y Android: Default ON (opt-out).** La web es opt-in estricto: sin aceptación expresa no carga Google Analytics.
 - **Sin identificadores publicitarios:** ni IDFA (iOS), ni GAID (Android), ni cookies de seguimiento entre sitios (web).
 - **Consentimiento granular:** push, offline y analytics se piden por separado en Settings → Privacidad.
 

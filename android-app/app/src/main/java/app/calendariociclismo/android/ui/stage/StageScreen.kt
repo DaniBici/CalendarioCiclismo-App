@@ -74,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
@@ -273,77 +274,12 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val race = s.data.race
-                    val raceDay = s.data.raceDay
-                    val navSiblings = s.data.siblings
-                        .filter { !it.isRestDay && !it.isCancelledDay }
-                        .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
-                    val currentIdx = navSiblings.indexOfFirst { it.id == raceDay.id }
-                    val prevRd = if (currentIdx > 0) navSiblings[currentIdx - 1] else null
-
-                    // Clasificaciones propias (in-house): de esta jornada si ya
-                    // están volcadas; en su defecto, la GENERAL de la etapa
-                    // anterior (vueltas por etapas). Se ofrece como PRIMER chip
-                    // de la tira de assets; sin clasificaciones no hay chip.
-                    // Espejo de jornada.js (web).
-                    val raceId = race?.id
-                    val currentResultsNav: () -> Unit = {
-                        navController.navigate(
-                            Routes.results(raceId ?: "", s.data.resultsStageNumber, suffix = raceDay.stageSuffix),
-                        )
-                    }
-                    val prevResultsNav: () -> Unit = {
-                        navController.navigate(
-                            Routes.results(
-                                raceId ?: "",
-                                s.data.prevResultsStageNumber,
-                                classKind = "gc",
-                                suffix = prevRd?.stageSuffix,
-                            ),
-                        )
-                    }
-                    val resultsNav: (() -> Unit)? = when {
-                        raceId == null -> null
-                        s.data.hasInhouseResults -> currentResultsNav
-                        s.data.prevHasInhouse && prevRd != null -> prevResultsNav
-                        else -> null
-                    }
 
                     item {
-                        StageHeaderCard(
+                        StageHeader(
                             data = s.data,
                             navController = navController,
-                            onBack = { navController.popBackStack() },
-                            // Solo las carreras por etapas enlazan a la pantalla
-                            // de competición ("ver todas las etapas"). Una carrera
-                            // de un día no tiene lista de etapas, así que su
-                            // cabecera no es tappable (paridad con iOS, que oculta
-                            // el logo→RaceDetail salvo `isStageRace`).
-                            onRaceTap = s.data.race
-                                ?.takeIf { it.isStageRace }
-                                ?.id
-                                ?.let { id ->
-                                    { navController.navigate(Routes.race(id)) }
-                                },
-                            onAssetTap = { asset ->
-                                scope.launch {
-                                    onAssetTap(app, context, asset, offlineEnabled) { offlineAlert = it }
-                                }
-                            },
-                            onExternalLinkTap = { url ->
-                                openExternal(context, url) { offlineAlert = it }
-                            },
-                            onWebProfileTap = { url ->
-                                scope.launch {
-                                    onWebProfileTap(
-                                        app,
-                                        context,
-                                        url,
-                                        s.data.assets.firstOrNull { it.type == "profile" },
-                                        offlineEnabled,
-                                    ) { offlineAlert = it }
-                                }
-                            },
-                            onResultsTap = resultsNav,
+                            onOfflineAlert = { offlineAlert = it },
                         )
                     }
 
@@ -509,7 +445,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                     title = if (race?.isOneDay == true) {
                                         LocaleHolder.t("Descripción de la carrera", "Race description")
                                     } else {
-                                        LocaleHolder.t("Descripción de la etapa", "Stage description")
+                                        LocaleHolder.t("Info de la etapa", "Stage info")
                                     },
                                     body = description,
                                     bonuses = localizedBonuses,
@@ -1222,11 +1158,140 @@ internal fun StageInfoHeaderCard(
     }
 }
 
+/** Pantalla que muestra la cabecera de la jornada. */
+internal enum class StageHeaderContext {
+    /** La propia jornada. */
+    STAGE,
+
+    /**
+     * Orden de salida: la tira omite su acceso y añade el de vuelta a la
+     * jornada («Ir a la carrera» o «Ir a la etapa»).
+     */
+    START_ORDER,
+}
+
+/**
+ * Datos de la jornada para la cabecera del orden de salida: la misma
+ * [StageData] que pinta la jornada. Sin red conserva la de Room; sin la jornada
+ * en Room necesita [raceId] para descargar la carrera. `null` si no hay datos.
+ */
+internal suspend fun loadStageHeaderData(
+    app: CalendarioCiclismoApp,
+    stageId: String,
+    raceId: String?,
+): StageData? {
+    val cached = try {
+        cachedStageData(app, stageId)
+    } catch (error: Exception) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        null
+    }
+    return try {
+        loadStageData(app, stageId, raceId, cached?.inhouse)
+    } catch (error: Exception) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        cached?.data
+    }
+}
+
+/**
+ * Primera tarjeta de la jornada con sus acciones: carrera, assets con las
+ * reglas sin conexión, enlaces externos y clasificaciones propias. La comparten
+ * la jornada y el orden de salida ([StageHeaderContext.START_ORDER]); los
+ * avisos sin conexión los presenta la pantalla con [onOfflineAlert].
+ */
+@Composable
+internal fun StageHeader(
+    data: StageData,
+    navController: NavController,
+    onOfflineAlert: (OfflineAccessAlert) -> Unit,
+    headerContext: StageHeaderContext = StageHeaderContext.STAGE,
+) {
+    val app = rememberApp()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Usado por la lógica de "sin red" para decidir entre modal "fuera de rango"
+    // (offline ON) o modal "Sin conexión" con CTA a activar offline (offline OFF).
+    val offlineEnabled by app.preferences.offlineEnabled.collectAsState(initial = false)
+    val raceDay = data.raceDay
+    val navSiblings = data.siblings
+        .filter { !it.isRestDay && !it.isCancelledDay }
+        .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
+    val currentIdx = navSiblings.indexOfFirst { it.id == raceDay.id }
+    val prevRd = if (currentIdx > 0) navSiblings[currentIdx - 1] else null
+
+    // Clasificaciones propias (in-house): de esta jornada si ya están
+    // volcadas; en su defecto, la GENERAL de la etapa anterior (vueltas por
+    // etapas). Se ofrece como PRIMER chip de la tira de assets; sin
+    // clasificaciones no hay chip. Espejo de jornada.js (web).
+    val raceId = data.race?.id
+    val currentResultsNav: () -> Unit = {
+        navController.navigate(
+            Routes.results(raceId ?: "", data.resultsStageNumber, suffix = raceDay.stageSuffix),
+        )
+    }
+    val prevResultsNav: () -> Unit = {
+        navController.navigate(
+            Routes.results(
+                raceId ?: "",
+                data.prevResultsStageNumber,
+                classKind = "gc",
+                suffix = prevRd?.stageSuffix,
+            ),
+        )
+    }
+    val resultsNav: (() -> Unit)? = when {
+        raceId == null -> null
+        data.hasInhouseResults -> currentResultsNav
+        data.prevHasInhouse && prevRd != null -> prevResultsNav
+        else -> null
+    }
+
+    StageHeaderCard(
+        data = data,
+        navController = navController,
+        headerContext = headerContext,
+        onBack = { navController.popBackStack() },
+        // Solo las carreras por etapas enlazan a la pantalla de competición
+        // ("ver todas las etapas"). Una carrera de un día no tiene lista de
+        // etapas, así que su cabecera no es tappable (paridad con iOS, que
+        // oculta el logo→RaceDetail salvo `isStageRace`).
+        onRaceTap = data.race
+            ?.takeIf { it.isStageRace }
+            ?.id
+            ?.let { id ->
+                { navController.navigate(Routes.race(id)) }
+            },
+        onAssetTap = { asset ->
+            scope.launch {
+                onAssetTap(app, context, asset, offlineEnabled, onOfflineAlert)
+            }
+        },
+        onExternalLinkTap = { url ->
+            openExternal(context, url, onOfflineAlert)
+        },
+        onWebProfileTap = { url ->
+            scope.launch {
+                onWebProfileTap(
+                    app,
+                    context,
+                    url,
+                    data.assets.firstOrNull { it.type == "profile" },
+                    offlineEnabled,
+                    onOfflineAlert,
+                )
+            }
+        },
+        onResultsTap = resultsNav,
+    )
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StageHeaderCard(
     data: StageData,
     navController: NavController,
+    headerContext: StageHeaderContext,
     onBack: () -> Unit,
     onRaceTap: (() -> Unit)? = null,
     onAssetTap: (Asset) -> Unit = {},
@@ -1238,8 +1303,11 @@ private fun StageHeaderCard(
     val race = data.race
     val context = LocalContext.current
     val app = rememberApp()
+    val isStartOrder = headerContext == StageHeaderContext.START_ORDER
+    // En el orden de salida se omite su propio acceso.
     val assets = data.assets.filter {
-        it.type != "live_text" && !(rd.profileNotViewable && it.type == "profile")
+        it.type != "live_text" && !(rd.profileNotViewable && it.type == "profile") &&
+            !(isStartOrder && it.type == "startOrder")
     }
     val hasGpxProfile = rd.hasElevationProfile
     val hasProfile = assets.any { it.type == "profile" }
@@ -1257,7 +1325,7 @@ private fun StageHeaderCard(
     // los permisos: es el punto de entrada para personalizar esta jornada.
     val showNotifChip = !rd.isRestDay && !rd.isCancelledDay
     val hasICalSubscribe = RaceLogic.hasCalendarForYear(race?.year) && !rd.slug.isNullOrEmpty() && !rd.isRestDay && !rd.isCancelledDay
-    val hasDocs = hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip || onResultsTap != null
+    val hasDocs = isStartOrder || hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip || onResultsTap != null
     // Dividimos los assets respecto al índice de "profile" en ASSET_ORDER para
     // que el chip SVG web aparezca siempre después del rutómetro.
     val profileOrderIdx = Constants.ASSET_ORDER.indexOf("profile").let { if (it < 0) Constants.ASSET_ORDER.size else it }
@@ -1331,6 +1399,24 @@ private fun StageHeaderCard(
                             icon = assetIcon(asset.type),
                             label = asset.typeLabel(context),
                             onClick = { onAssetTap(asset) },
+                        )
+                    }
+
+                    // Orden de salida: vuelta a la jornada tras el Libro de
+                    // Ruta, en la posición que ocupa en Clasificaciones.
+                    if (isStartOrder) {
+                        AssetChip(
+                            iconPainter = painterResource(R.drawable.ic_action_cursor),
+                            label = if (race?.isOneDay == true) {
+                                LocaleHolder.t("Ir a la carrera", "Go to the race")
+                            } else {
+                                LocaleHolder.t("Ir a la etapa", "Go to the stage")
+                            },
+                            onClick = {
+                                navController.navigate(
+                                    Routes.stage(rd.id, rd.raceId, Routes.jornadaTitle(race?.localizedName, rd)),
+                                )
+                            },
                         )
                     }
 
@@ -2345,8 +2431,8 @@ private fun assetIcon(type: String?): ImageVector = when (type) {
 // ─── Descripción / Bonificaciones / Notas ─────────────────────────
 
 /**
- * Panel de descripción: título a 16 seminegrita («Descripción de la etapa» o
- * «de la carrera»), el texto y, dentro del mismo panel, las filas
+ * Panel de descripción: título a 16 seminegrita («Info de la etapa» o
+ * «Descripción de la carrera»), el texto y, dentro del mismo panel, las filas
  * «Bonificaciones» y «Notas», sin doble filete.
  */
 @Composable
@@ -2416,7 +2502,7 @@ private fun DescriptionPanel(
 
 // ─── State ────────────────────────────────────────────────────────
 
-private data class StageData(
+internal data class StageData(
     val raceDay: RaceDay,
     val race: Race?,
     val broadcasts: List<Broadcast>,

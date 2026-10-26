@@ -28,7 +28,9 @@ import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          categoryRank, genderRank, grandTourRank, tsSeconds,
          nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
 import { getLang, t } from './i18n.js';
-import { cyclocrossHome } from './services/today-season.js';
+import { localizedTeamName } from './services/national-team-name.js';
+import { cyclocrossHome, roadPinned, setRoadPinned } from './services/today-season.js';
+import { roadPinButtonHtml } from './components/discipline-switch.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
 import { cxSeason, cxRaceName, cxRacePageUrl, cxRoundBadge } from './cx/presentation.js';
 import { cxResultEntries, cxFeedNeedsReload, CX_FULL_REFRESH_MS } from './cx/results-feed.js';
@@ -46,28 +48,6 @@ import {
   initialResultsFromKey,
   previousResultsWindow,
 } from './services/result-feed-pagination.js';
-
-// Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
-// («France»). En castellano se muestra el nombre del país en castellano.
-const NATION_ALIASES = { 'Great Britain': 'GB' };
-const NATION_NAMES_ES = { GB: 'Gran Bretaña' };
-let _nationCodeByName = null;
-function localizedNationName(name) {
-  if (getLang() === 'en' || !name || typeof Intl.DisplayNames !== 'function') return name;
-  if (!_nationCodeByName) {
-    _nationCodeByName = new Map(Object.entries(NATION_ALIASES));
-    const en = new Intl.DisplayNames(['en'], { type: 'region' });
-    const A = 65;
-    for (let i = 0; i < 26; i++) for (let j = 0; j < 26; j++) {
-      const code = String.fromCharCode(A + i, A + j);
-      const label = en.of(code);
-      if (label && label !== code) _nationCodeByName.set(label, code);
-    }
-  }
-  const code = _nationCodeByName.get(name.trim());
-  if (!code) return name;
-  return NATION_NAMES_ES[code] || new Intl.DisplayNames(['es'], { type: 'region' }).of(code) || name;
-}
 
 const TROPHY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
 
@@ -384,16 +364,17 @@ async function fetchEntries(fromKey, toKey, isEn) {
           const sltById = new Map((slts || []).map(row => [row.id, row]));
           const teamIds = [...new Set((slts || []).map(row => row.teamId).filter(Boolean))];
           const { data: tms } = teamIds.length
-            ? await supabase.from('teams').select('id, name').in('id', teamIds)
+            ? await supabase.from('teams').select('id, name, teamKind, selectionScope, countryCode, selectionCode').in('id', teamIds)
             : { data: [] };
-          const teamName = new Map((tms || []).map(row => [row.id, row.name]));
+          const teamById = new Map((tms || []).map(row => [row.id, row]));
           for (const e of creEntries) {
             const pks = pksFor(e);
             if (pks.length !== 1) continue;
             const slt = sltById.get(pks[0]);
             if (!slt) continue;
-            const teamWinner = (slt.teamId && teamName.get(slt.teamId)) || slt.teamName || '';
-            if (teamWinner) e.winner = localizedNationName(teamWinner);
+            const team = slt.teamId ? teamById.get(slt.teamId) : null;
+            const teamWinner = team?.name || slt.teamName || '';
+            if (teamWinner) e.winner = localizedTeamName(teamWinner, team, isEn);
           }
         } catch (_) { /* se queda el ganador que hubiera */ }
       }
@@ -587,6 +568,11 @@ function packCxDays(root) {
   });
 }
 
+// Indicador de carga con iconos y puntos, el mismo de Hoy, Calendario y
+// Ciclocross: el cambio de pestaña descarga la temporada y tarda.
+const LOADING_ICONS = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
+const loadingHtml = text => `<div class="loading" role="status" aria-live="polite"><div class="loading__icons">${LOADING_ICONS}</div><p class="loading__text">${esc(text)}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
+
 // ── Índice /resultados/ · /en/results/ ─────────────────────────────
 export function renderResultsFeed(content) {
   const _isEn = getLang() === 'en';
@@ -595,6 +581,8 @@ export function renderResultsFeed(content) {
   let fromKey = initialResultsFromKey(todayKey);
   // Pestaña Ciclocross, primera, mientras la home es Ciclocross (del cierre de
   // la temporada de carretera al 31 de diciembre; services/today-season.js).
+  // En ese periodo las tres vistas forman el conmutador de Hoy y Carretera
+  // abre por defecto si está fijada con su chincheta.
   const cxTab = cyclocrossHome(todayKey);
   const views = cxTab ? ['cx', 'latest', 'ranking'] : ['latest', 'ranking'];
   const viewLabels = {
@@ -602,7 +590,8 @@ export function renderResultsFeed(content) {
     latest: cxTab ? (_isEn ? 'Road' : 'Carretera') : (_isEn ? 'Latest Results' : 'Últimos resultados'),
     ranking: _isEn ? 'UCI Ranking' : 'Ránking UCI',
   };
-  let activeView = views[0];
+  const viewShortLabels = { cx: 'CX', latest: _isEn ? 'Road' : 'Ruta', ranking: _isEn ? 'Ranking' : 'Ránking' };
+  let activeView = cxTab && roadPinned() ? 'latest' : views[0];
   let rankingGender = 'male';
   let feedEntries = null;
   let rankingRows = null;
@@ -633,21 +622,44 @@ export function renderResultsFeed(content) {
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
+  // Conmutador Ciclocross / Carretera / Ránking (components/discipline-switch.js).
+  // Carretera lleva la chincheta, como en Hoy: en contorno si está activa y
+  // llena si está fijada.
+  function viewSwitchHtml() {
+    const pinned = roadPinned();
+    return `<div class="discipline-switch feed-view-switch" role="group" aria-label="${_isEn ? 'Results view' : 'Vista de resultados'}">${views.map((view) => {
+      const active = activeView === view;
+      const cls = `discipline-switch__option${active ? ' discipline-switch__option--active' : ''}`;
+      const button = className => `<button type="button" class="${className}" aria-pressed="${active}" data-results-view="${view}"><span class="btn-label-full">${viewLabels[view]}</span><span class="btn-label-short">${viewShortLabels[view]}</span></button>`;
+      if (view !== 'latest') return button(cls);
+      return `<span class="${cls}">${button('discipline-switch__select')}${active || pinned ? roadPinButtonHtml(pinned) : ''}</span>`;
+    }).join('')}</div>`;
+  }
+
   function shell(body) {
-    return `
-      <div class="feed-hero">
-        <h1 class="sr-only">${_isEn ? 'Results' : 'Resultados'}</h1>
+    const tabs = cxTab ? viewSwitchHtml() : `
         <div class="feed-view-tabs" role="tablist" aria-label="${_isEn ? 'Results view' : 'Vista de resultados'}">
           ${views.map(view => `<button class="feed-view-tab${activeView === view ? ' feed-view-tab--active' : ''}"
                   type="button" role="tab" aria-selected="${activeView === view}" data-results-view="${view}">
             ${viewLabels[view]}
           </button>`).join('')}
-        </div>
+        </div>`;
+    return `
+      <div class="feed-hero">
+        <h1 class="sr-only">${_isEn ? 'Results' : 'Resultados'}</h1>
+        ${tabs}
       </div>
       <div id="resultsFeedPanel">${body}</div>`;
   }
 
   function bindViewTabs() {
+    content.querySelector('.feed-view-switch')?.addEventListener('click', (event) => {
+      if (!event.target.closest('button.discipline-switch__pin')) return;
+      setRoadPinned(!roadPinned());
+      content.querySelector('.feed-view-switch').outerHTML = viewSwitchHtml();
+      bindViewTabs();
+      (content.querySelector('button.discipline-switch__pin') || content.querySelector('[data-results-view="latest"]'))?.focus();
+    });
     content.querySelectorAll('[data-results-view]').forEach((button) => {
       button.addEventListener('click', () => {
         const next = button.dataset.resultsView;
@@ -759,7 +771,7 @@ export function renderResultsFeed(content) {
     const request=++feedRequest;
     feedLoading=true;
     if (!refresh && !feedEntries) {
-      content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
+      content.innerHTML = shell(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
       bindViewTabs();
     }
     try {
@@ -940,7 +952,7 @@ export function renderResultsFeed(content) {
       renderRanking(rankingRows);
       return;
     }
-    content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading UCI ranking' : 'Cargando ránking UCI'}</div>`);
+    content.innerHTML = shell(loadingHtml(_isEn ? 'Loading UCI ranking' : 'Cargando ránking UCI'));
     bindViewTabs();
     try {
       const { data, error } = await supabase
@@ -1009,7 +1021,7 @@ export function renderResultsFeed(content) {
     const request = ++cxRequest;
     cxLoading = true;
     if (!refresh && !cxEntries) {
-      content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
+      content.innerHTML = shell(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
       bindViewTabs();
     }
     try {

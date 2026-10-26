@@ -11,9 +11,11 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,35 +49,37 @@ fun CalendarFilterChip(
     pinOutline: Boolean = false,
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = CCText.S13,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            )
-        },
-        trailingIcon = when {
-            pinFilled -> {
-                { Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp)) }
-            }
-            pinOutline -> {
-                { Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp)) }
-            }
-            else -> null
-        },
-        shape = RoundedCornerShape(CCRadius.Control),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = primary.copy(alpha = 0.15f),
-            selectedLabelColor = primary,
-        ),
-        border = null,
-        modifier = modifier,
-    )
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = {
+                Text(
+                    text = label,
+                    style = CCText.S13,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                )
+            },
+            trailingIcon = when {
+                pinFilled -> {
+                    { Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp)) }
+                }
+                pinOutline -> {
+                    { Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp)) }
+                }
+                else -> null
+            },
+            shape = RoundedCornerShape(CCRadius.Control),
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                selectedContainerColor = primary.copy(alpha = 0.15f),
+                selectedLabelColor = primary,
+            ),
+            border = null,
+            modifier = modifier,
+        )
+    }
 }
 
 /** Mes del selector (`.cal-month-chip`): sin fondo en reposo; el activo con el acento al 15 %. */
@@ -87,26 +91,28 @@ fun CalendarMonthChip(
     modifier: Modifier = Modifier,
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = CCText.S14,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            )
-        },
-        shape = RoundedCornerShape(CCRadius.Control),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = Color.Transparent,
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = primary.copy(alpha = 0.15f),
-            selectedLabelColor = primary,
-        ),
-        border = null,
-        modifier = modifier,
-    )
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = {
+                Text(
+                    text = label,
+                    style = CCText.S14,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                )
+            },
+            shape = RoundedCornerShape(CCRadius.Control),
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = Color.Transparent,
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                selectedContainerColor = primary.copy(alpha = 0.15f),
+                selectedLabelColor = primary,
+            ),
+            border = null,
+            modifier = modifier,
+        )
+    }
 }
 
 /** Selector de año o país (`.temporada-select`): superficie de tarjeta y texto principal, sin acento. */
@@ -117,20 +123,22 @@ fun CalendarSelectorChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AssistChip(
-        onClick = onClick,
-        // Una sola línea: el año o el país no se parten en dos.
-        label = { Text(text = label, style = CCText.S13, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
-        shape = RoundedCornerShape(CCRadius.Control),
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            leadingIconContentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        border = null,
-        modifier = modifier,
-    )
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        AssistChip(
+            onClick = onClick,
+            // Una sola línea: el año o el país no se parten en dos.
+            label = { Text(text = label, style = CCText.S13, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) },
+            leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            shape = RoundedCornerShape(CCRadius.Control),
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            border = null,
+            modifier = modifier,
+        )
+    }
 }
 
 /**

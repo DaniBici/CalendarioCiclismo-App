@@ -29,6 +29,13 @@ enum TransfersLogic {
     /// Las 4 divisiones del mercado, en el orden de los botones.
     static let divisions = ["WT", "PT", "WWT", "PRW"]
 
+    /// Equipos con vista propia en el mercado: los de las 4 divisiones. Un
+    /// equipo de otra categoría con fila team_seasons (filial, continental) no
+    /// enlaza.
+    static func marketTeamIds(_ seasons: [TeamSeason]) -> Set<String> {
+        Set(seasons.filter { divisions.contains($0.category ?? "") }.map(\.teamId))
+    }
+
     /// Género de la tabla riders_* por división (para cargar la plantilla).
     static func divisionGender(_ category: String?) -> String? {
         switch category {

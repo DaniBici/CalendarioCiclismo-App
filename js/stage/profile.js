@@ -6,19 +6,20 @@ import { hasStageKeyPoints } from './key-points.js';
 import { profileSegmentStats } from './profile-segment.js';
 import { esc, rdLocation, formatTimeUser } from '../shared.js';
 import { getLang, t } from '../i18n.js';
+import { fixedDecimal } from '../fixed-number.js';
 
-export function mountStageProfile(host, { day, race, assets = [], points = false, temporal = false, hidePointNames = false } = {}) {
-  if (!host) return () => {};
-  host._profileCleanup?.();
+// Datos del perfil y de Puntos clave de una jornada, sin DOM: los comparten el
+// montaje interactivo y el HTML generado en el build, que así coinciden.
+// `timeZoneLabel` («GMT») acompaña a las horas de paso con el mismo criterio
+// que Horarios en jornadaHtml(): build EN y visitante en esa zona.
+function profileModel(day, { points = false, timeZoneLabel = null } = {}, assets = []) {
   const interactive = hasRenderableElevationProfile(day);
   const official = !day.profileNotViewable && assets.find(asset => asset.type === 'profile' && (asset.url || asset.filePath));
-  if (!interactive && !official) { host.hidden = true; return () => {}; }
+  if (!interactive && !official) return null;
   const en = getLang() === 'en', locale = en ? 'en-GB' : 'es-ES';
-  const fmt = value => Number(value).toLocaleString(locale, { maximumFractionDigits:1 });
-  let preferred;
-  try { preferred = localStorage.getItem('cc_profile_mode'); } catch { /* Preferencia opcional. */ }
-  let mode = official && (!interactive || preferred === 'official') ? 'official' : 'interactive';
-  let all = false, selectedKm = null, pinnedKm = null, range = null, drag = null, hoverData, lastWidth = 0;
+  // Decimales con tablas fijas (js/fixed-number.js), como el resto del HTML de
+  // la jornada.
+  const fmt = value => fixedDecimal(value, { lang: en ? 'en' : 'es', maximumFractionDigits:1 });
   const distance = Number(day.distanceKm || day.elevationProfile?.distance) || null;
   const guide = buildSimplifiedGuide({ distanceKm:distance, neutralStartTimeUtc:day.neutralStartTimeUtc, realStartTimeUtc:day.realStartTimeUtc,
     estimatedFinishTimeUtc:day.estimatedFinishTimeUtc, summits:day.profileSummits || [], waypoints:day.profileWaypoints || [], primaryType:day.primaryType });
@@ -49,9 +50,69 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
   const summaryHtml = summaryRows.length
     ? `<div class="stage-side stage-side--summary"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile data' : 'Datos del perfil'}</h2></header><dl class="stage-summary">${summaryRows.map(([label, value, sign]) => `<div class="stage-summary__row"><dt>${label}</dt><dd>${sign}${fmt(Math.max(0, Math.round(Math.abs(value))))} m</dd></div>`).join('')}</dl></section><div class="stage-side__actions"></div></div>`
     : '';
+  const className = `stage-profile-layout${hasPoints || summaryHtml ? ' stage-profile-layout--points' : ''}`;
+  return { interactive, official, en, locale, fmt, keyRows, initial, footBySummitKm, passageTimes, timeZoneLabel, hasPoints, summaryHtml, className };
+}
+
+// Filas de Puntos clave. hoverData (perfil interactivo) aporta la pendiente
+// media de cada puerto; sin él, solo la longitud.
+function keyRowsHtml(model, day, rows, hoverData) {
+  const { interactive, en, fmt, footBySummitKm, passageTimes, timeZoneLabel } = model;
+  return rows.map(row => {
+      const label = row.label || (row.type === 'finish' ? rdLocation(day,'finishLocation') || rdLocation(day,'startLocation') : t(`stage.guide.${row.type}`));
+      const secondaryLabel = row.secondaryType
+        ? (row.secondaryLabel || t(`stage.guide.${row.secondaryType}`))
+        : '';
+      const fullLabel = secondaryLabel && secondaryLabel !== label ? `${label} · ${secondaryLabel}` : label;
+      const time = passageTimes && row.timeUtc ? formatTimeUser(row.timeUtc)?.display : null;
+      // Ficha del puerto en una columna a la derecha: longitud y pendiente media.
+      const footKm = row.type === 'summit' ? footBySummitKm.get(row.km) : null;
+      let climbStats = '';
+      if (footKm != null) {
+        const climb = hoverData ? profileSegmentStats(hoverData.profile, footKm, row.km, hoverData.interpolateAlt) : null;
+        climbStats = `${fmt(row.km - footKm)} km${climb ? ` ${en ? 'at' : 'al'} ${fixedDecimal(climb.gradient, { lang: en ? 'en' : 'es', maximumFractionDigits:1, minimumFractionDigits:1 })} %` : ''}`;
+      }
+      const timeText = time ? `${row.isEstimated ? '≈ ' : ''}${time}${timeZoneLabel ? ` ${timeZoneLabel}` : ''}` : '';
+      const small = [timeText, climbStats].filter(Boolean).join(' · ');
+      if (row.type === 'climb_foot') {
+        const footBody = `<span class="stage-key-km">${row.kmToGo == null ? '' : `${fmt(Math.max(0,row.kmToGo))} km`}</span><span class="stage-key-foot-mark" aria-hidden="true"></span><span class="stage-key-name">${en ? 'Foot of' : 'Pie de'} ${esc(row.label || (en ? 'climb' : 'puerto'))}${timeText ? ` · ${timeText}` : ''}</span>`;
+        return interactive ? `<button type="button" class="stage-key-row stage-key-row--foot" data-point-km="${row.km}" aria-pressed="false">${footBody}</button>` : `<div class="stage-key-row stage-key-row--foot">${footBody}</div>`;
+      }
+      const body = `<span class="stage-key-km">${row.kmToGo == null ? '' : `${fmt(Math.max(0,row.kmToGo))} km`}</span>${guideMarkerSVG(row.type,{ category:row.category,secondaryKind:row.secondaryType })}<span class="stage-key-name">${esc(fullLabel)}${small ? `<small ${time && row.isEstimated ? `title="${esc(t('stage.guide.estimatedNote'))}"` : ''}>${small}</small>` : ''}</span>`;
+      return interactive ? `<button type="button" class="stage-key-row" data-point-km="${row.km}" aria-pressed="false">${body}</button>` : `<div class="stage-key-row">${body}</div>`;
+  }).join('');
+}
+
+function profileShellHtml(model, rowsHtml = '') {
+  const { interactive, official, en, keyRows, initial, hasPoints, summaryHtml } = model;
+  return `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>${hasPoints ? `<div class="stage-side"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}">${rowsHtml}</div></div></section><div class="stage-side__actions"></div></div>` : summaryHtml}`;
+}
+
+/** Perfil y Puntos clave en HTML para el build: panel del perfil con el
+ *  gráfico vacío (lo dibuja mountStageProfile) y lista resumida de puntos. */
+export function stageProfileHtml(day, race, assets = [], { points = false, timeZoneLabel = null } = {}) {
+  const model = profileModel(day, { points, timeZoneLabel }, assets);
+  if (!model) return null;
+  const hoverData = model.hasPoints && model.interactive && model.footBySummitKm.size
+    ? buildElevationProfileSVG({ profile:day.elevationProfile, summits:day.profileSummits || [], waypoints:day.profileWaypoints || [],
+        width:800, height:320, color:race?.colorHex, lang:getLang() }).hoverData
+    : null;
+  return { className: model.className, html: profileShellHtml(model, model.hasPoints ? keyRowsHtml(model, day, model.initial, hoverData) : '') };
+}
+
+export function mountStageProfile(host, { day, race, assets = [], points = false, temporal = false, hidePointNames = false, timeZoneLabel = null } = {}) {
+  if (!host) return () => {};
+  host._profileCleanup?.();
+  const model = profileModel(day, { points, timeZoneLabel }, assets);
+  if (!model) { host.hidden = true; return () => {}; }
+  const { interactive, official, en, locale, fmt, keyRows, initial, footBySummitKm, hasPoints } = model;
+  let preferred;
+  try { preferred = localStorage.getItem('cc_profile_mode'); } catch { /* Preferencia opcional. */ }
+  let mode = official && (!interactive || preferred === 'official') ? 'official' : 'interactive';
+  let all = false, selectedKm = null, pinnedKm = null, range = null, drag = null, hoverData, lastWidth = 0;
   host.hidden = false;
-  host.className = `stage-profile-layout${hasPoints || summaryHtml ? ' stage-profile-layout--points' : ''}`;
-  host.innerHTML = `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>${hasPoints ? `<div class="stage-side"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}"></div></div></section><div class="stage-side__actions"></div></div>` : summaryHtml}`;
+  host.className = model.className;
+  host.innerHTML = profileShellHtml(model);
   const graphic = host.querySelector('.stage-profile-graphic');
   const readout = host.querySelector('output');
   const svgNode = (selector, tag, cls) => {
@@ -156,29 +217,7 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
   const drawPoints = () => {
     if (!hasPoints) return;
     const list = host.querySelector('.stage-key-list');
-    list.innerHTML = (all ? keyRows : initial).map(row => {
-      const label = row.label || (row.type === 'finish' ? rdLocation(day,'finishLocation') || rdLocation(day,'startLocation') : t(`stage.guide.${row.type}`));
-      const secondaryLabel = row.secondaryType
-        ? (row.secondaryLabel || t(`stage.guide.${row.secondaryType}`))
-        : '';
-      const fullLabel = secondaryLabel && secondaryLabel !== label ? `${label} · ${secondaryLabel}` : label;
-      const time = passageTimes && row.timeUtc ? formatTimeUser(row.timeUtc)?.display : null;
-      // Ficha del puerto en una columna a la derecha: longitud y pendiente media.
-      const footKm = row.type === 'summit' ? footBySummitKm.get(row.km) : null;
-      let climbStats = '';
-      if (footKm != null) {
-        const climb = hoverData ? profileSegmentStats(hoverData.profile, footKm, row.km, hoverData.interpolateAlt) : null;
-        climbStats = `${fmt(row.km - footKm)} km${climb ? ` ${en ? 'at' : 'al'} ${climb.gradient.toLocaleString(locale, { maximumFractionDigits:1, minimumFractionDigits:1 })} %` : ''}`;
-      }
-      const timeText = time ? `${row.isEstimated ? '≈ ' : ''}${time}` : '';
-      const small = [timeText, climbStats].filter(Boolean).join(' · ');
-      if (row.type === 'climb_foot') {
-        const footBody = `<span class="stage-key-km">${row.kmToGo == null ? '' : `${fmt(Math.max(0,row.kmToGo))} km`}</span><span class="stage-key-foot-mark" aria-hidden="true"></span><span class="stage-key-name">${en ? 'Foot of' : 'Pie de'} ${esc(row.label || (en ? 'climb' : 'puerto'))}${timeText ? ` · ${timeText}` : ''}</span>`;
-        return interactive ? `<button type="button" class="stage-key-row stage-key-row--foot" data-point-km="${row.km}" aria-pressed="false">${footBody}</button>` : `<div class="stage-key-row stage-key-row--foot">${footBody}</div>`;
-      }
-      const body = `<span class="stage-key-km">${row.kmToGo == null ? '' : `${fmt(Math.max(0,row.kmToGo))} km`}</span>${guideMarkerSVG(row.type,{ category:row.category,secondaryKind:row.secondaryType })}<span class="stage-key-name">${esc(fullLabel)}${small ? `<small ${time && row.isEstimated ? `title="${esc(t('stage.guide.estimatedNote'))}"` : ''}>${small}</small>` : ''}</span>`;
-      return interactive ? `<button type="button" class="stage-key-row" data-point-km="${row.km}" aria-pressed="false">${body}</button>` : `<div class="stage-key-row">${body}</div>`;
-    }).join('');
+    list.innerHTML = keyRowsHtml(model, day, all ? keyRows : initial, hoverData);
     sizePoints();
   };
   const onHostClick = event => {

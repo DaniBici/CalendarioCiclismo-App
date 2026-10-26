@@ -96,6 +96,12 @@ function teamLabel(teamId, freeText, side = 'to') {
   return primary.get(teamId) || fallback.get(teamId) || teamId;
 }
 
+// Solo los equipos de las cuatro divisiones del mercado tienen vista propia; un
+// equipo de otra categoría con fila team_seasons (filial, continental) no enlaza.
+function hasTeamView(teamId) {
+  return DIVISIONS.includes(_seasonsByTeamId.get(teamId)?.category);
+}
+
 function rumorChip() {
   return `<span class="tr-chip tr-chip--rumor">${esc(t('transfers.rumor'))}</span>`;
 }
@@ -268,7 +274,9 @@ function feedRowHtml(x) {
   const name = `<strong>${esc(riderName(x.rider) || x.riderId)}</strong>`;
   let move;
   if (x.type === 'renewal') {
-    move = `${esc(t('transfers.renews'))} <strong>${esc(teamLabel(x.toTeamId, x.toTeamName))}</strong>`;
+    // Punto central en lugar de «renueva con»: la fila se lee igual en todos los anchos.
+    move = `<span class="tr-arrow">·</span>
+      ${esc(teamLabel(x.toTeamId, x.toTeamName))}`;
   } else if (x.type === 'retirement') {
     move = `${esc(t('transfers.retires'))} <span class="tr-dim">(${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))})</span>`;
   } else {
@@ -286,7 +294,7 @@ function feedRowHtml(x) {
   // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
   // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
   // la fila conserva el aspecto no enlazado.
-  if (x.toTeamId && _seasonsByTeamId.has(x.toTeamId)) {
+  if (x.toTeamId && hasTeamView(x.toTeamId)) {
     const href = `?team=${esc(_teamIdToSlug.get(x.toTeamId) || x.toTeamId)}`;
     return `<a class="tr-row tr-row--link" href="${href}" data-team="${esc(x.toTeamId)}">${inner}</a>`;
   }
@@ -422,7 +430,7 @@ async function loadRoster(teamId) {
 }
 
 // `linkTeamId`: si se pasa Y ese equipo tiene ficha en el mercado (fila en
-// team_seasons 2027), la FILA ENTERA del corredor enlaza a la vista de ese
+// team_seasons 2027 de una de las cuatro divisiones), la FILA ENTERA del corredor enlaza a la vista de ese
 // equipo — un fichaje que LLEGA enlaza al equipo del que VENÍA; uno que se
 // MARCHA, al equipo AL QUE VA (decisión Dani 2026-07-20). No hay ficha pública
 // de corredor (retirada), así que el destino del enlace es siempre un equipo.
@@ -436,7 +444,7 @@ function personRowHtml({ flagCode, name, detail = '', contract = null, isRumor =
     <span class="tr-row__body"><strong>${esc(name)}</strong>${detail ? ` ${detail}` : ''}</span>
     ${contractBit(contract)}
     ${isDoubt ? doubtChip() : isRumor ? rumorChip() : ''}`;
-  if (linkTeamId && _seasonsByTeamId.has(linkTeamId)) {
+  if (linkTeamId && hasTeamView(linkTeamId)) {
     // href con el param bilingüe `?team=<slug>` (el mismo que escribe openTeam);
     // el clic normal se intercepta y navega in-page.
     const href = `?team=${esc(_teamIdToSlug.get(linkTeamId) || linkTeamId)}`;
@@ -732,8 +740,8 @@ function closeTeam() {
 // retrocompatible, el teamId antiguo team_...). Devuelve null si no casa.
 function resolveTeamParam(value) {
   if (!value) return null;
-  return _slugToTeamId.get(value)
-    || (_seasonsByTeamId.has(value) ? value : null);
+  const teamId = _slugToTeamId.get(value) || value;
+  return hasTeamView(teamId) ? teamId : null;
 }
 
 // ── Sincronización con el botón atrás/adelante del navegador ───────
@@ -750,7 +758,7 @@ window.addEventListener('popstate', (e) => {
   if (DIVISIONS.includes(div)) { _activeDiv = div; renderTeams(); }
   const teamId = (e.state && e.state.trTeam)
     || resolveTeamParam(qs.get('team') || qs.get('equipo'));
-  if (teamId && _seasonsByTeamId.has(teamId)) {
+  if (teamId && hasTeamView(teamId)) {
     openTeam(teamId, { push: false });   // sin pushState: no duplica historial
   } else {
     closeTeam();

@@ -325,7 +325,7 @@ private fun MovementCard(
     val unknownTeam = stringResource(R.string.transfers_unknown_team)
     val retires = stringResource(R.string.transfers_retired)
     // Equipos con ficha en el mercado (destino enlazable de un nombre).
-    val marketTeamIds = remember(data.seasons) { data.seasons.map { it.teamId }.toHashSet() }
+    val marketTeamIds = remember(data.seasons) { TransfersLogic.marketTeamIds(data.seasons) }
     CCCard(modifier = Modifier.fillMaxWidth()) {
         BoxWithConstraints {
             if (maxWidth >= 600.dp && moves.size > 1) {

@@ -189,6 +189,7 @@ struct AnimatedRouteProfile: View {
     var fillColor: Color? = nil
     var riderColor: Color? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var startedAt = Date()
 
@@ -327,7 +328,12 @@ struct AnimatedRouteProfile: View {
                 let scaled = Self.points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
                 let profile = smoothProfile(scaled)
 
-                let tint = fillColor ?? lineColor.opacity(0.16)
+                // En oscuro, la montaña es la superficie de tarjeta, como
+                // `--loading-terrain` de la web: el acento al 16 % componía una
+                // franja azul marino sobre el fondo grafito.
+                let tint = colorScheme == .dark
+                    ? AppTheme.cardBackground
+                    : fillColor ?? lineColor.opacity(0.16)
                 graphics.fill(area(under: profile, size: size), with: .linearGradient(
                     Gradient(colors: [tint, tint.opacity(0.08)]),
                     startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)

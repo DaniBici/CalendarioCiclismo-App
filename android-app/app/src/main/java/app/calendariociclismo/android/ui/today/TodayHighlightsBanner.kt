@@ -11,7 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import app.calendariociclismo.android.ui.theme.CCRadius
@@ -56,6 +56,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
+ * Entradas y página del cintillo. Se carga una vez por instancia: la pestaña
+ * inicial comparte una sola entre Ciclocross y Ruta mientras Hoy de carretera
+ * está oculta, de modo que alternar no recarga el cintillo ni reinicia el
+ * carrusel.
+ */
+class HighlightsBannerState(val scopes: List<String>) {
+    /** `null` hasta terminar la carga. */
+    internal var items by mutableStateOf<List<HighlightItem>?>(null)
+    internal var page by mutableIntStateOf(0)
+}
+
+/**
  * Cintillo "Hoy" — carrusel horizontal con destacados editados desde panel admin
  * (tabla `today_highlights`). Aparece encima del selector de días.
  * Cada slide apunta a una jornada, startlist u orden de salida.
@@ -65,16 +77,20 @@ import kotlinx.coroutines.launch
 /**
  * [scopes]: secciones de `today_highlights` que se muestran, en ese orden y
  * cada una por `position`. La vista Hoy de Ciclocross reúne `cx` y `road`
- * mientras Hoy de carretera está oculta.
+ * mientras Hoy de carretera está oculta. [state] compartido sustituye al
+ * propio (y a [scopes]).
  */
 @Composable
-fun TodayHighlightsBanner(navController: NavController, scopes: List<String> = listOf("road")) {
+fun TodayHighlightsBanner(navController: NavController, scopes: List<String> = listOf("road"), state: HighlightsBannerState? = null) {
     val app = rememberApp()
     val tapScope = rememberCoroutineScope()
-    var items by remember { mutableStateOf<List<HighlightItem>>(emptyList()) }
+    val ownState = remember(scopes) { HighlightsBannerState(scopes) }
+    val bannerState = state ?: ownState
+    val items = bannerState.items.orEmpty()
 
-    LaunchedEffect(scopes) {
-        items = try { loadHighlights(app, scopes) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+    LaunchedEffect(bannerState) {
+        if (bannerState.items != null) return@LaunchedEffect
+        bannerState.items = try { loadHighlights(app, bannerState.scopes) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
     }
 
     AnimatedVisibility(
@@ -84,6 +100,8 @@ fun TodayHighlightsBanner(navController: NavController, scopes: List<String> = l
     ) {
         BannerCarousel(
             items = items,
+            initialPage = bannerState.page,
+            onPageChange = { bannerState.page = it },
             onTap = { item ->
                 val race = item.race
                 val tournament = item.cxTournament
@@ -238,9 +256,19 @@ private suspend fun loadHighlights(
 @Composable
 private fun BannerCarousel(
     items: List<HighlightItem>,
+    initialPage: Int,
+    onPageChange: (Int) -> Unit,
     onTap: (HighlightItem) -> Unit,
 ) {
-    val pagerState = rememberPagerState(pageCount = { items.size })
+    // Sin estado guardado: la página la conserva [HighlightsBannerState], común
+    // a Ciclocross y Ruta, que guardan su estado por separado.
+    val pageCount by rememberUpdatedState(items.size)
+    val pagerState = remember {
+        PagerState(currentPage = initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0)), pageCount = { pageCount })
+    }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { onPageChange(it) }
+    }
     val isEn = LocaleHolder.shouldShowEnglishContent
     val scope = rememberCoroutineScope()
     var autoAdvanceEnabled by remember(items) { mutableStateOf(true) }

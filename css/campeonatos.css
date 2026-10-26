@@ -44,6 +44,7 @@
   margin: 0 0 1.5rem;
 }
 .camp-sticky .camp-filters { margin: 0; }
+@media (min-width: 601px) { .camp-filters { justify-content: center; } }
 
 .camp-grid {
   display: flex;

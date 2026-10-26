@@ -156,6 +156,7 @@ datos. La app envía `suggestedRegion(TZ).name` como `region` y
 |---|---|---|---|---|
 | iOS | `ThemePreference` en `Services/ThemeService.swift` (`@MainActor @Observable`) | `UserDefaults` `theme_preference` | `CalendarioCiclismoApp.swift` → `.preferredColorScheme(...)` | `SettingsView.swift` → `appearanceSection` |
 | Android | `data/prefs/ThemePreference.kt` (enum `SYSTEM`/`LIGHT`/`DARK`) | DataStore `theme_preference` | `MainActivity.kt` → `runBlocking { preferences.snapshotThemePreference() }` ANTES de `setContent` | `SettingsScreen.kt` → `SingleChoiceSegmentedButtonRow` |
+| Web y panel | Tema del dispositivo (`prefers-color-scheme`), sin elección | Ninguna; `js/theme.js` borra las claves retiradas `cc-theme` y `cc-theme-auto` | Script inline del `<head>` y `js/theme.js` → `html.light` / `html.dark`; `js/theme.js` sigue los cambios del sistema con la página abierta | Sin selector |
 
 - Etiquetas: "Automático" / "Claro" / "Oscuro".
 - **Anti-flicker Android:** `runBlocking` antes de `setContent` evita flash del tema opuesto.

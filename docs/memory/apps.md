@@ -207,6 +207,8 @@ Flag histórico `PREMIUM_TEST_BUILD`, reutilizado para simular Amigo activo:
 
 **Cuando hay un fallo:** buscar el comentario `❌ Xcode Cloud — Build fallido` en el commit de `main`. Contiene ruta del archivo + mensaje de error exacto — usar directamente sin reproducir el build.
 
+**Resultado en GitHub:** cada build publica en el commit el check `CalendarioCiclismo | Calendario Ciclismo | Archive - iOS` (app `xcode-cloud`). Un fallo de compilación queda como `action_required`, con los errores en `output.text` (`gh api repos/DaniBici/calendario-ciclismo/commits/<sha>/check-runs`), y no llega a TestFlight. Tras integrar un cambio en `ios-app/`, comprobar ese check: en las builds fallidas del 2026-10-23 (`252b2a2` y `064b417`) no se publicó el comentario del script.
+
 **Variables Xcode Cloud usadas:** `CI_XCODEBUILD_EXIT_CODE`, `CI_COMMIT`, `CI_BRANCH`, `CI_BUILD_NUMBER`, `CI_PULL_REQUEST_NUMBER`, `CI_DERIVED_DATA_PATH`.
 
 ### Peso del bundle

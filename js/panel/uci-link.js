@@ -4,6 +4,7 @@
 
 import { supabase, esc } from '../shared.js';
 import { confirmDialog, alertDialog } from '../components/dialog.js';
+import { panelIconSvg } from './helpers.js';
 import { UCI_PANEL_OWNED_SOURCES } from './results.js';
 
 // ── Enlace UCI (race_uci_links) — Fase 4b del plan de resultados ──────────────
@@ -123,7 +124,7 @@ function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
     <div class="u-row uci-candidate">
       <button type="button" class="btn btn--ghost u-uci-pick u-fs-1 u-py-0 u-px-055 u-nowrap" data-comp="${c.competitionId}"${isEvent ? ` data-uciraceid="${esc(String(c.uciRaceId))}"` : ''}>${esc(label)}</button>
       <div class="u-grow u-lh-135">
-        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span class="u-c-done u-fs-1">★ propuesto</span>' : ''}</div>
+        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span class="u-c-done u-fs-1">' + panelIconSvg('star') + ' propuesto</span>' : ''}</div>
         <div class="u-c-muted u-fs-1">${tick} · ${cls}${sim ? ' · ' + sim : ''}${evMeta}</div>
       </div>
     </div>`;
@@ -186,7 +187,7 @@ function _renderUciPanel(raceId, rec) {
       const rivals = rec.collision.rivals.map(rv =>
         `«${esc(rv.name || '')}» <span class="u-c-muted">(${esc(rv.class || '')}/${esc(rv.gender || '')})</span>`).join(', ');
       body += `<div class="uci-collision">
-          ⚠️ <strong>Colisión</strong>: la UCI publica una sola competición (#${rec.collision.competitionId}) para este par.
+          ${panelIconSvg('warning')} <strong>Colisión</strong>: la UCI publica una sola competición (#${rec.collision.competitionId}) para este par.
           Comparte candidato con: ${rivals}.<br>
           <span class="u-c-muted u-fs-1">Solo UNA de las dos puede enlazar a #${rec.collision.competitionId}. La otra se queda sin enlace UCI (o enlaza otra competición si existe).</span>
         </div>`;

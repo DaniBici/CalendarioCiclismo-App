@@ -34,6 +34,76 @@ export function annotateDoubleSectors(days) {
   });
 }
 
+// ── Etapas hermanas de la página de jornada ────────────────────────
+// Columnas de las jornadas hermanas: navegación entre etapas
+// (buildStageNav), dobles sectores y resultados de la etapa anterior. Las
+// leen js/jornada.js y el prerender del build
+// (tools/site/prerender-jornadas.mjs), que deben pintar el mismo HTML.
+export const STAGE_SIBLING_COLUMNS = 'id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay,neutralStartTimeUtc,startLocation,startLocationEn,finishLocation,finishLocationEn,slug,slugEn';
+
+// Páginas de perfil y mapa (js/perfil-pub.js, js/mapa-pub.js): columnas de
+// la jornada, de las etapas hermanas y de la carrera embebida que leen. El
+// build pinta con las mismas (tools/site/prerender-auxiliares.mjs): un campo
+// que el navegador no lee no puede cambiar el HTML generado.
+const DAY_COLUMNS = [
+  'id','slug','slugEn','raceId','dateKey','stageNumber','isRestDay','isCancelledDay',
+  'startLocation','finishLocation','startLocationEn','finishLocationEn','distanceKm','countryCode',
+  'neutralStartTimeUtc','estimatedFinishTimeUtc',
+  'primaryType','secondaryType','startOrderImportedAt','profileNotViewable',
+  'elevationProfile','profileSummits','profileWaypoints','routeGpxUrl',
+];
+export const PERFIL_DAY_COLUMNS = [...DAY_COLUMNS, 'realStartTimeUtc'].join(',');
+export const MAPA_DAY_COLUMNS = DAY_COLUMNS.join(',');
+const SIBLING_COLUMNS = 'id,slug,slugEn,stageNumber,dateKey,startLocation,finishLocation,startLocationEn,finishLocationEn,isRestDay,neutralStartTimeUtc';
+export const PERFIL_SIBLING_COLUMNS = SIBLING_COLUMNS;
+export const MAPA_SIBLING_COLUMNS = `${SIBLING_COLUMNS},routeGpxUrl`;
+// Columnas de la carrera embebida en la jornada.
+export const STAGE_PAGE_RACE_COLUMNS = 'id,slug,slugEn,name,nameEn,year,logoUrl,hideFlag,gender,uciCategory,raceFormat,colorHex,countryCode,websiteUrl,startlistImportedAt,startlistProvisional';
+
+/**
+ * Etapas hermanas del selector de perfil y mapa, por número de etapa y, sin
+ * él, por fecha. Las filas llegan ordenadas por id: el empate conserva ese
+ * orden en el navegador y en el build (misma ordenación estable).
+ */
+export function sortStagePageSiblings(rows) {
+  return [...rows].sort((a, b) => {
+    if (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
+      return a.stageNumber - b.stageNumber;
+    return (a.dateKey || '').localeCompare(b.dateKey || '');
+  });
+}
+
+/**
+ * Ordena las etapas hermanas (número de etapa y hora de salida; sin número,
+ * por fecha) y marca los dobles sectores. Muta y devuelve el array.
+ */
+export function stageSiblings(days) {
+  days.sort((a, b) => {
+    if (a.stageNumber != null && b.stageNumber != null) {
+      if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
+      const tA = a.neutralStartTimeUtc ? new Date(a.neutralStartTimeUtc).getTime() : Infinity;
+      const tB = b.neutralStartTimeUtc ? new Date(b.neutralStartTimeUtc).getTime() : Infinity;
+      return tA - tB;
+    }
+    return (a.dateKey || '').localeCompare(b.dateKey || '');
+  });
+  annotateDoubleSectors(days);
+  return days;
+}
+
+/**
+ * Guía técnica de una competición entre las de sus jornadas (cada fila con
+ * `race_days.dateKey` embebido): la de la jornada más temprana, sin la jornada
+ * embebida. Con la misma fecha, la primera de `guides`, que llega ordenada por
+ * id en el navegador y en el build.
+ */
+export function firstTechnicalGuide(guides) {
+  if (!guides?.length) return null;
+  const [first] = [...guides].sort((a, b) => (a.race_days?.dateKey || '').localeCompare(b.race_days?.dateKey || ''));
+  const { race_days: _day, ...guide } = first;
+  return guide;
+}
+
 // ── Resultados: disponibilidad por jornada ─────────────────────────
 /**
  * Construye el detector de jornadas con resultados propios.

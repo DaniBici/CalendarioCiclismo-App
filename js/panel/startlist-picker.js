@@ -9,7 +9,7 @@ import { confirmDialog } from '../components/dialog.js';
 import { riderMatchesSearch, riderSearchTokens, withRiderSearch } from '../results/panel-logic.js';
 import { teamStripes } from '../team-appearance.js';
 import { panelState } from './state.js';
-import { showToast } from './helpers.js';
+import { showToast, panelIconSvg } from './helpers.js';
 import { _slRefreshRiderMatchBtn } from './startlists.js';
 import { _mergeRidersSilent } from './rider-merge.js';
 
@@ -123,8 +123,8 @@ export async function _slOpenRiderMatchPicker(riderEl) {
           <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-1">(${esc(rd.otherNames)})</span>` : ''}</span>
           ${rd.verified === false ? '<span title="Sin verificar" class="sl-verify-mark u-c-warn">?</span>' : ''}
         </div>
-        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-035 u-fs-1">🔀</button>` : ''}
-        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" class="sl-mini-action sl-mini-action--delete u-py-010 u-px-035 u-fs-1">🗑</button>
+        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-035 u-fs-1">${panelIconSvg('merge')}</button>` : ''}
+        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" class="sl-mini-action sl-mini-action--delete u-py-010 u-px-035 u-fs-1">${panelIconSvg('trash')}</button>
       </div>`).join('');
     // Click sobre la zona de info → selección como match.
     results.querySelectorAll('[data-pick]').forEach(btn => {
@@ -147,7 +147,7 @@ export async function _slOpenRiderMatchPicker(riderEl) {
         showToast(`Match: ${rider.firstName} ${rider.lastName}`, 'success');
       });
     });
-    // 🔀 Fusionar este resultado en el currentId (solo si hay currentId).
+    // Fusionar este resultado en el currentId (solo si hay currentId).
     results.querySelectorAll('[data-action="merge-into"]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
@@ -160,12 +160,12 @@ export async function _slOpenRiderMatchPicker(riderEl) {
         // Reconstruimos target con datos mínimos para acumular otherNames.
         const target = { id: currentId, firstName: '', lastName: '', otherNames: '' };
         const { ok, error } = await _mergeRidersSilent(src, target, ridersTable);
-        if (!ok) { btn.disabled = false; btn.textContent = '🔀'; showToast('Error: ' + error, 'error'); return; }
+        if (!ok) { btn.disabled = false; btn.innerHTML = panelIconSvg('merge'); showToast('Error: ' + error, 'error'); return; }
         btn.closest('[data-rid]').remove();
         showToast(`Fusionado: ${linkedCount || 0} startlist(s) movidas`, 'success');
       });
     });
-    // 🗑 Borrar este resultado de la BD (desliga sus startlists primero).
+    // Borrar este resultado de la BD (desliga sus startlists primero).
     results.querySelectorAll('[data-action="delete-result"]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
@@ -179,7 +179,7 @@ export async function _slOpenRiderMatchPicker(riderEl) {
           await supabase.from('startlist_riders').update({ globalRiderId: null }).eq('globalRiderId', rd.id);
         }
         const { error: delErr } = await supabase.from(ridersTable).delete().eq('id', rd.id);
-        if (delErr) { btn.disabled = false; btn.textContent = '🗑'; showToast('Error: ' + delErr.message, 'error'); return; }
+        if (delErr) { btn.disabled = false; btn.innerHTML = panelIconSvg('trash'); showToast('Error: ' + delErr.message, 'error'); return; }
         btn.closest('[data-rid]').remove();
         showToast(`Eliminado. ${linkedCount || 0} startlist(s) desligadas.`, 'success');
       });
@@ -438,7 +438,7 @@ export function _slTeamRowHtml({ teamName = '', teamId = null, isConfirmed = fal
           <input type="text" class="sl-firstname u-input-sm" value="${esc(r.firstName || '')}" placeholder="Nombre">
           <input type="text" class="sl-lastname u-input-sm" value="${esc(r.lastName || '')}" placeholder="Apellido">
           <button type="button" class="sl-rider-match-btn${r.globalRiderId ? ' is-matched' : ''}" data-action="picker"
-                  title="${r.globalRiderId ? 'Match en BD: ' + esc((r.firstName||'') + ' ' + (r.lastName||'')) + '. Click para cambiar/desligar.' : 'Buscar o forzar un match en la BD de corredores'}">${r.globalRiderId ? '✓ BD' : '🔗'}</button>
+                  title="${r.globalRiderId ? 'Match en BD: ' + esc((r.firstName||'') + ' ' + (r.lastName||'')) + '. Click para cambiar/desligar.' : 'Buscar o forzar un match en la BD de corredores'}">${r.globalRiderId ? '✓ BD' : panelIconSvg('link')}</button>
           <button type="button" class="btn btn--ghost sl-remove-rider-btn">✕</button>
         </div>
         <div class="sl-rider-suggestion" style="display:none"></div>

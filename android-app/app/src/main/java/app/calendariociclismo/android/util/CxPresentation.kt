@@ -12,7 +12,8 @@ import java.util.Locale
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-data class CxReplayLink(val title: String, val url: String, val sortOrder: Int)
+/** Enlace de Revive; `category` es null en las emisiones comunes a toda la prueba. */
+data class CxReplayLink(val title: String, val url: String, val sortOrder: Int, val category: String? = null)
 /** Fila de TV con su URL validada; `foreign` marca las de otra región. */
 data class CxTVRow(val broadcast: CxBroadcast, val url: String, val foreign: Boolean)
 /** Bloque de TV: sin categoría (filas comunes, sin encabezado) o de una categoría en directo. */
@@ -51,6 +52,13 @@ enum class CxAgendaFilter(@param:StringRes val labelRes: Int) {
 }
 
 enum class CxDetailSection { PROGRAMME, STARTLIST, RESULTS, GENERAL, VIDEOS }
+
+/** Orden de Hoy de Ciclocross, con las opciones de Hoy de carretera. */
+enum class CxAgendaSort(@param:StringRes val labelRes: Int) {
+    CATEGORY(R.string.today_sort_category),
+    TV_TIME(R.string.today_sort_tv_time),
+    FINISH_TIME(R.string.today_sort_finish_time),
+}
 
 /** Secciones de la página de torneo: calendario y clasificación general. */
 enum class CxTournamentSection { CALENDAR, GENERAL }
@@ -464,6 +472,63 @@ object CxPresentation {
         return CxAgendaTV(current.first, current.second, first.first.startTimeUtc, time(first.first) <= at)
     }
 
+    /**
+     * Pruebas de [date] en el orden elegido, espejo de `cxSortDayRaces` (web).
+     * Categoría: orden de la agenda, con las destacadas primero. Hora TV y
+     * Hora de meta: por esa hora, sin hora al final y, a igualdad, el orden
+     * canónico sin destacadas, como Hoy de carretera.
+     */
+    fun agendaRaces(races: List<CxRace>, date: String, featured: Set<String>, sort: CxAgendaSort, allowedGroups: () -> Set<String>): List<CxRace> {
+        if (sort == CxAgendaSort.CATEGORY) return CyclocrossLogic.racesOn(races, date, featured)
+        val canonical = CyclocrossLogic.racesOn(races, date)
+        if (sort == CxAgendaSort.TV_TIME) {
+            val groups = allowedGroups()
+            return canonical.map { it to agendaTvKey(it, date, groups) }
+                .sortedWith(compareBy({ it.second.first }, { it.second.second }))
+                .map { it.first }
+        }
+        return canonical.sortedBy { agendaFinish(it, date) ?: Instant.MAX }
+    }
+
+    /**
+     * Clave del orden por TV: 0 con hora (la primera del día), 1 con TV sin
+     * hora y 2 sin TV. Cuenta las emisiones de la región con URL válida que
+     * aplican a una categoría no cancelada del día, con independencia de la
+     * hora actual: el orden no cambia cuando el badge desaparece.
+     */
+    fun agendaTvKey(race: CxRace, date: String, allowedGroups: Set<String>): Pair<Int, Instant> {
+        val codes = CyclocrossLogic.categoriesOn(race, date).filterNot { it.isCancelled }.map { it.category }.toSet()
+        if (race.isCancelled || codes.isEmpty()) return 2 to Instant.MAX
+        val rows = regionBroadcasts(race.broadcasts, allowedGroups)
+            .filter { link(it.url) != null && (it.category.isNullOrEmpty() || it.category in codes) }
+        if (rows.isEmpty()) return 2 to Instant.MAX
+        val first = rows.mapNotNull { CyclocrossLogic.parseInstant(it.startTimeUtc) }.minOrNull() ?: return 1 to Instant.MAX
+        return 0 to first
+    }
+
+    /** Fin estimado de la prueba en [date]: la llegada más tardía de sus
+     *  categorías no canceladas con hora (duración reglamentaria verificada o
+     *  60 min). null sin horas o con la prueba cancelada. */
+    fun agendaFinish(race: CxRace, date: String): Instant? {
+        if (race.isCancelled) return null
+        return CyclocrossLogic.categoriesOn(race, date).filterNot { it.isCancelled }.mapNotNull { category ->
+            CyclocrossLogic.parseInstant(category.startTimeUtc)?.let { start ->
+                CyclocrossLogic.timing(race, category, start).estimatedEnd ?: start.plusSeconds(3600)
+            }
+        }.maxOrNull()
+    }
+
+    /** Badge de resumen de la tarjeta de la agenda: primer vídeo de YouTube de la
+     *  prueba aplicable a las categorías del día (sin categoría o de una de
+     *  ellas); una prueba cancelada no lo muestra. Espejo de `cxAgendaVideo`. */
+    fun agendaVideo(race: CxRace, dateKey: String): CxVideo? {
+        val codes = CyclocrossLogic.categoriesOn(race, dateKey).map { it.category }.toSet()
+        if (race.isCancelled || codes.isEmpty()) return null
+        return race.videos.sortedWith(compareBy({ it.sortOrder }, { it.id })).firstOrNull {
+            (it.category.isNullOrEmpty() || it.category in codes) && youtubeVideoId(it.url) != null
+        }
+    }
+
     /** Badge de dorsales de la tarjeta de la agenda: primera categoría del día
      *  con lista cargada sin resultados ni cancelación. Espejo de
      *  `cxAgendaStartlistCategory`. */
@@ -504,7 +569,11 @@ object CxPresentation {
         val revive = rows.filter { (row) ->
             row.id !in liveIds && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups) &&
                 units.any { it.finished && applies(row, it) && replay(row, it) }
-        }.distinctBy { it.second }.map { (row, url) -> CxReplayLink(row.channel ?: "TV", url, row.sortOrder) }
-        return CxMediaSelection(groups, revive, hasHiddenTV = tv.any { it.foreign }, showsLiveTV = tv.isNotEmpty())
+        }.distinctBy { it.second }.map { (row, url) -> CxReplayLink(row.channel ?: "TV", url, row.sortOrder, row.category?.takeIf { it.isNotEmpty() }) }
+        // Como la TV: primero las filas comunes y después las de cada categoría
+        // en el orden del programa; la vista encabeza cada bloque.
+        val order = buildMap { units.forEachIndexed { index, unit -> unit.code?.let { putIfAbsent(it, index) } } }
+        val sortedRevive = revive.sortedBy { link -> link.category?.let(order::get) ?: -1 }
+        return CxMediaSelection(groups, sortedRevive, hasHiddenTV = tv.any { it.foreign }, showsLiveTV = tv.isNotEmpty())
     }
 }

@@ -737,18 +737,26 @@ extension SupabaseService {
     private struct FeedTeamIdentityRow: Codable, Sendable {
         let id: String
         let name: String
+        var teamKind: String? = nil
+        var selectionScope: String? = nil
+        var countryCode: String? = nil
+        var selectionCode: String? = nil
     }
 
-    private func teamNamesByIds(_ ids: [String]) async throws -> [String: String] {
+    private func teamIdentitiesByIds(_ ids: [String]) async throws -> [String: FeedTeamIdentityRow] {
         guard !ids.isEmpty else { return [:] }
         let rows: [FeedTeamIdentityRow] = try await inChunks(ids) { chunk in
             try await self.client.from("teams")
-                .select("id,name")
+                .select("id,name,teamKind,selectionScope,countryCode,selectionCode")
                 .in("id", values: chunk)
                 .execute()
                 .value
         }
-        return Dictionary(rows.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        return Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func teamNamesByIds(_ ids: [String]) async throws -> [String: String] {
+        try await teamIdentitiesByIds(ids).mapValues(\.name)
     }
 
     /// Fechas YYYY-MM-DD del rango [fromKey, toKey].
@@ -1028,18 +1036,18 @@ extension SupabaseService {
                     let uniquePks = pksByTarget.values.compactMap { $0.count == 1 ? $0.first : nil }
                     let slTeams = try await startlistTeamsByPks(Array(Set(uniquePks)))
                     let slTeamByPk = Dictionary(slTeams.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                    let canonNames = (try? await teamNamesByIds(Array(Set(slTeams.compactMap(\.teamId))))) ?? [:]
+                    let canonTeams = (try? await teamIdentitiesByIds(Array(Set(slTeams.compactMap(\.teamId))))) ?? [:]
                     try Task.checkCancellation()
                     for target in creTargets {
                         guard let pks = pksByTarget[target.index], pks.count == 1,
                               let pk = pks.first, let slt = slTeamByPk[pk] else { continue }
-                        var teamWinner = slt.teamName ?? ""
-                        if let canonId = slt.teamId, let canonName = canonNames[canonId], !canonName.isEmpty {
-                            teamWinner = canonName
-                        }
+                        let canon = slt.teamId.flatMap { canonTeams[$0] }
+                        let teamWinner = canon.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? slt.teamName ?? ""
                         if !teamWinner.isEmpty {
-                            entries[target.index].winner = ResultsFeedLogic.localizedNationName(
+                            entries[target.index].winner = Team.localizedName(
                                 teamWinner,
+                                teamKind: canon?.teamKind, selectionScope: canon?.selectionScope,
+                                countryCode: canon?.countryCode, selectionCode: canon?.selectionCode,
                                 isEnglish: LocaleService.shouldShowEnglishContent
                             )
                         }

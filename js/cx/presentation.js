@@ -1,7 +1,7 @@
 import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from '../results/time.js';
 import {cxDataRideSeconds,isCxSubhourDataRideTime,isCxExactSubhourDataRideTime} from './time.js';
 import {irmLabel,isAbandonIrm} from '../results/uci-irm.js';
-import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl} from './editor-logic.js';
+import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl,cxYouTubeVideoId} from './editor-logic.js';
 import {CX_ACTIVE_MONTHS,cxSeason,cxSeasonMonths,cxDateInSeason} from './season.js';
 import {cxCategoryTiming,cxRegulationMinutes} from './timing.js';
 import {isReviveBroadcast} from '../broadcast-priority.js';
@@ -177,11 +177,12 @@ function cxAgendaTime(race,dateKey=null) {
   return Infinity;
 }
 // Las destacadas (`featured`, corona del panel) encabezan su día; entre ellas
-// y en el resto rige el orden canónico.
-function cxCompareRaces(a,b,dateKey=null) {
+// y en el resto rige el orden canónico. Sin `useFeatured`, solo el canónico.
+function cxCompareRaces(a,b,dateKey=null,useFeatured=true) {
   const classOrder=r=>{const index=CX_CLASSES.indexOf(r.class);return index<0?CX_CLASSES.length:index;};
   const order=classOrder(a)-classOrder(b);
-  return Number(!!b.featured)-Number(!!a.featured)||order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
+  const featured=useFeatured?Number(!!b.featured)-Number(!!a.featured):0;
+  return featured||order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
 }
 // Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera.
 // Todos · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
@@ -212,6 +213,49 @@ export function cxRaceDates(race) {
 // Pruebas de un día, en el orden de la agenda.
 export function cxDayRaces(races,dateKey) {
   return races.filter(race=>cxRaceDates(race).includes(dateKey)).sort((a,b)=>cxCompareRaces(a,b,dateKey));
+}
+// Clave del orden por TV de Hoy: [0, hora] con hora (la primera del día), [1]
+// con TV sin hora y [2] sin TV. Cuenta las emisiones visibles en la región
+// (llegan ya filtradas) con URL válida que aplican a una categoría no
+// cancelada del día, con independencia de la hora actual: el orden no cambia
+// cuando el badge desaparece. Espejo de `agendaTVKey` (iOS y Android).
+function cxAgendaTvKey(race,dateKey,visibleBroadcasts) {
+  const codes=new Set(cxCategories(race,dateKey).filter(c=>!c.isCancelled).map(c=>c.category));
+  if(race.isCancelled||!codes.size)return [2,Infinity];
+  const rows=(visibleBroadcasts||[]).filter(row=>{
+    if(row.category&&!codes.has(row.category))return false;
+    try{cxUrl(row.url,{optional:false});return true;}catch{return false;}
+  });
+  if(!rows.length)return [2,Infinity];
+  const times=rows.map(row=>Date.parse(row.startTimeUtc)).filter(Number.isFinite);
+  return times.length?[0,Math.min(...times)]:[1,Infinity];
+}
+// Fin estimado de la prueba en el día: la llegada más tardía de sus
+// categorías no canceladas con hora (duración reglamentaria verificada o
+// 60 min). null sin horas o con la prueba cancelada.
+function cxAgendaFinish(race,dateKey) {
+  if(race.isCancelled)return null;
+  const ends=cxCategories(race,dateKey).filter(c=>!c.isCancelled).flatMap(c=>{
+    const start=Date.parse(c.startTimeUtc);
+    if(!Number.isFinite(start))return [];
+    return [start+(cxRegulationMinutes(c.category,c.durationFormat,c.durationRuleVersion??null)??60)*60000];
+  });
+  return ends.length?Math.max(...ends):null;
+}
+// Pruebas de un día en el orden de Hoy ('category', 'tvtime' o 'finishtime',
+// las opciones de Hoy de carretera). Categoría: orden de la agenda, con las
+// destacadas primero. Hora TV y Hora Meta: por esa hora, sin hora al final y,
+// a igualdad, el orden canónico sin destacadas. `visibleBroadcasts(race)`
+// devuelve las emisiones de la región.
+export function cxSortDayRaces(races,dateKey,mode='category',visibleBroadcasts=race=>race.cx_broadcasts||[]) {
+  if(mode!=='tvtime'&&mode!=='finishtime')return cxDayRaces(races,dateKey);
+  const canonical=races.filter(race=>cxRaceDates(race).includes(dateKey)).sort((a,b)=>cxCompareRaces(a,b,dateKey,false));
+  const key=mode==='tvtime'
+    ?race=>cxAgendaTvKey(race,dateKey,visibleBroadcasts(race))
+    :race=>{const end=cxAgendaFinish(race,dateKey);return end==null?[1,Infinity]:[0,end];};
+  return canonical.map((race,index)=>({race,index,key:key(race)}))
+    .sort((a,b)=>a.key[0]-b.key[0]||(a.key[1]===b.key[1]?0:a.key[1]<b.key[1]?-1:1)||a.index-b.index)
+    .map(entry=>entry.race);
 }
 export function cxMonthDays(races,monthKey) {
   if(!CX_ACTIVE_MONTHS.includes(Number(monthKey.slice(5))))return [];
@@ -392,6 +436,15 @@ export function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) 
   const now=new Date(at).getTime(),live=time(first)<=now;
   const current=tv.filter(row=>time(row)<=now).reduce((best,row)=>!best||time(row)>=time(best)?row:best,null)||earliest(tv);
   return {...current,firstStartUtc:first.startTimeUtc??null,live};
+}
+// Badge de resumen de la tarjeta de Agenda: hay al menos un vídeo de YouTube
+// de la prueba aplicable a las categorías del día (sin categoría o de una de
+// ellas). Una prueba cancelada no lo muestra. Devuelve el vídeo que encabeza la
+// ficha o null.
+export function cxAgendaVideo(race,dateKey,videos) {
+  const categories=cxCategories(race,dateKey);
+  if(race.isCancelled||!categories.length||!videos?.length)return null;
+  return cxRaceMedia(race,categories,[],videos).videos.find(row=>cxYouTubeVideoId(row.url))||null;
 }
 // Badge de dorsales de la tarjeta de Agenda: primera categoría del día con
 // lista cargada que aún no tiene resultados ni está cancelada.

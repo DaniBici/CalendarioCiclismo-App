@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { irmOf, normGap, normAbsTime, normPoints, mapRows, matsportIdSeed }
+import { irmOf, normGap, normAbsTime, normPoints, mapRows, matsportIdSeed, tailStartersFinished, localNow }
   from '../results-fetchers/matsport-results-fetch.mjs';
 
 // Datos verificados contra la API en vivo el 2026-07-17:
@@ -188,6 +188,64 @@ describe('mapRows — filas de EQUIPO (ETE/ETG): el bib es un NÚMERO DE EQUIPO'
       SPEC_TEAMS, riderByBib, teamByNumber,
     );
     expect(row).toMatchObject({ bib: null, riderDisplay: 'Team 99' });
+  });
+});
+
+describe('mapRows — gaps con décimas (Chrono des Nations, PAS_A)', () => {
+  it('reconstruye el gap con los tiempos truncados', () => {
+    const rows = mapRows([
+      { bib: 501, position: 1, capital: '31:49.50', gap: '+00', status: null },
+      { bib: 504, position: 2, capital: '31:53.00', gap: '+03.50', status: null },
+      { bib: 503, position: 4, capital: '32:50.11', gap: '+1:00.61', status: null },
+    ], SPEC_TIME, new Map(), new Map());
+    expect(rows.map((r) => r.gapText)).toEqual([null, '+4', '+1:01']);
+  });
+});
+
+describe('tailStartersFinished — fin de una crono sin ITE', () => {
+  // Salida de 1 minuto, los dorsales bajos salen los últimos (sub-23: 501 a las 13:51).
+  const arr = (bib) => {
+    const start = (13 * 60 + 51 - (bib - 501)) * 60;
+    const cap = 1900 + bib;
+    const t = (n) => `${Math.floor(n / 3600)}:${String(Math.floor((n % 3600) / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+    return { bib, position: 1, capital: `${Math.floor(cap / 60)}:${String(cap % 60).padStart(2, '0')}`, hour: t(start + cap), status: null };
+  };
+  const field = [501, 502, 503, 504, 505, 506, 507, 508];
+  it('no termina mientras falte alguno de los tres últimos en salir', () => {
+    const r = tailStartersFinished([508, 507, 506, 505, 504, 503, 502].map(arr), field);
+    expect(r.done).toBe(false);
+    expect(r.reason).toContain('501');
+  });
+  it('termina cuando los tres últimos en salir (dorsales más bajos) tienen meta', () => {
+    expect(tailStartersFinished([508, 507, 506, 505, 504, 503, 502, 501].map(arr), field).done).toBe(true);
+  });
+  it('un abandono de los últimos cuenta como resuelto', () => {
+    const rows = [508, 507, 506, 505, 504, 503, 502].map(arr);
+    rows.push({ bib: 501, position: -1, capital: null, hour: null, status: 'AB' });
+    expect(tailStartersFinished(rows, field).done).toBe(true);
+  });
+  it('baja sin marcar entre los últimos: cierra solo con nadie en carrera y la llegada esperada vencida', () => {
+    const rows = [508, 507, 506, 505, 504, 503, 502].map(arr);   // falta el 501 (sale a las 13:51)
+    const stageDate = '2026-10-18';
+    const at = (hh, mm) => ({ date: stageDate, secs: hh * 3600 + mm * 60 });
+    const base = { stageDate, running: false };
+    expect(tailStartersFinished(rows, field, { ...base, now: at(14, 0) }).done).toBe(false);
+    expect(tailStartersFinished(rows, field, { ...base, now: at(15, 0), running: true }).done).toBe(false);
+    expect(tailStartersFinished(rows, field, { ...base, now: at(15, 0) }).done).toBe(true);
+    expect(tailStartersFinished(rows, field, { ...base, now: { date: '2026-10-19', secs: 0 } }).done).toBe(true);
+    expect(tailStartersFinished(rows, field, { stageDate, now: at(15, 0) }).done).toBe(false);
+  });
+  it('no afirma nada con pocas llegadas ni con un orden de salida incoherente', () => {
+    expect(tailStartersFinished([503, 502, 501].map(arr), field).done).toBe(false);
+    const mix = [508, 507, 506, 505].map(arr);
+    mix[1].hour = '14:00:00';
+    expect(tailStartersFinished(mix, field).done).toBe(false);
+  });
+});
+
+describe('localNow', () => {
+  it('devuelve fecha y segundos en la zona pedida', () => {
+    expect(localNow('Europe/Paris', new Date('2026-10-18T13:04:20Z'))).toEqual({ date: '2026-10-18', secs: 15 * 3600 + 4 * 60 + 20 });
   });
 });
 

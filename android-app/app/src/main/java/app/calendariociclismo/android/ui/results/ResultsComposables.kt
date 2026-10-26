@@ -809,7 +809,7 @@ internal fun ResultsTable(
     LaunchedEffect(loaded, isTeams, isTtt, byRider, byTeamOverride) {
         onTeamsResolved(
             if (isTeams || isTtt) emptyList()
-            else UciResultsLogic.teamsInClass(loaded, byDorsal, byRider, byTeamOverride),
+            else UciResultsLogic.teamsInClass(loaded, byDorsal, byRider, byTeamOverride, isEn),
         )
     }
     LaunchedEffect(loaded, isTeams, isTtt, stage.classKind) {

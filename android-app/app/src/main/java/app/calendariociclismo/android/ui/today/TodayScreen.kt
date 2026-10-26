@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.SwapVert
@@ -41,17 +44,17 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -96,6 +99,8 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CCHeaderBrand
+import app.calendariociclismo.android.ui.components.HomeDiscipline
+import app.calendariociclismo.android.ui.components.HomeDisciplineSwitch
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.RaceCompetitionButton
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -122,14 +127,17 @@ import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.RaceLogic
-import app.calendariociclismo.android.util.TodaySeason
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.launch
 
+/**
+ * [onSelectCyclocross]: con Hoy oculta, Hoy se abre desde la pestaña
+ * Ciclocross y su cabecera lleva el conmutador «CX | Ruta» de vuelta.
+ */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun TodayScreen(navController: NavController) {
+fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? = null, highlights: HighlightsBannerState? = null) {
     val app = rememberApp()
     val haptic = rememberHaptics()
     val vm: TodayViewModel = viewModel(
@@ -238,7 +246,9 @@ fun TodayScreen(navController: NavController) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Con el conmutador «CX | Ruta», solo los símbolos.
                 CCHeaderBrand(
+                    showsTitle = onSelectCyclocross == null,
                     modifier = Modifier
                         .semantics { contentDescription = todayButtonLabel }
                         .clickable(role = Role.Button) {
@@ -253,6 +263,13 @@ fun TodayScreen(navController: NavController) {
                         },
                 )
                 Spacer(Modifier.weight(1f))
+                if (onSelectCyclocross != null) {
+                    HomeDisciplineSwitch(
+                        selection = HomeDiscipline.ROAD,
+                        onSelect = { if (it == HomeDiscipline.CYCLOCROSS) onSelectCyclocross() },
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
                 IconButton(
                     onClick = {
                         haptic(Haptics.Event.Navigation)
@@ -268,24 +285,22 @@ fun TodayScreen(navController: NavController) {
                     )
                 }
             }
-            TodayHighlightsBanner(navController = navController)
+            // Con el conmutador, el cintillo común de la pestaña inicial.
+            TodayHighlightsBanner(navController = navController, state = highlights)
 
             // Las carreras de Campeonatos Nacionales (uciCategory='CN') se muestran
             // como cualquier otra carrera del día. La rejilla país×prueba sigue
             // accesible aparte, pero no sustituye ni oculta nada en Hoy.
 
-            // Sin días posteriores al último día de temporada (TodaySeason).
-            val lastDateKey = TodaySeason.lastDay()
-            val dateKeys = remember(state.dateKey, lastDateKey) {
+            val dateKeys = remember(state.dateKey) {
                 DateFormatting.dateRangeAround(state.dateKey, offset = DATE_BAR_RADIUS)
-                    .filter { lastDateKey == null || it <= lastDateKey }
             }
             DateBarWithControls(
                 selectedDateKey = state.dateKey,
                 isToday = state.dateKey == vm.currentDayKey(),
                 dateKeys = dateKeys,
                 canGoPrevious = true,
-                canGoNext = vm.canGoToNextDay(state.dateKey),
+                canGoNext = true,
                 onSelect = { newDate ->
                     haptic(Haptics.Event.Navigation)
                     val forward = newDate > state.dateKey
@@ -322,36 +337,45 @@ fun TodayScreen(navController: NavController) {
                     }
                 },
             )
+            // Fila de la fecha, como en iOS: día y mes a la izquierda (la tira ya
+            // muestra el día de la semana) y «Categoría» y «Ordenar» a la derecha.
+            // Los desplegables conservan su ancho; si no cabe, se acorta la fecha.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                CategoryChips(
-                    modifier = Modifier.weight(1f),
+                Text(
+                    text = DateFormatting.formatDayMonth(state.dateKey),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                )
+                CategoryMenu(
                     current = state.category,
-                    pinned = pinnedFilter,
-                    champWeekLock = champWeekLock,
+                    all = Constants.CategoryFilter.ALL,
+                    // En la semana de Campeonatos (22-28 jun) solo Todas/Pro/
+                    // Masc/Fem y sin posibilidad de fijar un predeterminado.
+                    options = if (champWeekLock) ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS else Constants.CategoryFilter.entries.toList(),
+                    labelRes = { it.labelRes },
+                    pinned = !champWeekLock && pinnedFilter != Constants.CategoryFilter.ALL && pinnedFilter == state.category,
                     onPick = {
-                        if (it == state.category) {
-                            // En la semana de Campeonatos el fijado está inhibido:
-                            // pulsar el chip activo no abre el diálogo de predeterminado.
-                            if (!champWeekLock) {
-                                haptic(Haptics.Event.PrimaryAction)
-                                pendingDefault = it
-                            }
-                        } else {
+                        if (it != state.category) {
                             haptic(Haptics.Event.Selection)
                             vm.setCategory(it)
                         }
                     },
-                )
-                VerticalDivider(
-                    modifier = Modifier.height(22.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    onPin = if (champWeekLock) null else { {
+                        haptic(Haptics.Event.PrimaryAction)
+                        pendingDefault = state.category
+                    } },
                 )
                 SortMenu(
                     current = state.sortMode,
+                    options = TodayViewModel.SortMode.entries,
+                    labelRes = { it.labelRes },
                     onPick = {
                         if (it != state.sortMode) haptic(Haptics.Event.Selection)
                         vm.setSortMode(it)
@@ -364,10 +388,9 @@ fun TodayScreen(navController: NavController) {
                     .onSizeChanged { contentWidthPx = it.width.toFloat() }
                     .graphicsLayer { translationX = contentOffsetX.value }
                     .clipToBounds()
-                    // Último día de temporada: el gesto hacia delante no navega.
                     .daySwipeNavigation(
                         key = Unit,
-                        canNavigate = { forward -> !isAnimatingNav && (!forward || vm.canGoToNextDay(vm.state.value.dateKey)) },
+                        canNavigate = { !isAnimatingNav },
                     ) { forward ->
                         haptic(Haptics.Event.Navigation)
                         scope.launch {
@@ -474,11 +497,16 @@ fun TodayScreen(navController: NavController) {
                                 )
                             }
                             LazyColumn(
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 items(rows, key = { row -> row.items.joinToString("|") { it.id } }) { row ->
-                                    if (columns == 1 || row.spansAllColumns) {
+                                    if (columns > 1 && data.raceDays.size == 1) {
+                                        // Jornada única en pantalla ancha: media anchura, centrada.
+                                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            Box(Modifier.width((this@BoxWithConstraints.maxWidth - 24.dp - 8.dp) / 2)) { renderDay(row.items.first()) }
+                                        }
+                                    } else if (columns == 1 || row.spansAllColumns) {
                                         renderDay(row.items.first())
                                     } else {
                                         Row(
@@ -547,72 +575,121 @@ fun TodayScreen(navController: NavController) {
 
 // ─── Category chips ────────────────────────────────────────────────
 
+/**
+ * Desplegable «Categoría» de Hoy, compartido por carretera y Ciclocross:
+ * muestra «Categoría» con Todas ([all]) y, si no, la categoría activa, con la
+ * chincheta cuando es la predeterminada ([pinned]). Al final, fijar o quitar
+ * la activa como predeterminada: [onPin] abre el diálogo de siempre; null lo
+ * inhibe.
+ */
 @Composable
-private fun CategoryChips(
-    modifier: Modifier = Modifier,
-    current: Constants.CategoryFilter,
-    pinned: Constants.CategoryFilter,
-    champWeekLock: Boolean,
-    onPick: (Constants.CategoryFilter) -> Unit,
+internal fun <T> CategoryMenu(
+    current: T,
+    all: T,
+    options: List<T>,
+    labelRes: (T) -> Int,
+    pinned: Boolean,
+    onPick: (T) -> Unit,
+    onPin: (() -> Unit)?,
 ) {
-    // En la semana de Campeonatos (22-28 jun) solo Todas/Pro/Masc/Fem y sin
-    // posibilidad de fijar un predeterminado (el pin queda inhibido).
-    val chips = if (champWeekLock) ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS
-                else Constants.CategoryFilter.entries.toList()
-    LazyRow(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(chips, key = { it.id }) { cat ->
-            val hideAll = cat == Constants.CategoryFilter.ALL || current == Constants.CategoryFilter.ALL
-            val isPinnedValid = pinned != Constants.CategoryFilter.ALL
-            val pinFilled = !champWeekLock && !hideAll && isPinnedValid && pinned == cat
-            val pinOutline = !champWeekLock && !hideAll && !pinFilled && current == cat
-            CategoryChip(
-                label = stringResource(cat.labelRes),
-                selected = current == cat,
-                pinFilled = pinFilled,
-                pinOutline = pinOutline,
-                onClick = { onPick(cat) },
-            )
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = stringResource(labelRes(current))
+    val title = if (current == all) stringResource(R.string.today_category) else currentLabel
+    val description = stringResource(if (pinned) R.string.today_category_pinned_a11y else R.string.today_category_a11y, title)
+    Box(modifier = Modifier.padding(start = 4.dp)) {
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            TextButton(
+                onClick = { expanded = true },
+                // 32 dp en lugar de los 40 dp mínimos de TextButton, como «Ordenar».
+                modifier = Modifier.heightIn(min = 32.dp).semantics { contentDescription = description },
+                shape = RoundedCornerShape(CCRadius.Control),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.FilterList,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = title,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                if (pinned) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Filled.PushPin, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
+                }
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(labelRes(option))) },
+                    trailingIcon = if (option == current) { { Icon(Icons.Filled.Check, contentDescription = null) } } else null,
+                    onClick = {
+                        expanded = false
+                        onPick(option)
+                    },
+                )
+            }
+            if (onPin != null && current != all) {
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (pinned) R.string.today_category_unpin else R.string.today_category_pin, currentLabel)) },
+                    leadingIcon = { Icon(Icons.Outlined.PushPin, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        onPin()
+                    },
+                )
+            }
         }
     }
 }
 
+/** Menú «Ordenar» de Hoy, compartido por carretera y Ciclocross. */
 @Composable
-private fun SortMenu(
-    current: TodayViewModel.SortMode,
-    onPick: (TodayViewModel.SortMode) -> Unit,
+internal fun <T> SortMenu(
+    current: T,
+    options: List<T>,
+    labelRes: (T) -> Int,
+    onPick: (T) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val label = stringResource(current.labelRes)
+    val label = stringResource(labelRes(current))
     val actionLabel = stringResource(R.string.today_sort_action)
     Box(modifier = Modifier.padding(end = 4.dp)) {
-        TextButton(
-            onClick = { expanded = true },
-            modifier = Modifier.semantics { contentDescription = "$actionLabel: $label" },
-            shape = RoundedCornerShape(CCRadius.Control),
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.SwapVert,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = label,
-                style = CCText.S13,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            TextButton(
+                onClick = { expanded = true },
+                // 32 dp en lugar de los 40 dp mínimos de TextButton: la fila
+                // de la fecha no se estira bajo la barra de días.
+                modifier = Modifier.heightIn(min = 32.dp).semantics { contentDescription = "$actionLabel: $label" },
+                shape = RoundedCornerShape(CCRadius.Control),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SwapVert,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = label,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            TodayViewModel.SortMode.entries.forEach { mode ->
+            options.forEach { mode ->
                 DropdownMenuItem(
-                    text = { Text(stringResource(mode.labelRes)) },
+                    text = { Text(stringResource(labelRes(mode))) },
                     onClick = {
                         onPick(mode)
                         expanded = false
@@ -621,51 +698,6 @@ private fun SortMenu(
             }
         }
     }
-}
-
-/**
- * Chip de categoría (`FilterChip` de Material 3): activo con el azul al 15 % y
- * texto azul (selección); inactivo sobre la superficie de tarjeta con texto
- * secundario. Radio de control y sin borde. Pulsar el activo abre el diálogo
- * de filtro predeterminado.
- */
-@Composable
-private fun CategoryChip(
-    label: String,
-    selected: Boolean,
-    pinFilled: Boolean,
-    pinOutline: Boolean,
-    onClick: () -> Unit,
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = CCText.S13,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            )
-        },
-        trailingIcon = when {
-            pinFilled -> { {
-                Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
-            } }
-            pinOutline -> { {
-                Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp))
-            } }
-            else -> null
-        },
-        shape = RoundedCornerShape(CCRadius.Control),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = primary.copy(alpha = 0.15f),
-            selectedLabelColor = primary,
-        ),
-        border = null,
-    )
 }
 
 // ─── Race card ─────────────────────────────────────────────────────

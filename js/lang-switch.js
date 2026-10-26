@@ -28,10 +28,18 @@
     return 'es';
   }
 
-  // ── Auto-redirect (solo en raíz '/', una vez, sin elección previa) ──
+  // Los rastreadores renderizan con navigator.language inglés y sin estado
+  // guardado: redirigirlos hace que Google indexe `/` con el contenido de `/en/`.
+  function isCrawler() {
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    return /bot|crawl|spider|slurp|google|bing|yandex|baidu|duckduck|lighthouse/i.test(ua);
+  }
+
+  // ── Auto-redirect (solo en raíz '/', una vez, sin elección previa, nunca a rastreadores) ──
   function maybeAutoRedirect() {
     const stored = getLang();
     if (stored) return; // ya eligió, no redirigir
+    if (isCrawler()) return;
     if (window.location.pathname !== '/' && window.location.pathname !== '/index.html') return;
     const lang = navigator.language || navigator.userLanguage || '';
     if (!lang.toLowerCase().startsWith('en')) return;
@@ -215,7 +223,9 @@
     }
   }
 
-  // ── Renderizar el selector (slider ES↔EN) en la barra ─────────
+  // ── Selector ES↔EN de la cabecera ───────────────────────────────
+  // js/header-html.js lo escribe con la cabecera (también en el HTML generado
+  // en el build); aquí solo se crea si falta.
   function makeSwitcher(id) {
     const lang = currentLang();
     const switcher = document.createElement('div');
@@ -227,6 +237,17 @@
       <button class="lang-btn${lang === 'es' ? ' lang-btn--active' : ''}" data-lang="es" title="Español">ES</button>
       <button class="lang-btn${lang === 'en' ? ' lang-btn--active' : ''}" data-lang="en" title="English">EN</button>
     `;
+    return switcher;
+  }
+
+  function bindSwitcher(switcher) {
+    // La cabecera marca el idioma de la ruta; en un dominio inglés dedicado
+    // manda el host.
+    const lang = currentLang();
+    if (switcher.dataset.active !== lang) {
+      switcher.dataset.active = lang;
+      switcher.querySelectorAll('.lang-btn').forEach(btn => btn.classList.toggle('lang-btn--active', btn.dataset.lang === lang));
+    }
     switcher.addEventListener('click', e => {
       const btn = e.target.closest('.lang-btn');
       if (!btn) return;
@@ -236,19 +257,19 @@
       setLang(target);
       window.location.href = buildTargetUrl(target);
     });
-    return switcher;
   }
 
   function renderLangSwitcher() {
-    // Único selector, siempre visible, en el cluster de utilidades del header
-    // (antes del botón de tema).
-    const actions = document.querySelector('.header-actions');
-    if (actions && !document.getElementById('langSwitcher')) {
-      const sw = makeSwitcher('langSwitcher');
-      const theme = actions.querySelector('.theme-toggle');
-      if (theme) actions.insertBefore(sw, theme);
-      else actions.appendChild(sw);
+    // Único selector, siempre visible, al final del cluster de utilidades
+    // del header.
+    let switcher = document.getElementById('langSwitcher');
+    if (!switcher) {
+      const actions = document.querySelector('.header-actions');
+      if (!actions) return;
+      switcher = makeSwitcher('langSwitcher');
+      actions.appendChild(switcher);
     }
+    bindSwitcher(switcher);
   }
 
   // ── Init ─────────────────────────────────────────────────────

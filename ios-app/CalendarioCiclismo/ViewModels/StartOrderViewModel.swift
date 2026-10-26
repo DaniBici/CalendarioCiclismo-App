@@ -6,12 +6,14 @@ final class StartOrderViewModel {
     var entries: [StartOrderEntry] = []
     /// DTO con campos extra (TT/GC dorsals, timezone) que no están en `RaceDay`.
     var raceDay: StartOrderRaceDay?
-    /// `RaceDay` canónico usado por `StageInfoHeader` (paridad con perfil).
-    var fullRaceDay: RaceDay?
+    /// Jornada con la carga de su ficha: cabecera, tira de documentación y
+    /// contexto de la etapa muestran los mismos datos que la jornada.
+    let stage = StageDetailViewModel()
     var race: Race?
     /// Equipos con la paleta efectiva del año de la carrera, para las bandas.
     var teams: [Team] = []
-    var isLoading = false
+    /// Verdadero hasta la primera carga: la pantalla no se pinta vacía antes.
+    var isLoading = true
     var error: String?
     var activeFilter: Filter = .all
 
@@ -40,15 +42,33 @@ final class StartOrderViewModel {
 
     var title: String { LocaleService.t("Orden de salida", "Start order") }
 
+    /// Carga inicial: el orden de salida y la jornada salen a la vez y la
+    /// pantalla de carga se mantiene hasta tener ambos.
     func load(raceDayId: String) async {
         isLoading = true
         error = nil
+        let stage = self.stage
+        async let stageLoad: Void = stage.load(raceDayId: raceDayId)
+        await loadOrder(raceDayId: raceDayId)
+        await stageLoad
+        isLoading = false
+    }
 
+    /// Pull-to-refresh: recarga sin pantalla de carga; la jornada se refresca
+    /// como en su ficha, sin ocultar la tira mientras llega la respuesta.
+    func refresh(raceDayId: String) async {
+        let stage = self.stage
+        async let stageRefresh: Void = stage.refresh(raceDayId: raceDayId)
+        await loadOrder(raceDayId: raceDayId)
+        await stageRefresh
+    }
+
+    private func loadOrder(raceDayId: String) async {
         do {
             let service = SupabaseService.shared
 
-            // Fila de la jornada, RaceDay canónico y entradas solo dependen de
-            // la jornada: salen a la vez.
+            // Fila de la jornada y entradas solo dependen de la jornada: salen
+            // a la vez.
             async let raceDaysReq: [StartOrderRaceDay] = service.client
                 .from("race_days")
                 .select("id, raceId, date, dateKey, slug, slugEn, stageNumber, primaryType, startLocation, finishLocation, startLocationEn, finishLocationEn, distanceKm, timezone, startOrderTtDorsals, startOrderGcDorsals")
@@ -56,8 +76,6 @@ final class StartOrderViewModel {
                 .limit(1)
                 .execute()
                 .value
-            // RaceDay canónico para reusar StageInfoHeader (mismo que perfil)
-            async let fullRaceDayReq: RaceDay? = try? await service.raceDays(byIds: [raceDayId]).first
             async let entriesReq: [StartOrderEntry] = service.client
                 .from("start_order_entries_resolved")
                 .select()
@@ -68,7 +86,6 @@ final class StartOrderViewModel {
 
             let raceDays = try await raceDaysReq
             self.raceDay = raceDays.first
-            self.fullRaceDay = await fullRaceDayReq
 
             if let rId = raceDays.first?.raceId {
                 async let raceReq: Race? = try? await service.race(byId: rId)
@@ -90,8 +107,6 @@ final class StartOrderViewModel {
         } catch {
             self.error = error.localizedDescription
         }
-
-        isLoading = false
     }
 
     /// Fila mínima de startlist_teams (referencia al equipo canónico).
@@ -162,10 +177,6 @@ final class StartOrderViewModel {
             if page.count < 1000 { return all }
             offset += 1000
         }
-    }
-
-    func refresh(raceDayId: String) async {
-        await load(raceDayId: raceDayId)
     }
 
     // MARK: - Time helpers

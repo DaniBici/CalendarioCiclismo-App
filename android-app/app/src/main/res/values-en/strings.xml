@@ -66,8 +66,13 @@
     <string name="today_prev_day_cd">Previous day</string>
     <string name="today_next_day_cd">Next day</string>
     <string name="today_refresh_cd">Refresh</string>
+    <string name="today_category">Category</string>
+    <string name="today_category_pin">Set «%1$s» as default</string>
+    <string name="today_category_unpin">Remove «%1$s» as default</string>
+    <string name="today_category_a11y">Category: %1$s</string>
+    <string name="today_category_pinned_a11y">Category: %1$s, default</string>
     <string name="today_sort_action">Sort</string>
-    <string name="today_sort_category">Category</string>
+    <string name="today_sort_category">UCI Cat.</string>
     <string name="today_sort_tv_time">TV time</string>
     <string name="today_sort_finish_time">Finish time</string>
 
@@ -524,7 +529,6 @@
     <string name="transfers_feed_empty">No confirmed moves yet.</string>
     <string name="transfers_teams_title">%1$d Teams</string>
     <string name="transfers_teams_empty">No teams in this division.</string>
-    <string name="transfers_renews_with">renews with</string>
     <string name="transfers_retires">retires</string>
     <string name="transfers_retired">Retires</string>
     <string name="transfers_until">%1$d</string>
@@ -575,6 +579,7 @@
     <string name="cx_startlist">Startlist</string>
     <string name="cx_results">Results</string>
     <string name="cx_general">Standings</string>
+    <string name="cx_summary_badge">Summary</string>
     <string name="cx_videos">Videos</string>
     <string name="cx_back">Back</string>
     <string name="cx_follow">Follow CX race</string>

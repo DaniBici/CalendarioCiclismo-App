@@ -12,6 +12,8 @@ describe('ficr-results-fetch', () => {
   it('valida el código año/equipo/carrera', () => {
     expect(parseCode('2026/102/10')).toMatchObject({ year: 2026, team: 102, race: 10 });
     expect(() => parseCode('2026/102')).toThrow();
+    expect(parseCode('2026/46/3/UN')).toMatchObject({ race: 3, category: 'UN', code: '2026/46/3/UN' });
+    expect(() => parseCode('2026/46/3/un')).toThrow();
   });
 
   it('lee los formatos de tiempo de llegada, contrarreloj y diferencia', () => {
@@ -103,5 +105,21 @@ describe('ficr-results-fetch', () => {
     // Un dorsal de la llegada ausente de la lista invalida el censo.
     expect(censusPublication(census, { arrival: [...arrival, { bib: '9' }], basis: 'b' })).toBeNull();
     expect(ridersCensus([rider(1), rider(1)])).toBeNull();
+  });
+
+  it('filtra por categoría la lista y la llegada de una carrera con varias categorías', async () => {
+    const api = (arrival) => ({
+      'descrizione/2026/46/3': [{ ga_Anno: 2026, ga_Descrizione: 'CAMPIONATI ITALIANI CRONOMETRO IND. 19.7 Km.' }],
+      'tappe/2026/46/3': [tappa(1, '2026-10-24', 2)],
+      'arrivi/2026/46/3/1': [{ rv_Rilevazione: 3, rv_TipoRilevazione: 1 }],
+      'results/2026/46/3/1/2/3/UN': { results: arrival, fuorigara: [] },
+      'riders/2026/46/3/UN/N': [rider(11), rider(12)],
+    });
+    const options = { oneDay: true, date: '2026-10-24', now: Date.parse('2026-10-24T14:00:00Z') };
+    const { stages } = await fetchCompetition('2026/46/3/UN', { read: apiReader(api([finisher(12, "24'10.50"), finisher(11, "24'30.00")])), ...options });
+    expect(stages[0].classifications[0].rows.map((row) => [row.rank, row.bib])).toEqual([[1, '12'], [2, '11']]);
+    expect(stages[0].classifications[0].publication.expectedIds).toEqual(['11', '12']);
+    await expect(fetchCompetition('2026/46/3/UN', { read: apiReader(api([finisher(31, "24'00.00")])), ...options }))
+      .rejects.toThrow(/fuera de la categoría UN: 31/);
   });
 });

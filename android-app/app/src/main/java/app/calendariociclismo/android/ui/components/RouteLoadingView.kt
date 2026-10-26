@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -59,7 +60,14 @@ import kotlinx.coroutines.delay
 fun AnimatedRouteProfile(
     modifier: Modifier = Modifier,
     lineColor: Color = MaterialTheme.colorScheme.primary,
-    fillColor: Color = lineColor.copy(alpha = 0.16f),
+    // En oscuro, la montaña es la superficie de tarjeta, como
+    // `--loading-terrain` de la web: el acento al 16 % componía una franja
+    // azul marino sobre el fondo grafito.
+    fillColor: Color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        lineColor.copy(alpha = 0.16f)
+    },
     riderColor: Color = lineColor,
 ) {
     val context = LocalContext.current

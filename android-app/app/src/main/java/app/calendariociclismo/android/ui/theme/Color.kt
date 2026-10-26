@@ -36,23 +36,25 @@ fun colorFromHex(hex: String?, fallback: Color = Color(0xFF888888)): Color {
  */
 object CCColors {
     // ─── Dark ───
-    val DarkBg = Color(0xFF141923)
-    val DarkCard = Color(0xFF1E2632)
-    val DarkCardHover = Color(0xFF202938)
-    val DarkSecondary = Color(0xFF293443)
-    val DarkBorder = Color(0xFF354252)
-    val DarkOutline = Color(0xFF938F99)  // para Switch thumb, OutlinedTextField, etc.
-    val DarkText = Color(0xFFE2E2E9)
-    val DarkTextMuted = Color(0xFF8E9099)
+    // Paleta Grafito de la web (`css/tokens.css`): superficies casi sin croma.
+    val DarkBg = Color(0xFF0B0C0F)
+    val DarkCard = Color(0xFF24262B)
+    val DarkCardHover = Color(0xFF2E3036)
+    val DarkSecondary = Color(0xFF2E3036)
+    val DarkBorder = Color(0xFF3A3D44)
+    val DarkOutline = Color(0xFF8F949D)  // para Switch thumb, OutlinedTextField, etc.
+    val DarkText = Color(0xFFF2F3F5)
+    val DarkTextMuted = Color(0xFFA9ADB5)
     val DarkAccent = Color(0xFF1A73E8)
     val DarkRed = Color(0xFFFFB4AB)
     val DarkGreen = Color(0xFF6DD58C)
     val DarkBlue = Color(0xFF7FCFFF)
     val DarkOrange = Color(0xFFFFB77C)
     // Fondo del segmento activo del SegmentedButton (secondaryContainer) — azul
-    // de marca apagado (~22%) horneado sobre la superficie oscura DarkCard, para
-    // sustituir el morado por defecto de M3. Texto/icono = DarkBlue.
-    val DarkSegmentedActive = Color(0xFF1C314F)
+    // de marca al 20 % horneado sobre la superficie oscura DarkCard (el
+    // `--accent-dim` de la web), para sustituir el morado por defecto de M3.
+    // Texto/icono = DarkBlue (7,24:1).
+    val DarkSegmentedActive = Color(0xFF223551)
 
     // ─── Light ───
     val LightBg = Color(0xFFF3F5F8)

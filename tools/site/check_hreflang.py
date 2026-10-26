@@ -12,6 +12,7 @@ por otra vía (SPA o 404.html) o páginas fuera de este árbol.
 """
 
 import argparse
+import os
 import re
 from pathlib import Path
 
@@ -24,8 +25,7 @@ ATTR = re.compile(r'(\w[\w-]*)="([^"]*)"')
 HEAD_LIMIT = 16384
 
 
-def page_url(root, path):
-    relative = path.relative_to(root).as_posix()
+def page_url(relative):
     if relative == "index.html":
         return BASE_URL + "/"
     if relative.endswith("/index.html"):
@@ -38,16 +38,21 @@ def normalize(url):
 
 
 def read_head(path):
-    with path.open("rb") as handle:
-        source = handle.read(HEAD_LIMIT).decode("utf-8", "ignore")
-    end = source.lower().find("</head>")
-    return source if end < 0 else source[:end]
+    with open(path, "rb") as handle:
+        source = handle.read(HEAD_LIMIT)
+    end = source.lower().find(b"</head>")
+    return (source if end < 0 else source[:end]).decode("utf-8", "ignore")
 
 
 def parse_head(head):
     canonical = None
     alternates = {}
     for tag in LINK.findall(head):
+        # Solo cuentan rel="canonical" y rel="alternate": el resto de enlaces
+        # (estilos, iconos, precargas) no se descompone en atributos.
+        lowered = tag.lower()
+        if "canonical" not in lowered and "alternate" not in lowered:
+            continue
         attrs = {key.lower(): value for key, value in ATTR.findall(tag)}
         rel = attrs.get("rel", "").lower()
         if rel == "canonical" and canonical is None:
@@ -61,17 +66,22 @@ def parse_head(head):
 
 def collect(root):
     pages = {}
-    for path in root.rglob("*.html"):
-        parts = path.relative_to(root).parts
-        if parts[0] in SKIP_DIRS or path.name == "404.html":
-            continue
-        canonical, alternates, noindex = parse_head(read_head(path))
-        pages[normalize(page_url(root, path))] = {
-            "path": path.relative_to(root).as_posix(),
-            "canonical": normalize(canonical),
-            "alternates": {lang: normalize(url) for lang, url in alternates.items()},
-            "noindex": noindex,
-        }
+    root = os.path.normpath(root)
+    for directory, subdirectories, files in os.walk(root):
+        if directory == root:
+            subdirectories[:] = [name for name in subdirectories if name not in SKIP_DIRS]
+        prefix = "" if directory == root else directory[len(root) + 1:] + "/"
+        for name in files:
+            if not name.endswith(".html") or name == "404.html":
+                continue
+            relative = prefix + name
+            canonical, alternates, noindex = parse_head(read_head(os.path.join(directory, name)))
+            pages[normalize(page_url(relative))] = {
+                "path": relative,
+                "canonical": normalize(canonical),
+                "alternates": {lang: normalize(url) for lang, url in alternates.items()},
+                "noindex": noindex,
+            }
     return pages
 
 

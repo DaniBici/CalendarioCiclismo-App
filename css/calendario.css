@@ -162,6 +162,35 @@ button.t-race {
   min-width: 3rem;
 }
 
+/* ── Challenge desplegable ───────────────────────────────────── */
+/* La fila es un <button>; el chevron va tras el nombre para que fechas y
+   categoría queden alineadas con el resto de filas. */
+.t-race__name--group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.t-race__name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.t-race__chevron {
+  flex: none;
+  color: var(--text-dim);
+  transition: transform var(--transition);
+}
+.t-race--challenge[aria-expanded="true"] .t-race__chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .t-race__chevron { transition: none; }
+}
+
+/* Pruebas del challenge: sangradas bajo la fila, con filete entre ellas. */
+.t-challenge__races[hidden] { display: none; }
+.t-challenge__races { border-top: 1px solid var(--border); }
+.t-challenge__races > * + * { border-top: 1px solid var(--border); }
+.t-challenge__races .t-race { padding-left: calc(0.75rem + 1rem); }
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .temporada-main { padding-top: 1rem; }
@@ -173,6 +202,7 @@ button.t-race {
     gap: 0 0.4rem;
     padding: 0.5rem 0.5rem;
   }
+  .t-challenge__races .t-race { padding-left: calc(0.5rem + 0.75rem); }
   .t-race__cat {
     grid-column: 5;
     grid-row: 1;

@@ -14,7 +14,7 @@ import { automaticTeamHeaderText } from '../team-appearance.js';
 import { loadCompleteStartlistCatalog } from '../startlist/import.js';
 import { panelState } from './state.js';
 import { CURRENT_TEAM_SEASON, MARKET_SEASON } from './constants.js';
-import { showToast } from './helpers.js';
+import { showToast, panelIconSvg } from './helpers.js';
 import { _slRiderFlagPreview } from './startlist-picker.js';
 import {
   _syncRosterVisibility, _syncSeason27Visibility, discontinueTeamSeason27,
@@ -635,7 +635,7 @@ function teamEditorBodyHtml() {
         <span>Continuidad en duda <span class="u-dim">— usado por el mercado de fichajes cuando corresponde</span></span>
       </label>
       <details id="ts27-colors-details">
-        <summary class="u-pointer u-fs-2 u-c-muted">🎨 Colores de temporada</summary>
+        <summary class="u-pointer u-fs-2 u-c-muted">${panelIconSvg('palette')} Colores de temporada</summary>
         <div class="team-colors-body">
           <div class="field-row">
             <div class="field">

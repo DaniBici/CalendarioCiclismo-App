@@ -5,7 +5,7 @@
 @import url('tokens.css');
 
 :root {
-  --bg-sidebar:    #202938;
+  --bg-sidebar:    #222429;
   /* Relleno de campos y desplegables, sin borde: tinte del color de texto
      sobre la superficie que los contiene (página, ficha o hueco). */
   --bg-input:      color-mix(in srgb, var(--text) 8%, transparent);
@@ -3383,8 +3383,11 @@ label.panel-check-label { display: inline-flex; align-items: center; cursor: poi
   border: 1px solid var(--border-light);
   vertical-align: -2px;
   margin-right: 5px;
+  background: linear-gradient(90deg, var(--a) calc(100% / 3), var(--b) 0 calc(200% / 3), var(--c) 0) padding-box no-repeat;
 }
-.team-stripes i { flex: 1; min-width: 0; }
+/* Franjas en un solo elemento (teamStripes): un hijo vacío conserva la línea
+   base de la caja con hijos, y con ella su posición vertical. */
+.team-stripes::before { content: ''; flex: 1; }
 /* Equipo resuelto: franjas de maillot y nombre */
 .sl-team-badge {
   display: inline-flex;
@@ -3519,16 +3522,6 @@ label.panel-check-label { display: inline-flex; align-items: center; cursor: poi
 .btn.btn--view   { padding: 0.4rem 0.8rem; font-size: var(--fs-2); }
 .btn.btn--nowrap { white-space: nowrap; }
 .btn--ghost.u-c-warn:hover:not(:disabled) { color: var(--orange); }
-.theme-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: var(--fs-4);
-  padding: 0.3rem;
-  line-height: 1;
-  color: var(--text-muted);
-  transition: color 0.15s ease;
-}
 
 /* — Notificaciones push (panel/app.html) — */
 .push-area-label {

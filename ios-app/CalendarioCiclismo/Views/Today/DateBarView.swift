@@ -21,7 +21,7 @@ import SwiftUI
 /// Cada gesto queda limitado al día contiguo para que la inercia no avance una
 /// página completa de siete días.
 ///
-/// `lastDate` (último día de temporada, `TodaySeason`) recorta el rango: no se
+/// `lastDate` (último día de la temporada de ciclocross) recorta el rango: no se
 /// genera ningún día posterior ni queda hueco a la derecha. El scroll centra
 /// como máximo el cuarto día antes del cierre; en los tres últimos días la
 /// barra se fija con `lastDate` en el extremo derecho y la capsule se desplaza

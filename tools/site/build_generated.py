@@ -2,10 +2,12 @@
 """Bloques regenerables de Pages. La caché nunca contiene fuentes ni config.js."""
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -16,22 +18,24 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-import version_assets
+import site_data
 from check_seo_output import check_paths, check_site
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE_ROOT = ROOT / ".pages-generated"
 STATE_PATH = ROOT / ".pages-build-state.json"
-CONTRACT_VERSION = 2
+# 3: el tar guarda el HTML OG sin versión de assets; version_assets.py la aplica
+# al componer _site.
+CONTRACT_VERSION = 3
 BLOCKS = {
-    "og-races": ("archived_seasons.py",),
-    "og-stages": ("archived_seasons.py",),
-    "og-results": ("archived_seasons.py", "results_routes.py"),
-    "og-extras": ("archived_seasons.py",),
-    "og-cx": ("archived_seasons.py", "cx_calendar.py"),
+    "og-races": ("archived_seasons.py", "site_data.py"),
+    "og-stages": ("archived_seasons.py", "site_data.py"),
+    "og-results": ("archived_seasons.py", "results_routes.py", "site_data.py"),
+    "og-extras": ("archived_seasons.py", "site_data.py"),
+    "og-cx": ("archived_seasons.py", "cx_calendar.py", "site_data.py"),
     "sitemap": ("gen_sitemap.py", "archived_seasons.py", "cx_calendar.py", "results_routes.py",
-                "gen_asset_canonicals.py"),
-    "feeds": ("gen_feeds.py",),
+                "gen_asset_canonicals.py", "site_data.py"),
+    "feeds": ("gen_feeds.py", "site_data.py"),
 }
 # Generadores que completan un bloque tras su generador principal (BLOCKS[b][0]).
 # Se regeneran enteros también en la ampliación incremental.
@@ -53,6 +57,9 @@ STAGE_BLOCKS = ("og-races", "og-stages", "og-extras", "sitemap", "feeds")
 STAGE_OG_BLOCKS = ("og-races", "og-stages", "og-extras")
 STAGE_DELTA_ROOT = CACHE_ROOT / "_stage-delta"
 STAGE_RUN_NAME = "stage-incremental"
+# Dispatch de refresco (scripts/pages-refresh): se planifica como un push y no
+# cuenta como solicitud completa ni incremental.
+REFRESH_RUN_NAME = "prerender-refresh"
 TURN_POLL_SECONDS = 20
 TURN_LIMIT_SECONDS = 90 * 60
 
@@ -134,7 +141,8 @@ def latest_requests(repository, token, run_number=None):
     """Devuelve la última solicitud completa y el último incremental anterior.
 
     Incluye solicitudes canceladas: la cancelación no satisface el refresco, y
-    un incremental cancelado o fallido obliga a regenerar sus bloques."""
+    un incremental cancelado o fallido obliga a regenerar sus bloques. Los
+    dispatch de refresco no son solicitudes: no invalidan bloques."""
     latest = {"full": None, "stage": None}
     for event in ("schedule", "workflow_dispatch"):
         query = urlencode({"branch": "main", "event": event, "per_page": 100})
@@ -142,6 +150,8 @@ def latest_requests(repository, token, run_number=None):
         for run in runs:
             if run["event"] != event or run["head_branch"] != "main":
                 raise ValueError("Solicitud de refresco incompatible")
+            if run.get("display_title", "") == REFRESH_RUN_NAME:
+                continue
             if run.get("display_title", "") == STAGE_RUN_NAME:
                 if run_number is None or run["run_number"] >= run_number:
                     continue
@@ -201,10 +211,12 @@ def prepare():
     if raw_slugs and (len(stage_slugs) > 30 or len(set(stage_slugs)) != len(stage_slugs)
                       or any(not re.fullmatch(r"[a-z0-9][a-z0-9-]*", slug) for slug in stage_slugs)):
         raise ValueError("STAGE_SLUGS admite hasta 30 slugs únicos en minúsculas separados por comas")
-    if stage_slugs and os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
-        raise ValueError("La generación incremental requiere workflow_dispatch")
-    force = not stage_slugs and (os.environ.get("GITHUB_EVENT_NAME") != "push"
-                                 or os.environ.get("GITHUB_REF") != "refs/heads/main")
+    refresh = not stage_slugs and os.environ.get("PAGES_REFRESH") == "true"
+    if (stage_slugs or refresh) and os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+        raise ValueError("La generación incremental y el refresco requieren workflow_dispatch")
+    # El refresco reutiliza los bloques como un push: solo cambian los prerender.
+    selective = refresh or os.environ.get("GITHUB_EVENT_NAME") == "push"
+    force = not stage_slugs and (not selective or os.environ.get("GITHUB_REF") != "refs/heads/main")
     requested = stage_requested = None
     if not force:
         try:
@@ -229,21 +241,36 @@ def prepare():
         output(f"{block}_prefix", prefix)
     STATE_PATH.write_text(json.dumps(state), encoding="utf-8")
     output("force", force)
-    mode = f"jornadas {','.join(stage_slugs)}" if stage_slugs else "completo" if force else "selectivo"
+    mode = (f"jornadas {','.join(stage_slugs)}" if stage_slugs else "completo" if force
+            else "refresco" if refresh else "selectivo")
     print(f"Plan Pages: {mode}, día UTC {state['day']}, solicitud completa {requested}, "
           f"incremental anterior {stage_requested}")
 
 
-def inventory(directory):
+def file_names(directory):
+    """Rutas relativas (posix, ordenadas) de los ficheros de `directory`.
+
+    Recorre el árbol con scandir, sin un Path por entrada, y rechaza enlaces
+    simbólicos."""
     if directory.is_symlink():
         raise ValueError("Destino de inventario no permitido")
-    files = {}
-    for path in sorted(directory.rglob("*")):
-        if path.is_symlink():
-            raise ValueError("Un bloque generado contiene un enlace simbólico")
-        if path.is_file():
-            files[path.relative_to(directory).as_posix()] = [path.stat().st_size, digest(path)]
-    return files
+    names, pending = [], [("", os.fspath(directory))]
+    while pending:
+        prefix, path = pending.pop()
+        with os.scandir(path) as entries:
+            for entry in entries:
+                if entry.is_symlink():
+                    raise ValueError("Un bloque generado contiene un enlace simbólico")
+                if entry.is_dir():
+                    pending.append((prefix + entry.name + "/", entry.path))
+                elif entry.is_file():
+                    names.append(prefix + entry.name)
+    return sorted(names)
+
+
+def inventory(directory):
+    return {name: [(directory / name).stat().st_size, digest(directory / name)]
+            for name in file_names(directory)}
 
 
 def allowed_file(block, name):
@@ -367,11 +394,44 @@ def verify_asset_canonicals(payload):
     return len(mapping)
 
 
-def archive_output(payload, files, archive):
-    with tarfile.open(archive, "w") as stream:
-        for name in files:
-            stream.add(payload / name, arcname=name, recursive=False)
-    return digest(archive)
+class HashedWriter:
+    """Escritura secuencial que calcula el SHA-256 de lo escrito."""
+
+    def __init__(self, stream):
+        self.stream, self.hash, self.offset = stream, hashlib.sha256(), 0
+
+    def write(self, data):
+        self.hash.update(data)
+        self.offset += len(data)
+        return self.stream.write(data)
+
+    def tell(self):
+        return self.offset
+
+
+def add_member(stream, payload, name):
+    """Añade un fichero regular al tar con una sola lectura; devuelve [tamaño, SHA-256].
+
+    Marca de tiempo entera: una fraccionaria añadiría una cabecera pax a cada
+    miembro."""
+    with open(os.path.join(payload, name), "rb") as handle:
+        status = os.fstat(handle.fileno())
+        content = handle.read()
+    info = tarfile.TarInfo(name)
+    info.size, info.mode, info.mtime = len(content), stat.S_IMODE(status.st_mode), int(status.st_mtime)
+    stream.addfile(info, io.BytesIO(content))
+    return [len(content), hashlib.sha256(content).hexdigest()]
+
+
+def archive_output(payload, names, archive):
+    """Escribe el tar de `names` y devuelve su inventario y el SHA-256 del tar.
+
+    El hash del tar se calcula al escribirlo, sin volver a leerlo."""
+    with open(archive, "wb") as raw:
+        writer = HashedWriter(raw)
+        with tarfile.open(fileobj=writer, mode="w") as stream:
+            files = {name: add_member(stream, payload, name) for name in names}
+    return files, writer.hash.hexdigest()
 
 
 def extract_archive(archive, files, destination=None):
@@ -405,38 +465,36 @@ def move_generated_payload(payload):
     payload.rmdir()
 
 
-def asset_version(versions=None):
-    """Versión global de JS/CSS del `_site` actual (ver version_assets.py)."""
-    versions = {} if versions is None else versions
-    if "site" not in versions:
-        versions["site"] = version_assets.site_version(ROOT / "_site")
-    return versions["site"]
-
-
-def version_published_assets(base, names, versions=None):
-    """Versiona las referencias JS/CSS del HTML y devuelve la versión aplicada."""
-    version = asset_version(versions)
-    started = time.monotonic()
-    changed = version_assets.version_files(base, names, version)
-    print(f"  Assets publicados: {changed} HTML, versión {version}, {time.monotonic() - started:.2f} s")
-    return version
-
-
-def assets_current(version, versions=None):
-    """La versión guardada con el tar coincide con los JS/CSS del checkout."""
-    return isinstance(version, str) and version == asset_version(versions)
-
-
-def file_names(directory):
-    return sorted(path.relative_to(directory).as_posix()
-                  for path in directory.rglob("*") if path.is_file())
-
-
 def archive_append(payload, names, archive):
     with tarfile.open(archive, "a") as stream:
         for name in names:
-            stream.add(payload / name, arcname=name, recursive=False)
+            add_member(stream, payload, name)
     return digest(archive)
+
+
+def ensure_shared_data():
+    """Lee el volcado compartido (site_data.py) antes del primer generador completo.
+
+    Solo con `PAGES_DATA` (build-site.yml) y la clave anónima; en local y en las
+    pruebas no hace nada. Los generadores lo usan si existe; los incrementales
+    no lo crean. Un fallo de lectura no detiene el build: cada generador lee la
+    API como antes y no se reintenta en los bloques siguientes."""
+    value, key = os.environ.get("PAGES_DATA"), os.environ.get("SUPABASE_ANON_KEY")
+    if not value or not key:
+        return
+    directory = Path(value) if Path(value).is_absolute() else ROOT / value
+    # Los generadores se ejecutan en otro directorio: ruta absoluta.
+    os.environ["PAGES_DATA"] = str(directory)
+    if site_data.available(directory) or (directory / "failed").exists():
+        return
+    try:
+        site_data.fetch(directory, key)
+    except Exception as error:
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "failed").write_text(type(error).__name__, encoding="utf-8")
+        print(f"::warning::Datos compartidos no disponibles ({type(error).__name__}: {error}); "
+              "cada generador lee la API")
 
 
 def generate_all_og(state):
@@ -446,9 +504,9 @@ def generate_all_og(state):
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
     started = utc_now().isoformat()
+    ensure_shared_data()
     subprocess.run([sys.executable, str(ROOT / "tools/site/gen_og_pages.py")],
                    cwd=staging, check=True)
-    versions = {}
     for block, directories in OG_FAMILIES.items():
         directory = CACHE_ROOT / block
         if directory.exists():
@@ -464,16 +522,12 @@ def generate_all_og(state):
         names = file_names(payload)
         if not names or not all(allowed_file(block, name) for name in names) or not complete_files(block, names, state["day"]):
             raise ValueError(f"Familia OG incompleta: {block}")
-        # El tar guarda el HTML ya versionado y la versión de assets aplicada.
-        version = version_published_assets(payload, names, versions)
-        files = inventory(payload)
-        archive = directory / "output.tar"
+        files, archive_sha256 = archive_output(payload, names, directory / "output.tar")
         metadata = {"prefix": state["blocks"][block]["prefix"], "started": started,
-                    "files": files, "verified": False, "asset_version": version,
-                    "archive_sha256": archive_output(payload, files, archive)}
+                    "files": files, "verified": False, "archive_sha256": archive_sha256}
         (directory / "manifest.json").write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
         state["blocks"][block]["prefilled"] = True
-    unexpected = inventory(staging)
+    unexpected = file_names(staging)
     shutil.rmtree(staging)
     if unexpected:
         raise ValueError(f"Outputs OG sin familia: {list(unexpected)[:5]}")
@@ -533,10 +587,6 @@ def extend_og_family(block, archive, metadata, state):
         if block == "og-stages" and any(
                 f"jornada/{slug}/index.html" not in names for slug in state["stage_slugs"]):
             raise ValueError("Falta una jornada solicitada en el resultado incremental")
-        # Si la versión del tar sigue vigente solo se versionan las páginas nuevas.
-        versions = {}
-        base_current = assets_current(metadata.get("asset_version"), versions)
-        version = version_published_assets(delta, names, versions)
         additions = inventory(delta)
         payload.mkdir(parents=True)
         extract_archive(archive, metadata["files"], payload)
@@ -547,22 +597,20 @@ def extend_og_family(block, archive, metadata, state):
     finally:
         shutil.rmtree(delta)
     replaced = set(additions) & set(metadata["files"])
-    if base_current:
-        files = {**metadata["files"], **additions}
-    else:
-        version_published_assets(payload, sorted(set(metadata["files"]) - replaced), versions)
-        files = inventory(payload)
+    files = {**metadata["files"], **additions}
     if not complete_files(block, files, state["day"]):
         raise ValueError(f"Familia incremental incompleta: {block}")
-    # Sin sustituciones ni reescritura de versiones basta con añadir miembros.
-    archive_sha256 = (archive_append(payload, sorted(additions), archive) if base_current and not replaced
-                      else archive_output(payload, files, archive))
+    # Sin sustituciones basta con añadir miembros al tar.
+    if replaced:
+        files, archive_sha256 = archive_output(payload, sorted(files), archive)
+    else:
+        archive_sha256 = archive_append(payload, sorted(additions), archive)
     # "started" conserva la generación base para las solicitudes completas;
     # "extended" acredita las jornadas añadidas. El SEO previo sigue válido
     # para las páginas no tocadas; verify solo revisa las añadidas.
     updated = {"prefix": state["blocks"][block]["prefix"], "started": metadata["started"],
                "extended": utc_now().isoformat(), "files": files, "verified": False,
-               "asset_version": version, "archive_sha256": archive_sha256,
+               "archive_sha256": archive_sha256,
                "stage_added": sorted(additions), "stage_new": sorted(set(additions) - replaced)}
     if metadata.get("seo"):
         updated["seo"] = metadata["seo"]
@@ -583,13 +631,14 @@ def extend_generated_block(block, archive, metadata, state):
                     "--stage-slugs", ",".join(state["stage_slugs"])], cwd=payload, check=True)
     for extra in EXTRA_GENERATORS.get(block, ()):
         subprocess.run([sys.executable, str(ROOT / "tools/site" / extra)], cwd=payload, check=True)
-    files = inventory(payload)
-    if (not files or not all(allowed_file(block, name) for name in files)
-            or not complete_files(block, files, state["day"])):
+    names = file_names(payload)
+    if (not names or not all(allowed_file(block, name) for name in names)
+            or not complete_files(block, names, state["day"])):
         raise ValueError(f"Salida incremental vacía o no permitida: {block}")
+    files, archive_sha256 = archive_output(payload, names, archive)
     updated = {"prefix": state["blocks"][block]["prefix"], "started": metadata["started"],
                "extended": utc_now().isoformat(), "files": files, "verified": False,
-               "archive_sha256": archive_output(payload, files, archive)}
+               "archive_sha256": archive_sha256}
     (directory / "manifest.json").write_text(json.dumps(updated, sort_keys=True), encoding="utf-8")
     return updated
 
@@ -629,6 +678,7 @@ def run_block(block):
             shutil.rmtree(directory)
         payload.mkdir(parents=True)
         generation_started = utc_now().isoformat()
+        ensure_shared_data()
         generator = "gen_og_pages.py" if block in OG_FAMILIES else BLOCKS[block][0]
         command = [sys.executable, str(ROOT / "tools/site" / generator)]
         if block in OG_FAMILIES:
@@ -640,19 +690,15 @@ def run_block(block):
         if (not names or not all(allowed_file(block, name) for name in names)
                 or not complete_files(block, names, state["day"])):
             raise ValueError(f"Salida vacía o no permitida: {block}")
+        files, archive_sha256 = archive_output(payload, names, archive)
         metadata = {"prefix": state["blocks"][block]["prefix"], "started": generation_started,
-                    "verified": False}
-        if block in OG_FAMILIES:
-            metadata["asset_version"] = version_published_assets(payload, names)
-        metadata["files"] = inventory(payload)
-        metadata["archive_sha256"] = archive_output(payload, metadata["files"], archive)
+                    "files": files, "verified": False, "archive_sha256": archive_sha256}
         manifest.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
     state["blocks"][block]["regenerated"] = not reused or stage_update
     STATE_PATH.write_text(json.dumps(state), encoding="utf-8")
     # En frío se renombran los directorios ya generados; en caliente se extrae
-    # el tar restaurado. El tar contiene el HTML versionado con la versión de
-    # assets del manifiesto. Si algún JS/CSS cambió, version_assets.py
-    # reescribe la familia en _site al final de la composición.
+    # el tar restaurado. El tar guarda el HTML tal como lo escribe el generador:
+    # version_assets.py añade la versión de JS/CSS al final de la composición.
     extract_started = time.monotonic()
     if payload.is_dir():
         move_generated_payload(payload)
@@ -661,11 +707,6 @@ def run_block(block):
         extract_archive(archive, metadata["files"])
         operation = "Extraído"
     print(f"  {operation} {block}: {time.monotonic() - extract_started:.2f} s")
-    if block in OG_FAMILIES and operation == "Extraído":
-        if assets_current(metadata.get("asset_version")):
-            print(f"  Assets vigentes: versión {metadata['asset_version']}, sin reescritura")
-        else:
-            print("  Assets desactualizados: se versionan al componer _site")
     status = "ampliado" if stage_update and reused else "reutilizado" if reused else "regenerado"
     print(f"Bloque {block}: {status}, {len(metadata['files'])} ficheros, {time.monotonic() - started:.2f} s")
 

@@ -63,10 +63,12 @@ Pruebas de JS: calendario y lógica editorial en `js/__tests__/cx-*.test.js`.
 - Radcross Illnau: horarios cargados; su mapa es de 2024 y queda rechazado por temporada.
 - Go Cross día 1 y 2: horarios cargados; mapas 2024 y guía 2025 rechazados por temporada; sin emisión confirmada para 2026.
 - Levoča: sin horario ni documentos; sus propozície siguen siendo de 2025; pendiente del organizador.
+- Radquer Mettmenstetten (25-10): horarios cargados; sin guía técnica ni mapa 2026 (consulta del 2026-10-21). La web solo publica el Tagesprogramm 2026, que es un horario; la Ausschreibung de 2025 y los Streckenpläne de 2018–2019 quedan rechazados por temporada.
+- Superprestige Overijse (25-10): mapa cargado; sin guía técnica 2026 (consulta del 2026-10-21). La página de Superprestige solo da «Praktische info» en HTML, y De Sportvrienden Overijse solo el cartel.
 
 ## Emisiones belgas
 
-Reglas de carga en `cc-cx-carreras` (Emisores belgas). Reparto 2026-27 según la
+Reglas de carga en `cc-cx-carreras/references/emisiones.md` (Emisores belgas). Reparto 2026-27 según la
 [veldritkalender de Sporza](https://sporza.be/nl/2026/09/29/wanneer-is-welke-cross-en-welke-wedstrijden-zijn-live-bij-sporza-dit-is-de-complete-veldritkalender-2026-2027~1790685673220/)
 del 29-09-2026; Play Sports confirma Superprestige y Copa del Mundo en su
 oferta 2026-27 ([Telenet](https://press.telenet.be/play-sports-presents-belgiums-most-comprehensive-sports-offering)).
@@ -75,6 +77,7 @@ oferta 2026-27 ([Telenet](https://press.telenet.be/play-sports-presents-belgiums
 | --- | --- | --- |
 | Superprestige Overijse, Middelkerke, Niel, Merksplas, Heusden-Zolder, Gullegem | Play Sports y Pickx+ Sports | Solo resumen |
 | Superprestige Ruddervoorde y Diegem | Sporza | Directo |
+| X2O Badkamers Trofee Oudenaarde (Koppenbergcross) | Sporza | Directo |
 
 Las demás pruebas belgas se consultan en la misma fuente al cargar sus
 emisiones y se añaden a esta tabla.
@@ -145,6 +148,25 @@ La vista es SECURITY INVOKER y tiene SELECT explícito para anon, authenticated,
 ### Verificación
 
 `js/__tests__/cx-timing.test.js` cubre la presentación y la evaluación conjunta de las mangas. Los horarios y resultados de prueba no se cargan en producción.
+
+## Orden de los IRM en resultados
+
+`cx_replace_results` ejecuta `private.order_cx_irm_results(raceId, category)` tras
+insertar las filas (único camino de escritura de `cx_results`). Los clientes
+ordenan por puesto y después por `sortOrder`, así que el orden solo afecta a la
+cola sin puesto:
+
+1. Clasificados: sin IRM, o `LAP` con puesto.
+2. `LAP` sin puesto (vuelta perdida).
+3. `DNF`/`ABD` (no terminó).
+4. `DNS` (no salió).
+5. Cualquier otro código.
+
+Dentro de un grupo, los corredores del mismo `teamName` van juntos, con los
+equipos por orden de primera aparición; una fila sin equipo conserva su lugar.
+`(raceId, category, sortOrder)` es UNIQUE no diferible: la función mueve primero
+las filas a valores negativos. Copia del orden previo a la corrección de
+2026-10-17: `private.cx_results_irm_order_20261017_backup`.
 
 ## Esquemas de puntos de torneos
 

@@ -5,8 +5,9 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { teamHeaderColors } from '../team-appearance.js';
-import { supabase, isNoTeamPlaceholderTeam, embeddedId, orEqFilter, pickByPreference } from '../shared.js';
+import { supabase, isNoTeamPlaceholderTeam, embeddedId, orEqFilter, pickByPreference, seoShortMonth } from '../shared.js';
 import { t, getLang } from '../i18n.js';
+import { localizedTeamName } from '../services/national-team-name.js';
 import { isAbandonIrm } from '../results/uci-irm.js';
 
 // Resuelve la carrera por id (el de la URL o el que incrusta el build en la
@@ -35,12 +36,15 @@ export async function loadStartlistData(race) {
   // race_days (hero), startlist_teams con su equipo global y la temporada
   // embebidos, corredores resueltos y las etapas con resultados in-house
   // (race_uci_stages, para detectar abandonos) son independientes entre sí →
-  // un único round-trip.
+  // un único round-trip. Las listas llevan desempate por id: el build
+  // (tools/site/prerender-inscritos.mjs) pide las mismas filas en el mismo
+  // orden y el HTML de los dos debe coincidir.
   const teamSelect = race.year ? '*,team:teams(*,team_seasons(*))' : '*,team:teams(*)';
   let teamsQuery = supabase.from('startlist_teams')
     .select(teamSelect)
     .eq('raceId', raceId)
-    .order('sortOrder', { ascending: true });
+    .order('sortOrder', { ascending: true })
+    .order('id');
   if (race.year) teamsQuery = teamsQuery.eq('team.team_seasons.year', race.year);
   const [raceDaysRes, teamsRes, uciStagesRes, ridersRes] = await Promise.all([
     supabase.from('race_days')
@@ -60,33 +64,58 @@ export async function loadStartlistData(race) {
       .select('*')
       .eq('raceId', raceId)
       .not('teamId', 'is', null)
-      .order('dorsal', { ascending: true }),
+      .order('dorsal', { ascending: true })
+      .order('id'),
   ]);
   if (teamsRes.error || !teamsRes.data || teamsRes.data.length === 0) return null;
 
-  // Equipo global y temporada salen del embebido; la fila de startlist queda limpia.
-  const globalTeamById = {};
-  const seasonRows = [];
-  const teams = teamsRes.data.map(({ team, ...tm }) => {
-    if (team) {
-      const { team_seasons: seasons, ...base } = team;
-      globalTeamById[base.id] = base;
-      seasonRows.push(...(seasons || []));
-    }
-    return tm;
-  });
-
   // ── Fase B: filas de resultados UCI para tachar abandonos (dependen de las
   // etapas de la fase A).
-  const stageRows = (uciStagesRes.data || []).filter(s => (s.rowCount || 0) > 0);
+  const stageRows = startlistStageRows(uciStagesRes.data);
   const outRowsRes = stageRows.length > 0
     ? await supabase.from('race_uci_results')
         .select('globalRiderId, irm, stageRef')
         .in('stageRef', stageRows.map(s => s.id))
         .not('globalRiderId', 'is', null)
         .not('irm', 'is', null)
+        .order('id')
     : { data: [] };
-  const riders = ridersRes.data || [];
+  return prepareStartlistData(race, {
+    raceDays: raceDaysRes.data,
+    teamRows: teamsRes.data,
+    uciStages: uciStagesRes.data,
+    riders: ridersRes.data,
+    outRows: outRowsRes.data,
+  });
+}
+
+// Etapas con resultados in-house volcados: las únicas cuyas filas tachan abandonos.
+function startlistStageRows(uciStages) {
+  return (uciStages || []).filter(s => (s.rowCount || 0) > 0);
+}
+
+/**
+ * Lista preparada a partir de las filas de loadStartlistData, sin red: la usa
+ * también el build. `teamRows`: startlist_teams con `team` (teams y, con año,
+ * sus team_seasons) embebido. Devuelve null si no hay equipos inscritos.
+ */
+export function prepareStartlistData(race, { raceDays, teamRows, uciStages, riders: riderRows, outRows }) {
+  if (!teamRows || teamRows.length === 0) return null;
+
+  // Equipo global y temporada salen del embebido; la fila de startlist queda limpia.
+  const globalTeamById = {};
+  const seasonRows = [];
+  const teams = teamRows.map(({ team, ...tm }) => {
+    if (team) {
+      const { team_seasons: seasons, ...base } = team;
+      globalTeamById[base.id] = base;
+      seasonRows.push(...(seasons || []).filter(s => s.year === race.year));
+    }
+    return tm;
+  });
+
+  const stageRows = startlistStageRows(uciStages);
+  const riders = riderRows || [];
 
   // Colores de temporada para los equipos presentes en esta lista.
   if (race.year) {
@@ -111,10 +140,12 @@ export async function loadStartlistData(race) {
   }
 
   // Nombre a mostrar: si hay match, prevalece el nombre del equipo global (tabla teams)
-  // sobre el `teamName` importado. Aplica tanto en web como en PDF.
+  // sobre el `teamName` importado; las selecciones nacionales, en el idioma de la
+  // página. Aplica tanto en web como en PDF.
+  const isEn = getLang() === 'en';
   teams.forEach(tm => {
     const g = tm.teamId ? globalTeamById[tm.teamId] : null;
-    tm.displayName = (g && g.name) ? g.name : tm.teamName;
+    tm.displayName = localizedTeamName((g && g.name) ? g.name : tm.teamName, g, isEn);
   });
 
   // Group riders by teamId
@@ -170,7 +201,7 @@ export async function loadStartlistData(race) {
     // Por corredor, quedarse con la fila de mayor stageNumber (null = -1, va
     // primero y lo pisa cualquier etapa numerada). Esa es su "última palabra".
     // Solo cuentan los abandonos reales: un 'LAP' (u otro código de ruido) NO tacha.
-    (outRowsRes.data || []).filter(row => isAbandonIrm(row.irm)).forEach(row => {
+    (outRows || []).filter(row => isAbandonIrm(row.irm)).forEach(row => {
       const sn = stageNumById.has(row.stageRef) ? stageNumById.get(row.stageRef) : null;
       const prev = riderOutMap.get(row.globalRiderId);
       const snv = sn == null ? -1 : sn;
@@ -180,7 +211,7 @@ export async function loadStartlistData(race) {
   }
 
   return {
-    raceDays: raceDaysRes.data || [],
+    raceDays: raceDays || [],
     teams,
     riders,
     ridersByTeam,
@@ -197,20 +228,20 @@ function formatDateRange(startDk, endDk) {
   if (!startDk) return '';
   const [sy, sm, sd] = startDk.split('-').map(Number);
   const [ey, em, ed] = (endDk || startDk).split('-').map(Number);
-  const startD = new Date(sy, sm - 1, sd);
-  const endD   = new Date(ey, em - 1, ed);
-  const fmtDay = d => d.getDate();
-  const fmtMon = d => d.toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'es-ES', { month: 'short' });
+  // Meses con tabla fija, no ICU: la cabecera se escribe también en el build
+  // (decisión 3 de docs/plans/fase-3-jornadas-estaticas.md).
+  const sMon = seoShortMonth(sm - 1);
+  const eMon = seoShortMonth(em - 1);
   if (startDk === (endDk || startDk)) {
-    return `${fmtDay(startD)} ${fmtMon(startD)}`;
+    return `${sd} ${sMon}`;
   }
   if (sm === em && sy === ey) {
-    return `${fmtDay(startD)}–${fmtDay(endD)} ${fmtMon(endD)}`;
+    return `${sd}–${ed} ${eMon}`;
   }
   if (sy === ey) {
-    return `${fmtDay(startD)} ${fmtMon(startD)} – ${fmtDay(endD)} ${fmtMon(endD)}`;
+    return `${sd} ${sMon} – ${ed} ${eMon}`;
   }
-  return `${fmtDay(startD)} ${fmtMon(startD)} ${sy} – ${fmtDay(endD)} ${fmtMon(endD)} ${ey}`;
+  return `${sd} ${sMon} ${sy} – ${ed} ${eMon} ${ey}`;
 }
 
 // Etiqueta («Dorsales» / «Lista provisional») y detalle (fechas · categoría ·

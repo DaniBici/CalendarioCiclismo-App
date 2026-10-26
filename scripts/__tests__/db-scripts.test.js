@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { databaseUrl, parseEnv } from '../db/env.mjs';
+import { checkMigrationSql } from '../db/apply-migration.mjs';
 import { expiryWarning, hasTransactionControl, parseArgs, pickRows } from '../db/sql.mjs';
 import { agentUrl, parseArgs as parseProvisionArgs, roleOfUrl, scramVerifier, upsertEnv } from '../db/provision-agent-role.mjs';
 
@@ -50,6 +51,13 @@ describe('scripts/db', () => {
     expect(hasTransactionControl('CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql AS $f$\nBEGIN\n RETURN 1;\nEND\n$f$;')).toBe(false);
     expect(hasTransactionControl("select 'commit; begin' as t -- commit")).toBe(false);
     expect(hasTransactionControl('select "begin" from t')).toBe(false);
+  });
+
+  it('rechaza migraciones con control de transacción propio', () => {
+    expect(() => checkMigrationSql('BEGIN;\nUPDATE teams SET name = 1;\nCOMMIT;\n')).toThrow('control de transacción');
+    expect(() => checkMigrationSql('-- fusión\nstart transaction;\nDELETE FROM x;')).toThrow('control de transacción');
+    expect(() => checkMigrationSql('DO $$ BEGIN PERFORM 1; END $$;\nALTER TABLE x ADD COLUMN y int; -- sin COMMIT')).not.toThrow();
+    expect(() => checkMigrationSql('  \n')).toThrow('vacía');
   });
 
   it('genera verificadores SCRAM-SHA-256 compatibles con RFC 7677', () => {

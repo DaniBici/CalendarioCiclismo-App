@@ -143,30 +143,3 @@ final class ChampionshipsConfigTests: XCTestCase {
         )
     }
 }
-
-// MARK: - Cierre de temporada en Hoy
-
-final class TodaySeasonTests: XCTestCase {
-
-    func test_lastDay_2026IsOctober18() {
-        XCTAssertEqual(TodaySeason.lastDay(today: "2026-09-27"), "2026-10-18")
-        XCTAssertEqual(TodaySeason.lastDay(today: "2026-12-31"), "2026-10-18")
-    }
-
-    func test_clamp_movesLaterDatesToLastDay() {
-        XCTAssertEqual(TodaySeason.clamp("2026-10-19", today: "2026-09-27"), "2026-10-18")
-        XCTAssertEqual(TodaySeason.clamp("2026-11-02", today: "2026-11-02"), "2026-10-18")
-        XCTAssertEqual(TodaySeason.clamp("2026-10-09", today: "2026-10-19"), "2026-10-09")
-    }
-
-    func test_yearWithoutClosingDate_hasNoLimit() {
-        XCTAssertNil(TodaySeason.lastDay(today: "2027-01-02"))
-        XCTAssertEqual(TodaySeason.clamp("2027-10-30", today: "2027-01-02"), "2027-10-30")
-        XCTAssertTrue(TodaySeason.contains("2027-10-30", today: "2027-01-02"))
-    }
-
-    func test_contains_excludesDaysAfterLastDay() {
-        XCTAssertTrue(TodaySeason.contains("2026-10-18", today: "2026-10-01"))
-        XCTAssertFalse(TodaySeason.contains("2026-10-19", today: "2026-10-01"))
-    }
-}

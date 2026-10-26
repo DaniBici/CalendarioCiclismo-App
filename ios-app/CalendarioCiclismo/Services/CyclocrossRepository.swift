@@ -20,11 +20,16 @@ protocol CxStore {
     func saveDetail(_ detail: CxDetail) async
     func detailId(forSlug slug: String) async -> String?
     func allDetails() async -> [CxDetail]
+    /// Última lectura de las pruebas destacadas.
+    func featured() async -> [String]?
+    func saveFeatured(_ ids: [String]) async
 }
 
 extension CxStore {
     func today(_ key: String) async -> [CxRace]? { await month(key) }
     func saveToday(_ races: [CxRace], key: String) async { await saveMonth(races, key: key) }
+    func featured() async -> [String]? { nil }
+    func saveFeatured(_ ids: [String]) async {}
 }
 
 @MainActor
@@ -33,6 +38,9 @@ struct CxDiskStore: CxStore {
 
     func today(_ key: String) async -> [CxRace]? { await cache.load([CxRace].self, forKey: "cx_today:" + key) }
     func saveToday(_ races: [CxRace], key: String) async { await cache.save(races, forKey: "cx_today:" + key) }
+
+    func featured() async -> [String]? { await cache.load([String].self, forKey: "cx_featured") }
+    func saveFeatured(_ ids: [String]) async { await cache.save(ids, forKey: "cx_featured") }
 
     func month(_ key: String) async -> [CxRace]? { await cache.load([CxRace].self, forKey: "cx_month:" + key) }
     func knownMonths() async -> [String] { await cache.load([String].self, forKey: "cx_month_index") ?? [] }
@@ -229,15 +237,26 @@ final class CyclocrossRepository {
     /// Última lectura correcta de las destacadas en la sesión.
     private var featuredCache: Set<String>?
 
-    /// Pruebas destacadas. Un fallo conserva la última lectura de la sesión o,
-    /// sin ella, ninguna (orden canónico); nunca interrumpe la carga.
+    /// Última lectura de las destacadas: la de la sesión o, sin ella, la copia
+    /// local; sin ninguna, el orden canónico. La primera pintura desde la caché
+    /// las aplica para no recolocar la lista al llegar la red.
+    func cachedFeaturedRaceIds() async -> Set<String> {
+        if let featuredCache { return featuredCache }
+        let stored = await store.featured() ?? []
+        return Set(stored)
+    }
+
+    /// Pruebas destacadas. Un fallo conserva la última lectura
+    /// (`cachedFeaturedRaceIds`); nunca interrumpe la carga.
     func featuredRaceIds() async -> Set<String> {
         do {
             let value = try await remote.cxFeaturedRaceIds()
+            let changed = value != featuredCache
             featuredCache = value
+            if changed { await store.saveFeatured(value.sorted()) }
             return value
         } catch {
-            return featuredCache ?? []
+            return await cachedFeaturedRaceIds()
         }
     }
 

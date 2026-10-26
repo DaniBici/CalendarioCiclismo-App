@@ -3,6 +3,7 @@ export const CX_CATEGORIES=['ME','WE','MU','WU','MJ','WJ'];
 export const CX_CLASSES=['CM','CDM','CC','C1','C2','CN','NAC'];
 export const CX_COUNTRY_GROUPS=['ALL','ES','EUROPA','PT','FR','BE','NL','IT','DE_AT_CH','UK_IE','SCANDI','EE','LATAM','NORTEAM','ASIAPAC','AFRICA','MENA'];
 // Sub-23 que corren dentro de la manga Elite del mismo sexo (formato WITH_ELITE).
+/** @public Lo consultan las pruebas del módulo importado. */
 export const CX_ELITE_PARENT={MU:'ME',WU:'WE'};
 // Cada opción nombra qué ocurre en la carrera y la duración reglamentaria que fija (UCI 5.1.048).
 export function cxDurationFormatOptions(category) {

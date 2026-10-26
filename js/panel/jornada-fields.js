@@ -2,7 +2,7 @@
 //  PANEL DE ADMINISTRACIÓN — Editor de jornada: Markdown/WYSIWYG, waypoints y emisiones
 // ─────────────────────────────────────────────────────────────────
 
-import { formatTimeHHMM } from './helpers.js';
+import { formatTimeHHMM, panelIconSvg } from './helpers.js';
 
 // ── Markdown → HTML (para cargar contenido inicial en el WYSIWYG) ──
 function markdownToHtml(md) {
@@ -243,7 +243,7 @@ export function broadcastHTML(b, i) {
       <div class="field">
         <label>URL (opcional)</label>
         <input type="url" class="bc-url" value="${b.url || ''}" placeholder="https://…">
-        ${b.embeddable === false ? `<div class="field-hint u-c-caution u-fs-1 u-mt-025">⚠ Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
+        ${b.embeddable === false ? `<div class="field-hint u-c-caution u-fs-1 u-mt-025">${panelIconSvg('warning')} Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
       </div>
     </div>
     <div class="field-row field-row--2">

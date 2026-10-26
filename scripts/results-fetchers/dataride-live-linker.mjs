@@ -108,6 +108,28 @@ function ourDay(value) {
   return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
 }
 
+/**
+ * Temporada DataRide que contiene el día de salida. La temporada UCI de
+ * carretera cierra a mediados de octubre: una carrera que empieza después
+ * pertenece a la temporada del año siguiente aunque `races.year` conserve el
+ * año de salida. Sin una temporada abierta para esa fecha devuelve null. El
+ * año de la carrera solo se usa si las fechas no se pueden interpretar.
+ */
+export function seasonForRace(race, seasons) {
+  const start = ourDay(race.startDate);
+  const dated = seasons
+    .map((season) => ({
+      season,
+      from: dataRideDay(season.StartDate),
+      to: dataRideDay(season.EndDate),
+    }))
+    .filter(({ from, to }) => from != null && to != null);
+  if (start == null || !dated.length) {
+    return seasons.find((season) => Number(season.Year) === Number(race.year)) || null;
+  }
+  return dated.find(({ from, to }) => from <= start && start <= to)?.season || null;
+}
+
 function overlaps(ourStart, ourEnd, uciStart, uciEnd, slackDays) {
   if (ourStart == null || uciStart == null) return false;
   const endA = ourEnd ?? ourStart;
@@ -466,27 +488,28 @@ async function main() {
     }
 
     const seasons = await fetchSeasons();
-    const seasonByYear = new Map(seasons.map((season) => [Number(season.Year), season]));
-    const competitionsByYear = new Map();
+    const seasonByRace = new Map();
+    const competitionsBySeason = new Map();
     for (const race of races) {
-      const year = Number(race.year);
-      const season = seasonByYear.get(year);
+      const season = seasonForRace(race, seasons);
       if (!season?.Id) {
-        log(`  · ${race.id} «${race.name}»: DataRide no ofrece temporada ${year}`);
+        log(`  · ${race.id} «${race.name}»: DataRide no ofrece temporada para ${race.startDate}`);
         notFound++;
         continue;
       }
-      if (!competitionsByYear.has(year)) {
-        competitionsByYear.set(year, await fetchCompetitions(season.Id));
+      seasonByRace.set(race.id, season);
+      if (!competitionsBySeason.has(season.Id)) {
+        competitionsBySeason.set(season.Id, await fetchCompetitions(season.Id));
       }
     }
 
     const proposals = [];
     for (const race of races) {
-      const season = seasonByYear.get(Number(race.year));
-      const competitions = competitionsByYear.get(Number(race.year)) || [];
-      if (!season?.Id || !competitions.length) {
-        if (season?.Id) notFound++;
+      const season = seasonByRace.get(race.id);
+      if (!season) continue;
+      const competitions = competitionsBySeason.get(season.Id) || [];
+      if (!competitions.length) {
+        notFound++;
         continue;
       }
       const decision = matchTodayRace(race, competitions, { slackDays: SLACK_DAYS });

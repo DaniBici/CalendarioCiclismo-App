@@ -5,6 +5,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 from datetime import datetime, timezone, timedelta, date as dt_date
 
+import site_data
+
 SUPABASE_URL = "https://bcecwlkynpgovnzhbpah.supabase.co"
 ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 
@@ -34,6 +36,10 @@ def type_label(t):
 
 def supabase_get(path):
     """Agota la consulta con orden estable; nunca acepta una página truncada."""
+    # Con el volcado compartido del build (site_data.py) responde en local.
+    shared = site_data.get(path)
+    if shared is not None:
+        return shared
     rows = []
     offset = 0
     while True:
@@ -587,7 +593,7 @@ def update_feeds(stage_slugs, now=None):
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     refs = supabase_get("race_days?" + urlencode({
         "select": "slug,raceId", "editorialStatus": "eq.published", "slug": in_list(stage_slugs),
-        "order": "slug.asc"}))
+        "order": "id.asc"}))
     refs = [row for row in refs if row.get("slug") in stage_slugs]
     missing = set(stage_slugs) - {row["slug"] for row in refs}
     race_ids = {row.get("raceId") for row in refs}

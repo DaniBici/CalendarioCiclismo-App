@@ -176,6 +176,11 @@ const getJson = async url => {
   return response.json();
 };
 
+// Lecturas compartidas con el fetcher de carretera (acn-results-fetch.mjs).
+export const fetchAcnEvent = eventId => getJson(`${EVENT_API}${encodeURIComponent(eventId)}`);
+export const fetchAcnTree = ctx => getJson(`${RESULTS_API}generic/uci/${encodeURIComponent(ctx)}/dh?key=cms`);
+export const fetchAcnTable = (ctx, key) => getJson(`${RESULTS_API}table/search/${encodeURIComponent(ctx)}/${encodeURIComponent(key)}?srch=&pageSize=1000`);
+
 // El contexto (`ctx`) del evento solo aparece en la redirección del listado clásico.
 export async function resolveAcnContext(eventId) {
   const response = await fetch(`${LISTING}?eventId=${encodeURIComponent(eventId)}`, { headers: { 'User-Agent': UA }, redirect: 'manual',
@@ -187,18 +192,17 @@ export async function resolveAcnContext(eventId) {
 
 /** Evento, árbol de categorías y tablas de las categorías pedidas (`only`). */
 export async function fetchAcnTables({ eventId, ctx, only = null, map = {}, date = null }) {
-  const event = await getJson(`${EVENT_API}${encodeURIComponent(eventId)}`);
+  const event = await fetchAcnEvent(eventId);
   if (String(event.EventId) !== String(eventId)) throw new Error('El evento ACN devuelto no corresponde al solicitado');
   const eventDate = String(event.StartDate || '').slice(0, 10);
   if (String(event.EndDate || '').slice(0, 10) !== eventDate) throw new Error('Evento ACN multidía: indicar categoría y fecha manualmente');
   if (date && date !== eventDate) throw new Error(`Fecha del evento ${eventDate} distinta de ${date}`);
-  const tree = await getJson(`${RESULTS_API}generic/uci/${encodeURIComponent(ctx)}/dh?key=cms`);
-  const { found, skipped } = acnCategories(tree, map);
+  const { found, skipped } = acnCategories(await fetchAcnTree(ctx), map);
   const wanted = only ? new Set(only) : null;
   const tables = [];
   for (const item of found) {
     if (wanted && !wanted.has(item.category)) continue;
-    tables.push({ ...item, table: await getJson(`${RESULTS_API}table/search/${encodeURIComponent(ctx)}/${encodeURIComponent(item.key)}?srch=&pageSize=1000`) });
+    tables.push({ ...item, table: await fetchAcnTable(ctx, item.key) });
   }
   return { event, ctx, eventDate, tables, skipped };
 }

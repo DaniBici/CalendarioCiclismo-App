@@ -3,6 +3,8 @@ import Foundation
 struct CxReplayLink: Identifiable {
     var id: String { url.absoluteString }
     let title: String
+    /// Categoría de la emisión; nil en las comunes a toda la prueba.
+    let category: String?
     let url: URL
 }
 
@@ -106,6 +108,18 @@ enum CxAgendaFilter: String, CaseIterable, Identifiable {
         case .big: return "Big"
         case .pro: return "Pro"
         case .spain: return CyclocrossPresentation.t("España", "Spain")
+        }
+    }
+}
+
+/// Orden de Hoy de Ciclocross, con las opciones de Hoy de carretera.
+enum CxAgendaSort: String, CaseIterable {
+    case category, tvTime, finishTime
+    @MainActor var label: String {
+        switch self {
+        case .category: return CyclocrossPresentation.t("Cat. UCI", "UCI Cat.")
+        case .tvTime: return CyclocrossPresentation.t("Hora TV", "TV time")
+        case .finishTime: return CyclocrossPresentation.t("Hora de meta", "Finish time")
         }
     }
 }
@@ -530,9 +544,17 @@ enum CyclocrossPresentation {
                     return row.showInRevive || row.isSporza
                         || RaceLogic.isReviveLink(channel: row.channel, url: link(row.url)?.absoluteString, showInRevive: row.showInRevive)
                 }
-        }.compactMap { row in link(row.url).map { CxReplayLink(title: row.channel ?? "TV", url: $0) } }
+        }.compactMap { row in link(row.url).map { CxReplayLink(title: row.channel ?? "TV", category: row.category.flatMap { $0.isEmpty ? nil : $0 }, url: $0) } }
             .filter { urls.insert($0.id).inserted }
-        return CxMediaSelection(tv: groups, revive: revive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty, regionalIds: regionalIds)
+        // Como la TV: primero las filas comunes y después las de cada categoría
+        // en el orden del programa; la vista encabeza cada bloque.
+        var order: [String: Int] = [:]
+        for (index, category) in categories.enumerated() { if let code = category.code, order[code] == nil { order[code] = index } }
+        let rank = { (item: CxReplayLink) in item.category.flatMap { order[$0] } ?? -1 }
+        let sortedRevive = revive.enumerated().sorted { a, b in
+            rank(a.element) == rank(b.element) ? a.offset < b.offset : rank(a.element) < rank(b.element)
+        }.map(\.element)
+        return CxMediaSelection(tv: groups, revive: sortedRevive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty, regionalIds: regionalIds)
     }
     // MARK: - Badges de la tarjeta de Agenda
 
@@ -580,6 +602,64 @@ enum CyclocrossPresentation {
         return CxAgendaBroadcast(row: current, firstStartUtc: first.startTimeUtc, live: start(first) <= now)
     }
 
+    // MARK: - Orden de la agenda
+
+    /// Pruebas de `date` en el orden elegido, espejo de `cxSortDayRaces`
+    /// (`js/cx/presentation.js`). Categoría: orden de la agenda, con las
+    /// destacadas primero. Hora TV y Hora de meta: por esa hora, sin hora al
+    /// final y, a igualdad, el orden canónico sin destacadas, como Hoy de
+    /// carretera.
+    static func agendaRaces(on date: String, races: [CxRace], featured: Set<String>, sort: CxAgendaSort, allowedGroups: Set<String>) -> [CxRace] {
+        guard sort != .category else { return CyclocrossLogic.races(on: date, races: races, featured: featured) }
+        let keyed = CyclocrossLogic.races(on: date, races: races).enumerated().map { index, race -> (tier: Int, time: Date, index: Int, race: CxRace) in
+            if sort == .tvTime {
+                let key = agendaTVKey(race: race, date: date, allowedGroups: allowedGroups)
+                return (key.tier, key.time, index, race)
+            }
+            let finish = agendaFinish(race: race, date: date)
+            return (finish == nil ? 1 : 0, finish ?? .distantFuture, index, race)
+        }
+        return keyed.sorted { ($0.tier, $0.time, $0.index) < ($1.tier, $1.time, $1.index) }.map { $0.race }
+    }
+
+    /// Clave del orden por TV: 0 con hora (la primera del día), 1 con TV sin
+    /// hora y 2 sin TV. Cuenta las emisiones de la región con URL válida que
+    /// aplican a una categoría no cancelada del día, con independencia de la
+    /// hora actual: el orden no cambia cuando el badge desaparece.
+    static func agendaTVKey(race: CxRace, date: String, allowedGroups: Set<String>) -> (tier: Int, time: Date) {
+        let codes = Set(CyclocrossLogic.categories(on: date, race: race).filter { !$0.isCancelled }.map(\.category))
+        guard !race.isCancelled, !codes.isEmpty else { return (2, .distantFuture) }
+        let rows = (race.broadcasts ?? []).filter { row in
+            link(row.url) != nil && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: allowedGroups)
+                && (row.category.map { $0.isEmpty || codes.contains($0) } ?? true)
+        }
+        guard !rows.isEmpty else { return (2, .distantFuture) }
+        guard let first = rows.compactMap({ CyclocrossLogic.instant($0.startTimeUtc) }).min() else { return (1, .distantFuture) }
+        return (0, first)
+    }
+
+    /// Fin estimado de la prueba en `date`: la llegada más tardía de sus
+    /// categorías no canceladas con hora (duración reglamentaria verificada o
+    /// 60 min). nil sin horas o con la prueba cancelada.
+    static func agendaFinish(race: CxRace, date: String) -> Date? {
+        guard !race.isCancelled else { return nil }
+        return CyclocrossLogic.categories(on: date, race: race).filter { !$0.isCancelled }.compactMap { category in
+            CyclocrossLogic.instant(category.startTimeUtc).map { start in
+                CyclocrossLogic.timing(race: race, category: category, at: start).estimatedEnd ?? start.addingTimeInterval(60 * 60)
+            }
+        }.max()
+    }
+
+    /// Badge de resumen de la tarjeta: primer vídeo de YouTube de la prueba
+    /// aplicable a las categorías del día (sin categoría o de una de ellas).
+    /// Una prueba cancelada no lo muestra.
+    static func agendaVideo(race: CxRace, date: String) -> CxVideo? {
+        let codes = Set(CyclocrossLogic.categories(on: date, race: race).map(\.category))
+        guard !race.isCancelled, !codes.isEmpty else { return nil }
+        return (race.videos ?? []).sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }.first { row in
+            (row.category.map { $0.isEmpty || codes.contains($0) } ?? true) && youtubeVideoId(row.url) != nil
+        }
+    }
     /// Badge de dorsales de la tarjeta de Agenda, espejo de
     /// `cxAgendaStartlistCategory`: primera categoría del día con lista
     /// cargada que aún no tiene resultados ni está cancelada.

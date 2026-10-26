@@ -12,14 +12,20 @@ enum AppTheme {
     /// oscuro — espejo del `--accent` de la web y del `primary` de Android.
     static let brandAccent = Color(hex: "1a73e8")
 
-    /// Colores semánticos que se adaptan al modo claro/oscuro.
-    static let background = Color(light: "eef1f5", dark: "141923")
-    static let cardBackground = Color(light: "fafbfc", dark: "1e2632")
-    static let cardBackgroundHover = Color(light: "e9edf3", dark: "202938")
-    static let headerBackground = Color(light: "edf1f6", dark: "202938")
-    static let secondaryBackground = Color(light: "e9edf3", dark: "293443")
-    static let border = Color(light: "d8dee8", dark: "354252")
-    static let borderLight = Color(light: "e4e8ef", dark: "293443")
+    /// Colores semánticos que se adaptan al modo claro/oscuro. En oscuro, la
+    /// paleta Grafito de la web (`css/tokens.css`): superficies casi sin croma.
+    static let background = Color(light: "eef1f5", dark: "0b0c0f")
+    static let cardBackground = Color(light: "fafbfc", dark: "24262b")
+    static let cardBackgroundHover = Color(light: "e9edf3", dark: "2e3036")
+    static let headerBackground = Color(light: "edf1f6", dark: "222429")
+    static let secondaryBackground = Color(light: "e9edf3", dark: "2e3036")
+    static let border = Color(light: "d8dee8", dark: "3a3d44")
+    static let borderLight = Color(light: "e4e8ef", dark: "2e3036")
+    /// Sombra de las tarjetas: negro 6 % en claro y 50 % en oscuro, como
+    /// `--card-shadow` de la web.
+    static let cardShadow = Color(uiColor: UIColor { traits in
+        UIColor.black.withAlphaComponent(traits.userInterfaceStyle == .dark ? 0.5 : 0.06)
+    })
     static let textPrimary = Color(.label)
     static let textMuted = Color(.secondaryLabel)
     static let textDim = Color(.tertiaryLabel)

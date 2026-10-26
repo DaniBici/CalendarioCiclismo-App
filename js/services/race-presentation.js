@@ -45,6 +45,17 @@ export function todayRaceState(day, now = Date.now()) {
   const start = Date.parse(day.neutralStartTimeUtc);
   return day.raceStatus === 'running' || (Number.isFinite(start) && now >= start) ? 'running' : 'scheduled';
 }
+// Firma de los umbrales horarios que cambian lo pintado en la agenda sin que
+// cambie ningún dato: estado de la jornada, salida neutralizada y comienzo de
+// cada emisión (badge de TV a «En directo», Live texto). El refresco compara
+// esta firma con la del último pintado.
+export function agendaTimeSignature(days, now = Date.now()) {
+  const passed = value => { const ms = Date.parse(value); return Number.isFinite(ms) && now >= ms ? 1 : 0; };
+  return JSON.stringify(days.map(day => [
+    day.id, todayRaceState(day, now), passed(day.neutralStartTimeUtc),
+    (day._broadcasts || []).map(b => passed(b.startTimeUtc)),
+  ]));
+}
 export function waitingResultsHtml(lang = 'es', element = 'div') {
   const tag = element === 'span' ? 'span' : 'div';
   const label = lang === 'en' ? 'Awaiting results' : 'Esperando resultados';

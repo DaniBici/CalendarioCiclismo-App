@@ -352,7 +352,7 @@ async function init() {
         <div class="empty-state__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>
         <div class="empty-state__text">${t('stage.noStages')}</div></div>`;
     } else {
-      html += `<div data-stage-list style="display:grid;gap:0.5rem"></div>`;
+      html += `<div class="stage-list" data-stage-list></div>`;
     }
     html += `</div>`;
     const rdMap = {};
@@ -511,11 +511,9 @@ function updateSeoCompeticion(race, days) {
     'eventStatus': eventStatus,
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
     'image': ogImage,
-    'organizer': {
-      '@type': 'Organization',
-      'name': t('seo.siteName'),
-      'url': origin
-    }
+    // Organizador: la propia carrera con su web oficial (como sports_event en
+    // tools/site/gen_og_pages.py); sin web se omite.
+    ...(race.websiteUrl ? { 'organizer': { '@type': 'Organization', 'name': name, 'url': race.websiteUrl } } : {}),
   } : null;
   if (jsonLd) {
     jsonLd.startDate = firstEventDay.dateKey;
@@ -681,7 +679,7 @@ async function loadChallenge(slug, content, params, i18nReady = Promise.resolve(
       html += `<div class="empty-state" style="padding:3rem 0">
         <div class="empty-state__text">${t('stage.noRaces')}</div></div>`;
     } else {
-      html += `<div data-stage-list style="display:grid;gap:0.5rem"></div>`;
+      html += `<div class="stage-list" data-stage-list></div>`;
     }
 
     html += '</div>';

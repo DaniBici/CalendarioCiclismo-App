@@ -1054,10 +1054,10 @@ final class CyclocrossTests: XCTestCase {
 
     // MARK: - Destacadas y badges de la tarjeta de Agenda
 
-    private func agendaRace(_ id: String, raceClass: String = "C2", categories: [[String: Any]], broadcasts: [[String: Any]] = [], cancelled: Bool = false) throws -> CxRace {
+    private func agendaRace(_ id: String, raceClass: String = "C2", categories: [[String: Any]], broadcasts: [[String: Any]] = [], videos: [[String: Any]] = [], cancelled: Bool = false) throws -> CxRace {
         let payload: [String: Any] = [
             "id": id, "name": id, "slug": id, "seasonKey": "2026-27", "dateKey": "2026-11-22", "class": raceClass,
-            "isCancelled": cancelled, "cx_race_categories": categories, "cx_broadcasts": broadcasts
+            "isCancelled": cancelled, "cx_race_categories": categories, "cx_broadcasts": broadcasts, "cx_videos": videos
         ]
         return try JSONDecoder().decode(CxRace.self, from: JSONSerialization.data(withJSONObject: payload))
     }
@@ -1078,6 +1078,26 @@ final class CyclocrossTests: XCTestCase {
         if let start { row["startTimeUtc"] = start }
         if let country { row["country"] = country }
         return row
+    }
+
+    @MainActor
+    func testDaySortsByCategoryTVTimeAndFinishTimeLikeRoadToday() throws {
+        let at = { (time: String) in "2026-11-22T\(time):00Z" }
+        let races = try [
+            agendaRace("c2", categories: [agendaCategory("ME", start: at("09:00"))], broadcasts: [agendaBroadcastRow("c2")]),
+            agendaRace("c2x", categories: [agendaCategory("ME", start: at("08:00"))], broadcasts: [agendaBroadcastRow("c2x", start: at("07:00"))], cancelled: true),
+            agendaRace("cdm", raceClass: "CDM", categories: [agendaCategory("ME", start: at("14:30"))]),
+            agendaRace("c1", raceClass: "C1", categories: [agendaCategory("WE", start: at("10:00")), agendaCategory("ME", start: at("12:00"))],
+                       broadcasts: [agendaBroadcastRow("c1", start: at("11:50"))]),
+        ]
+        func ids(_ sort: CxAgendaSort) -> [String] {
+            CyclocrossPresentation.agendaRaces(on: "2026-11-22", races: races, featured: ["cdm"], sort: sort, allowedGroups: []).map(\.id)
+        }
+        XCTAssertEqual(ids(.category), ["cdm", "c1", "c2x", "c2"])
+        // TV con hora, TV sin hora y sin TV (la cancelada); a igualdad, el canónico sin destacadas.
+        XCTAssertEqual(ids(.tvTime), ["c1", "c2", "cdm", "c2x"])
+        // Fin de la última manga (60 min sin duración verificada); la cancelada, al final.
+        XCTAssertEqual(ids(.finishTime), ["c2", "c1", "cdm", "c2x"])
     }
 
     func testFeaturedRacesLeadTheirDayKeepingCanonicalOrder() throws {
@@ -1125,6 +1145,25 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertTrue(late.live)
         // ME concluye a las 16:00: sin badge.
         XCTAssertNil(badge("2026-11-22T16:00:00Z"))
+    }
+
+    @MainActor
+    func testAgendaVideoAppliesOnlyToVideosOfTheDay() throws {
+        func video(_ id: String, category: String? = nil, order: Int = 0, url: String? = nil) -> [String: Any] {
+            var row: [String: Any] = ["id": id, "raceId": "cx", "title": id, "url": url ?? "https://www.youtube.com/watch?v=\(id.padding(toLength: 11, withPad: "x", startingAt: 0))", "sortOrder": order]
+            if let category { row["category"] = category }
+            return row
+        }
+        let categories = [agendaCategory("WE", start: nil), agendaCategory("ME", start: nil)]
+        func summary(_ videos: [[String: Any]], date: String = "2026-11-22", cancelled: Bool = false) throws -> String? {
+            CyclocrossPresentation.agendaVideo(race: try agendaRace("cx", categories: categories, videos: videos, cancelled: cancelled), date: date)?.id
+        }
+        XCTAssertEqual(try summary([video("b", order: 1), video("a", category: "WE")]), "a")
+        XCTAssertNil(try summary([video("mj", category: "MJ")]))
+        XCTAssertNil(try summary([video("x", url: "https://example.org/video")]))
+        XCTAssertNil(try summary([]))
+        XCTAssertNil(try summary([video("a")], date: "2026-11-23"))
+        XCTAssertNil(try summary([video("a")], cancelled: true))
     }
 
     @MainActor
@@ -1182,6 +1221,85 @@ final class CyclocrossTests: XCTestCase {
         await model.refresh(forceArtwork: false)
         XCTAssertEqual(model.dayRaces.map(\.id), ["B", "A"])
         XCTAssertNil(model.error)
+    }
+
+    @MainActor
+    func testReopenedDayAgendaPaintsCacheWithLastFeaturedOrder() async throws {
+        let day = "2026-11-22"
+        let first = try agendaRace("A", raceClass: "C1", categories: [agendaCategory("ME", start: "2026-11-22T10:00:00Z")])
+        let second = try agendaRace("B", categories: [agendaCategory("ME", start: "2026-11-22T11:00:00Z")])
+        let remote = MemoryRemote(race: first)
+        remote.rows = [first, second]
+        remote.featured = ["B"]
+        let store = MemoryStore()
+        let repo = CyclocrossRepository(remote: remote, store: store)
+        let model = CyclocrossAgendaModel(repo: repo, today: day)
+        model.selectFilter(.all)
+        await model.open("2026-27")
+        XCTAssertEqual(model.dayRaces.map(\.id), ["B", "A"])
+        // Vuelta desde Ruta (mismo repositorio) y nueva sesión (misma copia
+        // local): con la red retenida, el día pintado desde la caché ya lleva
+        // la destacada delante.
+        for source in [repo, CyclocrossRepository(remote: remote, store: store)] {
+            let entered = expectation(description: "Descarga del día en vuelo")
+            var held: [CheckedContinuation<Void, Never>] = []
+            remote.dayGate = { _ in await withCheckedContinuation { continuation in held.append(continuation); entered.fulfill() } }
+            let reopened = CyclocrossAgendaModel(repo: source, today: day)
+            reopened.selectFilter(.all)
+            let opening = Task { await reopened.open("2026-27") }
+            await fulfillment(of: [entered], timeout: 2)
+            XCTAssertTrue(reopened.hasLoaded)
+            XCTAssertEqual(reopened.dayRaces.map(\.id), ["B", "A"])
+            remote.dayGate = nil
+            held.forEach { $0.resume() }
+            await opening.value
+            XCTAssertEqual(reopened.dayRaces.map(\.id), ["B", "A"])
+        }
+    }
+
+    @MainActor
+    func testDayAgendaFirstPaintWaitsForOpeningDayDetail() async throws {
+        let remote = MemoryRemote(race: try race())
+        let store = MemoryStore()
+        let repo = CyclocrossRepository(remote: remote, store: store)
+        var held: [CheckedContinuation<Void, Never>] = []
+        // Sin copia local y hoy sin carreras: la apertura recae en el 30 de
+        // enero y no se pinta hasta tener el detalle de ese día.
+        let entered = expectation(description: "Detalle del día de apertura en vuelo")
+        remote.dayGate = { date in
+            guard date == "2027-01-30" else { return }
+            await withCheckedContinuation { continuation in held.append(continuation); entered.fulfill() }
+        }
+        let model = CyclocrossAgendaModel(repo: repo, today: "2026-09-12")
+        model.selectFilter(.all)
+        let opening = Task { await model.open("2026-27") }
+        await fulfillment(of: [entered], timeout: 2)
+        XCTAssertEqual(model.dateKey, "2027-01-30")
+        XCTAssertFalse(model.hasLoaded)
+        remote.dayGate = nil
+        held.forEach { $0.resume() }
+        held.removeAll()
+        await opening.value
+        XCTAssertTrue(model.hasLoaded)
+        // Copia local con el índice y sin el día de apertura: tampoco se pinta
+        // el índice solo; se espera al día de la red.
+        store.months.removeValue(forKey: "day:2026-27:2027-01-30")
+        let reentered = expectation(description: "Día de apertura sin copia local")
+        remote.dayGate = { date in
+            guard date == "2027-01-30" else { return }
+            await withCheckedContinuation { continuation in held.append(continuation); reentered.fulfill() }
+        }
+        let reopened = CyclocrossAgendaModel(repo: repo, today: "2026-09-12")
+        reopened.selectFilter(.all)
+        let reopening = Task { await reopened.open("2026-27") }
+        await fulfillment(of: [reentered], timeout: 2)
+        XCTAssertFalse(reopened.hasLoaded)
+        XCTAssertFalse(reopened.isAgendaReady)
+        remote.dayGate = nil
+        held.forEach { $0.resume() }
+        await reopening.value
+        XCTAssertTrue(reopened.hasLoaded)
+        XCTAssertEqual(reopened.dateKey, "2027-01-30")
     }
 
     @MainActor
@@ -1250,6 +1368,9 @@ private final class MemoryRemote: CxRemote {
 private final class MemoryStore: CxStore {
     var months: [String: [CxRace]] = [:]
     var details: [String: CxDetail] = [:]
+    var featuredIds: [String]?
+    func featured() async -> [String]? { featuredIds }
+    func saveFeatured(_ ids: [String]) async { featuredIds = ids }
     func month(_ key: String) async -> [CxRace]? { months[key] }
     func saveMonth(_ races: [CxRace], key: String) async { months[key] = races }
     func knownMonths() async -> [String] { Array(months.keys) }

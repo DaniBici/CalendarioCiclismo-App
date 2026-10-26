@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
  *
  * La subvista activa ("month" | "season") se recuerda en
  * `AppPreferences.calendarSubview` para que la pestaña reabra donde el usuario
- * la dejó. El toggle alterna el estado local al instante (sin esperar a
+ * la dejó; la primera vez abre en Temporada. El toggle alterna el estado local al instante (sin esperar a
  * DataStore) y persiste en segundo plano.
  *
  * En la maqueta ancha, Temporada ocupa la columna ancha con los selectores de

@@ -351,7 +351,7 @@ struct TransferFeedRowView: View {
 
     private var linkTeamId: String? {
         guard let teamId = transfer.toTeamId,
-              data.seasons.contains(where: { $0.teamId == teamId }) else { return nil }
+              TransfersLogic.marketTeamIds(data.seasons).contains(teamId) else { return nil }
         return teamId
     }
 
@@ -384,8 +384,10 @@ struct TransferFeedRowView: View {
         var out = name
         switch transfer.type {
         case "renewal":
-            // La renovación no lleva flecha: separar siempre el nombre del texto.
-            out += AttributedString(" " + localeService.t("renueva con", "renews with") + " ")
+            // Punto central en todos los anchos (sin «renueva con»).
+            var separator = AttributedString(" · ")
+            separator.foregroundColor = .secondary
+            out += separator
             out += AttributedString(TransfersLogic.teamLabel(
                 teamId: transfer.toTeamId, freeText: transfer.toTeamName,
                 names: data.teamNameById, unknownLabel: unknownTeam))

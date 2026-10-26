@@ -10,6 +10,7 @@ enum DeepLinkDestination: Hashable {
     case profile(String)    // raceDayId → perfil de elevación de la jornada
     case routeMap(String)   // raceDayId → mapa del recorrido de la jornada
     case settings          // pantalla de ajustes
+    case championships     // Campeonatos Nacionales
     case results(String, Int?, String?) // raceId, etapa (nil = final), sufijo de doble sector
 }
 
@@ -21,6 +22,18 @@ struct CxTournamentDestination: Hashable {
     let name: String
     let nameEn: String?
     let logoUrl: String?
+
+    init(tournamentId: String, season: String, name: String, nameEn: String?, logoUrl: String?) {
+        self.tournamentId = tournamentId
+        self.season = season
+        self.name = name
+        self.nameEn = nameEn
+        self.logoUrl = logoUrl
+    }
+
+    init(_ tournament: CxTournament, season: String) {
+        self.init(tournamentId: tournament.id, season: season, name: tournament.name, nameEn: tournament.nameEn, logoUrl: tournament.logoUrl)
+    }
 
     @MainActor var tournament: CxTournament {
         CxTournament(id: tournamentId, name: name, nameEn: nameEn, slug: tournamentId,
@@ -50,6 +63,8 @@ struct DeepLinkDestinationView: View {
         case .settings:
             SettingsView()
                 .onAppear { AnalyticsService.shared.logScreenView("settings") }
+        case .championships:
+            ChampionshipsView()
         case .results(let raceId, let stageNumber, let stageSuffix):
             ResultsView(raceId: raceId, initialStageNumber: stageNumber, initialStageSuffix: stageSuffix)
         }
@@ -61,6 +76,9 @@ struct ContentView: View {
     /// Hoy de carretera visible (`RoadTodayAvailability`); se reevalúa al
     /// volver a primer plano.
     @State private var roadTodayVisible: Bool
+    /// Con Hoy retirada, la pestaña Ciclocross muestra Hoy de carretera tras
+    /// elegir «Ruta» en su conmutador. No se conserva entre aperturas.
+    @State private var showsRoadToday = false
     @State private var selectedTab: Int
     @State private var navigationPath = NavigationPath()
     @State private var cxNavigationPath = NavigationPath()
@@ -175,21 +193,20 @@ struct ContentView: View {
             }
             .accessibilityIdentifier(AccessibilityID.tabTransfers)
         case RoadTodayAvailability.cyclocrossTab:
-            Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: value) {
-                NavigationStack(path: $cxNavigationPath) {
-                    // Con Hoy retirada, la agenda CX lleva Ajustes en su barra y
-                    // su pila recibe los destinos de carretera de los deep links.
-                    CyclocrossView(showsSettings: !roadTodayVisible)
-                        .navigationDestination(for: CxDestination.self) { destination in
-                            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
-                        }
-                        .navigationDestination(for: CxTournamentDestination.self) { destination in
-                            CyclocrossView(tournament: destination.tournament, season: destination.season)
-                        }
-                        .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+            if roadTodayVisible {
+                Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: value) {
+                    cyclocrossStack
                 }
+                .accessibilityIdentifier(AccessibilityID.tabCyclocross)
+            } else {
+                // Con Hoy retirada, la pestaña se rotula Hoy, con su icono:
+                // alberga la agenda de Ciclocross y, desde el conmutador, Hoy
+                // de carretera.
+                Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
+                    cyclocrossStack
+                }
+                .accessibilityIdentifier(AccessibilityID.tabCyclocross)
             }
-            .accessibilityIdentifier(AccessibilityID.tabCyclocross)
         default:
             Tab(localeService.t("Calendario", "Calendar"), systemImage: "calendar", value: value) {
                 NavigationStack(path: $calendarNavigationPath) {
@@ -197,6 +214,64 @@ struct ContentView: View {
                 }
             }
             .accessibilityIdentifier(AccessibilityID.tabCalendar)
+        }
+    }
+
+    private var cyclocrossStack: some View {
+        NavigationStack(path: $cxNavigationPath) {
+            cyclocrossRoot
+                .navigationDestination(for: CxDestination.self) { destination in
+                    CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
+                }
+                .navigationDestination(for: CxTournamentDestination.self) { destination in
+                    CyclocrossView(tournament: destination.tournament, season: destination.season)
+                }
+                .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+        }
+    }
+
+    /// Raíz de la pestaña Ciclocross. Con Hoy retirada, la agenda CX lleva
+    /// Ajustes y el conmutador «CX | Ruta» en su barra, que alterna con Hoy de
+    /// carretera en la misma pila; esa pila recibe además los destinos de
+    /// carretera de los deep links. El cintillo común (Ciclocross y después
+    /// carretera) queda fijo sobre las dos vistas: alternar no lo recrea ni lo
+    /// vuelve a cargar.
+    @ViewBuilder
+    private var cyclocrossRoot: some View {
+        if roadTodayVisible {
+            CyclocrossView()
+        } else {
+            VStack(spacing: 0) {
+                TodayHighlightsBanner(
+                    scope: "cx",
+                    includesRoad: true,
+                    onTapChampionships: { cxNavigationPath.append(DeepLinkDestination.championships) },
+                    onOpenTarget: openHomeHighlight
+                )
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+                if showsRoadToday {
+                    TodayView(navigationPath: $cxNavigationPath, onSelectCyclocross: { showsRoadToday = false })
+                } else {
+                    CyclocrossView(showsSettings: true, onSelectRoad: { showsRoadToday = true })
+                }
+            }
+            .background(AppTheme.background.ignoresSafeArea())
+        }
+    }
+
+    /// Destino de una entrada del cintillo común, en la pila de la pestaña.
+    private func openHomeHighlight(_ target: TodayHighlightTarget) {
+        switch target {
+        case .stage(let id): cxNavigationPath.append(DeepLinkDestination.stage(id))
+        case .race(let id): cxNavigationPath.append(DeepLinkDestination.race(id))
+        case .startlist(let id): cxNavigationPath.append(DeepLinkDestination.startlist(id))
+        case .startOrder(let id): cxNavigationPath.append(DeepLinkDestination.startOrder(id))
+        case .championships: cxNavigationPath.append(DeepLinkDestination.championships)
+        case .transfers: NotificationManager.shared.pendingDeepLink = .tab(2)
+        case .season(let year): NotificationManager.shared.pendingDeepLink = .season(year)
+        case .cxRace(let id): NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
+        case .cxTournament: break
         }
     }
 

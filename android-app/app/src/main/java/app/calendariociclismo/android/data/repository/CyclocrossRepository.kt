@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.data.repository
 
+import app.calendariociclismo.android.data.local.dao.CX_FEATURED_CACHE_KEY
 import app.calendariociclismo.android.data.local.dao.CxCacheDao
 import app.calendariociclismo.android.data.local.entity.CxDetailCacheEntity
 import app.calendariociclismo.android.data.local.entity.CxMonthCacheEntity
@@ -171,15 +172,30 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
         }
     }
 
-    // Destacadas en memoria: un fallo de lectura conserva el último conjunto
-    // leído o, sin él, deja el orden canónico (conjunto vacío).
+    // Destacadas de la sesión; cada cambio se guarda también en la fila
+    // [CX_FEATURED_CACHE_KEY] de la caché local.
     private var featuredCache: Set<String>? = null
 
+    /** Última lectura de las destacadas: la de la sesión o, sin ella, la copia
+     *  local; sin ninguna, el orden canónico (conjunto vacío). La primera
+     *  pintura desde la caché las aplica para no recolocar la lista al llegar
+     *  la red. */
+    suspend fun cachedFeaturedRaceIds(): Set<String> = featuredCache
+        ?: dao.month(CX_FEATURED_CACHE_KEY)?.let { json.decodeFromString<List<String>>(it.payload).toSet() }
+        ?: emptySet()
+
+    /** Destacadas de la red; un fallo de lectura conserva la última lectura
+     *  ([cachedFeaturedRaceIds]). */
     suspend fun featuredRaceIds(): Set<String> = try {
-        remote.cxFeaturedRaceIds().also { featuredCache = it }
+        remote.cxFeaturedRaceIds().also { ids ->
+            val changed = ids != featuredCache
+            featuredCache = ids
+            if (changed) dao.saveMonth(CxMonthCacheEntity(CX_FEATURED_CACHE_KEY, "", CX_FEATURED_CACHE_KEY,
+                json.encodeToString(ids.sorted()), System.currentTimeMillis()))
+        }
     } catch (error: Exception) {
         if (error is CancellationException) throw error
-        featuredCache ?: emptySet()
+        cachedFeaturedRaceIds()
     }
 
     /** Clasificaciones generales de un torneo; el fallo se propaga. */

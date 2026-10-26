@@ -6,12 +6,16 @@
 // ─────────────────────────────────────────────────────────────────
 
 import {CX_AGENDA_SELECT,cxHiddenClasses,cxIsHidden} from './services/cx-data.js';
-export {cxHighlightSlide,cxTournamentHighlightSlide} from './cx/highlight.js';
+/** @public cintillo.js lo usa como miembro del módulo cargado con import(). */
+export {cxHighlightSlide} from './cx/highlight.js';
+/** @public cintillo.js lo usa como miembro del módulo cargado con import(). */
+export {cxTournamentHighlightSlide} from './cx/highlight.js';
 
 /**
  * Pruebas y torneos referenciados por el cintillo, indexados por id. En inglés
  * se descartan las carreras nacionales y los torneos solo nacionales.
  */
+/** @public cintillo.js lo usa como miembro del módulo cargado con import(). */
 export async function loadCxHighlightData(supabase, cxIds, cxTournamentIds, lang) {
   const hiddenClasses = cxHiddenClasses(lang);
   let visibleQuery = null;

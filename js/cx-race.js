@@ -11,6 +11,7 @@ import {cxUrl,cxYouTubeVideoId} from './cx/editor-logic.js';
 import {cxDateInSeason} from './cx/season.js';
 import './race-assets.js';
 import {limitScrollToStickyStart} from './results/dom.js';
+import {cxTvEmbedAttrs,cxOpenTvEmbed} from './cx/tv-modal.js';
 
 const root=document.getElementById('cxRaceContent'),lang=getLang();
 const sourceId=root.querySelector('[data-cx-race-id]')?.dataset.cxRaceId;
@@ -25,7 +26,7 @@ let page=route.page;
 const dateLabel=date=>new Intl.DateTimeFormat(locale,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
 window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/ciclocross/',label:t('cx.back')});
 
-function external(url,label,asset=false) {const safe=safeLink(url);return safe?`<a class="${asset?'asset-btn':'tv-link-btn'}" href="${esc(safe)}" target="_blank" rel="noopener">${asset?'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2c-5 6-5 14 0 20 5-6 5-14 0-20"/></svg>':''}<span class="${asset?'asset-btn__label':''}">${esc(label)}</span></a>`:'';}
+function external(url,label,asset=false,attrs='') {const safe=safeLink(url);return safe?`<a class="${asset?'asset-btn':'tv-link-btn'}" href="${esc(safe)}" target="_blank" rel="noopener"${attrs}>${asset?'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2c-5 6-5 14 0 20 5-6 5-14 0-20"/></svg>':''}<span class="${asset?'asset-btn__label':''}">${esc(label)}</span></a>`:'';}
 // Zona de documentos de la jornada CX, con la misma presentación que carretera:
 // web oficial · Libro de Ruta · Mapa en la tira enmarcada `.asset-links`.
 const R2_ASSET_BASE='https://assets.calendariociclismo.app';
@@ -73,11 +74,16 @@ function startlist(rows,teams) {
 }
 function tvEntry(row,hidden,revive=false) {
   const time=!revive&&cxTime(row.startTimeUtc,locale);
-  return `<div class="tv-entry" ${hidden?'data-cx-regional-hidden hidden':''}><div class="cx-media-label"><div class="tv-entry__platform-row"><span class="tv-entry__platform">${esc(row.channel||row.title)}</span>${hidden&&broadcastRegionBadgeLabel(row.country)?`<span class="badge badge--uci" data-cx-region>${esc(broadcastRegionBadgeLabel(row.country))}</span>`:''}</div>${row.note?`<div class="tv-entry__channel">${esc(row.note)}</div>`:''}</div><div class="cx-media-actions">${time?`<time class="tv-entry__time" title="${esc(t('stage.yourTimezone'))}: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}">${esc(time)}</time>`:''}${external(row.url,`${t('stage.watch')} ↗`)}</div></div>`;
+  return `<div class="tv-entry" ${hidden?'data-cx-regional-hidden hidden':''}><div class="cx-media-label"><div class="tv-entry__platform-row"><span class="tv-entry__platform">${esc(row.channel||row.title)}</span>${hidden&&broadcastRegionBadgeLabel(row.country)?`<span class="badge badge--uci" data-cx-region>${esc(broadcastRegionBadgeLabel(row.country))}</span>`:''}</div>${row.note?`<div class="tv-entry__channel">${esc(row.note)}</div>`:''}</div><div class="cx-media-actions">${time?`<time class="tv-entry__time" title="${esc(t('stage.yourTimezone'))}: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}">${esc(time)}</time>`:''}${external(row.url,`${t('stage.watch')} ↗`,false,cxTvEmbedAttrs(row))}</div></div>`;
 }
-function reviveMedia(rows) {
+// Revive por categorías, como la TV: las filas comunes sin encabezado y un
+// bloque por categoría, en el orden del programa.
+function reviveMedia(rows,categories) {
   if(!rows.length)return '';
-  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><h2>${t('tv.reviveRaceTitle')}</h2></header><div class="tv-panel__list">${rows.map(row=>tvEntry(row,false,true)).join('')}</div></section>`;
+  const group=(label,block)=>block.length?`<div class="cx-tv-group">${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="tv-panel__list">${block.map(row=>tvEntry(row,false,true)).join('')}</div></div>`:'';
+  const codes=new Set(categories.map(c=>c.category));
+  const html=group('',rows.filter(row=>!row.category||!codes.has(row.category)))+categories.map(c=>group(t(`cx.category.${c.category}`),rows.filter(row=>row.category===c.category))).join('');
+  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><h2>${t('tv.reviveRaceTitle')}</h2></header>${html}</section>`;
 }
 function videoMedia(rows) {
   if(!rows.length)return '';
@@ -124,7 +130,7 @@ function resultsContext(race,categories,multiDate,assets) {
     const value=race.isCancelled||c.isCancelled?t('stage.cancelled'):`${multiDate?`${dayLabel(cxCategoryDate(race,c))} · `:''}${cxTime(c.startTimeUtc,locale)}`;
     return `<div data-cx-context-category="${esc(c.category)}"><dt>${esc(t(`cx.category.${c.category}`))}</dt><dd>${esc(value)}</dd></div>`;
   }).join('');
-  const data=rows?`<section class="res-stage-data"><h2>${lang==='en'?'Race data':'Datos de la jornada'}</h2><dl>${rows}</dl></section>`:'';
+  const data=rows?`<section class="res-stage-data"><h2>${t('stage.schedule')}</h2><dl>${rows}</dl></section>`:'';
   return map||data?`<aside class="res-context cx-results-context">${map}${data}</aside>`:'';
 }
 
@@ -248,10 +254,20 @@ try {
   const roundLabel=cxRoundLabel(rounds?.get(race.id));
   const headerDetail=[cxClassName(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
   const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
-  root.innerHTML=`${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div><div data-cx-section="results" hidden>${classificationsHtml}</div><div data-cx-section="general" hidden>${standingsPageHtml}</div><div data-cx-section="startlist" hidden>${startlistHtml}</div><div class="cx-race-sections" data-cx-section="programme" hidden>${programme(race,categories,results,multiDate,docAssets,tvGroups(tvRows,media.liveCategories)+reviveMedia(reviveRows))}</div><div class="cx-race-sections" data-cx-section="videos" hidden>${videoMedia(videoRows)||`<p class="cx-empty">${t('cx.noVideos')}</p>`}</div>`;
+  root.innerHTML=`${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div><div data-cx-section="results" hidden>${classificationsHtml}</div><div data-cx-section="general" hidden>${standingsPageHtml}</div><div data-cx-section="startlist" hidden>${startlistHtml}</div><div class="cx-race-sections" data-cx-section="programme" hidden>${programme(race,categories,results,multiDate,docAssets,tvGroups(tvRows,media.liveCategories)+reviveMedia(reviveRows,cxProgrammeOrder(race,categories)))}</div><div class="cx-race-sections" data-cx-section="videos" hidden>${videoMedia(videoRows)||`<p class="cx-empty">${t('cx.noVideos')}</p>`}</div>`;
   cxWireStandingsScroll(root);
   const logo=cxLogoImage(race,tournament,{className:'race-header__logo'});
   if(logo){const brand=root.querySelector('.race-header__flag--solo'),flag=document.createElement('span');flag.className='race-header__flag';flag.append(...brand.childNodes);brand.className='race-header__brand';brand.append(logo,flag);}
+  // Columna lateral sin pintar hasta que el mapa tiene tamaño: la imagen no
+  // trae dimensiones y, al recibirlas tras retirarse la pantalla de carga,
+  // bajaba los horarios a la vista (escritorio).
+  if(typeof ResizeObserver!=='undefined')for(const img of root.querySelectorAll('.cx-context-map img')){
+    if(img.naturalWidth)continue;
+    const context=img.closest('.cx-results-context');context.classList.add('cx-results-context--pending');
+    const ready=()=>{sized.disconnect();context.classList.remove('cx-results-context--pending');};
+    const sized=new ResizeObserver(()=>{if(img.naturalWidth)ready();});
+    sized.observe(img);img.addEventListener('error',ready,{once:true});
+  }
   // Secciones y categorías quedan fijas; la fila de columnas de las tablas
   // se fija debajo (--res-tabs-h, como en resultados de carretera).
   const stickyNav=root.querySelector('[data-cx-sticky-nav]');
@@ -300,6 +316,12 @@ try {
     if(map&&!event.defaultPrevented&&!event.button&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey) {
       event.preventDefault();window.openAssetModal(map.href,t('assets.map'));return;
     }
+    // «Ver» de una emisión embebible: modal de TV con la categoría y su fecha;
+    // las comunes llevan la fecha de la prueba cuando es de un solo día.
+    if(cxOpenTvEmbed(event,link=>{
+      const category=categories.find(c=>c.category===link.dataset.tvCategory);
+      return {race,category:category?.category,dateKey:category?cxCategoryDate(race,category):multiDate?'':categories.length?cxCategoryDate(race,categories[0]):race.dateKey};
+    }))return;
     const button=event.target.closest('[data-cx-tv-filter]');
     if(button) {
       const section=button.closest('.cx-media-section'),all=button.dataset.cxTvFilter==='mine';

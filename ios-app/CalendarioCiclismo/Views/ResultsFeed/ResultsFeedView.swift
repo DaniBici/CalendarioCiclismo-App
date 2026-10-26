@@ -127,6 +127,9 @@ struct ResultsFeedView: View {
         .navigationDestination(for: CxDestination.self) { destination in
             CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
         }
+        .navigationDestination(for: CxTournamentDestination.self) { destination in
+            CyclocrossView(tournament: destination.tournament, season: destination.season)
+        }
         .alert(item: $rankingExplanation) { item in
             Alert(
                 title: Text(item.title),
@@ -636,7 +639,7 @@ private extension UciRankingKeyStyle {
 
     var background: Color {
         switch self {
-        case .worldTour: return Color(light: "d3e3fd", dark: "333e51")
+        case .worldTour: return Color(light: "d3e3fd", dark: "383e4b")
         case .orange: return AppTheme.orange.opacity(0.16)
         case .green: return AppTheme.green.opacity(0.16)
         case .excluded: return AppTheme.red.opacity(0.14)
@@ -1025,7 +1028,11 @@ private struct FeedRowView: View {
                                 ForEach(entry.complementary) { item in
                                     HStack(spacing: 6) {
                                         if let hex = item.colorHex {
-                                            Circle().fill(Color(hex: hex)).frame(width: 7, height: 7)
+                                            // Contorno interior tenue, como `.feed-row__leader-dot`:
+                                            // un maillot blanco o muy oscuro no desaparece sobre la tarjeta.
+                                            Circle().fill(Color(hex: hex))
+                                                .overlay(Circle().strokeBorder(Color.primary.opacity(0.3), lineWidth: 1))
+                                                .frame(width: 7, height: 7)
                                         }
                                         Text(item.localizedLabel)
                                             .ccFont(.s12, weight: .semibold)

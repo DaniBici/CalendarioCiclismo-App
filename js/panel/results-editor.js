@@ -9,7 +9,7 @@ import {
   shouldMirrorFinalClassification, uniqueStartlistSurnameMatch,
 } from '../results/panel-logic.js';
 import { panelState } from './state.js';
-import { showToast } from './helpers.js';
+import { showToast, panelIconSvg } from './helpers.js';
 import { buildResolvedRiderMapForRace } from './start-order.js';
 import { setupUciResultsSection, UCI_CLASS_LABELS, UCI_EDITABLE_IRM_CODES } from './results.js';
 import { _ruOpenRiderMatchPicker, _ruOpenTeamPicker } from './results-pickers.js';
@@ -210,7 +210,7 @@ export async function openUciClassEditor(st, rd, race) {
     <td class="ru-td-name">
       <div class="ru-name-row">
         <input class="ru-in ru-name" data-ru-field="name" type="text" value="${esc(nameValue)}">
-        ${isTeamsClass ? '' : `<button type="button" class="ru-act ru-match" data-ru-field="match" title="Casar corredor con la BD">🔗</button>`}
+        ${isTeamsClass ? '' : `<button type="button" class="ru-act ru-match" data-ru-field="match" title="Casar corredor con la BD">${panelIconSvg('link')}</button>`}
       </div>
     </td>
     <td class="ru-td-team">
@@ -271,7 +271,7 @@ export async function openUciClassEditor(st, rd, race) {
     if (btn) btn.innerHTML = teamCellHtml(tr.dataset.teamId || '', bibOf(tr), tr.dataset.gid || '');
   };
   // Resuelve el texto ya escrito contra la startlist antes de abrir el selector.
-  // Esto cubre el flujo escribir apellido → pulsar 🔗 aunque el campo todavía no
+  // Esto cubre el flujo escribir apellido → pulsar el botón de casar aunque el campo todavía no
   // haya emitido `change` y evita una selección manual cuando el match es único.
   const applyUniqueStartlistNameMatch = (tr) => {
     const nameInput = tr.querySelector('.ru-name');
@@ -288,7 +288,7 @@ export async function openUciClassEditor(st, rd, race) {
   tbody.addEventListener('click', (e) => {
     const tr = e.target.closest('tr');
     if (!tr) return;
-    // Casar corredor a mano (🔗): fija globalRiderId como override.
+    // Casar corredor a mano (botón de enlace): fija globalRiderId como override.
     if (e.target.closest('.ru-match')) {
       if (startlistRiders.length && applyUniqueStartlistNameMatch(tr)) return;
       _ruOpenRiderMatchPicker(tr, race?.gender, refreshTeamCell,

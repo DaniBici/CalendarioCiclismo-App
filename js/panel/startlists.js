@@ -17,7 +17,7 @@ import {
 } from '../startlist/import.js';
 import { startlistRosterCandidates } from '../results/panel-logic.js';
 import { panelState } from './state.js';
-import { showToast } from './helpers.js';
+import { showToast, panelIconSvg } from './helpers.js';
 import { ensureRaceYearLoaded, loadPanelAgendaDay, renderRoadPanelAgenda } from './agenda.js';
 import { _openTeamCombo } from './results-pickers.js';
 import {
@@ -175,7 +175,7 @@ export function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip
       ? `Match en BD: ${rider.firstName || ''} ${rider.lastName || ''}. Click para cambiar/desligar.`
       : 'Match en BD. Click para cambiar/desligar.';
   } else {
-    btn.textContent = riderEl.dataset.birthDate ? 'Alta preparada' : '🔗';
+    if (riderEl.dataset.birthDate) btn.textContent = 'Alta preparada'; else btn.innerHTML = panelIconSvg('link');
     btn.style.color = 'var(--text-dim)';
     btn.title = 'Buscar o forzar un match en la BD de corredores';
   }
@@ -333,7 +333,7 @@ function _slCreateRiderRow(teamEl) {
     <input type="text" class="sl-country" value="" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)">
     <input type="text" class="sl-firstname u-input-sm" value="" placeholder="Nombre">
     <input type="text" class="sl-lastname u-input-sm" value="" placeholder="Apellido">
-    <button type="button" class="sl-rider-match-btn" data-action="picker" title="Buscar o forzar un match en la BD de corredores">🔗</button>
+    <button type="button" class="sl-rider-match-btn" data-action="picker" title="Buscar o forzar un match en la BD de corredores">${panelIconSvg('link')}</button>
     <span class="sl-rider-matched sl-verify-mark u-c-ok" style="display:none">✓</span>
     <button type="button" class="btn btn--ghost sl-remove-rider-btn">✕</button>
   </div>
@@ -623,7 +623,7 @@ function wireStartlistEditor() {
       saveStartlistEdits();
     }
   });
-  // Delegado para el picker manual de match (botón ✓ BD / 🔗 en cada rider)
+  // Delegado para el picker manual de match (botón ✓ BD / enlace en cada rider)
   content.addEventListener('click', (e) => {
     const btn = e.target.closest('.sl-rider-match-btn');
     if (!btn) return;

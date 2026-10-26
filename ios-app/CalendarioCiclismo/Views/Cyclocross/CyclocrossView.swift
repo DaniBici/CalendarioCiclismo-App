@@ -23,14 +23,18 @@ struct CyclocrossView: View {
     let tournament: CxTournament?
     let selectedSeason: String?
     /// Agenda general con Hoy de carretera retirada: hereda el acceso a
-    /// Ajustes de la barra de Hoy y muestra el cintillo único (Ciclocross y
-    /// carretera).
+    /// Ajustes de la barra de Hoy. El cintillo único (Ciclocross y carretera)
+    /// lo aloja `ContentView` sobre esta vista y Hoy de carretera.
     let showsSettings: Bool
+    /// Paso a Hoy de carretera desde el conmutador «CX | Ruta» de la barra,
+    /// que solo aparece con Hoy retirada (`showsSettings`).
+    let onSelectRoad: (() -> Void)?
     @State private var model: CyclocrossAgendaModel
-    init(tournament: CxTournament? = nil, season: String? = nil, showsSettings: Bool = false) {
+    init(tournament: CxTournament? = nil, season: String? = nil, showsSettings: Bool = false, onSelectRoad: (() -> Void)? = nil) {
         self.tournament = tournament
         self.selectedSeason = season
         self.showsSettings = showsSettings && tournament == nil
+        self.onSelectRoad = onSelectRoad
         _model = State(initialValue: CyclocrossAgendaModel(tournamentId: tournament?.id))
     }
     @State private var now = Date()
@@ -181,21 +185,25 @@ struct CyclocrossView: View {
     /// las pruebas del día.
     private var dayAgenda: some View {
         VStack(spacing: 0) {
-            // Con Hoy de carretera oculta (`showsSettings`), cintillo único:
-            // entradas de Ciclocross y después las de carretera. Se recrea al
-            // volver Hoy de carretera para leer solo su scope.
-            TodayHighlightsBanner(
-                scope: "cx",
-                includesRoad: showsSettings,
-                onTapChampionships: { championshipsRoute = ChampionshipsRoute() },
-                onOpenTarget: openHighlightedTarget
-            )
-                .id(showsSettings)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-            dateNavigationBar
-            filterBar
-            Divider()
+            // Con el conmutador «CX | Ruta», el cintillo común lo aloja
+            // `ContentView` sobre las dos vistas.
+            if onSelectRoad == nil {
+                TodayHighlightsBanner(
+                    scope: "cx",
+                    onTapChampionships: { championshipsRoute = ChampionshipsRoute() },
+                    onOpenTarget: openHighlightedTarget
+                )
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+            }
+            // Barra de fechas, orden y lista se pintan en el mismo paso: antes
+            // de la primera carga la barra mostraría hoy y saltaría después al
+            // día de apertura, con el botón Hoy apareciendo a continuación.
+            if model.isAgendaReady {
+                dateNavigationBar
+                sortMenuBar
+                Divider()
+            }
             dayContent
         }
         .background(AppTheme.background)
@@ -282,10 +290,54 @@ struct CyclocrossView: View {
         .background(AppTheme.headerBackground)
     }
 
+    /// Fecha del día mostrado, categoría y orden de la lista, como en Hoy de
+    /// carretera.
+    private var sortMenuBar: some View {
+        HStack(spacing: 12) {
+            Text(DateFormatting.formatDayMonth(model.dateKey))
+                .ccFont(.s14, weight: .medium)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            categoryMenu
+                .fixedSize()
+
+            Menu {
+                Picker(CyclocrossPresentation.t("Ordenar", "Sort"), selection: Binding(
+                    get: { model.sort },
+                    set: { value in
+                        if value != model.sort { Haptics.play(.selection) }
+                        model.sort = value
+                    }
+                )) {
+                    ForEach(CxAgendaSort.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down")
+                    Text(model.sort.label)
+                }
+                .ccFont(.s13, weight: .semibold)
+                .foregroundStyle(.secondary)
+            }
+            .tint(AppTheme.textMuted)
+            .accessibilityLabel(CyclocrossPresentation.t("Ordenar carreras por \(model.sort.label)", "Sort races by \(model.sort.label)"))
+            .accessibilityHint(CyclocrossPresentation.t("Pulsa dos veces para cambiar el orden", "Double tap to change sort order"))
+            .accessibilityIdentifier("cx_sort_menu")
+            .fixedSize()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+
     /// Lista del día con el gesto y la animación de cambio de día de Hoy.
     private var dayContent: some View {
         Group {
-            if !model.hasLoaded {
+            if !model.isAgendaReady {
                 LoadingView(branded: true, showProfile: false, title: CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
             } else {
                 ScrollView { dayScrollContent }
@@ -366,7 +418,7 @@ struct CyclocrossView: View {
             .frame(maxWidth: .infinity, minHeight: 320)
         } else {
             LazyVStack(spacing: 10) {
-                raceGrid(model.dayRaces.map { CxAgendaRow.race($0, model.dateKey) })
+                raceGrid(model.dayRaces.map { CxAgendaRow.race($0, model.dateKey) }, centersSingle: true)
             }
             .padding(.horizontal).padding(.top, 8).padding(.bottom)
         }
@@ -437,12 +489,23 @@ struct CyclocrossView: View {
         return groups
     }
 
-    /// Pruebas en una columna o, en pantalla ancha, en dos.
-    private func raceGrid(_ items: [CxAgendaRow]) -> some View {
+    /// Pruebas en una columna o, en pantalla ancha, en dos. `centersSingle`
+    /// (Hoy): una prueba única ocupa media anchura y va centrada.
+    @ViewBuilder private func raceGrid(_ items: [CxAgendaRow], centersSingle: Bool = false) -> some View {
         let columns = AdaptiveLayoutPolicy.feedColumns(
             width: max(0, contentWidth - 32),
             isRegular: horizontalSizeClass == .regular
         )
+        if centersSingle, columns > 1, items.count == 1, case .race = items[0] {
+            agendaRow(items[0]).id(items[0].id)
+                .frame(maxWidth: max(0, (contentWidth - 32 - 10) / 2))
+                .frame(maxWidth: .infinity)
+        } else {
+            raceColumns(items, columns: columns)
+        }
+    }
+
+    private func raceColumns(_ items: [CxAgendaRow], columns: Int) -> some View {
         let rows = AdaptiveLayoutPolicy.rows(
             items,
             columns: columns,
@@ -597,8 +660,9 @@ struct CyclocrossView: View {
     @ViewBuilder
     private var headerBrand: some View {
         if showsSettings {
-            // Firma de Hoy de carretera: el toque lleva al día de hoy.
-            CCHeaderBrandView()
+            // Firma de Hoy de carretera: el toque lleva al día de hoy. Con el
+            // conmutador «CX | Ruta», solo los símbolos.
+            CCHeaderBrandView(showsTitle: onSelectRoad == nil)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     Haptics.play(.navigation)
@@ -629,11 +693,20 @@ struct CyclocrossView: View {
         if showsSettings {
             // Mismo acceso que la barra de Hoy, sin la cápsula de iOS 26.
             if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarTrailing) { settingsLink }
+                ToolbarItem(placement: .topBarTrailing) { trailingActions }
                     .sharedBackgroundVisibility(.hidden)
             } else {
-                ToolbarItem(placement: .topBarTrailing) { settingsLink }
+                ToolbarItem(placement: .topBarTrailing) { trailingActions }
             }
+        }
+    }
+    /// Conmutador «CX | Ruta» a la izquierda de Ajustes.
+    private var trailingActions: some View {
+        HStack(spacing: 4) {
+            if let onSelectRoad {
+                HomeDisciplineSwitch(selection: .cyclocross) { if $0 == .road { onSelectRoad() } }
+            }
+            settingsLink
         }
     }
     private var settingsLink: some View {
@@ -648,32 +721,57 @@ struct CyclocrossView: View {
         .accessibilityHint(CyclocrossPresentation.t("Calendario iCal, notificaciones y privacidad", "iCal calendar, notifications and privacy"))
         .accessibilityIdentifier(AccessibilityID.settingsButton)
     }
-    /// Franja de filtros con la misma presentación que Hoy en Carretera: chips
-    /// de cápsula bajo la cabecera, sin fijado por defecto.
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+    /// Desplegable «Categoría»: muestra «Categoría» con Todas y, si no, la
+    /// categoría activa, con la chincheta cuando es la predeterminada de esta
+    /// vista. Al final, fijar o quitar la activa como predeterminada.
+    private var categoryMenu: some View {
+        let active = model.filter
+        let isPinned = active != .all && model.pinnedFilter == active
+        let title = active == .all ? CyclocrossPresentation.t("Categoría", "Category") : active.label
+        return Menu {
+            Picker(CyclocrossPresentation.t("Categoría", "Category"), selection: Binding(
+                get: { model.filter },
+                set: { filter in
+                    guard filter != model.filter else { return }
+                    Haptics.play(.selection)
+                    model.selectFilter(filter)
+                }
+            )) {
                 ForEach(CxAgendaFilter.allCases) { filter in
-                    CxFilterChip(
-                        filter: filter,
-                        isActive: model.filter == filter,
-                        activeFilter: model.filter,
-                        pinnedFilter: model.pinnedFilter,
-                        onTap: {
-                            if model.filter == filter {
-                                Haptics.play(.primaryAction)
-                                pendingDefaultFilter = filter
-                            } else {
-                                Haptics.play(.selection)
-                                model.selectFilter(filter)
-                            }
-                        }
-                    )
+                    Text(filter.label).tag(filter)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 4)
+            if active != .all {
+                Divider()
+                Button {
+                    Haptics.play(.primaryAction)
+                    pendingDefaultFilter = active
+                } label: {
+                    Label(isPinned
+                          ? CyclocrossPresentation.t("Quitar «\(active.label)» como predeterminada", "Remove «\(active.label)» as default")
+                          : CyclocrossPresentation.t("Fijar «\(active.label)» como predeterminada", "Set «\(active.label)» as default"),
+                          systemImage: isPinned ? "pin.slash" : "pin")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease")
+                Text(title)
+                if isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .ccFont(.s13, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
         }
+        .tint(AppTheme.textMuted)
+        .accessibilityLabel(isPinned
+            ? CyclocrossPresentation.t("Categoría: \(title), predeterminada", "Category: \(title), default")
+            : CyclocrossPresentation.t("Categoría: \(title)", "Category: \(title)"))
+        .accessibilityHint(CyclocrossPresentation.t("Pulsa dos veces para elegir la categoría", "Double tap to choose the category"))
         .accessibilityIdentifier("cx_agenda_filters")
     }
     @ViewBuilder private func agendaRow(_ row: CxAgendaRow) -> some View {
@@ -710,6 +808,11 @@ struct CxRaceCard: View {
     /// enlace a la emisión vigente; desaparece al concluir las categorías.
     private var broadcast: CxAgendaBroadcast? {
         CyclocrossPresentation.agendaBroadcast(race: race, date: date, allowedGroups: region.allowedBroadcastGroups, at: now)
+    }
+    /// Badge de resumen: hay un vídeo aplicable al día; solo en tarjetas que
+    /// abren la ficha.
+    private var hasSummary: Bool {
+        open && CyclocrossPresentation.agendaVideo(race: race, date: date) != nil
     }
     /// Badge de dorsales: solo en tarjetas que abren la ficha.
     private var startlistCategory: CxCategory? {
@@ -758,7 +861,7 @@ struct CxRaceCard: View {
                         RaceCompetitionLabel().frame(width: 0).hidden().accessibilityHidden(true)
                         // El acceso al torneo vive solo en la hamburguesa.
                         if let tournament {
-                            NavigationLink(destination: CyclocrossView(tournament: tournament, season: race.seasonKey)) {
+                            NavigationLink(value: CxTournamentDestination(tournament, season: race.seasonKey)) {
                                 RaceCompetitionLabel()
                             }.buttonStyle(.plain).fixedSize()
                                 .accessibilityLabel(CyclocrossPresentation.t("Ver torneo \(tournament.name)", "View series \(tournament.nameEn ?? tournament.name)"))
@@ -815,7 +918,7 @@ struct CxRaceCard: View {
             }.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
         }
     }
-    /// Fila de badges de la web (`.race-card__badges`): clase, TV y Dorsales.
+    /// Fila de badges de la web (`.race-card__badges`): clase, TV, Resumen y Dorsales.
     /// Las tres etiquetas tienen la misma altura: la fila no varía con o sin
     /// TV y dorsales.
     private var badgesRow: some View {
@@ -830,6 +933,12 @@ struct CxRaceCard: View {
                     startTimeUtc: broadcast.firstStartUtc, url: CyclocrossPresentation.link(broadcast.row.url)?.absoluteString,
                     note: nil, sortOrder: broadcast.row.sortOrder, showInRevive: false, country: broadcast.row.country)])
                     .fixedSize()
+            }
+            if hasSummary {
+                NavigationLink(value: CxDestination(raceId: race.id, anchor: "videos", title: CyclocrossPresentation.name(race))) {
+                    RaceActionLabel(label: CyclocrossPresentation.t("Resumen", "Summary"), icon: "tv")
+                }
+                .buttonStyle(CxBadgeLinkStyle()).fixedSize()
             }
             if let startlistCategory {
                 NavigationLink(value: CxDestination(raceId: race.id, anchor: "inscritos-" + startlistCategory.category, title: CyclocrossPresentation.name(race))) {
@@ -1017,47 +1126,5 @@ struct CxBadgeLinkStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Filtro de la agenda CX
-
-/// Chip de filtro de la agenda de ciclocross con la misma presentación que los
-/// filtros del Calendario (`CalendarFilterChipLabel`): acento al 15 % al
-/// activar y chincheta de filtro predeterminado, propia de esta vista.
-private struct CxFilterChip: View {
-    let filter: CxAgendaFilter
-    let isActive: Bool
-    let activeFilter: CxAgendaFilter
-    let pinnedFilter: CxAgendaFilter
-    /// Pulsar el filtro activo abre el diálogo de filtro predeterminado, como
-    /// en Mes y Temporada.
-    let onTap: () -> Void
-
-    private enum PinDisplay { case filled, outline, hidden }
-
-    private var pinDisplay: PinDisplay {
-        if filter == .all || activeFilter == .all { return .hidden }
-        if pinnedFilter != .all && pinnedFilter == filter { return .filled }
-        if filter == activeFilter { return .outline }
-        return .hidden
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            CalendarFilterChipLabel(
-                label: filter.label,
-                isActive: isActive,
-                pinFilled: pinDisplay == .filled,
-                pinOutline: pinDisplay == .outline
-            )
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
-        .accessibilityLabel(pinDisplay == .filled
-            ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"
-            : "\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
     }
 }

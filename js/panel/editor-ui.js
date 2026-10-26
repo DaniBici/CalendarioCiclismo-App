@@ -1,11 +1,12 @@
 import { teamStripes } from '../team-appearance.js';
+import { panelIconSvg } from './icons.js';
 const count=value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'});
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export const panelSectionHtml=(title,body,attributes='')=>`<section class="editor-section" ${attributes}><div class="editor-section__header"><span class="editor-section__title">${esc(title)}</span></div><div class="editor-section__body">${body}</div></section>`;
 
 export function panelEditorTopbarHtml({name,flagHtml='',detail='',date='',published=false,updated='',actionsHtml=''}) {
-  return `<div class="editor-topbar"><div class="editor-topbar__title"><div class="editor-topbar__headline">${flagHtml} ${esc(name)}${detail?` · ${esc(detail)}`:''}${date?` · <span class="editor-topbar__date">${esc(date)}</span>`:''}</div><div class="editor-topbar__meta"><span class="editor-topbar__status ${published?'editor-topbar__status--pub':''}">${published?'Publicado':'Borrador'}</span>${updated?`<span class="editor-topbar__updated" title="Última actualización">✎ ${esc(updated)}</span>`:''}</div></div><div class="editor-topbar__actions">${actionsHtml}</div></div>`;
+  return `<div class="editor-topbar"><div class="editor-topbar__title"><div class="editor-topbar__headline">${flagHtml} ${esc(name)}${detail?` · ${esc(detail)}`:''}${date?` · <span class="editor-topbar__date">${esc(date)}</span>`:''}</div><div class="editor-topbar__meta"><span class="editor-topbar__status ${published?'editor-topbar__status--pub':''}">${published?'Publicado':'Borrador'}</span>${updated?`<span class="editor-topbar__updated" title="Última actualización">${panelIconSvg('pencil')} ${esc(updated)}</span>`:''}</div></div><div class="editor-topbar__actions">${actionsHtml}</div></div>`;
 }
 
 export function panelEditorTabsHtml(tabs,{id='',attribute='target',active=null}={}) {
@@ -13,7 +14,7 @@ export function panelEditorTabsHtml(tabs,{id='',attribute='target',active=null}=
 }
 
 export function panelClassificationRowHtml({label,title='',rowCount=0,leader='',locked=false,chipsHtml='',actionsHtml=''}) {
-  return `<div class="ru-class-row${locked?' ru-class-row--locked':''}"><div class="ru-class-row__main"><span class="ru-class-row__label" title="${esc(title)}">${esc(label)}</span><span class="ru-class-row__meta">${esc(rowCount)} filas${leader?` · 🏆 ${esc(leader)}`:''}</span></div>${chipsHtml}${actionsHtml}</div>`;
+  return `<div class="ru-class-row${locked?' ru-class-row--locked':''}"><div class="ru-class-row__main"><span class="ru-class-row__label" title="${esc(title)}">${esc(label)}</span><span class="ru-class-row__meta">${esc(rowCount)} filas${leader?` · ${panelIconSvg('trophy')} ${esc(leader)}`:''}</span></div>${chipsHtml}${actionsHtml}</div>`;
 }
 
 export function panelTeamRowHtml(team,{meta=[]}={}) {

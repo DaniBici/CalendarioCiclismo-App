@@ -39,9 +39,9 @@ function resolveInitialSubview() {
   if (readCalendarMonth(p)) return 'mes';
   const stored = localStorage.getItem(SUBVIEW_KEY);
   if (VALID.has(stored)) return stored;
-  // Por defecto Mes (decisión Dani 2026-06-12): es la vista "qué se corre
-  // estos días"; Temporada queda a un toggle para la panorámica del año.
-  return 'mes';
+  // Por defecto Temporada (decisión Dani 2026-10-21, como las apps desde la
+  // 5.1.2): la primera visita abre la panorámica del año; Mes queda a un toggle.
+  return 'temporada';
 }
 
 function setHidden(view, hidden) {

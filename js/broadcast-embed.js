@@ -24,6 +24,27 @@ export function extractYouTubeId(url) {
   return null;
 }
 
+// Comprueba contra el endpoint público oEmbed si un vídeo de YouTube permite
+// embed (iframe). Devuelve true (embeddable), false (embed deshabilitado o
+// vídeo eliminado/privado) o null si no se ha podido determinar (red, CORS,
+// URL no de YouTube). Render: tratar `null` como "embeddable" para no romper.
+export async function checkYouTubeEmbeddable(url) {
+  const id = extractYouTubeId(url);
+  if (!id) return null;
+  const canonical = `https://www.youtube.com/watch?v=${id}`;
+  const endpoint  = `https://www.youtube.com/oembed?url=${encodeURIComponent(canonical)}&format=json`;
+  try {
+    const res = await fetch(endpoint);
+    if (res.ok) return true;
+    // 401 → embed explícitamente deshabilitado por el creador.
+    // 404 → vídeo no existe / privado / borrado: tampoco se puede embeber.
+    if (res.status === 401 || res.status === 404) return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function isCyltvPlayerUrl(url) {
   if (!url) return false;
   try {

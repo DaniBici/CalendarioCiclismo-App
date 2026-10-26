@@ -4,7 +4,7 @@
  * todavía no tienen fuente de resultados. Es el equivalente CX de
  * dataride-live-linker.mjs y aplica los mismos criterios conservadores:
  * país ISO, solape de fecha con margen, categoría UCI coincidente y una señal
- * nominal o de clase fuerte (nacionales, continentales y Copa del Mundo).
+ * nominal (nombre o lugar) o de clase fuerte (nacionales, continentales y Copa del Mundo).
  * Las coincidencias ambiguas o sin señal quedan intactas para revisión manual.
  *
  * Uso en producción (runner cc-cx-results como cc_results_worker):
@@ -42,7 +42,9 @@ export function parseDataRideEpoch(value) {
 export function nameSignal(race, competitionName) {
   const tokens = (text) => String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const left = new Set([...tokens(race.name), ...tokens(race.nameEn)]
+  // El lugar cuenta como señal: DataRide nombra pruebas como «Telenet Superprestige
+  // Overijse» aunque el nombre propio sea otro («Vlaamse Druivencross»).
+  const left = new Set([...tokens(race.name), ...tokens(race.nameEn), ...tokens(race.venue)]
     .filter((token) => token.length > 2 && !STOPWORDS.has(token)));
   const right = tokens(competitionName).filter((token) => token.length > 2 && !STOPWORDS.has(token));
   return right.some((token) => left.has(token));

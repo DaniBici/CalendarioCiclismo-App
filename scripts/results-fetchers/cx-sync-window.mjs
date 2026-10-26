@@ -1,5 +1,6 @@
 import { cxDateInSeason } from '../../js/cx/season.js';
 import { cxCategoryTiming } from '../../js/cx/timing.js';
+import { smartwebIndexUrl, smartwebLabel } from './smartweb-cx-fetch.mjs';
 
 const CATEGORIES=new Set(['ME','WE','MU','WU','MJ','WJ']);
 const MADRID_DATE=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -24,10 +25,19 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     &&cxDateInSeason(race.seasonKey,manga.dateKey||race.dateKey);}catch{}
   if(!validSeason||race.editorialStatus!=='published'||race.isCancelled||manga.isCancelled||!CATEGORIES.has(manga.category)
     ||manga.raceId!==race.id||(manga.dateKey||race.dateKey)<race.dateKey||(manga.dateKey||race.dateKey)>(race.endDateKey||race.dateKey))return skip('Carrera/manga fuera de alcance');
-  const acnLink=link?.provider==='acn';
-  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':'Enlace DataRide CX inválido',true);
+  const acnLink=link?.provider==='acn',wiclaxLink=link?.provider==='wiclax',kbwbLink=link?.provider==='kbwb',smartwebLink=link?.provider==='smartweb';
+  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':wiclaxLink?'Enlace Wiclax CX inválido':kbwbLink?'Enlace KBWB CX inválido':smartwebLink?'Enlace smartweb CX inválido':'Enlace DataRide CX inválido',true);
   if(acnLink){
     if(!/^[1-9]\d{5,19}$/.test(String(link.eventId??''))||!link.ctx)return skip('Enlace ACN CX inválido',true);
+  }else if(wiclaxLink){
+    if(!/^https:\/\/\S+$/.test(String(link.sourceUrl??''))||!Object.keys(link.categoryKeys||{}).length)return skip('Enlace Wiclax CX inválido',true);
+  }else if(kbwbLink){
+    const keys=Object.keys(link.categoryKeys||{});
+    if(!keys.length||keys.some(key=>!/^[1-9]\d{0,9}$/.test(key)))return skip('Enlace KBWB CX inválido',true);
+  }else if(smartwebLink){
+    let indexUrl=null;try{indexUrl=smartwebIndexUrl(link.sourceUrl);}catch{}
+    const keys=Object.keys(link.categoryKeys||{});
+    if(indexUrl!==link.sourceUrl||!keys.length||keys.some(key=>key!==smartwebLabel(key)))return skip('Enlace smartweb CX inválido',true);
   }else if(link.disciplineId!==3||!Number.isSafeInteger(link.competitionId)||link.competitionId<=0
     ||!Number.isSafeInteger(link.seasonId)||link.seasonId<=0)return skip('Enlace DataRide CX inválido',true);
   if(manga.resultsLockedAt)return skip('Resultados protegidos por revisión administrativa');

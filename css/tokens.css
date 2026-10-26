@@ -9,28 +9,32 @@
 :root {
   --content-max: 1440px;
   --page-gutter: 16px;
-  --bg:            #10141c;
-  --bg-card:       #222b38;
-  --bg-card-hover: #2b3646;
-  --border:        #354252;
-  --border-light:  #465568;
-  --text:          #e2e2e9;
-  --text-muted:    #b7c1ce;
-  --text-dim:      #9296a3;
+  /* Paleta Grafito: superficies casi sin croma, para que el color quede en
+     el acento, los perfiles, los logos y las categorías. La ficha se separa
+     del fondo por luminosidad (L 15.5 → 26.9 en OKLCH) y el texto secundario
+     queda a ~2:1 del principal para marcar la jerarquía. */
+  --bg:            #0b0c0f;
+  --bg-card:       #24262b;
+  --bg-card-hover: #2e3036;
+  --border:        #3a3d44;
+  --border-light:  #4c5058;
+  --text:          #f2f3f5;
+  --text-muted:    #a9adb5;
+  --text-dim:      #8f949d;
   --accent:        #1a73e8;
-  --accent-dim:    rgba(26,115,232,0.12);
+  --accent-dim:    rgba(26,115,232,0.20);
   /* Texto en color de acento SOBRE fondo --accent-dim (día seleccionado,
      botón Hoy): el azul base #1a73e8 queda por debajo de 4.5:1 sobre el
      tinte; este azul más claro pasa AA en tema oscuro, también sobre el tinte
-     aplicado a una tarjeta (banner de la app de Android). */
-  --accent-text:   #5a9df2;
+     aplicado a una tarjeta (banner de la app de Android): 4.97:1. */
+  --accent-text:   #6aa6f8;
   --btn-primary-text: #ffffff;
   --red:           #ffb4ab;
   --green:         #6dd58c;
   --blue:          #7fcfff;
   --orange:        #ffb77c;
 
-  --header-text:   #e2e2e9;
+  --header-text:   #f2f3f5;
   --font-display: 'Google Sans', 'Roboto', sans-serif;
   --font-body:    'Google Sans', 'Roboto', sans-serif;
 
@@ -56,11 +60,11 @@
   --badge-neutral-bg: color-mix(in srgb, var(--text) 8%, transparent);
   --badge-neutral-hover: color-mix(in srgb, var(--text) 14%, transparent);
   --transition:  0.15s ease;
-  --bg-header:   #202938;
+  --bg-header:   #222429;
   /* Elevación única de las tarjetas, sin borde: la de ccCardShadow() en iOS
      (radio 8 → desenfoque 16px, y = 3). En oscuro la tarjeta se separa por el
-     tono de su superficie; la sombra sube al 24 % para seguir viéndose. */
-  --card-shadow: 0 3px 16px rgba(0,0,0,0.24);
+     tono de su superficie; la sombra sube al 50 % para verse sobre el fondo. */
+  --card-shadow: 0 3px 16px rgba(0,0,0,0.5);
 
   /* ── Badges de categoría UCI ──────────────────────────────────
      WT / WWT (WorldTour)  → azul

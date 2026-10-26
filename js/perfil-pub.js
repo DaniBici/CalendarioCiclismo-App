@@ -1,10 +1,13 @@
-import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
+import { supabase, stageLabel,
          setMeta as setM, setMetaProperty as setMP,
-         buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, perfilUrl, enBase,
-         seoLongDate, deArticulo, startFinishLabels, setRaceRobots,
+         loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
+         seoLongDate, deArticulo, setRaceRobots,
          embeddedId, orEqFilter, pickByPreference } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
+import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { perfilHtml, stagePageNoticeHtml } from './perfil-mapa-html.js';
+import { PERFIL_DAY_COLUMNS, PERFIL_SIBLING_COLUMNS, STAGE_PAGE_RACE_COLUMNS, sortStagePageSiblings } from './services/races.js';
 
 const params  = new URLSearchParams(location.search);
 const content = document.getElementById('perfilEtapaContent');
@@ -16,9 +19,6 @@ function slugFromPath() {
   return m ? decodeURIComponent(m[1]) : null;
 }
 const idOrSlug = slugFromPath() || params.get('slug') || params.get('id');
-
-// Columnas de la carrera embebida en la jornada.
-const RACE_COLUMNS = 'id,slug,slugEn,name,nameEn,year,logoUrl,hideFlag,gender,uciCategory,raceFormat,colorHex,countryCode,websiteUrl,startlistImportedAt,startlistProvisional';
 
 window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
 
@@ -32,18 +32,12 @@ if (!idOrSlug) {
 // ── Load ──────────────────────────────────────────────────────────
 async function loadProfile(idOrSlug, i18nReady = Promise.resolve()) {
   const isEn = getLang() === 'en';
-  const cols = [
-    'id','slug','slugEn','raceId','dateKey','stageNumber','isRestDay','isCancelledDay',
-    'startLocation','finishLocation','startLocationEn','finishLocationEn','distanceKm','countryCode',
-    'neutralStartTimeUtc','realStartTimeUtc','estimatedFinishTimeUtc',
-    'primaryType','secondaryType','startOrderImportedAt','profileNotViewable',
-    'elevationProfile','profileSummits','profileWaypoints','routeGpxUrl',
-  ].join(',');
 
   // Página pre-renderizada: el build incrusta el id de la jornada. Si no,
   // una sola consulta por slug, slugEn o id (en ese orden de preferencia),
-  // con la carrera embebida.
-  const select = `${cols},race:races(${RACE_COLUMNS})`;
+  // con la carrera embebida. Mismas columnas que el build
+  // (tools/site/prerender-auxiliares.mjs).
+  const select = `${PERFIL_DAY_COLUMNS},race:races(${STAGE_PAGE_RACE_COLUMNS})`;
   const pageId = embeddedId('race-day-id');
   let row = null, error = null;
   if (pageId) ({ data: row, error } = await supabase.from('race_days').select(select).eq('id', pageId).maybeSingle());
@@ -57,37 +51,29 @@ async function loadProfile(idOrSlug, i18nReady = Promise.resolve()) {
   await i18nReady;
 
   if (error || !row) {
-    content.innerHTML = `<p class="pfe-loading">${t('profile.notFound')}</p>`;
+    applyPrerenderedHtml(content, stagePageNoticeHtml('profile.notFound'));
     return;
   }
 
   if (rd.profileNotViewable) {
-    content.innerHTML = `<p class="pfe-loading">${t('profile.notAvailable')}</p>`;
+    applyPrerenderedHtml(content, stagePageNoticeHtml('profile.notAvailable'));
     return;
   }
 
   const race = raceRow;
   // Guía técnica, assets de la jornada (panel de botones) y etapas hermanas
   // (navegación, solo en carreras por etapas) dependen solo de la jornada.
+  // Listas por id, como el build.
   const [technicalGuide, { data: pfAssets }, siblingsResult] = await Promise.all([
     race?.id ? loadRaceTechnicalGuide(race.id) : Promise.resolve(null),
-    supabase.from('assets').select('*').eq('raceDayId', rd.id),
+    supabase.from('assets').select('*').eq('raceDayId', rd.id).order('id'),
     rd.raceId && race?.raceFormat !== 'one_day'
-      ? supabase.from('race_days')
-        .select('id,slug,slugEn,stageNumber,dateKey,startLocation,finishLocation,startLocationEn,finishLocationEn,isRestDay,neutralStartTimeUtc')
-        .eq('raceId', rd.raceId).eq('editorialStatus', 'published')
+      ? supabase.from('race_days').select(PERFIL_SIBLING_COLUMNS)
+        .eq('raceId', rd.raceId).eq('editorialStatus', 'published').order('id')
       : Promise.resolve({ data: null }),
   ]);
 
-  let siblings = [];
-  const sData = siblingsResult.data;
-  if (sData) {
-    siblings = sData.sort((a, b) => {
-      if (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
-        return a.stageNumber - b.stageNumber;
-      return (a.dateKey || '').localeCompare(b.dateKey || '');
-    });
-  }
+  const siblings = siblingsResult.data ? sortStagePageSiblings(siblingsResult.data) : [];
 
   const stageSlug = isEn && rd.slugEn ? rd.slugEn : rd.slug;
   const _pEnB = isEn ? enBase() : null;
@@ -102,13 +88,12 @@ async function loadProfile(idOrSlug, i18nReady = Promise.resolve()) {
     backBtn.setAttribute('aria-label', t('profile.backToStage'));
   }
 
-  render(rd, race, siblings, jornadaHref, withRaceTechnicalGuide(pfAssets || [], technicalGuide));
+  render(rd, race, siblings, withRaceTechnicalGuide(pfAssets || [], technicalGuide));
 }
 
 // ── Render ────────────────────────────────────────────────────────
-function render(rd, race, siblings, jornadaHref, assets = []) {
+function render(rd, race, siblings, assets = []) {
   const isEn    = getLang() === 'en';
-  const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
 
   const name  = (isEn && race?.nameEn) || race?.name || '';
   const year  = race?.year ?? '';
@@ -191,108 +176,8 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   }
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 
-  // ── Stage nav ─────────────────────────────────────────────────
-  const navSiblings = siblings.filter(s => !s.isRestDay);
-  const stageNavHtml = buildStageNav(navSiblings, rd.id, perfilUrl, raceUrl(race));
-
-  // ── Race hero (logo, bandera, nombre, categoría, fecha) ───────
-  const heroHtml = buildRaceHero(rd, race);
-
-  // ── Panel de botones (web oficial · ir a la etapa · inscritos · recorrido) ──
-  // Vista DE una etapa → "Ir a la etapa" en vueltas por etapas. Se excluye el
-  // botón "Perfil" (es la vista propia).
-  const actionButtonsHtml = race ? buildActionButtons({
-    race, rd, view: 'perfil', assets,
-    hasStartlist: !!race.startlistImportedAt,
-    // Margen superior (como en jornada/orden/resultados) para que el panel no se
-    // pegue al separador inferior de la cabecera (.race-header border-bottom).
-    style: 'margin:1.25rem auto 0.85rem', standalone: true,
-  }) : '';
-
-  // ── Route grid (recorrido, distancia, horarios) ───────────────
-  const arrowSvg = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="7" y1="0" x2="7" y2="17" stroke-width="1.5" stroke-linecap="round"/><polyline points="3,13 7,19 11,13" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-
-  const startName  = (isEn && rd.startLocationEn)  || rd.startLocation  || '';
-  const finishName = (isEn && rd.finishLocationEn) || rd.finishLocation || '';
-
-  const sameLocation = startName && (!finishName || startName === finishName);
-  let recorridoHtml = '';
-  if (startName) {
-    recorridoHtml = sameLocation
-      ? `<div class="route-block__place route-block__place--solo">${startName}</div><div class="route-block__note">${t('search.startAndFinish')}</div>`
-      : `<div class="route-block__place">${startName}</div>${arrowSvg}<div class="route-block__place">${finishName || '-'}</div>`;
-  } else {
-    recorridoHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`;
-  }
-
-  const kmLocale = isEn ? 'en-GB' : 'es-ES';
-  const kmUnit = isEn ? 'km' : ' km';
-  const kmFormatted = rd.distanceKm ? Number(rd.distanceKm).toLocaleString(kmLocale) : null;
-  const kmHtml = kmFormatted
-    ? `<div class="route-block__km">${kmFormatted}${kmUnit}</div>`
-    : `<div class="route-block__km route-block__km--empty">-</div>`;
-  const _elevGain = rd.elevationProfile?.elevationGain;
-  const elevHtml = _elevGain != null
-    ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, isEn ? ',' : '.')} m</div>`
-    : '';
-  const tipoHtml = isTimeTrial
-    ? `<div class="route-block__type">${t(`types.${rd.primaryType}`)}</div>`
-    : '';
-
-  const startTU   = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU  = formatTimeUser(rd.estimatedFinishTimeUtc);
-  const start     = startTU?.display  ?? null;
-  const finish    = finishTU?.display ?? null;
-  const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
-  const startMadridTime  = startTU?.tooltip  ?? start;
-  const finishMadridTime = finishTU?.tooltip ?? finish;
-  const { startLabel, finishLabel } = startFinishLabels(rd, race);
-  const startTipText  = tzDiffers
-    ? t('profile.startMadrid').replace('{time}', startMadridTime)
-    : startLabel;
-  const finishTipText = tzDiffers
-    ? t('profile.finishMadrid').replace('{time}', finishMadridTime)
-    : finishLabel;
-
-  let horariosHtml = '';
-  if (start && finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${start}</div>${arrowSvg}<div class="route-block__place" data-tooltip="${finishTipText}">${finish}</div>`;
-  } else if (start) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${start}</div><div class="route-block__note">${startLabel}</div>`;
-  } else if (finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${finishTipText}">${finish}</div><div class="route-block__note">${finishLabel}</div>`;
-  } else {
-    horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
-  }
-
-  const routeGridHtml = `
-    <div class="jornada-section jornada-section--route-grid" style="margin-bottom:1.25rem">
-      <div class="route-grid">
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('stage.route')}</div>
-          <div class="route-grid__body route-grid__body--route">${recorridoHtml}</div>
-        </div>
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('profile.distance')}</div>
-          <div class="route-grid__body">${kmHtml}${elevHtml}${tipoHtml}</div>
-        </div>
-        <div class="route-grid__block">
-          <div class="route-grid__title" data-tooltip="${tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone')}">${t('stage.schedule')}</div>
-          <div class="route-grid__body route-grid__body--route">${horariosHtml}</div>
-        </div>
-      </div>
-    </div>`;
-
-  // Perfil y puntos clave con el mismo componente que la jornada: panel con
-  // lectura de punto y tramo, formato interactivo u oficial y lista de puntos.
-  content.innerHTML = `
-    ${stageNavHtml}
-    ${heroHtml}
-    ${actionButtonsHtml}
-    ${routeGridHtml}
-    <div id="pfeProfile"></div>
-  `;
-  const profileHost = document.getElementById('pfeProfile');
-  mountStageProfile(profileHost, { day:rd, race:race || {}, assets, points:true });
-  if (profileHost.hidden) profileHost.outerHTML = `<p class="pfe-loading">${t('profile.noElevation')}</p>`;
+  // Contenido (js/perfil-mapa-html.js): la página generada en el build con el
+  // mismo HTML se conserva y solo se monta lo interactivo.
+  applyPrerenderedHtml(content, perfilHtml({ rd, race, siblings, assets }));
+  mountStageProfile(document.getElementById('pfeProfile'), { day:rd, race:race || {}, assets, points:true });
 }

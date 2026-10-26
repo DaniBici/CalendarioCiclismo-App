@@ -740,7 +740,7 @@ struct ResultsTableView: View {
                 stageRaceType: stage.raceType
             )
             onTeamsResolved(
-                (isTeams || isTtt) ? [] : UciResultsLogic.teamsInClass(rows: loaded, byDorsal: byDorsal, byRider: enriched, byTeamOverride: overrides)
+                (isTeams || isTtt) ? [] : UciResultsLogic.teamsInClass(rows: loaded, byDorsal: byDorsal, byRider: enriched, byTeamOverride: overrides, isEn: isEn)
             )
         }
     }

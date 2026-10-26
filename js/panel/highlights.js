@@ -168,6 +168,7 @@ function _onHighlightRaceSearch() {
   }, 150);
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export async function _selectHighlightRace(race) {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent()) return;
@@ -490,6 +491,7 @@ function _setHighlightBusy(editor, busy) {
   }
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export async function openHighlightEditor(highlight) {
   // Reset
   const editor = { id: highlight?.id || crypto.randomUUID(), isNew: !highlight,
@@ -575,6 +577,7 @@ export async function openHighlightEditor(highlight) {
   }
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export async function saveHighlight() {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent() || editor.busy || editor.loading) return;
@@ -694,6 +697,7 @@ export async function saveHighlight() {
   }
 }
 
+/** @public Lo consultan las pruebas del módulo importado. */
 export async function deleteHighlight() {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent() || editor.isNew || editor.busy || editor.loading) return;

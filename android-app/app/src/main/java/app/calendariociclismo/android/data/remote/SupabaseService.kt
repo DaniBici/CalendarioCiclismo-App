@@ -76,7 +76,8 @@ class SupabaseService : CxRemote {
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
-        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)"
+        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)," +
+        "cx_videos(id,raceId,category,title,url,sortOrder)"
 
     @Serializable
     private data class CxFeaturedRow(val cxRaceId: String)
@@ -1342,7 +1343,7 @@ class SupabaseService : CxRemote {
         /** Columnas de `teams` que decodifica [Team]. */
         private val TEAM_COLUMNS = Columns.raw(
             "id,name,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle," +
-                "headerBg,headerText,nameAliases,category"
+                "headerBg,headerText,nameAliases,category,teamKind,selectionScope,countryCode,selectionCode"
         )
 
         /** Columnas de race_days sin los campos de perfil de elevación (JSONB pesados).

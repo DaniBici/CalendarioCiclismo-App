@@ -1,6 +1,6 @@
 export const LIVE_RESULT_SOURCES = Object.freeze([
   'tissot', 'matsport', 'raceresult', 'sts', 'livetiming', 'sportsoft',
-  'timing.ee', 'evodata', 'infocity', 'ASO', 'manual_timing', 'chronohr', 'maneffic',
+  'timing.ee', 'evodata', 'infocity', 'ASO', 'manual_timing', 'chronohr', 'maneffic', 'acn',
 ]);
 // Fuentes post-meta cuya clasificación se completa a medida que llegan corredores:
 // se releen dentro de la ventana aunque ya publiquen ganador.

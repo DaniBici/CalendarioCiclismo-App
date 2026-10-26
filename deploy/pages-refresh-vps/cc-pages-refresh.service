@@ -1,0 +1,34 @@
+[Unit]
+Description=Calendario Ciclismo - refresco de páginas de Pages desfasadas
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/pages-refresh-vps.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cc-results
+Group=cc-results
+WorkingDirectory=/opt/calendario-ciclismo
+# DATABASE_URL (cc_results_worker, solo lectura aquí) y GITHUB_TOKEN. Sin el
+# segundo archivo el servicio registra los cambios y no lanza builds.
+EnvironmentFile=/etc/calendario-ciclismo/results.env
+EnvironmentFile=-/etc/calendario-ciclismo/pages-refresh.env
+ExecStart=/usr/bin/node scripts/pages-refresh/pages-refresh.mjs
+TimeoutStartSec=2min
+StateDirectory=cc-pages-refresh
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

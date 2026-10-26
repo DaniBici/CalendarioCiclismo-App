@@ -7,9 +7,14 @@ import androidx.room.Query
 import app.calendariociclismo.android.data.local.entity.CxDetailCacheEntity
 import app.calendariociclismo.android.data.local.entity.CxMonthCacheEntity
 
+/** Fila de `cx_month_cache` con la última lectura de las destacadas (lista de
+ *  ids, no de carreras): fuera de [CxCacheDao.allMonths] y sin temporada, de
+ *  modo que [CxCacheDao.months] tampoco la devuelve. */
+const val CX_FEATURED_CACHE_KEY = "featured"
+
 @Dao
 interface CxCacheDao {
-    @Query("SELECT * FROM cx_month_cache ORDER BY monthKey")
+    @Query("SELECT * FROM cx_month_cache WHERE `key` != '$CX_FEATURED_CACHE_KEY' ORDER BY monthKey")
     suspend fun allMonths(): List<CxMonthCacheEntity>
 
     @Query("SELECT * FROM cx_detail_cache")

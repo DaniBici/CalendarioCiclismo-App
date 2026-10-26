@@ -42,9 +42,18 @@ import app.calendariociclismo.android.ui.startlist.TeamColorBands
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.results.ResultsStageContextCard
+import app.calendariociclismo.android.ui.stage.OfflineAccessAlert
+import app.calendariociclismo.android.ui.stage.OfflineAccessDialog
+import app.calendariociclismo.android.ui.stage.StageData
+import app.calendariociclismo.android.ui.stage.StageHeader
+import app.calendariociclismo.android.ui.stage.StageHeaderContext
 import app.calendariociclismo.android.ui.stage.StageInfoHeaderCard
+import app.calendariociclismo.android.ui.stage.loadStageHeaderData
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.TeamNames
 import app.calendariociclismo.android.util.UciResultsLogic
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -55,7 +64,8 @@ import java.util.TimeZone
 
 private sealed class StartOrderState {
     object Loading : StartOrderState()
-    data class Ready(val data: StartOrderData) : StartOrderState()
+    /** [stage]: datos de la jornada para su cabecera; `null` si no cargan. */
+    data class Ready(val data: StartOrderData, val stage: StageData?) : StartOrderState()
     data class Error(val message: String) : StartOrderState()
     object Empty : StartOrderState()
 }
@@ -72,16 +82,32 @@ fun StartOrderScreen(
     var state by remember { mutableStateOf<StartOrderState>(StartOrderState.Loading) }
     var filter by remember { mutableStateOf(StartOrderFilter.ALL) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var offlineAlert by remember { mutableStateOf<OfflineAccessAlert?>(null) }
+    val scope = rememberCoroutineScope()
     val unknownError = stringResource(R.string.startlist_error_unknown)
 
     suspend fun load() {
-        runCatching { app.repository.loadStartOrderData(raceDayId) }
-            .onSuccess { data ->
-                state = if (data == null) StartOrderState.Empty else StartOrderState.Ready(data)
-            }
-            .onFailure { error ->
-                state = StartOrderState.Error(error.message ?: unknownError)
-            }
+        coroutineScope {
+            // La cabecera es la de la jornada, con sus mismos datos: sale a la
+            // vez que el orden de salida y, si la jornada no está en Room, con
+            // la carrera que trae este.
+            val header = async { loadStageHeaderData(app, raceDayId, raceId = null) }
+            runCatching { app.repository.loadStartOrderData(raceDayId) }
+                .onSuccess { data ->
+                    state = if (data == null) {
+                        header.cancel()
+                        StartOrderState.Empty
+                    } else {
+                        val stage = header.await()
+                            ?: data.raceDay.raceId?.let { loadStageHeaderData(app, raceDayId, it) }
+                        StartOrderState.Ready(data, stage)
+                    }
+                }
+                .onFailure { error ->
+                    header.cancel()
+                    state = StartOrderState.Error(error.message ?: unknownError)
+                }
+        }
     }
 
     LaunchedEffect(raceDayId) { load() }
@@ -93,16 +119,15 @@ fun StartOrderScreen(
             Bundle().apply {
                 putString("race_day_id", raceDayId)
                 putString("race_name", ready.data.race?.name.orEmpty())
-                ready.data.fullRaceDay?.let { putString("stage_name", it.stageLabel) }
+                (ready.stage?.raceDay ?: ready.data.fullRaceDay)?.let { putString("stage_name", it.stageLabel) }
             }
         )
     }
 
     val pullRefreshState = rememberPullToRefreshState()
 
-    // Sin TopAppBar: la flecha de back va integrada en `StageInfoHeaderCard`
-    // (misma cabecera que la vista de perfil) para paridad con el resto de
-    // detalles de jornada.
+    // Sin TopAppBar: la flecha de back va integrada en la cabecera de la
+    // jornada (`StageHeader`), la misma que en la jornada.
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val current = state) {
@@ -136,9 +161,11 @@ fun StartOrderScreen(
                         }
                         StartOrderContent(
                             data = current.data,
+                            stage = current.stage,
+                            navController = navController,
                             filter = filter,
                             onFilterChange = { filter = it },
-                            onBack = { navController.popBackStack() },
+                            onOfflineAlert = { offlineAlert = it },
                             onProfileTap = { navController.navigate(Routes.elevationProfile(it)) },
                         )
                     }
@@ -146,14 +173,27 @@ fun StartOrderScreen(
             }
         }
     }
+
+    offlineAlert?.let { alert ->
+        OfflineAccessDialog(
+            alert = alert,
+            onDismiss = { offlineAlert = null },
+            onEnableOffline = {
+                offlineAlert = null
+                scope.launch { app.offlineManager.enable() }
+            },
+        )
+    }
 }
 
 @Composable
 private fun StartOrderContent(
     data: StartOrderData,
+    stage: StageData?,
+    navController: NavController,
     filter: StartOrderFilter,
     onFilterChange: (StartOrderFilter) -> Unit,
-    onBack: () -> Unit,
+    onOfflineAlert: (OfflineAccessAlert) -> Unit,
     onProfileTap: (String) -> Unit,
 ) {
     val raceDay = data.raceDay
@@ -218,12 +258,14 @@ private fun StartOrderContent(
             }
         }
     }
-    val contextDay = data.fullRaceDay
+    // Jornada y carrera de la cabecera; sin sus datos, los del orden de salida.
+    val contextDay = stage?.raceDay ?: data.fullRaceDay
+    val contextRace = stage?.race ?: data.race
     val hasStageContext = contextDay?.let {
         it.hasElevationProfile || it.distanceKm != null || it.elevationProfile?.elevationGain != null
             || it.neutralStartTimeUtc != null || it.averageSpeedKmh != null
             || it.hasValidTimeLimit
-    } == true && data.race != null
+    } == true && contextRace != null
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
 
     BoxWithConstraints(
@@ -232,18 +274,29 @@ private fun StartOrderContent(
         val wide = adaptiveInfo.supportsTwoPanes && maxWidth >= 700.dp && hasStageContext
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            // Margen de la jornada: la cabecera ocupa el mismo ancho.
+            contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                if (contextDay != null) {
-                    StageInfoHeaderCard(raceDay = contextDay, race = data.race, onBack = onBack)
+                // Cabecera de la jornada: mismos datos y tira de documentación,
+                // sin el acceso al orden de salida y con el de vuelta a la
+                // jornada.
+                if (stage != null) {
+                    StageHeader(
+                        data = stage,
+                        navController = navController,
+                        onOfflineAlert = onOfflineAlert,
+                        headerContext = StageHeaderContext.START_ORDER,
+                    )
+                } else if (contextDay != null) {
+                    StageInfoHeaderCard(raceDay = contextDay, race = contextRace, onBack = { navController.popBackStack() })
                 }
             }
             item {
                 if (wide) {
                     val wideDay = requireNotNull(contextDay)
-                    val wideRace = requireNotNull(data.race)
+                    val wideRace = requireNotNull(contextRace)
                     Row(horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing)) {
                         Column(
                             modifier = Modifier.weight(1f),
@@ -260,10 +313,10 @@ private fun StartOrderContent(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         tableContent()
-                        if (contextDay != null && data.race != null && hasStageContext) {
+                        if (contextDay != null && contextRace != null && hasStageContext) {
                             ResultsStageContextCard(
                                 raceDay = contextDay,
-                                race = data.race,
+                                race = contextRace,
                             ) { onProfileTap(contextDay.id) }
                         }
                     }
@@ -273,8 +326,8 @@ private fun StartOrderContent(
     }
 }
 
-// El header propio se reemplazó por `StageInfoHeaderCard` (importado de
-// ui/stage) para paridad visual total con la vista de perfil.
+// La cabecera es `StageHeader` (ui/stage), la de la jornada, con el contexto
+// `StageHeaderContext.START_ORDER`.
 
 @Composable
 private fun StartOrderFilterBar(
@@ -472,9 +525,13 @@ private fun StartOrderRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                UciResultsLogic.findMatchingTeam(entry.teamName, teams)?.let { TeamColorBands(it) }
+                // El casado usa el nombre de la vista; solo el texto visible se traduce.
+                val matchedTeam = UciResultsLogic.findMatchingTeam(entry.teamName, teams)
+                matchedTeam?.let { TeamColorBands(it) }
                 Text(
-                    if (hasTeam) entry.teamName!! else "-",
+                    if (hasTeam) {
+                        TeamNames.localizedName(entry.teamName!!, matchedTeam, LocaleHolder.shouldShowEnglishContent)
+                    } else "-",
                     style = CCText.S14,
                     fontWeight = FontWeight.Medium,
                     color = if (hasTeam) MaterialTheme.colorScheme.onSurface
@@ -517,9 +574,10 @@ private fun StartOrderRow(
                 }
                 entry.teamName?.takeIf { it.isNotEmpty() }?.let {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        UciResultsLogic.findMatchingTeam(it, teams)?.let { team -> TeamColorBands(team) }
+                        val matchedTeam = UciResultsLogic.findMatchingTeam(it, teams)
+                        matchedTeam?.let { team -> TeamColorBands(team) }
                         Text(
-                            it,
+                            TeamNames.localizedName(it, matchedTeam, LocaleHolder.shouldShowEnglishContent),
                             style = CCText.S12,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

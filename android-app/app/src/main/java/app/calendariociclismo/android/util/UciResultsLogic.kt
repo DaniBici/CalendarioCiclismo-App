@@ -518,12 +518,17 @@ object UciResultsLogic {
             val lead = g.lead ?: g.riders.first()
             val fromSl = lead.dorsalInt?.let { byDorsal[it] }
             val overrideTeam = lead.teamId?.let { byTeamOverride[it] }
+            val team = overrideTeam ?: fromSl?.team
             TttTeamRow(
                 rank = g.lead?.rank,
-                teamName = overrideTeam?.name
-                    ?: fromSl?.teamName?.takeIf { it.isNotEmpty() }
-                    ?: lead.riderDisplay.orEmpty(),
-                team = overrideTeam ?: fromSl?.team,
+                teamName = TeamNames.localizedName(
+                    overrideTeam?.name
+                        ?: fromSl?.teamName?.takeIf { it.isNotEmpty() }
+                        ?: lead.riderDisplay.orEmpty(),
+                    team,
+                    isEn,
+                ),
+                team = team,
                 teamTimeText = g.lead?.timeText,
                 uciPoints = g.lead?.uciPoints,
                 teamSecs = g.lead?.let { tttToSeconds(it.timeText) },
@@ -769,10 +774,14 @@ object UciResultsLogic {
             // Nombre: startlist (curado) → ficha por globalRiderId (orden natural) →
             // riderDisplay (fallback de la fuente). La ficha gana al riderDisplay para
             // que las CN sin startlist no muestren el "APELLIDO Nombre" crudo de la UCI.
-            val riderName = matchedTeam?.name
+            val riderName = matchedTeam?.let { TeamNames.localizedName(it.name, it, isEn) }
                 ?: resolved?.name?.takeIf { it.isNotEmpty() }
                 ?: r.riderDisplay.orEmpty()
-            val teamName = overrideTeam?.name ?: resolved?.teamName.orEmpty()
+            val teamName = TeamNames.localizedName(
+                overrideTeam?.name ?: resolved?.teamName.orEmpty(),
+                overrideTeam ?: resolved?.team,
+                isEn,
+            )
             val cc = resolved?.countryCode.orEmpty()
 
             val isWinner = winnerRow != null && r === winnerRow
@@ -876,18 +885,20 @@ object UciResultsLogic {
 
     /** Equipos presentes en una clasificación individual (para el filtro),
      *  ordenados alfabéticamente (case-insensitive), como la web. Cae a `byRider`
-     *  (globalRiderId) cuando la fila no casa por dorsal (CN sin startlist). */
+     *  (globalRiderId) cuando la fila no casa por dorsal (CN sin startlist).
+     *  Los nombres coinciden con `ResultRowVM.teamName` de `buildIndividualRows`. */
     fun teamsInClass(
         rows: List<RaceUciResultRow>,
         byDorsal: Map<Int, ResolvedRider>,
         byRider: Map<String, ResolvedRider> = emptyMap(),
         byTeamOverride: Map<String, Team> = emptyMap(),
+        isEn: Boolean = false,
     ): List<String> =
         rows.mapNotNull { r ->
-            val override = r.teamId?.let { byTeamOverride[it]?.name }
-            val fromSl = r.dorsalInt?.let { byDorsal[it] }
-            val fromRider = if (fromSl == null) r.globalRiderId?.let { byRider[it] } else null
-            override ?: (fromSl ?: fromRider)?.teamName
+            val override = r.teamId?.let { byTeamOverride[it] }
+            val resolved = r.dorsalInt?.let { byDorsal[it] } ?: r.globalRiderId?.let { byRider[it] }
+            val raw = override?.name ?: resolved?.teamName ?: return@mapNotNull null
+            TeamNames.localizedName(raw, override ?: resolved?.team, isEn)
         }
             .filter { it.isNotEmpty() }
             .distinct()

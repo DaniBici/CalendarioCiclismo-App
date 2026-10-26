@@ -269,6 +269,7 @@ const ATRESULTS_FETCH = join(HERE, 'atresults-results-fetch.mjs');
 const MIKATIMING_FETCH = join(HERE, 'mikatiming-results-fetch.mjs');
 const FICR_FETCH = join(HERE, 'ficr-results-fetch.mjs');
 const LAPCLIP_FETCH = join(HERE, 'lapclip-results-fetch.mjs');
+const ACN_FETCH = join(HERE, 'acn-results-fetch.mjs');
 const SOUTHBOHEMIA_FETCH = join(HERE, 'southbohemia-results-fetch.mjs');
 const KYUSHU_FETCH = join(HERE, 'kyushu-results-fetch.mjs');
 const UPSERT = join(HERE, 'results-upsert.mjs');
@@ -497,7 +498,7 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."acnCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
@@ -594,7 +595,7 @@ async function main() {
       )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."acnCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
@@ -720,7 +721,7 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."matsportStage", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."acnCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 (SELECT jsonb_agg(DISTINCT x."stageNumber") FROM race_days x
@@ -793,6 +794,7 @@ async function main() {
         : t.source === 'mikatiming' && t.mikatimingCode ? `mikatiming:${t.mikatimingCode}`
         : t.source === 'ficr' && t.ficrCode ? `ficr:${t.ficrCode}`
         : t.source === 'lapclip' && t.lapclipCode ? `lapclip:${t.lapclipCode}`
+        : t.source === 'acn' && t.acnCode ? `acn:${t.acnCode}`
         : t.source === 'istanbul' ? `istanbul:${t.year}`
         : t.source === 'southbohemia' ? `southbohemia:${t.year}`
         : t.source === 'kyushu' ? `kyushu:${t.year}${t.lapclipCode ? ` + lapclip:${t.lapclipCode} (provisional)` : ''}`
@@ -1067,6 +1069,18 @@ async function main() {
         ...(t.raceFormat !== 'one_day' && t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
         ...(t.raceFormat !== 'one_day' && t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
         ...(t.raceFormat !== 'one_day' ? fetchStageArgs : [])]);
+    } else if (kind === 'acn') {
+      // ACN Timing publica cada llegada en directo en una tabla por prueba del
+      // evento. La fecha y la zona de la jornada sitúan las salidas de la CRI;
+      // la salida de la jornada descarta datos de otra sesión en línea.
+      const times = t.scheduledTimes || {};
+      srcLabel = ` ← acn:${t.acnCode}`;
+      fc = await run(ACN_FETCH, ['--code', String(t.acnCode), '--race-id', String(t.raceId),
+        '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(times.dateKey ? ['--date', String(times.dateKey)] : []),
+        ...(times.timezone ? ['--timezone', String(times.timezone)] : []),
+        ...(times.startUtc ? ['--start-utc', String(times.startUtc)] : []),
+        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : [])]);
     } else if (kind === 'lapclip') {
       // LAPCLIP publica vueltas y tiempos de transpondedor en directo. El
       // fetcher emite la llegada cuando el primero completa las vueltas del
@@ -1142,7 +1156,9 @@ async function main() {
       includeFinal: isFinalStage,
     });
 
-    const upArgs = ['--in', jsonPath, '--race-id', t.raceId, '--gender', t.gender, '--apply'];
+    // Carrera mixta (relevo, gender NULL): sin --gender. La startlist enlaza por
+    // dorsal y no hay enlace por nombre, que elige riders_men o riders_women.
+    const upArgs = ['--in', jsonPath, '--race-id', t.raceId, ...(t.gender ? ['--gender', t.gender] : []), '--apply'];
     // Volcado acotado a UNA etapa: el manual usa --stage con --race-id; el automático
     // configurado trae scheduledStage. En la ÚLTIMA etapa se conserva además la
     // pseudo-etapa Final Classification (stageNumber NULL), porque nace en el mismo
@@ -1237,6 +1253,7 @@ async function main() {
       : t.source === 'mikatiming' && t.mikatimingCode ? 'mikatiming'
       : t.source === 'ficr' && t.ficrCode ? 'ficr'
       : t.source === 'lapclip' && t.lapclipCode ? 'lapclip'
+      : t.source === 'acn' && t.acnCode ? 'acn'
       : 'uci';
     const kinds = [primaryKind];
     // HÍBRIDO UCI-preferente: source='uci' (oficial, completo) + domtelCode poblado

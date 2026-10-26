@@ -11,7 +11,7 @@ import { buildProfileAssetDownloadRequest, mountProfileDigitizer } from '../stag
 import { openDrawer } from '../components/drawer.js';
 import { confirmDialog, alertDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
-import { formatDateTime, formatTimeHHMM, showToast, toSlug, validateSlug } from './helpers.js';
+import { formatDateTime, formatTimeHHMM, showToast, toSlug, validateSlug, panelIconSvg } from './helpers.js';
 import { attachInlineUpload, getAuthHeaders, R2_PUBLIC_BASE, R2_UPLOAD_FN } from './uploads.js';
 import { switchTab } from './navigation.js';
 import { setupStartOrderSection } from './start-order.js';
@@ -89,7 +89,7 @@ export async function openEditor(raceDayId, cachedData = null) {
   } catch (err) {
     console.error(err);
     area.innerHTML = `<div class="editor-placeholder">
-      <div class="editor-placeholder__icon">⚠️</div>
+      <div class="editor-placeholder__icon">${panelIconSvg('warning')}</div>
       <div class="editor-placeholder__title">Error al cargar la jornada</div>
     </div>`;
   }

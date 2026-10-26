@@ -226,7 +226,9 @@ sin día de la semana (`LUNES 5 DE OCTUBRE DE 2026`). Si ese día contradice la
 fecha, la portada se descarta y rige el `Fecha :` de la página siguiente. Los
 retiros y fueras de control que solo publica el boletín del jurado de comisarios
 (`RETIROS DORSAL 83`, `CORREDORES FUERA DEL LIMITE …: 65 – 84`) se emiten como
-DNF y OTL de la llegada. Una etapa
+DNF y OTL de la llegada. En una prueba de un día, la sección
+`CORREDORES RETIRADOS` sin sufijo `/DNF` (Gran Prix Chiriquí) lleva el IRM, DNS
+o DNF, al final de cada fila. Una etapa
 cuyo encabezado anuncia C.R.I., contrarreloj o cronoescalada, o cuya tabla trae
 `T.Inter`, se emite con `raceType='ITT'`. Las diferencias se derivan del tiempo
 final cuando la fila lo publica; la columna de diferencia solo se usa sin tiempo.
@@ -346,7 +348,8 @@ puntos, montaña y equipos. Asigna etapa por fecha (prólogo 0) y sector a las
 tappe de una misma fecha, y valida la fecha contra la jornada (en un día
 admite la fecha de alta de FICR hasta 3 días antes). El cron lo
 activa con `race_uci_links.source='ficr'` y `ficrCode=<año>/<equipo>/<carrera>`,
-y lo relee dentro de la ventana mientras llegan corredores.
+y lo relee dentro de la ventana mientras llegan corredores. Un cuarto segmento
+(`2026/46/3/UN`) filtra la categoría de FICR en una carrera que reúne varias.
 
 `lapclip-results-fetch.mjs` lee el listado de vueltas por transpondedor de
 LAPCLIP (Matrix Sports, `matrix-sports.jp/lap`) de una categoría
@@ -357,3 +360,16 @@ contra la jornada. El cron lo activa con `race_uci_links.source='lapclip'` y
 `lapclipCode=<evento>/<categoría>/<vueltas>`, y lo relee dentro de la ventana.
 En una vuelta por etapas, `lapclipCode=<evento>` (`tdk2026`): lee la categoría
 `STAGE <n>` de la etapa pedida y emite solo su llegada `FINISH`.
+
+`acn-results-fetch.mjs` lee una tabla de resultados de carretera de ACN Timing
+(Chronorace) con el cliente de `acn-cx-fetch.mjs`: CRI con salida, tiempo con
+milésimas y diferencia, línea con «Time / Gap» o relevo mixto con una fila por
+selección («Team / Riders»), que emite como CRE. ACN marca DNF a quien aún no
+ha llegado: la CRI solo se publica terminada, sin DNF provisionales, y en línea
+se omiten mientras la tabla cambia. En el relevo, ACN marca DNS a la selección
+que aún no ha salido: sin ningún paso, su estado espera 40 min sin cambios
+(`RELAY_IDLE_MS`). No emite tablas sin cambios desde el día de la prueba
+ni ganadores que no pueden haber llegado. El cron lo activa con
+`race_uci_links.source='acn'` y `acnCode=<eventId>/<ctx>/<clave>`, y lo relee
+cada minuto dentro de la ventana. El sufijo `/elite` o `/u23` filtra una tabla
+conjunta por la marca «*» de la inscripción sub-23.

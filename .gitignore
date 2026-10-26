@@ -1,6 +1,8 @@
 .claude/*
 !.claude/skills
 .mcp.json
+# Mapa de precargas del build (tools/site/bundle_assets.mjs)
+.module-preload.json
 
 # macOS
 .DS_Store
@@ -113,6 +115,7 @@ supabase/.temp/
 # ── Sitio generado (GitHub Pages por artifact) ───────────────────
 .pages-generated/
 .pages-build-state.json
+.pages-data/
 __pycache__/
 # build-site.yml recompone estas páginas desde Supabase en cada pasada y las
 # publica como artifact: NO se versionan (eran 11.292 ficheros y ~25 commits
@@ -168,4 +171,5 @@ docs/design/**/*.mov
 !.agents/skills/cc-graficos-sociales/examples/fotos/van-der-poel-alpecin-premier-tech.webp
 .agents/skills/cc-graficos-sociales/examples/maqueta/*.png
 .agents/skills/cc-graficos-sociales/examples/dispositivos/*.png
+.agents/skills/cc-graficos-sociales/examples/lanzamiento/*.png
 .agents/skills/cc-graficos-sociales/examples/*-4x5.json

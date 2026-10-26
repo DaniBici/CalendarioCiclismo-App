@@ -26,8 +26,8 @@ export function teamHeaderColors(team) {
   return background && text ? { background, text } : { background: 'var(--bg-card)', text: 'var(--text)' };
 }
 
-const TEAM_COLUMNS = 'id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle';
-const TEAM_SEASON_COLUMNS = 'teamId,name,category,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts';
+export const TEAM_COLUMNS = 'id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle,teamKind,selectionScope,countryCode,selectionCode';
+export const TEAM_SEASON_COLUMNS = 'teamId,name,category,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts';
 
 // Superpone a cada equipo los valores no nulos de su temporada, en el orden de
 // `ids`. Un equipo sin ficha base solo aparece si la temporada trae nombre.
@@ -62,10 +62,11 @@ export async function teamsForSeason(client, teams, year, requestedIds = teams.m
 }
 
 // startlist_teams de una carrera con el equipo canónico y su temporada
-// embebidos: una consulta en lugar de tres en serie.
+// embebidos: una consulta en lugar de tres en serie. Por id, como el build
+// (el primer equipo que casa por nombre depende del orden).
 export function startlistTeamsQuery(client, raceId, year, columns = 'id,teamId,teamName') {
   const seasons = year ? `,team_seasons(${TEAM_SEASON_COLUMNS})` : '';
-  const query = client.from('startlist_teams').select(`${columns},team:teams(${TEAM_COLUMNS}${seasons})`).eq('raceId', raceId);
+  const query = client.from('startlist_teams').select(`${columns},team:teams(${TEAM_COLUMNS}${seasons})`).eq('raceId', raceId).order('id');
   return year ? query.eq('team.team_seasons.year', year) : query;
 }
 
@@ -90,5 +91,9 @@ export function teamStripes(team) {
   const values = [team?.badgeTorsoSides, team?.badgeTorsoCenter, team?.badgeShorts].map(color);
   // Las filas sin equipación curada usan valores neutros por defecto.
   if (values.some(v => !v)) return '';
-  return `<span class="team-stripes" aria-hidden="true">${values.map(value => `<i style="background:${value}"></i>`).join('')}</span>`;
+  // Un solo elemento vacío (sin contenido accesible): las tres franjas son un
+  // degradado con variables (.team-stripes en css/app.css y css/panel.css).
+  // Una tabla de resultados lleva dos por fila.
+  const [sides, center, shorts] = values;
+  return `<span class="team-stripes" style="--a:${sides};--b:${center};--c:${shorts}"></span>`;
 }

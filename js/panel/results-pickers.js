@@ -211,7 +211,7 @@ export function _openTeamCombo(opts) {
   const pick = (t) => {
     if (t && !t._none && validate) {
       const v = validate(t);
-      if (!v.ok) { alertDialog(v.reason, { title: '⚠️ No permitido' }); return; }
+      if (!v.ok) { alertDialog(v.reason, { title: 'No permitido' }); return; }
     }
     onPick?.(t ? t.id : '');
     close();

@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { readDayTimingChanges } from './race-presentation.js';
-import { supabase, extractYouTubeId, checkYouTubeEmbeddable } from '../shared.js';
+import { supabase, extractYouTubeId } from '../shared.js';
+import { checkYouTubeEmbeddable } from '../broadcast-embed.js';
 import { closeDrawer } from '../components/drawer.js';
 import { confirmDialog, alertDialog, promptDialog } from '../components/dialog.js';
 import { panelState } from './state.js';

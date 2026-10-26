@@ -7,6 +7,11 @@
  * (`ficrCode = <año>/<equipo>/<carrera>`, p. ej. 2026/102/10). Cada carrera
  * tiene una o varias `tappe`; cada tappa, sus puntos de cronometraje (`arrivi`),
  * de los que el de tipo 1 es la llegada.
+ * - Categoría: una carrera de FICR puede reunir varias categorías en el mismo
+ *   recorrido (`categories/<año>/<equipo>/<carrera>`; Campeonato de Italia CRI
+ *   2026: Juniores, sub-23 y Donne Elite/sub-23). Un cuarto segmento en
+ *   `ficrCode` (`2026/46/3/UN`) sustituye al `*` de la lista de corredores y de
+ *   la llegada; un llegado ajeno a la lista de la categoría es un error.
  *
  * - Llegada: `results/<año>/<equipo>/<carrera>/<tappa>/<tipo>/<llegada>/*`
  *   devuelve los llegados en orden (dorsal y tiempo absoluto) y `fuorigara`,
@@ -50,11 +55,13 @@ const GENERALS = [
   { pattern: /^classifica a squadre generale$/i, classKind: 'teams', scope: 'overall', eventName: 'Teams Classification', teams: true },
 ];
 
-/** ficrCode: `<año>/<equipo>/<carrera>`. */
+/** ficrCode: `<año>/<equipo>/<carrera>[/<categoría>]`. */
 export function parseCode(value) {
-  const match = clean(value).match(/^(20\d{2})\/([1-9]\d{0,3})\/([1-9]\d{0,5})$/);
-  if (!match) throw new Error(`ficrCode no válido: ${value} (formato <año>/<equipo>/<carrera>)`);
-  return { year: Number(match[1]), team: Number(match[2]), race: Number(match[3]), code: `${match[1]}/${match[2]}/${match[3]}` };
+  const match = clean(value).match(/^(20\d{2})\/([1-9]\d{0,3})\/([1-9]\d{0,5})(?:\/([A-Z0-9]{1,6}))?$/);
+  if (!match) throw new Error(`ficrCode no válido: ${value} (formato <año>/<equipo>/<carrera>[/<categoría>])`);
+  const category = match[4] ?? null;
+  return { year: Number(match[1]), team: Number(match[2]), race: Number(match[3]), category,
+    code: `${match[1]}/${match[2]}/${match[3]}${category ? `/${category}` : ''}` };
 }
 
 const negativeId = (seed, modulo = 2_000_000_000) => -(fnv1a(seed) % modulo || 1);
@@ -283,8 +290,9 @@ export function censusPublication(census, { excluded = [], arrival = [], basis }
 
 export async function fetchCompetition(rawCode, { read, onlyStage = null, totalStages = null, oneDay = false, date = null,
   stageDates = null, now = Date.now() } = {}) {
-  const { year, team, race, code } = parseCode(rawCode);
+  const { year, team, race, category, code } = parseCode(rawCode);
   const id = `${year}/${team}/${race}`;
+  const filter = category ?? '*';
   const [description] = await read(`mpcache-30/get/descrizione/${id}`);
   if (!description || Number(description.ga_Anno) !== year) throw new Error(`FICR ${code}: carrera inexistente o de otro año`);
   const sourceUrl = pageUrl(code, String(description.ga_Descrizione ?? '').trim());
@@ -297,7 +305,7 @@ export async function fetchCompetition(rawCode, { read, onlyStage = null, totalS
   }
   const today = localToday(now);
   const stages = [];
-  const ridersPath = `mpcache-30/get/riders/${id}/*/N`;
+  const ridersPath = `mpcache-30/get/riders/${id}/${filter}/N`;
   let census;
   const readCensus = async () => (census === undefined ? (census = ridersCensus(await read(ridersPath))) : census);
   for (const tappa of tappe) {
@@ -313,8 +321,13 @@ export async function fetchCompetition(rawCode, { read, onlyStage = null, totalS
     if (tappa.dateKey > today) { log(`∅ tappa ${tappa.tappa} (${tappa.dateKey}): fecha futura`); continue; }
 
     const point = arrivalPoint(await read(`mpcache-10/get/arrivi/${id}/${tappa.tappa}`), tappa.tappa);
-    const rows = arrivalRows(await read(`mpcache-10/get/results/${id}/${tappa.tappa}/${tappa.type}/${point}/*`));
+    const rows = arrivalRows(await read(`mpcache-10/get/results/${id}/${tappa.tappa}/${tappa.type}/${point}/${filter}`));
     if (!rows.length) { log(`∅ tappa ${tappa.tappa}: sin llegados`); continue; }
+    if (category) {
+      const known = new Set(await readCensus() ?? []);
+      const foreign = rows.filter((row) => !known.has(row.bib)).map((row) => row.bib);
+      if (foreign.length) throw new Error(`FICR ${code}: dorsales fuera de la categoría ${category}: ${foreign.join(', ')}`);
+    }
     let stageCensus = null, gcCensus = null;
     if (tappa.tappa === tappe[0].tappa) {
       const basis = `${API}/${ridersPath}`;

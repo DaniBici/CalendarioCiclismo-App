@@ -51,6 +51,9 @@ final class CyclocrossAgendaModel {
     /// propia de esta vista, independiente del predeterminado de Hoy.
     private(set) var pinnedFilter: CxAgendaFilter = .all
     private static let defaultFilterKey = "cx_default_filter"
+    /// Orden del día mostrado (Categoría, Hora TV, Hora de meta), en memoria
+    /// como en Hoy de carretera.
+    var sort: CxAgendaSort = .category
 
     /// Carreras de la temporada sin duplicados (una prueba que cruza de mes
     /// llega en las consultas de ambos meses), limitadas al torneo si lo hay.
@@ -63,6 +66,9 @@ final class CyclocrossAgendaModel {
     private(set) var dateKey: String
     /// La temporada ya tiene datos en caché o terminó su primera carga.
     private(set) var hasLoaded = false
+    /// Hoy puede pintarse: con datos o, sin ninguno, con el error de la carga.
+    /// Barra de fechas, orden y lista aparecen a la vez.
+    var isAgendaReady: Bool { hasLoaded || (!busy && error != nil) }
     /// El usuario eligió día: las cargas posteriores ya no recolocan la
     /// apertura.
     private var userNavigated = false
@@ -131,8 +137,12 @@ final class CyclocrossAgendaModel {
     private var filteredRaces: [CxRace] {
         tournamentId == nil ? seasonRaces.filter { CyclocrossPresentation.matchesFilter($0, filter: filter) } : seasonRaces
     }
-    /// Carreras del día mostrado con el filtro activo.
-    var dayRaces: [CxRace] { CyclocrossLogic.races(on: dateKey, races: filteredRaces, featured: featured) }
+    /// Carreras del día mostrado con el filtro y el orden activos.
+    var dayRaces: [CxRace] {
+        guard sort != .category else { return CyclocrossLogic.races(on: dateKey, races: filteredRaces, featured: featured) }
+        return CyclocrossPresentation.agendaRaces(on: dateKey, races: filteredRaces, featured: featured, sort: sort,
+                                                  allowedGroups: RegionService.shared.allowedBroadcastGroups)
+    }
     var nextDayWithRaces: String? { raceDays.first { $0 > dateKey } }
     var firstDay: String? { CyclocrossLogic.seasonBounds(season)?.first }
     var lastDay: String? { CyclocrossLogic.seasonBounds(season)?.last }
@@ -224,6 +234,9 @@ final class CyclocrossAgendaModel {
             guard generation == revision else { return }
             cache[month] = cached
         }
+        // Destacadas de la última lectura: la lista de la caché sale ya en su
+        // orden y la red no la recoloca.
+        featured = await repo.cachedFeaturedRaceIds()
         guard generation == revision else { return }
         // Con la temporada completa en caché la numeración de rondas sale ya
         // completa y el día se pinta con ella; con meses ausentes sería parcial
@@ -261,16 +274,20 @@ final class CyclocrossAgendaModel {
 
     /// Apertura de Hoy. Primero la caché local (índice y día de apertura); la
     /// red trae a la vez el índice, el día, las destacadas y las rondas, y
-    /// después, si la apertura recae en otro día, ese día.
+    /// después, si la apertura recae en otro día, ese día. La primera pintura
+    /// (`hasLoaded`) lleva siempre el día de apertura con su detalle.
     private func openToday(generation: Int) async {
         let selectedSeason = season
+        // Destacadas de la última lectura: el día pintado desde la caché sale
+        // ya en su orden y la red no lo recoloca.
+        featured = await repo.cachedFeaturedRaceIds()
+        guard generation == revision else { return }
         if let cached = await repo.cachedIndex(season: selectedSeason) {
             guard generation == revision else { return }
             index = cached
             rebuild()
             resolveDay()
             if rounds.isEmpty { rounds = localRounds() }
-            hasLoaded = true
         }
         if let cachedDay = await repo.cachedDay(season: selectedSeason, dateKey: dateKey) {
             guard generation == revision else { return }
@@ -278,6 +295,10 @@ final class CyclocrossAgendaModel {
             rebuild()
         }
         guard generation == revision else { return }
+        // La caché se pinta solo completa: índice y detalle del día de
+        // apertura. Con el índice solo, las tarjetas saldrían sin documentos,
+        // emisiones ni dorsales y cambiarían al llegar el detalle.
+        if index != nil, dayDetails[dateKey] != nil { hasLoaded = true }
         do {
             let requested = dateKey
             let outcome = try await downloadToday(day: requested, includeIndex: true, forceRounds: false)
@@ -285,8 +306,15 @@ final class CyclocrossAgendaModel {
             if index == nil, dayDetails.isEmpty, let failure = outcome.failure { self.error = failure.localizedDescription }
             rebuild()
             resolveDay()
+            // Sin pintura previa, el día de apertura que fija el índice de red
+            // (hoy sin carreras) se pinta ya con su detalle.
+            let painted = hasLoaded
+            if !painted, dateKey != requested {
+                await loadDay(dateKey, generation: generation)
+                guard generation == revision else { return }
+            }
             hasLoaded = index != nil || dayDetails[requested] != nil
-            if dateKey != requested { await loadDay(dateKey, generation: generation) }
+            if painted, dateKey != requested { await loadDay(dateKey, generation: generation) }
         } catch {
             guard !Task.isCancelled, !(error is CancellationError) else { return }
             if generation == revision { self.error = error.localizedDescription }
@@ -397,15 +425,19 @@ final class CyclocrossAgendaModel {
         let repo = self.repo
         async let featuredValue = repo.featuredRaceIds()
         async let roundsValue = repo.rounds(season: selectedSeason, force: forceRounds)
+        // Cada tarea devuelve solo su resultado y el mes se empareja por
+        // posición: con la optimización de Release, el `CxMonth` devuelto en
+        // una tupla desde `Task` llegaba como 0000-00 y la caché nunca se
+        // actualizaba hasta relanzar la app.
         let tasks = targets.map { month in
-            Task { @MainActor () -> (CxMonth, Result<CxCached<[CxRace]>, Error>) in
-                do { return (month, .success(try await repo.month(season: selectedSeason, month: month))) }
-                catch { return (month, .failure(error)) }
+            Task { @MainActor () -> Result<CxCached<[CxRace]>, Error> in
+                do { return .success(try await repo.month(season: selectedSeason, month: month)) }
+                catch { return .failure(error) }
             }
         }
         let outcomes = await withTaskCancellationHandler {
             var values: [(CxMonth, Result<CxCached<[CxRace]>, Error>)] = []
-            for task in tasks { values.append(await task.value) }
+            for (month, task) in zip(targets, tasks) { values.append((month, await task.value)) }
             return values
         } onCancel: {
             tasks.forEach { $0.cancel() }
@@ -577,8 +609,9 @@ final class CxResultsFeedModel {
 
     /// Primera carga (caché y después red). Un cambio de temporada la repite.
     /// Carreras, destacadas y numeración de rondas se publican juntas: la
-    /// primera lista sale de la caché con la numeración calculada de ella y la
-    /// respuesta de red las sustituye en un solo paso.
+    /// primera lista sale de la caché con la última lectura de destacadas y la
+    /// numeración calculada de ella, y la respuesta de red las sustituye en un
+    /// solo paso.
     func load() async {
         let current = Self.season(of: today)
         if hasLoaded, current == season { return }
@@ -597,6 +630,8 @@ final class CxResultsFeedModel {
             guard generation == revision else { return }
             cache[month] = cached.data
         }
+        featured = await repo.cachedFeaturedRaceIds()
+        guard generation == revision else { return }
         // Con la temporada completa en caché la numeración sale ya completa;
         // con meses ausentes sería parcial y se espera a la red.
         if cache.count == months.count {
@@ -644,16 +679,18 @@ final class CxResultsFeedModel {
         let repo = self.repo
         async let featuredValue = repo.featuredRaceIds()
         async let roundsValue = repo.rounds(season: selectedSeason, force: forceRounds)
+        // Mes emparejado por posición, como en `download`: la tupla devuelta
+        // desde `Task` perdía el mes en Release.
         let tasks = targets.map { month in
-            Task { @MainActor () -> (CxMonth, Result<[CxRace], Error>) in
-                do { return (month, .success(try await repo.month(season: selectedSeason, month: month).data)) }
-                catch { return (month, .failure(error)) }
+            Task { @MainActor () -> Result<[CxRace], Error> in
+                do { return .success(try await repo.month(season: selectedSeason, month: month).data) }
+                catch { return .failure(error) }
             }
         }
         var failure: Error?
         let outcomes = await withTaskCancellationHandler {
             var values: [(CxMonth, Result<[CxRace], Error>)] = []
-            for task in tasks { values.append(await task.value) }
+            for (month, task) in zip(targets, tasks) { values.append((month, await task.value)) }
             return values
         } onCancel: {
             tasks.forEach { $0.cancel() }

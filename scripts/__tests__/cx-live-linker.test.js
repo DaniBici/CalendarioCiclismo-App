@@ -61,5 +61,6 @@ describe('nameSignal', () => {
     expect(nameSignal({ name: 'Cyclocross internacional de Namur' }, 'GP Osteffe')).toBe(false);
     expect(nameSignal({ name: 'Cyclocross internacional de Namur' }, 'Citadelcross Namur')).toBe(true);
     expect(nameSignal({ name: 'Dun & Brad Street' }, 'D&B')).toBe(false);
+    expect(nameSignal({ name: 'Vlaamse Druivencross', venue: 'Overijse' }, 'Telenet Superprestige Overijse')).toBe(true);
   });
 });

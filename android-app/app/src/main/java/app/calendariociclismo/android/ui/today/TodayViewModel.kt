@@ -13,7 +13,6 @@ import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.TodayRefreshPolicy
-import app.calendariociclismo.android.util.TodaySeason
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,7 +77,7 @@ class TodayViewModel(
     }
 
     data class State(
-        val dateKey: String = TodaySeason.clamp(DateFormatting.todayKey()),
+        val dateKey: String = DateFormatting.todayKey(),
         val isLoading: Boolean = false,
         val isRefreshing: Boolean = false,
         val refreshToken: Int = 0,
@@ -131,8 +130,7 @@ class TodayViewModel(
     val isChampWeekLock: Boolean
         get() = ChampionshipsConfig.isChampWeekFilterLock(_state.value.dateKey)
 
-    fun setDate(requestedDate: String) {
-        val dateKey = TodaySeason.clamp(requestedDate)
+    fun setDate(dateKey: String) {
         _state.value = _state.value.copy(
             dateKey = dateKey, data = null, nextRaceDate = null, category = resolvedCategory(dateKey),
         )
@@ -164,9 +162,7 @@ class TodayViewModel(
      * deja el refresh de red en background. Sin caché cae al comportamiento de
      * `setDate` (pantalla de carga durante la entrada).
      */
-    suspend fun navigateTo(requestedTarget: String) {
-        // Ninguna ruta de navegación supera el último día de temporada.
-        val target = TodaySeason.clamp(requestedTarget)
+    suspend fun navigateTo(target: String) {
         val category = resolvedCategory(target)
         val prepared = withTimeoutOrNull(NAVIGATION_CACHE_TIMEOUT) {
             runCatching { repo.cachedDayData(target) }.getOrNull()
@@ -185,17 +181,12 @@ class TodayViewModel(
         val current = _state.value.dateKey
         val filter = _state.value.category
         val next = nextDayMatchingFilter(current, filter)
-            ?: DateFormatting.nextDay(current)?.takeIf { TodaySeason.contains(it) }
+            ?: DateFormatting.nextDay(current)
         next?.let { navigateTo(it) }
     }
 
-    /** Día al que lleva «Hoy»: la fecha actual o, tras el cierre de temporada,
-     *  el último día navegable. */
-    fun currentDayKey(): String = TodaySeason.clamp(DateFormatting.todayKey())
-
-    /** False en el último día de temporada: no hay día siguiente navegable. */
-    fun canGoToNextDay(dateKey: String): Boolean =
-        DateFormatting.nextDay(dateKey)?.let { TodaySeason.contains(it) } ?: false
+    /** Día al que lleva «Hoy»: la fecha actual. */
+    fun currentDayKey(): String = DateFormatting.todayKey()
 
     suspend fun navigateToPreviousDay() {
         val current = _state.value.dateKey
@@ -211,7 +202,7 @@ class TodayViewModel(
     // Última fecha local que se mostró COMO "hoy". Distingue "el usuario está en
     // hoy y ha cruzado la medianoche local" (→ auto-avanzar) de "navegó a otro día
     // a mano" (→ no tocar). Se sincroniza cuando el día mostrado es hoy.
-    private var lastTodayKey: String = TodaySeason.clamp(DateFormatting.todayKey())
+    private var lastTodayKey: String = DateFormatting.todayKey()
 
     // Auto-avance de medianoche: si el día mostrado seguía siendo el "hoy" anterior
     // y la fecha local ya cambió, salta al nuevo hoy. Si el usuario navegó a otro
@@ -411,8 +402,7 @@ class TodayViewModel(
 
     // ── Navegación filter-aware ────────────────────────────────
 
-    /** Siguiente día con carreras que coincidan con el filtro (escanea hasta 180
-     *  días, sin pasar del último día de temporada). */
+    /** Siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
     private fun nextDayMatchingFilter(
         afterDateKey: String,
         filter: Constants.CategoryFilter,
@@ -420,7 +410,7 @@ class TodayViewModel(
         if (_allRaces.isEmpty()) return null
         var candidate = afterDateKey
         repeat(180) {
-            val next = DateFormatting.nextDay(candidate)?.takeIf { TodaySeason.contains(it) } ?: return null
+            val next = DateFormatting.nextDay(candidate) ?: return null
             candidate = next
             if (hasMatchingRaces(candidate, filter)) return candidate
         }
@@ -456,8 +446,7 @@ class TodayViewModel(
     private fun prefetchNearbyDays(anchor: String, filter: Constants.CategoryFilter) {
         val neighbors = listOfNotNull(
             previousDayMatchingFilter(anchor, filter) ?: DateFormatting.previousDay(anchor),
-            nextDayMatchingFilter(anchor, filter)
-                ?: DateFormatting.nextDay(anchor)?.takeIf { TodaySeason.contains(it) },
+            nextDayMatchingFilter(anchor, filter) ?: DateFormatting.nextDay(anchor),
         ).distinct()
         if (neighbors.isEmpty()) return
         viewModelScope.launch {

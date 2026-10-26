@@ -17,6 +17,13 @@
 //  .loading dentro (la página pintó contenido, vacío o error), se desvanece.
 //  Fallback duro a los 12 s por si una petición muere sin repintar.
 //
+//  Esperas explícitas: la página cuyo contenido no cuelga de ese contenedor
+//  (la home de Ciclocross sustituye #raceList por la agenda) o que monta piezas
+//  fuera de él (cintillo) registra sus promesas con
+//  window.ccPageLoading?.waitFor(promise). Con alguna registrada, el overlay
+//  espera a que se resuelvan todas y después a la carga completa: imágenes y
+//  fuentes que pide el contenido ya pintado (mediaSettled).
+//
 //  Las pantallas de ciclocross no llevan perfil: el recorrido altimétrico es de
 //  carretera. Solo muestran el rótulo y «Cargando…» (isCyclocrossPage).
 //
@@ -26,7 +33,7 @@
 //  volcar elevationProfile.points como [km, alt] + distance/min/max/caption.
 // ─────────────────────────────────────────────────────────────────
 
-import { cyclocrossHome } from './services/today-season.js';
+import { cyclocrossLanding } from './services/today-season.js';
 
 const PROFILES = [
   { caption: "Feltre → Alleghe · Giro 2026 · 150,8 km · 5.000 m+",
@@ -72,7 +79,7 @@ function isEnglish() {
 }
 
 // Ciclocross: sus rutas y, tras el cierre de la temporada de carretera, la home
-// sin `?date=` (que pinta la agenda de Ciclocross).
+// sin `?date=` (que pinta la agenda de Ciclocross salvo con Carretera fijada).
 function isCyclocrossPage() {
   const { pathname: p, search } = window.location;
   if (p.startsWith('/ciclocross') || p.startsWith('/en/cyclocross')) return true;
@@ -80,7 +87,7 @@ function isCyclocrossPage() {
   if (new URLSearchParams(search).has('date')) return false;
   const now = new Date();
   const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return cyclocrossHome(key);
+  return cyclocrossLanding(key);
 }
 
 function profilePathD(prof) {
@@ -158,10 +165,11 @@ function startAnimation(overlay) {
     const e = ease(t);
     line.style.strokeDashoffset = String(len * (1 - e));
     // Coords del viewBox → % del wrap (el SVG va estirado con
-    // preserveAspectRatio="none", por eso el punto vive en HTML).
+    // preserveAspectRatio="none", por eso el punto vive en HTML). El span mide
+    // lo mismo que el wrap: el % de translate es el del wrap, y transform no
+    // cuenta como desplazamiento en el CLS.
     const pt = line.getPointAtLength(len * e);
-    rider.style.left = `${((pt.x / PROF_W) * 100).toFixed(2)}%`;
-    rider.style.top  = `${((pt.y / PROF_H) * 100).toFixed(2)}%`;
+    rider.style.transform = `translate(${((pt.x / PROF_W) * 100).toFixed(2)}%, ${((pt.y / PROF_H) * 100).toFixed(2)}%)`;
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -173,6 +181,33 @@ function startAnimation(overlay) {
 // inscritos/competición/equipo/corredor/resultados ×2 idiomas), cuyo main
 // trae contenido SEO estático que el JS de página reemplaza al hidratar.
 const MARKER_SEL = '.loading, .pfe-loading, .static-prerender';
+
+function inViewport(el) {
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+}
+
+// Carga completa: imágenes pendientes (las diferidas, solo a la vista) y
+// fuentes que pide el contenido pintado. Repite hasta que no quede nada: un
+// `onerror` que cambia de `src` (logos de ciclocross: carrera → torneo) se
+// espera en la pasada siguiente. El tope es MAX_SHOW_MS.
+async function mediaSettled() {
+  for (;;) {
+    // El layout lanza la descarga de las fuentes que cubren el texto nuevo
+    // (unicode-range); sin él, document.fonts aún no las tiene en cola.
+    void document.body.offsetHeight;
+    const images = [...document.images].filter(img => !img.complete && (img.loading !== 'lazy' || inViewport(img)));
+    const fontsLoading = document.fonts?.status === 'loading';
+    if (!images.length && !fontsLoading) return;
+    await Promise.all([
+      fontsLoading ? document.fonts.ready : null,
+      ...images.map(img => new Promise(resolve => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      })),
+    ]);
+  }
+}
 
 function initPageLoading() {
   // Cortina anti-flash puesta por theme.js antes del primer paint: retirarla
@@ -187,6 +222,8 @@ function initPageLoading() {
   if (!container) { reveal(); return; }
 
   let stopAnim = null, maxTimer = 0, done = false, shownAt = null;
+  let contentReady = false, holds = false, settling = false;
+  const pending = new Set();
 
   const overlay = buildOverlay();
   document.body.appendChild(overlay);
@@ -211,6 +248,30 @@ function initPageLoading() {
     }, wait);
   };
 
+  // Cae con el contenedor reposado y sin esperas pendientes; si hubo esperas,
+  // tras la carga completa. Una espera o mutación nueva durante mediaSettled
+  // aplaza el cierre hasta que vuelva a cumplirse todo.
+  const tryFinish = async () => {
+    if (done || !contentReady || pending.size || settling) return;
+    if (holds) {
+      settling = true;
+      await mediaSettled();
+      settling = false;
+      if (!contentReady || pending.size) return;
+    }
+    finish();
+  };
+
+  window.ccPageLoading = {
+    waitFor(promise) {
+      if (done) return;
+      holds = true;
+      const hold = Promise.resolve(promise).catch(() => {});
+      pending.add(hold);
+      hold.then(() => { pending.delete(hold); tryFinish(); });
+    },
+  };
+
   // El contenido llegó cuando el contenedor ya no alberga ningún marcador
   // (las páginas repintan con innerHTML; también cubre estados vacío/error).
   // ⚠️ No vale el primer instante sin marcador: la home limpia el listado
@@ -221,8 +282,9 @@ function initPageLoading() {
   let settleTimer = 0;
   const observer = new MutationObserver(() => {
     clearTimeout(settleTimer);
+    contentReady = false;
     if (!container.querySelector(MARKER_SEL)) {
-      settleTimer = setTimeout(finish, SETTLE_MS);
+      settleTimer = setTimeout(() => { contentReady = true; tryFinish(); }, SETTLE_MS);
     }
   });
   observer.observe(container, { childList: true, subtree: true });

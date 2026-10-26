@@ -2,10 +2,11 @@
 //  HOME — index.html y en/index.html
 //  Hoy de carretera (js/app.js) o, tras el cierre de la temporada de carretera
 //  (services/today-season.js), la agenda de Ciclocross (js/ciclocross.js) en
-//  la misma URL. Título, canonical y texto estático de la home no cambian.
-//  Las URLs de días de carretera (`?date=`) abren siempre Hoy.
+//  la misma URL, salvo con Carretera fijada en el conmutador. Título,
+//  canonical y texto estático de la home no cambian. Las URLs de días de
+//  carretera (`?date=`) abren siempre Hoy.
 // ─────────────────────────────────────────────────────────────────
-import { cyclocrossHome } from './services/today-season.js';
+import { cyclocrossLanding } from './services/today-season.js';
 
 const now = new Date();
 const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -39,5 +40,11 @@ async function mountCyclocross() {
   await import('./ciclocross.js');
 }
 
-if (cyclocrossHome(todayKey) && !new URLSearchParams(location.search).has('date')) await mountCyclocross();
-else await import('./app.js');
+// La agenda sustituye a #raceList, el contenedor que vigila la pantalla de
+// carga (js/page-loading.js): se le pasa el montaje, que termina con el primer
+// día pintado (ciclocross.js resuelve tras su apertura).
+if (cyclocrossLanding(todayKey) && !new URLSearchParams(location.search).has('date')) {
+  const mounted = mountCyclocross();
+  window.ccPageLoading?.waitFor(mounted);
+  await mounted;
+} else await import('./app.js');
