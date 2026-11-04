@@ -74,17 +74,18 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
-  font-size: var(--fs-3);
-  font-weight: 700;
-  color: var(--text-muted);
-  background: var(--bg-card);
-  border-radius: var(--radius-pill);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
   text-decoration: none;
-  transition: color var(--transition), background var(--transition);
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
 }
 /* Etapas y categorías: mismo aspecto que los filtros de Hoy. */
-.res-stage-btn:hover { color: var(--text); background: var(--bg-card-hover); }
-.res-stage-btn--active, .res-stage-btn--active:hover { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
+.res-stage-btn:hover { background: var(--hover-bg); border-color: var(--text); }
+.res-stage-btn--active, .res-stage-btn--active:hover { color: var(--selected-text); background: var(--selected-bg); border-color: var(--selected-border); }
 
 /* Pestañas de clasificación y filtro por equipo. El carril exterior pinta el
    fondo a sangre (la fila interior está acotada y centrada); queda fijo bajo la
@@ -132,7 +133,7 @@
 .res-tabs__status:empty { display: none; }
 .res-tab {
   position: relative;
-  padding: 12px 10px;
+  padding: 10px 12px;
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -160,28 +161,29 @@
 /* Activa como el menú principal: texto y subrayado de acento, sin fondo. */
 .res-tab--active {
   color: var(--text);
-  border-bottom: 2px solid var(--accent-text);
+  border-bottom: 2px solid var(--text);
   font-weight: 700;
 }
 /* Filtro por equipo: mismo desplegable que .agenda-sort-select. */
 .res-teamfilter__select {
-  min-height: 36px;
+  min-height: 24px;
   max-width: 100%;
-  padding: 7px 30px 7px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  font: 600 var(--fs-3) var(--font-body);
+  padding: 0 30px 0 0.9rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  font: 600 var(--fs-2) var(--font-body);
   color: var(--text);
   text-overflow: ellipsis;
-  background-color: var(--bg-card);
+  background-color: transparent;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.65rem center;
   cursor: pointer;
   appearance: none;
+  transition: background-color var(--transition), border-color var(--transition);
 }
-.res-teamfilter__select:hover { color: var(--accent-text); }
+.res-teamfilter__select:hover { background-color: var(--hover-bg); border-color: var(--text); }
+.res-teamfilter__select option { background: var(--bg-card); color: var(--text); }
 
 /* Avisos de la clasificación. Etapa cancelada: la pestaña «Etapa» no tiene
    tabla; mismo lenguaje que el aviso de la jornada. */
@@ -267,21 +269,16 @@
 .res-table {
   min-width: 18rem;
   background: var(--bg-card);
-  color: #f2f3f5;
+  color: var(--text);
   box-shadow: var(--card-shadow);
   font-variant-numeric: tabular-nums;
-  /* Secundario más claro que el general para la lectura de filas densas. */
-  --text: #f2f3f5;
-  --text-muted: #c4c7cd;
 }
-html.light .res-table {
-  background: #fff;
-  color: #202124;
-  --text: #202124;
-  --text-muted: #5f6368;
-}
-.res-table .so-th { padding: 0.34rem 0.55rem; }
-.res-table .so-td { padding: 4px 0.55rem; }
+.res-table .so-th { padding: 0.3rem 0.55rem; background: var(--bg-tint); font-size: var(--fs-1); }
+.res-table .so-td { height: 32px; padding: 2px 0.55rem; }
+/* Filetes finos entre columnas y entre filas. */
+.res-table .so-th + .so-th, .res-table .so-td + .so-td { border-left: 1px solid var(--border); }
+.res-table .so-row { border-bottom: 1px solid var(--border); }
+.res-table tbody .so-row:last-child { border-bottom: 0; }
 /* La fila de columnas se fija bajo las pestañas de clasificación. */
 .res-table thead .so-th {
   position: sticky;
@@ -289,10 +286,9 @@ html.light .res-table {
      arriba y dejaría una rendija por la que asoman las filas. */
   top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--res-tabs-h, 0px) - 1px);
   z-index: 20;
-  background: var(--bg-card);
-  box-shadow: 0 1px 0 var(--border);
+  background: var(--bg-tint);
+  box-shadow: 0 1px 0 var(--border-strong);
 }
-html.light .res-table thead .so-th { background: #fff; }
 .res-th--rank { width: 2.25rem; text-align: center; }
 .res-th--rider { min-width: 10rem; }
 .res-th--team { min-width: 8rem; color: var(--text-muted); }
@@ -348,7 +344,7 @@ html.light .res-table thead .so-th { background: #fff; }
 /* Contrarreloj por equipos: fila por equipo desplegable y subfilas de
    corredores ligeramente hundidas. */
 .res-team-row { cursor: pointer; }
-.res-team-row:hover { background: var(--accent-dim); }
+.res-team-row:hover { background: var(--bg-card-hover); }
 .res-team-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .res-table--ttt .res-td--rider { font-weight: 600; }
 .res-table--ttt .res-th--rider { min-width: 12rem; }
@@ -397,7 +393,7 @@ html.light .res-table thead .so-th { background: #fff; }
   width: var(--page-width);
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 1.4rem 0 0.4rem;
+  padding: 1rem 0 0;
 }
 .feed-view-tabs {
   display: flex;
@@ -405,50 +401,74 @@ html.light .res-table thead .so-th { background: #fff; }
   gap: 0.4rem;
   margin-top: 0.65rem;
 }
-/* Las dos vistas hacen de título de la página: texto a tamaño de título, la
-   activa con el subrayado del menú principal y la otra en gris. */
-.feed-hero > .feed-view-tabs { gap: 1.5rem; margin-top: 0; }
 /* Con Ciclocross, Carretera y Ránking UCI, las vistas forman el conmutador de
    Hoy (`.discipline-switch`, css/app.css). */
-.feed-hero > .feed-view-switch { margin-bottom: 0.4rem; }
+/* Con el conmutador (Ciclocross abierto), las vistas conservan el tamaño de las
+   pestañas de Figma: una sola caja segmentada, la activa tintada. */
+.feed-hero > .feed-view-switch { display: flex; width: max-content; max-width: 100%; min-height: 44px; margin: 0 auto 0.4rem; }
+.feed-hero > .feed-view-switch .discipline-switch__option { flex: 1 1 0; justify-content: center; gap: 0.3rem; min-width: 0; padding: 0 0.5rem; font: 600 var(--fs-3) var(--font-display); }
+.feed-hero > .feed-view-switch .discipline-switch__select { font: inherit; color: inherit; }
+/* Móvil: cada opción mide lo que su texto («Ránking» no se sale de la caja). */
+@media (max-width: 760px) {
+  .feed-hero > .feed-view-switch .discipline-switch__option { flex: 1 0 auto; padding: 0 0.85rem; }
+}
+.feed-hero > .feed-view-switch .discipline-switch__option--active,
+.feed-hero > .feed-view-switch .discipline-switch__option--active:hover { background: var(--bg-tint); color: var(--text); }
+@media (min-width: 761px) {
+  .feed-hero > .feed-view-switch { min-height: 48px; }
+  .feed-hero > .feed-view-switch .discipline-switch__option { flex: 0 0 182px; font-size: var(--fs-5); }
+}
 /* Mientras carga, el panel conserva la altura de la pantalla: el pie no sube. */
 #resultsFeedPanel:has(> .loading) { min-height: calc(100svh - 200px); }
-.feed-hero > .feed-view-tabs .feed-view-tab,
-.feed-hero > .feed-view-tabs .feed-view-tab:hover {
-  position: relative;
-  padding: 0.2rem 0 0.45rem;
-  border-radius: 0;
+/* Las dos vistas hacen de título de la página: pestañas segmentadas, la
+   activa en una caja con contorno y fondo tintado. */
+.feed-hero > .feed-view-tabs { justify-content: center; gap: 0.5rem; margin-top: 0; }
+.feed-hero > .feed-view-tabs .feed-view-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-muted);
-  font: 700 var(--fs-5)/1.25 var(--font-display);
+  color: var(--text);
+  font: 600 var(--fs-4)/1.25 var(--font-display);
+  white-space: nowrap;
 }
-.feed-hero > .feed-view-tabs .feed-view-tab:hover { color: var(--text); }
-.feed-hero > .feed-view-tabs .feed-view-tab--active { color: var(--text); }
-.feed-hero > .feed-view-tabs .feed-view-tab--active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  background: var(--accent-text);
+.feed-hero > .feed-view-tabs .feed-view-tab:hover { background: var(--hover-bg); }
+.feed-hero > .feed-view-tabs .feed-view-tab--active,
+.feed-hero > .feed-view-tabs .feed-view-tab--active:hover {
+  border-color: var(--control-border);
+  background: var(--bg-tint);
+  color: var(--text);
 }
+@media (min-width: 761px) {
+  /* Figma: cajas de 182×48 separadas 16 px. */
+  .feed-hero > .feed-view-tabs { gap: 1rem; }
+  .feed-hero > .feed-view-tabs .feed-view-tab { width: 182px; min-height: 48px; padding: 0 0.5rem; font-size: var(--fs-5); }
+}
+@media (max-width: 600px) {
+  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) { flex-wrap: nowrap; gap: 0.25rem; }
+  .feed-hero > .feed-view-tabs:has(> .feed-view-tab:nth-child(3)) .feed-view-tab { flex: 1 1 0; min-width: 0; padding: 0 0.4rem; font-size: var(--fs-3); }
+}
+/* Resto de selectores de vista (género del ránking): como los filtros de Hoy. */
 .feed-view-tab {
-  padding: 0.32rem 0.8rem;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--bg-card);
-  color: var(--text-muted);
-  font: 500 var(--fs-2)/1.3 var(--font-body);
+  min-height: 24px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--fs-2)/1.3 var(--font-body);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
-/* Mismo aspecto que los filtros de Hoy y las divisiones de Fichajes. */
-.feed-view-tab:hover { color: var(--text); background: var(--bg-card-hover); }
+.feed-view-tab:hover { background: var(--hover-bg); border-color: var(--text); }
 .feed-view-tab--active, .feed-view-tab--active:hover {
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
-  color: var(--accent-text, var(--accent));
-  font-weight: 700;
+  background: var(--selected-bg);
+  border-color: var(--selected-border);
+  color: var(--selected-text);
 }
 .feed-day {
   width: var(--page-width);
@@ -457,27 +477,27 @@ html.light .res-table thead .so-th { background: #fff; }
 }
 .feed-day__hdr {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--fs-2);
-  color: var(--text-muted);
-  margin: 1.1rem 0 0.3rem;
+  font-weight: 500;
+  font-size: var(--fs-5);
+  line-height: 1.4;
+  color: var(--text);
+  margin: 1rem 0 0.25rem;
 }
-/* Bajo las pestañas-título, el primer día queda a la misma distancia que los
-   botones de género del ránking. */
-#resultsFeedPanel > .feed-day:first-child > .feed-day__hdr { margin-top: 0.35rem; }
+/* Bajo las pestañas-título (Figma: 42 px). */
+#resultsFeedPanel > .feed-day:first-child > .feed-day__hdr { margin-top: 42px; }
 /* Filas con la superficie neutra de las tarjetas de Hoy. */
 .feed-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 0.8rem;
-  margin: 0.35rem 0;
+  margin: 0 0 0.5rem;
   background: var(--bg-card);
   box-shadow: var(--card-shadow);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   text-decoration: none;
   color: var(--text);
-  transition: background 0.12s ease;
+  transition: background var(--transition);
 }
 .feed-row:hover { background: var(--bg-card-hover); }
 button.feed-row {
@@ -498,14 +518,16 @@ button.feed-row {
 }
 .feed-row__winner {
   display: block;
-  font-size: var(--fs-2);
+  font-size: var(--fs-4);
   color: var(--text);
   margin-top: 0.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.feed-row__winner strong { font-weight: 650; }
+.feed-row__winner strong { font-weight: 600; }
+/* Equipo del ganador y de cada líder, entre paréntesis y en gris (Figma). */
+.feed-row__team { font-weight: 400; color: var(--text-muted); }
 .feed-row__flag { display: inline-flex; flex-shrink: 0; width: 1.4em; }
 .feed-row__flag img {
   width: 1.25em;
@@ -513,7 +535,8 @@ button.feed-row {
   display: block;
   border-radius: var(--radius-sm);
 }
-/* Columna de 32px aunque no haya logo; la bandera, centrada debajo. */
+/* Columna de 32px aunque no haya logo (64px desde 761); categoría UCI y
+   bandera, centradas debajo. */
 .feed-row__logo {
   display: flex;
   flex-direction: column;
@@ -523,6 +546,16 @@ button.feed-row {
   flex-shrink: 0;
 }
 .feed-row__logo .feed-row__flag { width: auto; }
+/* Categoría UCI bajo el logo (solo con la columna de 64px). */
+.feed-row__cat {
+  display: none;
+  max-width: 100%;
+  font-size: var(--fs-1);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text);
+  white-space: nowrap;
+}
 .feed-row__main {
   display: flex;
   flex-direction: column;
@@ -532,15 +565,17 @@ button.feed-row {
 /* Nombre completo: pasa a una segunda línea en lugar de cortarse, para que
    «sub23 masculino» y «sub23 femenino» se distingan. */
 .feed-row__race {
-  font-weight: 500;
+  font-weight: 700;
   font-size: var(--fs-4);
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
 .feed-day>.feed-row .feed-row__race { position: relative; }
 .feed-row__fem { font-size: 0.75em; opacity: 0.7; font-weight: 400; }
+/* «Etapa X» tras el nombre, en peso normal. */
+.feed-row__stage { font-weight: 400; }
 .feed-row__sub {
-  font-size: var(--fs-2);
+  font-size: var(--fs-1);
   color: var(--text-muted);
   margin-top: 0.05rem;
   overflow: hidden;
@@ -572,19 +607,49 @@ button.feed-row {
 /* Contorno interior tenue: una clasificación de maillot blanco (jóvenes) no
    desaparece sobre la tarjeta blanca del tema claro. */
 .feed-row__leader-dot {
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent);
 }
-.feed-row__leader-label { font-weight: 600; color: var(--text-muted); flex: none; }
+.feed-row__leader-label {
+  flex: none;
+  font-weight: 600;
+  /* Etiqueta del color de su punto (--leader-color) mezclado con el texto para
+     mantener el contraste en ambos temas; sin color, del texto. */
+  color: color-mix(in srgb, var(--leader-color, var(--text)) 70%, var(--text));
+}
+.feed-row__leader-dot--none { visibility: hidden; }
+.feed-row:not(.feed-row--cx) .feed-row__leader-label { min-width: 5.5em; }
 .feed-row__leader-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Tarjeta de ciclocross (Figma): código de categoría en mini-badge con
+   contorno, ganador en semibold y equipo en gris; filas de 16 px bajo la regla.
+   El subtítulo (torneo · manga · sede) sube a --fs-2. */
+.feed-row--cx .feed-row__sub { font-size: var(--fs-2); }
+/* Ganadores en filas de 20 px separadas 4 px; el código en una columna de
+   ancho fijo para que todos los nombres empiecen a la misma altura. */
+.feed-row--cx .feed-row__leaders { gap: 4px; padding-top: 10px; }
+.feed-row--cx .feed-row__leader { gap: 10px; font-size: var(--fs-2); line-height: 20px; }
+.feed-row__cx-code {
+  flex: none;
+  box-sizing: border-box;
+  width: 32px;
+  padding: 0 2px;
+  border: 1px solid var(--control-border);
+  border-radius: 2px;
+  font-size: var(--fs-1);
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  color: var(--text);
+}
+.feed-row--cx .feed-row__leader-name strong { font-weight: 600; }
 .feed-more-wrap {
   width: var(--page-width);
   max-width: var(--content-max);
@@ -596,15 +661,16 @@ button.feed-row {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: var(--fs-3);
-  color: var(--accent-text);
-  background: var(--accent-dim);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 0.55rem 1.4rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  padding: 0 1.4rem;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
-.feed-more:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.feed-more:hover { background: var(--hover-bg); border-color: var(--text); }
 .feed-more:disabled { cursor: progress; opacity: 0.7; }
 
 /* Ránking UCI de equipos: lista sobre superficie de tarjeta, sin filetes ni
@@ -665,7 +731,6 @@ button.feed-row {
   background: var(--bg-card);
   box-shadow: var(--card-shadow);
 }
-html.light .uci-ranking-table { background: #fff; }
 .uci-ranking-table__head, .uci-ranking-row {
   display: grid;
   grid-template-columns: 2.4rem 1.55rem minmax(0, 1fr) 3.2rem 6.6rem;
@@ -674,6 +739,7 @@ html.light .uci-ranking-table { background: #fff; }
 }
 .uci-ranking-table__head {
   padding: 0.38rem 0.55rem;
+  background: var(--bg-tint);
   box-shadow: 0 1px 0 var(--border);
   color: var(--text-muted);
   font: 700 var(--fs-1)/1.2 var(--font-body);
@@ -686,10 +752,10 @@ html.light .uci-ranking-table { background: #fff; }
   padding: 6px 0.55rem;
   border-bottom: 1px solid var(--border);
   font-size: var(--fs-3);
-  transition: background 0.1s;
+  transition: background var(--transition);
 }
 .uci-ranking-row:last-child { border-bottom: 0; }
-.uci-ranking-row:hover { background: var(--hover-bg); }
+.uci-ranking-row:hover { background: var(--bg-card-hover); }
 .uci-ranking-row--explained { cursor: help; }
 .uci-ranking-row__rank {
   color: var(--text-muted);
@@ -773,7 +839,7 @@ html.light .uci-ranking-table { background: #fff; }
     margin-left: 0;
     text-align: right;
   }
-  .res-teamfilter__select { width: 100%; max-width: 100%; }
+  .res-teamfilter__select { width: 100%; max-width: 100%; min-height: 32px; }
   /* El nombre ocupa una sola línea: uno largo se recorta con puntos suspensivos. */
   .res-table .res-td--rider { display: table-cell; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .res-rider-main { display: inline; overflow: visible; }
@@ -806,7 +872,9 @@ html.light .uci-ranking-table { background: #fff; }
   .res-th--rider, .res-table--ttt .res-th--rider { min-width: 0; }
   .res-table .so-th { padding: 0.34rem 0.35rem; }
   .res-table .so-td { padding-inline: 0.35rem; }
-  .res-th--rank { width: 2rem; }
+  /* Posiciones de tres cifras (100+) caben sin salirse de la celda. */
+  .res-th--rank { width: 2.4rem; }
+  .res-td--rank { font-size: var(--fs-2); }
   .res-th--uci { width: 2.75rem; }
   .res-th--result { width: 4.4rem; }
   .res-td--rider { align-items: center; gap: 0; min-width: 0; }
@@ -858,6 +926,15 @@ html.light .uci-ranking-table { background: #fff; }
   .res-ttt-team-name { overflow: hidden; text-overflow: ellipsis; }
 }
 
+@media (min-width: 761px) {
+  /* Tarjetas del feed: columna de logo de 64px con la categoría UCI y la
+     bandera debajo; título de 20px (28px desde 1100). */
+  .feed-row { gap: 1rem; padding: 1rem 1.25rem; }
+  .feed-row__logo { width: 64px; gap: 0.3rem; }
+  .feed-row__logo .race-logo-img { width: 64px; height: 64px; }
+  .feed-row__cat { display: block; }
+  .feed-row__race { font-size: var(--fs-5); }
+}
 @media (min-width: 961px) {
   /* Dos columnas aunque el día tenga un solo resultado. La destacada ocupa una
      columna y abarca las filas que calcula packFeaturedEntries
@@ -866,10 +943,11 @@ html.light .uci-ranking-table { background: #fff; }
     display: grid;
     grid-template-columns: repeat(2,minmax(0,1fr));
     grid-auto-flow: row dense;
-    gap: 10px;
+    gap: 8px 16px;
   }
   .feed-day>* { grid-column: 1/-1; }
-  .feed-day>.feed-day__hdr { margin-bottom: 0; }
+  /* El hueco de 8 px de la rejilla deja el título a 4 px de la primera tarjeta. */
+  .feed-day>.feed-day__hdr { margin-bottom: -4px; }
   .feed-day>.feed-row { grid-column: auto; margin: 0; }
   /* Ciclocross: dos columnas de mampostería (packCxDays en resultados-feed.js);
      la tarjeta crece con sus categorías y cada columna apila sin huecos. */
@@ -878,17 +956,26 @@ html.light .uci-ranking-table { background: #fff; }
     grid-template-columns: repeat(2,minmax(0,1fr));
     grid-auto-rows: 1px;
     grid-auto-flow: row dense;
-    column-gap: 10px;
+    column-gap: 16px;
   }
   .feed-day__cx-grid>.feed-row { margin: 0; align-self: start; }
+}
+
+@media (min-width: 761px) {
+  /* Ciclocross: relleno de la tarjeta de Figma (32 px arriba, abajo y a la
+     izquierda; 22 px a la derecha, sin flecha). */
+  .feed-row--cx { align-items: flex-start; padding: 1.5rem; column-gap: 1.25rem; }
+}
+@media (min-width: 1100px) {
+  .feed-row__race { font-size: var(--fs-6); }
 }
 
 @media (min-width: 900px) {
   /* La columna lateral (perfil y datos de la jornada) queda a la derecha de la
      clasificación desde 900px, con 280px; a partir de 1100px pasa a 320px. Se
-     fija 16px bajo la barra de navegación al desplazar la clasificación; si no
-     cabe, se desplaza dentro de su caja. CX redefine --res-context-top y el
-     margen (ciclocross.css). */
+     fija 16px bajo la barra de navegación al desplazar la clasificación (si
+     es más alta que la ventana, sigue el desplazamiento de la página). CX
+     redefine --res-context-top y el margen (ciclocross.css). */
   .res-layout--context { grid-template-columns: minmax(0,1fr) 280px; }
   .res-layout--context > .res-context {
     /* Arranca a la altura del selector de equipos: el relleno de .res-tabs. */
@@ -896,35 +983,23 @@ html.light .uci-ranking-table { background: #fff; }
     --res-context-top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + 16px);
     position: sticky;
     top: var(--res-context-top);
-    max-height: calc(100vh - var(--res-context-top) - 16px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
+    align-self: start;
+    /* Deja sitio al aro de los paneles. */
+    padding: 1px;
   }
 }
 
 @media (min-width: 1100px) {
-  /* La ficha de carrera permanece visible; documentos y selector de etapa
-     siguen el flujo, y las pestañas y el thead se fijan debajo de la ficha
-     (--results-race-header-h, medido en resultados.js). La columna lateral
-     también baja bajo la ficha. */
-  #resultsContent > .race-header {
-    position: sticky;
-    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
-    z-index: 60;
-    background: var(--bg);
-    /* Fondo a sangre: sin él, la sombra de la tabla asoma en los márgenes junto
-       al logo y la bandera. */
-    box-shadow: 0 0 0 100vmax var(--bg);
-    clip-path: inset(0 -100vmax);
-  }
+  /* La ficha de carrera vive en la columna lateral (applyRaceLayout): las
+     pestañas y el thead se fijan arriba. --results-race-header-h queda a 0
+     (resultados.js). */
   .res-tabs-bar {
     top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px));
   }
   .res-table thead .so-th {
     top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + var(--res-tabs-h, 0px) - 1px);
   }
-  .res-layout--context { grid-template-columns: minmax(0,1fr) 320px; }
+  .res-layout--context { grid-template-columns: minmax(0,1fr) 320px; column-gap: 2rem; }
   .res-layout--context > .res-context {
     --res-context-top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px) + 16px);
   }
@@ -934,3 +1009,62 @@ html.light .uci-ranking-table { background: #fff; }
   .res-refreshing .res-status-icon { animation: none; }
 }
 
+
+/* ── Ránking UCI con las piezas del rediseño ─────────────────────────
+   Género como conmutador segmentado (el de Ruta/CX), fecha de actualización
+   a la derecha; la explicación de las etiquetas como panel con cabecera
+   tintada (Perfil, Puntos clave) y los niveles con la paleta de las teselas
+   de la ficha de etapa (fondo, borde y texto). */
+.uci-ranking-bar { justify-content: space-between; margin: 0.5rem 0 1rem; }
+.uci-ranking .uci-ranking-gender-tabs {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab {
+  min-height: 36px;
+  margin: 0;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--fs-2)/1 var(--font-body);
+}
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab + .feed-view-tab { border-left: 1px solid var(--control-border); }
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab:hover { background: var(--hover-bg); }
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab--active,
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab--active:hover { background: var(--inverse-bg); color: var(--inverse-text); }
+.uci-ranking .uci-ranking-key { padding: 0; overflow: hidden; }
+.uci-ranking .uci-ranking-key__title {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-tint);
+  font: 600 var(--fs-4)/1.3 var(--font-display);
+}
+.uci-ranking .uci-ranking-key__item { padding: 12px 14px; }
+.uci-ranking .uci-ranking-key__item + .uci-ranking-key__item { margin-top: 0; border-top: 1px solid var(--border); }
+.uci-ranking .uci-ranking-legend__item,
+.uci-ranking .uci-ranking-row .uci-ranking-row__rank { border: 1px solid transparent; }
+.uci-ranking .uci-ranking-legend__item--wt, .uci-ranking .uci-ranking-row--wt .uci-ranking-row__rank { border-color: #4f86d3; background: #d6e6fb; color: #0b3f8c; }
+.uci-ranking .uci-ranking-legend__item--orange, .uci-ranking .uci-ranking-row--orange .uci-ranking-row__rank { border-color: var(--tile-amber-border); background: var(--tile-amber-bg); color: var(--tile-amber-text); }
+.uci-ranking .uci-ranking-legend__item--green, .uci-ranking .uci-ranking-row--green .uci-ranking-row__rank { border-color: #18b400; background: #c9f6c2; color: #1a6410; }
+.uci-ranking .uci-ranking-legend__item--excluded, .uci-ranking .uci-ranking-row--excluded .uci-ranking-row__rank { border-color: #b40000; background: #f6c2c2; color: #8f0000; }
+.uci-ranking .uci-ranking-table { border-radius: var(--radius); overflow: hidden; }
+.uci-ranking .uci-ranking-table__head { padding-block: 0.6rem; border-bottom: 1px solid var(--border-strong); box-shadow: none; }
+.uci-ranking .uci-ranking-row { min-height: 40px; }
+.uci-ranking .uci-ranking-row:hover { background: var(--hover-bg); }
+@media (max-width: 600px) {
+  .uci-ranking .uci-ranking-gender-tabs .feed-view-tab { min-height: 40px; }
+  .uci-ranking-bar { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  /* Nombre del equipo entero (en dos líneas si hace falta) en lugar de
+     recortado: columnas de cifras más justas. */
+  .uci-ranking .uci-ranking-table__head, .uci-ranking .uci-ranking-row { grid-template-columns: 2rem 1.35rem minmax(0, 1fr) 2rem 3.6rem; }
+  .uci-ranking .uci-ranking-row__team { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  .uci-ranking .uci-ranking-row { padding-block: 6px; }
+}

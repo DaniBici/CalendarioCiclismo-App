@@ -22,7 +22,11 @@ import { localizedTeamName } from './services/national-team-name.js';
 import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
 import { flagIconUrl } from './flag-url.js';
-import { esc, buildRaceHero, buildActionButtons, findMatchingTeam, normalizeTeamName, teamLinkUrl, riderLinkUrl, isNoTeamPlaceholderTeam } from './shared.js';
+import { esc, buildRaceHero, buildActionLinks, buildStageTiles, buildRaceTotalTiles, buildRaceFacts, buildRaceBreadcrumb, raceCrumbItems, raceDateKeys,
+         raceLayoutHtml, findMatchingTeam, normalizeTeamName, teamLinkUrl, riderLinkUrl, isNoTeamPlaceholderTeam,
+         raceSideStageList, jornadaUrl } from './shared.js';
+import { fixedDecimal } from './fixed-number.js';
+import { t } from './i18n.js';
 import { IRM_LABELS, isAbandonIrm, isNonWinnerIrm, irmDescription } from './results/uci-irm.js';
 import { sectorSuffixMap, resultStageEntryKey, parseResultStageKey } from './services/races.js';
 
@@ -148,7 +152,7 @@ export function resultsStages({ stagesAll, allRaceDays, requestedKey, requestedS
     if (firstSector) activeKey = firstSector;
   }
   return {
-    racedWithStage, keyForDay, keyForStage, dayByKey, stagesByNum, stageKeys, keyRank, lastRacedDay,
+    racedWithStage, racedDays, keyForDay, keyForStage, dayByKey, stagesByNum, stageKeys, keyRank, lastRacedDay,
     activeKey, missing: !stagesByNum.has(activeKey),
   };
 }
@@ -184,6 +188,36 @@ export function resultsActive(stages, { stagesAll, classificationConfig, allRace
   return { activeStages, activeStageNumber, activeSuffix, inventory, configByKind, activeClass, raceDayId, contextDayId };
 }
 
+// ¿Se muestra la columna lateral (perfil + datos de la jornada)? No en la
+// general final de una vuelta: su tabla ocupa todo el ancho. Las teselas de la
+// jornada de contexto siguen igual. Lo usan resultsPageHtml, el build y el
+// navegador, para que los tres coincidan.
+export function hasResultsContext(race, activeKey, contextDay) {
+  return !!contextDay && !(activeKey === 'final' && race.raceFormat !== 'one_day');
+}
+
+// Lista de etapas de la columna lateral, como en la jornada: cada etapa con
+// resultados enlaza a su clasificación y, si la hay, «Clasificación general ·
+// Final» a la de la carrera; la página actual, marcada.
+function resultsStageListHtml(race, stages, { canonBase, canonSlug, isEn }) {
+  const { racedDays, keyForDay, stagesByNum, dayByKey, activeKey } = stages;
+  const href = key => {
+    const { stageNumber, suffix } = parseResultStageKey(key);
+    const segment = stageSlugSegment(stageNumber, isEn, suffix);
+    return `${canonBase}${encodeURIComponent(canonSlug)}/${segment ? segment + '/' : ''}`;
+  };
+  // Todas las etapas: con clasificación, a la suya; sin ella (aún no se ha
+  // corrido), desactivada. La general final, solo si ya está publicada.
+  const days = racedDays.map(day => {
+    const key = day.stageNumber != null ? keyForDay(day) : null;
+    return { ...day, _stageSuffix: key ? parseResultStageKey(key).suffix : '', _href: key && stagesByNum.has(key) ? href(key) : jornadaUrl(day), _disabled: !(key && stagesByNum.has(key)) };
+  });
+  return raceSideStageList(race, days, {
+    currentId: dayByKey.get(activeKey)?.id ?? null, href: day => day._href, gcCurrent: activeKey === 'final',
+    gcFinal: stages.stageKeys.includes('final'),
+  });
+}
+
 // ── Esqueleto de la página ──────────────────────────────────────────
 export function stageNavigationHtml(keys, activeKey, { canonBase, canonSlug, isEn }) {
   return keys.map(k=> {
@@ -197,6 +231,19 @@ export function stageNavigationHtml(keys, activeKey, { canonBase, canonSlug, isE
 }
 
 /**
+ * Segundos del ganador de la general: el menor tiempo de las filas rank 1 sin
+ * irm de sus clasificaciones GC (null si no hay). Navegador y build lo calculan
+ * con esta misma función sobre las mismas filas.
+ */
+export function gcWinnerSeconds(rows) {
+  const secs = (rows || [])
+    .filter(r => r.rank === 1 && !String(r.irm ?? '').trim())
+    .map(r => timeToSeconds(r.timeText))
+    .filter(s => s > 0);
+  return secs.length ? Math.min(...secs) : null;
+}
+
+/**
  * HTML de #resultsContent con los huecos vacíos: #resStatusSlot,
  * #resTeamFilterSlot, #resPublication, #resTableWrap y la lista de datos de
  * la jornada (stageMetricsHtml). `active`:
@@ -204,27 +251,46 @@ export function stageNavigationHtml(keys, activeKey, { canonBase, canonSlug, isE
  * `contextDay`, la de la columna lateral; `contextAssets` y `actionAssets`,
  * sus documentos con la guía técnica (withRaceTechnicalGuide).
  */
-export function resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn }) {
+export function resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn, gcWinnerSecs = null }) {
   const { activeStages, activeStageNumber, activeSuffix, configByKind, activeClass, raceDayId } = active;
   const isOneDay = race.raceFormat === 'one_day';
   const stageLabel = stagePathLabel(activeStageNumber, isEn, activeSuffix);
-  let html = '';
+  // Datos de la carrera para la columna lateral de escritorio.
+  const { start: raceStart, end: raceEnd } = raceDateKeys(race);
+  const facts = buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, countryCode: race.hideFlag ? '' : race.countryCode });
   // País efectivo: la jornada puede transcurrir en un país distinto al de la
   // carrera (p. ej. una etapa del Tour que sale de Italia) → prevalece el de la
   // jornada. Mismo criterio de ocultar bandera que buildRaceHero. En pruebas de
   // un día la etiqueta "Clasificación final" es redundante (no hay etapas que
   // distinguir) → se omite del subtítulo.
-  html += buildRaceHero(raceDay || {}, race, { stage: isOneDay ? '' : stageLabel });
+  const heroHtml = buildRaceHero(raceDay || {}, race, { stage: isOneDay ? '' : stageLabel, facts });
 
-  // Solo navegación: web oficial + "Ir a la etapa/carrera" (sin inscritos ni
-  // botones de recorrido — en Resultados esos botones se consideran superfluos).
-  html += buildActionButtons({
+  // Barra de pestañas: «Información» · «Resultados» (esta página) · web
+  // oficial · inscritos. La pestaña activa enlaza a la propia dirección.
+  const segment = stageSlugSegment(activeStageNumber, isEn, activeSuffix);
+  const { bar: actionsHtml, side: sideLinksHtml } = buildActionLinks({
     race,
     rd: raceDay || { id: raceDayId, slug: raceDay?.slug, slugEn: raceDay?.slugEn },
     view: 'resultados',
+    resultsUrl: `${canonBase}${encodeURIComponent(canonSlug)}/${segment ? segment + '/' : ''}`,
     assets:actionAssets, hasStartlist:!!race.startlistImportedAt,
     style: 'margin:0 auto 0.85rem', standalone: true,
   });
+
+  // Columna principal (tras la cabecera): botones, teselas de la jornada de
+  // contexto (distancia, desnivel, perfil, final en alto y velocidad media),
+  // selector de etapas y resultados.
+  let html = actionsHtml;
+  // En la general final de una carrera por etapas, las teselas son los totales
+  // de la carrera (no los de la última etapa).
+  if (stages.activeKey === 'final' && !isOneDay) {
+    html += buildRaceTotalTiles(stages.racedDays, { winnerSecs: gcWinnerSecs });
+  } else if (contextDay) {
+    const speed = Number(contextDay.averageSpeedKmh);
+    html += buildStageTiles(contextDay, race, {
+      last: speed > 0 ? { label: t('stage.tileAvgSpeed'), value: `${fixedDecimal(speed, { lang: isEn ? 'en' : 'es', maximumFractionDigits: 2 })} km/h` } : null,
+    });
+  }
 
   html+=`<div class="res-stages cc-rail-shell" id="resStages" ${stages.stageKeys.length<2?'hidden':''}>${arrowHtml('prev',isEn?'Previous stages':'Etapas anteriores','hidden')}<div class="res-stages__inner" id="resStagesInner" data-scroll-rail>${stageNavigationHtml(stages.stageKeys, stages.activeKey, { canonBase, canonSlug, isEn })}</div>${arrowHtml('next',isEn?'Next stages':'Etapas siguientes','hidden')}</div>`;
 
@@ -232,7 +298,8 @@ export function resultsPageHtml({ race, stages, active, raceDay, contextDay, con
   // Las pestañas solo si hay >1 clasificación (un día → 1 sola, sin pestañas).
   // El filtro por equipo (hueco a la derecha) lo rellena la clasificación;
   // la barra se emite si hay pestañas O si la clasif activa es individual.
-  html += `<div class="res-layout${contextDay ? ' res-layout--context' : ''}"><div class="res-main">`;
+  const hasContext = hasResultsContext(race, stages.activeKey, contextDay);
+  html += `<div class="res-layout${hasContext ? ' res-layout--context' : ''}"><div class="res-main">`;
   const hasTabs = activeStages.length > 1;
   const activeIsIndividual = !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
   if (hasTabs || activeIsIndividual) {
@@ -263,13 +330,20 @@ export function resultsPageHtml({ race, stages, active, raceDay, contextDay, con
 
   // Contenedor de la tabla (se rellena con la clasificación).
   html += `<div class="res-publication" id="resPublication" aria-live="polite"></div><div class="res-table-wrap" id="resTableWrap"></div></div>`;
-  if (contextDay) {
+  if (hasContext) {
     // Panel del perfil con el gráfico vacío: mountStageProfile lo dibuja sobre
     // el mismo marcado.
     html += stageContextHtml(contextDay, 'resProfile', { profile: stageProfileHtml(contextDay, race, contextAssets), metrics: false });
   }
   html += '</div>';
-  return html;
+  return raceLayoutHtml({
+    headerHtml: heroHtml,
+    sideLinksHtml,
+    sideExtraHtml: isOneDay ? '' : resultsStageListHtml(race, stages, { canonBase, canonSlug, isEn }),
+    crumbsHtml: buildRaceBreadcrumb(raceCrumbItems(race, { stageText: isOneDay ? '' : stageLabel })),
+    mainHtml: html,
+    facts: !!facts,
+  });
 }
 
 // ── Estado de publicación ───────────────────────────────────────────

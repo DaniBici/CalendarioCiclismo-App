@@ -2,6 +2,7 @@
 //  TEMPORADA — temporada.html
 // ─────────────────────────────────────────────────────────────────
 
+import { LOGO_ONERROR } from './components/logo-placeholder.js';
 import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
          categoryBadge, setMeta, setMetaProperty, initPhTooltip,
          bulkCacheRaces,
@@ -1029,8 +1030,8 @@ function renderRaceRow(race, name = raceName(race)) {
   const inner = `
     <span class="t-race__flag">${flag}</span>
     ${noLogo ? '' : race.logoUrl
-      ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-      : '<span class="t-race__logo-empty"></span>'
+      ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
+      : '<span class="t-race__logo-empty logo-ph" aria-hidden="true"></span>'
     }
     <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
@@ -1083,8 +1084,8 @@ function renderChallengeGroup(cg) {
     <button type="button" class="t-race t-race--challenge${noLogo ? ' t-race--no-logo' : ''}" style="${colorStyle}" data-cgid="${cg.id}" aria-expanded="${expanded}" aria-controls="${panelId}">
       <span class="t-race__flag">${flag}</span>
       ${noLogo ? '' : cg.logoUrl
-        ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-        : '<span class="t-race__logo-empty"></span>'
+        ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
+        : '<span class="t-race__logo-empty logo-ph" aria-hidden="true"></span>'
       }
       <span class="t-race__name t-race__name--group"><span class="t-race__name-text">${displayName}${femaleSuffix}</span>${CHEVRON_SVG}</span>
       <span class="t-race__dates">${dateStr}</span>

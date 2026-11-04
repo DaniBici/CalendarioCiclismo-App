@@ -21,7 +21,7 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
-import { STRINGS, BACK_ICON, BACK_PLACEHOLDER, PRIMARY_ICONS, CX_HOME, headerHtml } from './header-html.js';
+import { STRINGS, BACK_ICON, BACK_PLACEHOLDER, PRIMARY_ICONS, CX_HOME, headerHtml, PRIMARY_NAV_ITEMS, footerBrandHtml } from './header-html.js';
 
 function detectLang() {
   const p = window.location.pathname;
@@ -56,21 +56,47 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Destinos secundarios en el pie de todas las páginas: tras el copyright, en
-// la misma fila que Gestión de cookies (js/cookie-consent.js la completa).
+// Pie del rediseño, montado sobre el de cada página (que conserva su copyright
+// y su enlace de Privacidad): marca, secciones y «Más» (Acerca de mí, Datos
+// abiertos, Calendario iCal en todas las páginas y Gestión de cookies, que
+// js/cookie-consent.js añade a esa misma lista antes o después) y, abajo,
+// autoría y firma del rediseño.
 function buildFooterNav(s) {
   const footer = document.querySelector('.site-footer');
-  if (!footer || footer.querySelector('.footer-link--about')) return;
+  if (!footer || footer.querySelector('.site-footer__top')) return;
   let actions = footer.querySelector('.site-footer__actions');
   if (!actions) {
     actions = document.createElement('p');
     actions.className = 'site-footer__actions';
-    footer.appendChild(actions);
   }
   actions.insertAdjacentHTML('afterbegin',
     `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>`);
+  const copyright = footer.querySelector(':scope > p:not(.site-footer__actions)');
+  const sections = PRIMARY_NAV_ITEMS.map(key =>
+    `<li><a class="footer-link" href="${s[key].href}">${s[key].text}</a></li>`).join('');
+
+  const top = document.createElement('div');
+  top.className = 'site-footer__top';
+  top.innerHTML = footerBrandHtml(s) +
+    `<nav class="site-footer__col" aria-label="${s.footerSections}"><p class="site-footer__heading" aria-hidden="true">${s.footerSections}</p><ul class="site-footer__list">${sections}</ul></nav>` +
+    `<div class="site-footer__col"><p class="site-footer__heading">${s.footerMore}</p></div>`;
+  top.lastElementChild.append(actions);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'site-footer__bottom';
+  if (copyright) { copyright.classList.add('site-footer__legal'); bottom.append(copyright); }
+  // Firma del rediseño: Style Script, como en el pie de su web, a la escala
+  // del resto del texto del pie.
+  bottom.insertAdjacentHTML('beforeend',
+    `<p class="site-footer__design">${s.designText} · <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a></p>`);
+  footer.replaceChildren(top, bottom);
+
+  // Alto del pie para colocarlo siempre bajo el pliegue (css/app.css).
+  const measure = () => document.documentElement.style.setProperty('--site-footer-h', `${footer.offsetHeight}px`);
+  new ResizeObserver(measure).observe(footer);
+  measure();
 }
 
 function buildHeader(el) {

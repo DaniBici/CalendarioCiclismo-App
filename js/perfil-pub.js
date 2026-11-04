@@ -6,6 +6,7 @@ import { supabase, stageLabel,
 import { t, getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 import { perfilHtml, stagePageNoticeHtml } from './perfil-mapa-html.js';
 import { PERFIL_DAY_COLUMNS, PERFIL_SIBLING_COLUMNS, STAGE_PAGE_RACE_COLUMNS, sortStagePageSiblings } from './services/races.js';
 
@@ -179,5 +180,6 @@ function render(rd, race, siblings, assets = []) {
   // Contenido (js/perfil-mapa-html.js): la página generada en el build con el
   // mismo HTML se conserva y solo se monta lo interactivo.
   applyPrerenderedHtml(content, perfilHtml({ rd, race, siblings, assets }));
+  enableGcFinalRow(document, race);
   mountStageProfile(document.getElementById('pfeProfile'), { day:rd, race:race || {}, assets, points:true });
 }

@@ -8,7 +8,8 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { esc, jornadaUrl, raceName as getRaceName, findMatchingTeam, buildRaceHeader,
-         buildActionButtons } from './shared.js';
+         buildActionLinks, buildRaceFacts, buildRaceBreadcrumb, raceCrumbItems, raceDateKeys,
+         raceLayoutHtml, raceSideStageList } from './shared.js';
 import { getLang } from './i18n.js';
 import { fixedDecimal } from './fixed-number.js';
 import { flagIconUrl } from './flag-url.js';
@@ -76,7 +77,7 @@ const visitorTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptio
  * zona del visitante (`userTz`) si difiere de la de la jornada; el panel del
  * perfil lleva el gráfico vacío que dibuja mountStageProfile sobre #soProfile.
  */
-export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets = [], userTz = visitorTimeZone() }) {
+export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets = [], siblings = [], userTz = visitorTimeZone() }) {
   const _isEn = getLang() === 'en';
   const raceTeams = splitStartlistTeams(startlistRows, race?.year).teams;
   // Equipo por nombre, una búsqueda por nombre distinto (hasta ~190 filas).
@@ -109,17 +110,24 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
   const heroSubline = [stageLabel, typeLabel, distLabel].filter(Boolean).join(' · ');
   const ridersLabel = isTtt ? (_isEn ? 'teams' : 'equipos') : (_isEn ? 'riders' : 'corredores');
 
-  let html = buildRaceHeader({
+  // Datos de la carrera para la columna lateral de escritorio.
+  const { start: raceStart, end: raceEnd } = raceDateKeys(race);
+  const facts = buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, countryCode: race.hideFlag ? '' : race.countryCode });
+  const headerHtml = buildRaceHeader({
     race,
     nameHref: jornadaUrl(rd),
     label: _isEn ? 'Start order' : 'Orden de salida',
     detail: heroSubline,
     stats: `${entries.length} ${ridersLabel}`,
-  }) + buildActionButtons({
+    facts,
+  });
+  const { bar: actionsHtml, side: sideLinksHtml } = buildActionLinks({
     race, rd, view: 'startOrder', assets,
     hasStartlist: !!race.startlistImportedAt,
     style: 'margin:0 auto 0.85rem', standalone: true,
-  }) + `<div class="res-layout res-layout--context"><div class="res-main">
+  });
+  // Columna principal (tras la cabecera): botones, filtros y tabla.
+  let html = actionsHtml + `<div class="res-layout res-layout--context"><div class="res-main">
     ${hasFilters ? `
     <div class="so-filters" id="soFilters">
       <div class="so-filters__inner">
@@ -226,5 +234,13 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
     </div>
     </div>${stageContextHtml(rd, 'soProfile', { hideNeutralStart: true, profile: stageProfileHtml(rd, race, assets) })}</div>
   `;
+  html = raceLayoutHtml({
+    headerHtml,
+    sideLinksHtml,
+    sideExtraHtml: raceSideStageList(race, siblings, { currentId: rd.id }),
+    crumbsHtml: buildRaceBreadcrumb(raceCrumbItems(race, { stageText: race.raceFormat === 'one_day' ? '' : stageLabel })),
+    mainHtml: html,
+    facts: !!facts,
+  });
   return { html, hasFilters };
 }

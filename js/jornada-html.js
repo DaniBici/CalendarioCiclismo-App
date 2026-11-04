@@ -7,10 +7,10 @@
 //  (js/html-fingerprint.js).
 // ─────────────────────────────────────────────────────────────────
 
-import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, routeBlockDayHtml, resolveTypeBadges, esc, raceUrl, jornadaUrl,
-         buildRaceHero, buildStageNav, buildActionButtons, rdLocation, filterBroadcastsByRegion, enBase,
+import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, esc, raceUrl, jornadaUrl, stageLabel,
+         buildRaceHero, buildStageNav, buildActionLinks, buildStageTiles, buildRaceFacts,
+         buildRaceBreadcrumb, raceCrumbItems, raceDateKeys, raceLayoutHtml, inhouseResultsUrl, raceSideStageList, filterBroadcastsByRegion, enBase,
          startFinishLabels } from './shared.js';
-import { fixedDecimal } from './fixed-number.js';
 import { t, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
@@ -37,19 +37,6 @@ const TV_STATUS_LABELS = new Proxy({}, {
   },
 });
 
-// URL de la página de resultados PROPIA (in-house, tablas race_uci_*).
-// Espejo del enrutado de js/resultados.js (ES /resultados/<slug>/etapa-N/ · EN /en/results/…).
-function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
-  const isEn = getLang() === 'en';
-  const slug = isEn ? (race.slugEn || race.slug) : race.slug;
-  if (!slug) return null;
-  const base = isEn ? `${enBase()}/results/` : '/resultados/';
-  const sfx = (suffix || '').toLowerCase();   // doble sector: 3A → etapa-3a
-  let seg = '';
-  if (stageNumber === 0) seg = isEn ? 'prologue/' : 'prologo/';
-  else if (stageNumber != null) seg = isEn ? `stage-${stageNumber}${sfx}/` : `etapa-${stageNumber}${sfx}/`;
-  return `${base}${encodeURIComponent(slug)}/${seg}`;
-}
 
 // Bloque de botones de resultados: el CTA propio a /resultados/ se integra como
 // primer botón de la barra de assets (buildActionButtons → resultsUrl). Sin
@@ -75,7 +62,12 @@ export function visitorTimeZoneLabel() {
  */
 export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set(), { timeZoneLabel = null } = {}) {
   const _isEn = getLang() === 'en';
-  let html = buildRaceHero(rd, race, { showCancelledBanner: true });
+  // Datos de la carrera (no de la etapa) para la columna lateral de escritorio.
+  const { start: raceStart, end: raceEnd } = raceDateKeys(race, siblings.length ? siblings : [rd]);
+  const facts = buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, countryCode: race.hideFlag ? '' : race.countryCode });
+  const heroHtml = buildRaceHero(rd, race, { showCancelledBanner: true, facts });
+  // Contenido de la columna principal (tras la cabecera, en su orden).
+  let html = '';
 
   // Clasificaciones propias (in-house): de esta jornada si ya están volcadas;
   // en su defecto, la GENERAL de la etapa anterior (vueltas por etapas). Una
@@ -89,8 +81,8 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   const hasInhouseResults = inhouseStages.has(rd) || rd.isCancelledDay;
   const hasActualResults = inhouseStages.has(rd);
   const resultsUrl = hasInhouseResults
-    ? buildInhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix)
-    : (_prevHasInhouse ? buildInhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null);
+    ? inhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix)
+    : (_prevHasInhouse ? inhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null);
   // Paridad con las apps: el botón de la jornada actual se destaca; la general
   // arrastrada de la etapa anterior sigue siendo una acción secundaria.
   const resultsHighlighted = hasInhouseResults;
@@ -98,7 +90,7 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   // Recorrido — panel de botones (clasificaciones · web oficial · inscritos ·
   // rutómetro · perfil · puertos · mapa · live texto), fuente única en
   // shared.buildActionButtons.
-  const assetsHtml = buildActionButtons({
+  const { bar: assetsHtml, side: sideLinksHtml } = buildActionLinks({
     race, rd, view: 'jornada', assets, hasStartlist, resultsUrl, resultsHighlighted,
     style: 'margin-bottom:0.85rem',
   });
@@ -107,109 +99,48 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   // Horas con su instante UTC legible por máquina (buscadores y LLM): el texto
   // está en la zona del usuario y <time datetime> fija el momento exacto.
   const zoned = text => timeZoneLabel ? `${text} ${timeZoneLabel}` : text;
-  const timeTag = (iso, text) => iso ? `<time datetime="${esc(iso)}">${zoned(text)}</time>` : zoned(text);
+  const timeTag = (iso, text, withZone = true) => {
+    const shown = withZone ? zoned(text) : text;
+    return iso ? `<time datetime="${esc(iso)}">${shown}</time>` : shown;
+  };
   const startTU  = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
   const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
   const start  = startTU?.display  ?? null;
   const finish = finishTU?.display ?? null;
-  // Hora en otra fecha que la jornada: el día, debajo de la hora.
-  const startDay  = routeBlockDayHtml(startTU);
-  const finishDay = routeBlockDayHtml(finishTU);
+  // Hora en otra fecha que la jornada: el día entre paréntesis tras la hora.
+  const startShown  = timeWithDay(startTU);
+  const finishShown = timeWithDay(finishTU);
   const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
   const startMadrid  = startTU?.tooltip  ?? start;
   const finishMadrid = finishTU?.tooltip ?? finish;
   const { startLabel, finishLabel } = startFinishLabels(rd, race);
 
-  const hasRecorrido = assetsHtml || rd.startLocation || rd.distanceKm || rd.primaryType;
   // Una jornada cancelada no se corre: el horario de salida/meta ya no describe
   // nada. El banner del hero es quien cuenta lo que pasó.
   const hasHorarios  = !rd.isCancelledDay && (start || finish);
 
-  if (hasRecorrido || hasHorarios) {
-    // SVG flecha vertical compartida
-    const arrowSvg = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="7" y1="0" x2="7" y2="17" stroke-width="1.5" stroke-linecap="round"/><polyline points="3,13 7,19 11,13" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-
-    // — Bloque 1: RECORRIDO —
-    const sameLocation = rd.startLocation && (!rd.finishLocation || rd.startLocation === rd.finishLocation);
-    let recorridoHtml = '';
-    if (rd.startLocation) {
-      if (sameLocation) {
-        recorridoHtml = `<div class="route-block__place route-block__place--solo">${rdLocation(rd, 'startLocation')}</div>
-          <div class="route-block__note">${t('search.startAndFinish')}</div>`;
-      } else {
-        recorridoHtml = `<div class="route-block__place">${rdLocation(rd, 'startLocation')}</div>
-          ${arrowSvg}
-          <div class="route-block__place">${rdLocation(rd, 'finishLocation') || '-'}</div>`;
-      }
-    } else {
-      recorridoHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`;
-    }
-
-    // — Bloque 2: DISTANCIA Y TIPO —
-    const kmFormatted = rd.distanceKm
-      ? fixedDecimal(rd.distanceKm, { lang: _isEn ? 'en' : 'es' })
-      : null;
-    const kmHtml = kmFormatted
-      ? `<div class="route-block__km">${kmFormatted}${_isEn ? 'km' : ' km'}</div>`
-      : `<div class="route-block__km route-block__km--empty">-</div>`;
-    const _elevGain = rd.elevationProfile?.elevationGain;
-    const elevHtml = _elevGain != null
-      ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEn ? ',' : '.')} m</div>`
-      : '';
-    const tipoHtml = rd.primaryType
-      ? `<div class="route-block__type">${resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode)}</div>`
-      : '';
-
-    // — Bloque 3: HORARIOS —
-    // Si el usuario está en una zona diferente a Madrid, el data-tooltip muestra la hora de Madrid
-    const startTipText  = tzDiffers ? `${startLabel} · Madrid: ${startMadrid}`  : startLabel;
-    const finishTipText = tzDiffers ? `${finishLabel} · Madrid: ${finishMadrid}` : finishLabel;
-    let horariosHtml = '';
-    if (start && finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>
-        ${arrowSvg}
-        <div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>`;
-    } else if (start) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>
-        <div class="route-block__note">${startLabel}</div>`;
-    } else if (finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>
-        <div class="route-block__note">${finishLabel}</div>`;
-    } else {
-      horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
-    }
-
-    // Jornada cancelada → sin bloque de horario ni guía de horarios de paso:
-    // no hay salida ni meta que anunciar (hasHorarios ya es false).
-    const scheduleBlock = rd.isCancelledDay ? '' : `<div class="route-grid__block">
-          <div class="route-grid__title" data-tooltip="${timeZoneLabel || (tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone'))}">${t('stage.schedule')}</div>
-          <div class="route-grid__body route-grid__body--route">
-            ${horariosHtml}
-          </div>
-        </div>`;
-
-    // La barra de documentos va tras la cabecera de carrera (antes la movía
-    // render() en el DOM); así el HTML generado ya es el definitivo.
-    html += `${assetsHtml}<div class="jornada-section jornada-section--route-grid">
-      <div class="route-grid">
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('stage.route')}</div>
-          <div class="route-grid__body route-grid__body--route">
-            ${recorridoHtml}
-          </div>
-        </div>
-        <div class="route-grid__block route-grid__block--type">
-          <div class="route-grid__title">${t('stage.distanceAndType')}</div>
-          <div class="route-grid__body">
-            ${kmHtml}
-            ${elevHtml}
-            ${tipoHtml}
-          </div>
-        </div>
-        ${scheduleBlock}
-      </div>
-    </div>`;
-  } // fin bloque unificado
+  // Teselas de la ficha (shared.buildStageTiles): distancia, desnivel, perfil,
+  // final en alto y horario. El recorrido salió de aquí: va en la línea de
+  // detalle de la cabecera. El tooltip del horario conserva la hora de Madrid
+  // cuando el usuario está en otra zona. Las horas llevan su instante UTC
+  // legible por máquina (<time datetime>) y la etiqueta de zona una sola vez.
+  let horario = null;
+  if (hasHorarios) {
+    const zone = timeZoneLabel || (tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone'));
+    const parts = [start && `${startLabel}: ${startShown}`, finish && `${finishLabel}: ${finishShown}`].filter(Boolean).join(' · ');
+    const madrid = tzDiffers ? ` · Madrid: ${[startMadrid, finishMadrid].filter(Boolean).join(' - ')}` : '';
+    const times = [start && timeTag(rd.neutralStartTimeUtc, startShown, false), finish && timeTag(rd.estimatedFinishTimeUtc, finishShown, false)].filter(Boolean).join(' - ');
+    horario = {
+      label: t('stage.tileSchedule'),
+      value: [startShown, finishShown].filter(Boolean).join(' - '),
+      html: `${times}${timeZoneLabel ? ` ${timeZoneLabel}` : ''}`,
+      tooltip: `${parts}${madrid} (${zone})`,
+    };
+  }
+  const tilesHtml = buildStageTiles(rd, race, { last: horario });
+  // La barra de documentos va tras la cabecera de carrera (antes la movía
+  // render() en el DOM); así el HTML generado ya es el definitivo.
+  html += `${assetsHtml}${tilesHtml ? `<div class="jornada-section jornada-section--route-grid">${tilesHtml}</div>` : ''}`;
 
   // Perfil y Puntos clave (js/stage/profile.js): el HTML lleva el panel del
   // perfil con el gráfico vacío y la lista de puntos; el montaje dibuja el
@@ -343,6 +274,17 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
 
   // Navegación entre etapas (solo vueltas por etapas con >1 etapa; excluye jornadas de descanso)
   const navSiblings = siblings.filter(s => !s.isRestDay);
-  html = buildStageNav(navSiblings, rd.id, jornadaUrl, raceUrl(race)) + html;
+  // Escritorio: selector de etapas, cabecera, enlaces de la carrera y lista de
+  // etapas a la izquierda; migas de pan y el resto, en la columna principal.
+  const stage = stageLabel(rd.stageNumber, rd._stageSuffix);
+  html = raceLayoutHtml({
+    navHtml: buildStageNav(navSiblings, rd.id, jornadaUrl, raceUrl(race)),
+    headerHtml: heroHtml,
+    sideLinksHtml,
+    sideExtraHtml: raceSideStageList(race, navSiblings, { currentId: rd.id }),
+    crumbsHtml: buildRaceBreadcrumb(raceCrumbItems(race, { stageText: race.raceFormat === 'one_day' ? '' : stage })),
+    mainHtml: html,
+    facts: !!facts,
+  });
   return { html, hasActualResults };
 }

@@ -31,10 +31,12 @@ select
   (select coalesce(jsonb_agg(to_jsonb(t) order by t."announcedAt" desc, t."createdAt" desc, t.id), '[]'::jsonb)
      from moves t) as transfers,
   (select coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'firstName', r."firstName", 'lastName', r."lastName",
-            'nationality', r.nationality, 'contractUntil', r."contractUntil") order by r.id), '[]'::jsonb)
+            'nationality', r.nationality, 'contractUntil', r."contractUntil", 'birthDate', r."birthDate") order by r.id), '[]'::jsonb)
      from riders_men r where r.id in (select "riderId" from moves where "riderGender" = 'male')) as men,
   (select coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'firstName', r."firstName", 'lastName', r."lastName",
-            'nationality', r.nationality, 'contractUntil', r."contractUntil") order by r.id), '[]'::jsonb)
+            'nationality', r.nationality, 'contractUntil', r."contractUntil", 'birthDate', r."birthDate") order by r.id), '[]'::jsonb)
      from riders_women r where r.id in (select "riderId" from moves where "riderGender" = 'female')) as women,
   (select coalesce(jsonb_agg(jsonb_build_object('id', tm.id, 'name', tm.name) order by tm.id), '[]'::jsonb)
-     from teams tm where tm.id in (select id from extra)) as "extraTeams";
+     from teams tm where tm.id in (select id from extra)) as "extraTeams",
+  (select coalesce(jsonb_agg(jsonb_build_object('id', tm.id, 'countryCode', tm."countryCode") order by tm.id), '[]'::jsonb)
+     from teams tm where tm.id in (select s."teamId" from team_seasons s, params p where s.year = p.season)) as "teamCountries";

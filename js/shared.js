@@ -1,3 +1,4 @@
+import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 import { arrowHtml, installScrollRail } from './scroll-rail.js';
 import { flagIconUrl } from './flag-url.js';
 // ─────────────────────────────────────────────────────────────────
@@ -9,6 +10,8 @@ import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
+import { computeClimbStats } from './stage/climb-detection.js';
+import { fixedDecimal } from './fixed-number.js';
 import { firstTechnicalGuide } from './services/races.js';
 export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
@@ -1170,6 +1173,333 @@ export function buildStageNav(navSiblings, currentRdId, urlBuilder, raceHref) {
   </div>`;
 }
 
+// ── Lista de etapas de la columna lateral (escritorio) ───────────
+// Mismas etiquetas que las opciones del selector; el CSS la oculta por debajo
+// de 1100px, donde manda el selector.
+// URL de la página de resultados PROPIA (in-house, tablas race_uci_*).
+// Espejo del enrutado de js/resultados.js (ES /resultados/<slug>/etapa-N/ · EN /en/results/…).
+export function inhouseResultsUrl(race, stageNumber, suffix = '') {
+  const isEn = getLang() === 'en';
+  const slug = isEn ? (race.slugEn || race.slug) : race.slug;
+  if (!slug) return null;
+  const base = isEn ? `${enBase()}/results/` : '/resultados/';
+  const sfx = (suffix || '').toLowerCase();   // doble sector: 3A → etapa-3a
+  let seg = '';
+  if (stageNumber === 0) seg = isEn ? 'prologue/' : 'prologo/';
+  else if (stageNumber != null) seg = isEn ? `stage-${stageNumber}${sfx}/` : `etapa-${stageNumber}${sfx}/`;
+  return `${base}${encodeURIComponent(slug)}/${seg}`;
+}
+
+/**
+ * Lista lateral de etapas, la misma en todas las páginas de una vuelta por
+ * etapas (jornada, resultados, perfil, mapa, inscritos, orden de salida y
+ * competición): las etapas (sin descansos), «Clasificación general» y «Ver
+ * todas las etapas». Cada etapa enlaza dentro de la sección en curso
+ * (`href(day)`, por defecto su jornada); la general, a la pestaña General de
+ * /resultados/<carrera>/ (la última publicada; la final al acabar). Solo
+ * depende de las jornadas: el build y el navegador pintan lo mismo.
+ *   currentId  la etapa de la página (aria-current)
+ *   gcCurrent  la página es la clasificación final
+ *   allCurrent la página es la de la carrera (Competición)
+ *   gcFinal    ¿existe ya la clasificación general final? true: enlace; false:
+ *              fila desactivada; null (desconocido): desactivada y marcada con
+ *              data-gc-final-check para que race-gc-final.js la active en el
+ *              navegador si existe (mismo marcado en build y navegador).
+ * Una jornada con `_disabled` (aún sin resultados) se pinta sin enlace.
+ */
+export function raceSideStageList(race, days, { currentId = null, href = jornadaUrl, gcCurrent = false, allCurrent = false, gcFinal = null } = {}) {
+  if (!race || race.raceFormat === 'one_day') return '';
+  // Por número de etapa y, sin él, por fecha; orden estable (el de llegada en
+  // el empate, que es el mismo en el build y en el navegador).
+  const stages = (days || []).filter(d => !d.isRestDay).sort((a, b) =>
+    (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
+      ? a.stageNumber - b.stageNumber
+      : (a.dateKey || '').localeCompare(b.dateKey || ''));
+  const gcUrl = inhouseResultsUrl(race, null);
+  // La general final solo existe al acabar la carrera: antes, la fila va
+  // desactivada (la página de la carrera abre en la última etapa disputada).
+  const gc = gcUrl ? { href: gcUrl, label: t('stage.gcRow'), note: '', current: gcCurrent && gcFinal === true,
+    disabled: gcFinal !== true, check: gcFinal == null ? String(race.id ?? '') : null } : null;
+  return buildStageList(stages, currentId, href, raceUrl(race), gc, { allCurrent });
+}
+
+// Clasificación general de una vuelta por etapas: la de la última etapa con
+// resultados propios (la final si ya se corrió la última). `stages`, las
+// jornadas disputables en orden (sin descanso ni canceladas); `hasResults(rd)`
+// dice si una tiene clasificaciones. Sin ninguna, o en una prueba de un día,
+// null. → { href, label, note } con la nota «Final» o «Tras la etapa N».
+export function raceGcLink(race, stages, hasResults) {
+  if (!race || race.raceFormat === 'one_day' || !stages || stages.length < 2) return null;
+  let idx = -1;
+  stages.forEach((s, i) => { if (hasResults(s)) idx = i; });
+  if (idx < 0) return null;
+  const s = stages[idx];
+  const isFinal = idx === stages.length - 1;
+  // Con la última etapa corrida, la página de la clasificación final de la
+  // carrera (/resultados/<carrera>/); antes, la general de la última etapa.
+  const url = isFinal ? inhouseResultsUrl(race, null) : inhouseResultsUrl(race, s.stageNumber, s._stageSuffix);
+  if (!url) return null;
+  return {
+    href: isFinal ? url : `${url}#gc`,
+    label: isFinal ? t('stage.gcRow') : t('stage.gcRowCurrent'),
+    note: idx === stages.length - 1 ? t('stage.gcFinal') : t('stage.gcAfter').replace('{n}', s.stageNumber === 0 ? t('stage.prologue') : `${s.stageNumber}${s._stageSuffix || ''}`),
+  };
+}
+
+// Fila «Clasificación general final»: enlace, o span desactivado. Con `check`
+// (id de carrera) queda a la espera de race-gc-final.js, que la activa.
+function buildGcRow(gc) {
+  const inner = `<span class="stage-list__n">${esc(gc.label)}</span>${gc.note ? `<span class="stage-list__route">${esc(gc.note)}</span>` : ''}`;
+  if (gc.disabled) {
+    const chk = gc.check ? ` data-gc-final-check data-race-id="${esc(gc.check)}" data-gc-href="${esc(gc.href)}"` : '';
+    return `<span class="stage-list__item stage-list__gc stage-list__item--disabled" aria-disabled="true"${chk}>${inner}</span>`;
+  }
+  return `<a class="stage-list__item stage-list__gc" href="${esc(gc.href)}"${gc.current ? ' aria-current="page"' : ''}>${inner}</a>`;
+}
+
+export function buildStageList(navSiblings, currentRdId, urlBuilder, raceHref, gc = null, { allCurrent = false } = {}) {
+  if (navSiblings.length <= 1) return '';
+  const items = navSiblings.map(s => {
+    const label = (s.stageNumber != null) ? stageLabel(s.stageNumber, s._stageSuffix) : (s.dateKey || s.id);
+    const route = s.startLocation
+      ? (!s.finishLocation || s.startLocation === s.finishLocation
+          ? rdLocation(s, 'startLocation')
+          : `${rdLocation(s, 'startLocation')} › ${rdLocation(s, 'finishLocation')}`)
+      : '';
+    const current = s.id === currentRdId;
+    const inner = `<span class="stage-list__n">${esc(label)}</span>${route ? `<span class="stage-list__route">${esc(route)}</span>` : ''}`;
+    // Evento que aún no ha ocurrido: fila sin enlace (mismo alto que las demás).
+    if (s._disabled && !current) return `<li><span class="stage-list__item stage-list__item--disabled" aria-disabled="true">${inner}</span></li>`;
+    return `<li><a class="stage-list__item" href="${esc(urlBuilder(s))}"${current ? ' aria-current="page"' : ''}>${inner}</a></li>`;
+  }).join('');
+  return `<nav class="stage-list" aria-label="${esc(t('stage.pickStage'))}">
+    <ol>${items}</ol>
+    ${gc ? buildGcRow(gc) : ''}
+    <a class="stage-list__all" href="${esc(raceHref)}"${allCurrent ? ' aria-current="page"' : ''}>${t('stage.viewAll')}</a>
+  </nav>`;
+}
+
+// ── Lista de rondas de un torneo de ciclocross (columna lateral) ──
+// Mismo marcado y clases que buildStageList, para heredar su CSS: «3/4» y el
+// nombre de la ronda. items = [{ id, n, total, name, href }]; sin href (ronda
+// oculta en este idioma) la fila es texto. La ronda actual lleva aria-current.
+export function buildCxRoundList(items, currentId, label) {
+  if (!items || items.length <= 1) return '';
+  const rows = items.map(item => {
+    const inner = `<span class="stage-list__n">${esc(`${item.n}/${item.total}`)}</span><span class="stage-list__route">${esc(item.name)}</span>`;
+    const current = item.id === currentId;
+    return `<li>${item.href
+      ? `<a class="stage-list__item" href="${esc(item.href)}"${current ? ' aria-current="page"' : ''}>${inner}</a>`
+      : `<span class="stage-list__item"${current ? ' aria-current="page"' : ''}>${inner}</span>`}</li>`;
+  }).join('');
+  return `<nav class="stage-list" aria-label="${esc(label)}"><ol>${rows}</ol></nav>`;
+}
+
+// ── Rango de fechas de una carrera: «13 - 18 octubre 2026» ───────
+// Misma tabla fija de meses que las fechas SEO (sin ICU). Un solo día: «20
+// octubre 2026»; meses distintos: «29 septiembre - 4 octubre 2026».
+export function raceDateRangeText(startKey, endKey, lang = _seoLang()) {
+  if (!startKey) return '';
+  const months = _SEO_MONTHS[lang] || _SEO_MONTHS.es;
+  const s = _seoParts(String(startKey).slice(0, 10));
+  if (!endKey || String(endKey).slice(0, 10) === String(startKey).slice(0, 10)) return `${s.d} ${months[s.mIdx]} ${s.y}`;
+  const e = _seoParts(String(endKey).slice(0, 10));
+  if (s.y === e.y && s.mIdx === e.mIdx) return `${s.d} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+  if (s.y === e.y) return `${s.d} ${months[s.mIdx]} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+  return `${s.d} ${months[s.mIdx]} ${s.y} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+}
+
+// Primer y último día de la carrera con los datos que cada página ya tiene:
+// las fechas de la propia carrera y, en su defecto, las de sus jornadas (sin
+// descansos). Devuelve claves YYYY-MM-DD o '' si no hay ninguna.
+export function raceDateKeys(race, days = []) {
+  const keys = (days || []).filter(d => d && !d.isRestDay && d.dateKey).map(d => d.dateKey).sort();
+  const start = race?.startDate || keys[0] || '';
+  const end = race?.endDate || keys[keys.length - 1] || start;
+  return { start, end };
+}
+
+// Nombre del país en el idioma de la página; sin soporte del navegador, vacío.
+let _regionNames = null, _regionLang = '';
+export function regionName(code) {
+  if (!code) return '';
+  try {
+    if (!_regionNames || _regionLang !== getLang()) { _regionLang = getLang(); _regionNames = new Intl.DisplayNames([_regionLang], { type: 'region' }); }
+    return _regionNames.of(String(code).toUpperCase()) || '';
+  } catch { return ''; }
+}
+
+// Datos de carrera de la columna lateral (categoría UCI, fechas, bandera y
+// país). `countryCode: ''` oculta la bandera (misma regla que hideFlag).
+// Solo se ven en escritorio; el CSS los oculta por debajo de 1100px, donde la
+// cabecera sigue con su detalle de etapa.
+export function buildRaceFacts(race, { startKey = '', endKey = '', countryCode } = {}) {
+  const cat = uciCategoryName(race?.uciCategory || '');
+  const range = raceDateRangeText(startKey, endKey);
+  const code = countryCode != null ? countryCode : (race?.countryCode || '');
+  const country = code
+    ? `<span class="race-header__fact race-header__fact--country">${countryFlag(code)}<span>${esc(regionName(code) || String(code).toUpperCase())}</span></span>`
+    : '';
+  const lines = [
+    cat ? `<span class="race-header__fact">${esc(cat)}</span>` : '',
+    range ? `<span class="race-header__fact">${esc(range)}</span>` : '',
+    country,
+  ].filter(Boolean).join('');
+  return lines ? `<div class="race-header__facts">${lines}</div>` : '';
+}
+
+// ── Migas de pan de las páginas de carrera ───────────────────────
+// «Inicio > Carrera > Etapa N». El último elemento es la página actual (sin
+// enlace); el nombre de la carrera enlaza a la competición salvo en pruebas de
+// un día, que no tienen. Comparte destinos con el BreadcrumbList JSON-LD de
+// jornada.js (Inicio y competición); la temporada solo vive en el JSON-LD.
+export function raceCrumbItems(race, { stageText = '' } = {}) {
+  const en = getLang() === 'en';
+  const items = [{ label: t('stage.home'), href: en ? `${enBase()}/` : '/' }];
+  const name = raceName(race) || '';
+  const hasPage = !!stageText && race?.raceFormat !== 'one_day' && !!race?.id;
+  if (name) items.push({ label: name, href: hasPage ? raceUrl(race) : '' });
+  if (stageText) items.push({ label: stageText, href: '' });
+  return items;
+}
+
+export function buildRaceBreadcrumb(items) {
+  if (!items || items.length < 2) return '';
+  const last = items.length - 1;
+  const lis = items.map((item, i) => i === last || !item.href
+    ? `<li${i === last ? ' aria-current="page"' : ''}>${esc(item.label)}</li>`
+    : `<li><a href="${esc(item.href)}">${esc(item.label)}</a></li>`).join('');
+  return `<nav class="race-crumbs" aria-label="${esc(t('stage.breadcrumb'))}"><ol>${lis}</ol></nav>`;
+}
+
+// ── Teselas de la ficha de etapa (distancia, desnivel, perfil, final…) ──
+// «x km al y %» del puerto de meta, solo si el final es una cima con pie
+// conocido (profileSummits.startKm) y hay perfil GPX para medir la pendiente.
+function finishClimbStats(rd) {
+  const points = rd?.elevationProfile?.points;
+  const distance = Number(rd?.distanceKm || rd?.elevationProfile?.distance);
+  if (!Array.isArray(points) || points.length < 2 || !(distance > 0)) return null;
+  const top = (rd.profileSummits || [])
+    .filter(s => s?.km != null && s.startKm != null && s.startKm < s.km && distance - s.km <= 0.5)
+    .sort((a, b) => b.km - a.km)[0];
+  return top ? computeClimbStats(points, top.startKm, top.km) : null;
+}
+
+export function finishClimbText(rd) {
+  const stats = finishClimbStats(rd);
+  if (!stats) return '';
+  // Decimales con tablas fijas (js/fixed-number.js): el build y el navegador
+  // escriben el mismo texto.
+  const lang = getLang() === 'en' ? 'en' : 'es';
+  const grade = fixedDecimal(stats.avgGradient, { lang, maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  return `${fixedDecimal(stats.lengthKm, { lang, maximumFractionDigits: 1 })} km ${t('stage.climbAt')} ${grade} %`;
+}
+
+// Escala de color de las teselas (componentes 24–28 del Figma): 1 verde,
+// 2 turquesa, 3 lima, 4 ámbar, 5 rojo, de más fácil a más duro.
+//   Distancia (notas del Figma): <150, 150–175, 175–200, 200–225, >225 km.
+//   Desnivel  (notas del Figma): <1000, 1000–1750, 1750–2500, 2500–3250, >3250 m.
+//   Perfil: por tipo de etapa (TYPE_LEVEL); un final en alto la sube un nivel.
+//   Final: pendiente media del puerto de meta, <3, 3–4,5, 4,5–6, 6–8, ≥8 %.
+// Perfil y Final reproducen los ejemplos del diseño (Media montaña y un final
+// de 3,1 km al 6,1 %, ámbar).
+const level = (value, limits) => {
+  const i = limits.findIndex(limit => value < limit);
+  return i === -1 ? limits.length + 1 : i + 1;
+};
+const TYPE_LEVEL = {
+  flat: 1, ttt: 1, itt: 2, rolling: 2, cotas: 3, cobbles: 3, sterrato: 3, ribinou: 3,
+  uphill_finish: 3, medium_mountain: 4, high_mountain: 5, chrono_climb: 5,
+};
+export function stageTileLevels(rd) {
+  const gain = rd?.elevationProfile?.elevationGain;
+  const climb = finishClimbStats(rd);
+  let type = TYPE_LEVEL[rd?.primaryType] ?? null;
+  if (type != null && (rd?.secondaryType === 'summit_finish' || rd?.secondaryType === 'chrono_climb')) type = Math.min(5, type + 1);
+  return {
+    distance: rd?.distanceKm ? level(Number(rd.distanceKm), [150, 175, 200, 225]) : null,
+    elevation: gain != null ? level(gain, [1000, 1750, 2500, 3250]) : null,
+    type,
+    finish: climb ? level(climb.avgGradient, [3, 4.5, 6, 8]) : null,
+  };
+}
+
+/**
+ * Fila de teselas de la ficha de etapa. Reutilizable por Resultados y por la
+ * ficha de ciclocross: cada tesela solo sale si su dato existe. Distancia,
+ * Desnivel, Perfil y Final llevan el color de su nivel (stageTileLevels:
+ * `stage-tile--l1` … `--l5`); `last` = { label, value, html?, tooltip? }
+ * (Horario o Velocidad media) es neutra; `html` sustituye al texto del valor
+ * (p. ej. con <time>).
+ */
+export function buildStageTiles(rd, race, { last = null } = {}) {
+  const en = getLang() === 'en';
+  const lang = en ? 'en' : 'es';
+  const tile = (cls, size, label, value, tip = '') =>
+    `<div class="stage-tile stage-tile--${cls} stage-tile--${size}"><dt class="stage-tile__label"${tip ? ` data-tooltip="${esc(tip)}"` : ''}>${esc(label)}</dt><dd class="stage-tile__value">${value}</dd></div>`;
+  const gain = rd?.elevationProfile?.elevationGain;
+  const finish = finishClimbText(rd);
+  const lv = stageTileLevels(rd);
+  const typeHtml = rd?.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType, race?.countryCode) : '';
+  const tiles = [
+    rd?.distanceKm ? tile(`l${lv.distance}`, 'sm', t('stage.tileDistance'), `${fixedDecimal(rd.distanceKm, { lang })}${en ? '' : ' '}km`) : '',
+    gain != null ? tile(`l${lv.elevation}`, 'sm', t('stage.tileElevation'), `${fixedDecimal(Math.round(gain / 10) * 10, { lang, useGrouping: 'always' })} m`) : '',
+    typeHtml ? tile(`l${lv.type ?? 3}`, 'lg', t('stage.tileProfile'), typeHtml) : '',
+    finish ? tile(`l${lv.finish}`, 'lg', t('stage.tileFinish'), esc(finish)) : '',
+    last?.value ? tile('plain', 'md', last.label, last.html ?? esc(last.value), last.tooltip || '') : '',
+  ].filter(Boolean).join('');
+  return tiles ? `<dl class="stage-tiles">${tiles}</dl>` : '';
+}
+
+/**
+ * Teselas de totales de la clasificación general final de una carrera por
+ * etapas. Solo cuentan las jornadas corridas (ni de descanso ni canceladas):
+ * distancia total, desnivel positivo total, número de etapas y, si llega el
+ * tiempo del ganador de la general (`winnerSecs`), velocidad media. Todas son
+ * neutras (`stage-tile--plain`); cada tesela solo sale si su dato existe.
+ * Sin jornadas corridas devuelve ''.
+ */
+export function buildRaceTotalTiles(days, { winnerSecs = null } = {}) {
+  const en = getLang() === 'en';
+  const lang = en ? 'en' : 'es';
+  const tile = (size, label, value) =>
+    `<div class="stage-tile stage-tile--plain stage-tile--${size}"><dt class="stage-tile__label">${esc(label)}</dt><dd class="stage-tile__value">${esc(value)}</dd></div>`;
+  const raced = (days || []).filter(d => !d.isRestDay && !d.isCancelledDay);
+  if (!raced.length) return '';
+  const kmList = raced.map(d => Number(d.distanceKm)).filter(km => km > 0);
+  const kmTotal = kmList.reduce((sum, km) => sum + km, 0);
+  const gainList = raced.filter(d => d.elevationGain != null).map(d => Number(d.elevationGain)).filter(Number.isFinite);
+  const gainTotal = gainList.reduce((sum, g) => sum + g, 0);
+  const speed = kmTotal > 0 && winnerSecs > 0 ? kmTotal * 3600 / winnerSecs : 0;
+  const tiles = [
+    kmList.length ? tile('sm', t('stage.tileTotalDistance'), `${fixedDecimal(kmTotal, { lang })}${en ? '' : ' '}km`) : '',
+    gainList.length ? tile('sm', t('stage.tileTotalElevation'), `${fixedDecimal(Math.round(gainTotal / 10) * 10, { lang, useGrouping: 'always' })} m`) : '',
+    tile('sm', t('stage.tileStages'), String(raced.length)),
+    speed > 0 ? tile('md', t('stage.tileAvgSpeed'), `${fixedDecimal(speed, { lang, maximumFractionDigits: 2 })} km/h`) : '',
+  ].filter(Boolean).join('');
+  return `<dl class="stage-tiles">${tiles}</dl>`;
+}
+
+// ── Columna lateral de la ficha de carrera (escritorio) ──────────
+// El marco es HTML puro (sin DOM): lo generan los constructores de página
+// (jornada, resultados, inscritos, orden de salida) y por eso es idéntico en el
+// build y en el navegador. Por debajo de 1100px el CSS lo deja en una columna.
+//   side  → selector de etapas, cabecera con los datos de la carrera, fila de
+//           enlaces laterales y, si hay, la lista de etapas (`sideExtraHtml`).
+//   main  → migas de pan y el resto de la página, en su orden.
+// `facts`: la cabecera lleva buildRaceFacts; en escritorio el CSS oculta
+// entonces el detalle de etapa (la columna describe la carrera).
+export function raceLayoutHtml({ navHtml = '', headerHtml = '', sideLinksHtml = '', sideExtraHtml = '', crumbsHtml = '', mainHtml = '', facts = true } = {}) {
+  return `<div class="race-layout${facts ? ' race-layout--facts' : ''}"><aside class="race-layout__side">${navHtml}${headerHtml}${sideLinksHtml}${sideExtraHtml}</aside><div class="race-layout__main">${crumbsHtml}${mainHtml}</div></div>`;
+}
+
+// Fila de enlaces laterales (web oficial, libro de ruta, dorsales). Copia de
+// las celdas marcadas con `data-side-link` de la barra de pestañas: el CSS
+// muestra una u otra según el ancho (≥1100px, esta fila). Sin enlaces, ''.
+export function sideLinksNavHtml(cellsHtml) {
+  return cellsHtml ? `<nav class="race-side-links" aria-label="${esc(t('stage.raceLinks'))}">${cellsHtml}</nav>` : '';
+}
+
 // ── Panel de botones de acción (web oficial + inscritos + recorrido) ──
 // Fuente ÚNICA de verdad del panel `.asset-links`. Lo usan jornada, inscritos,
 // orden de salida y resultados, para que las cuatro vistas muestren la misma
@@ -1191,6 +1521,7 @@ const _ACT_SVGS = {
   website:    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   startlist:  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>',
   cursor:     '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07 4 4z"/><path d="m13.17 13.17 4.66 4.66"/></svg>',
+  info:       '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
   startOrder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/></svg>',
   roadbook:   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
   technicalGuide: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
@@ -1241,7 +1572,18 @@ function _startlistHref(race) {
  *                  usar el destacado azul; la general arrastrada de la jornada
  *                  anterior se muestra como acción secundaria.
  */
-export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '', standalone = false, resultsUrl = null, resultsHighlighted = true } = {}) {
+export function buildActionButtons(options = {}) {
+  return buildActionLinks(options).bar;
+}
+
+/**
+ * Como buildActionButtons, pero devuelve además la fila lateral de la ficha de
+ * carrera: `bar` (barra de pestañas, con las celdas marcadas `data-side-link`)
+ * y `side` (<nav class="race-side-links"> con copias de esas celdas, o '').
+ * `bar` lleva la clase `asset-links-wrap--side-only` si todas sus celdas son
+ * enlaces laterales: en escritorio el CSS oculta entonces la barra entera.
+ */
+export function buildActionLinks({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '', standalone = false, resultsUrl = null, resultsHighlighted = true } = {}) {
   const isEn = getLang() === 'en';
   const isOneDay = race?.raceFormat === 'one_day';
   const isJornada = view === 'jornada';
@@ -1251,16 +1593,21 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
 
   // ── Clasificaciones propias (in-house) — primer botón de la jornada ──
   // El fondo azul de marca lo aplica `.asset-btn--results` (claro y oscuro).
+  // La pestaña se llama «Resultados» (stage.results); `assets.classifications`
+  // sigue disponible para otros usos. En la vista de resultados es la activa.
   let resultsBtn = '';
   if (resultsUrl && isJornada) {
     const resultsClass = resultsHighlighted ? ' asset-btn--results' : '';
-    resultsBtn = `<a class="asset-btn${resultsClass}" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('assets.classifications')}</span></a>`;
+    resultsBtn = `<a class="asset-btn${resultsClass}" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('stage.results')}</span></a>`;
+  } else if (view === 'resultados' && !navOnly && resultsUrl) {
+    // `resultsUrl` es la dirección de la propia página (el HTML no puede leer location).
+    resultsBtn = `<a class="asset-btn asset-btn--results" aria-current="page" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('stage.results')}</span></a>`;
   }
 
   // ── Web oficial — siempre primero si existe ──
   let websiteBtn = '';
   if (race?.websiteUrl) {
-    websiteBtn = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}<span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
+    websiteBtn = `<a class="asset-btn" data-side-link="website" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}<span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
   }
 
   // ── "Ir a la carrera" / "Ir a la etapa" (solo fuera de la jornada) ──
@@ -1269,21 +1616,25 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // - Inscritos: su lista es de la carrera entera → "Ir a la carrera" →
   //   competición (lista de etapas).
   // - Prueba de un día (cualquier vista): "Ir a la carrera" → su jornada única.
+  // La primera celda de la barra es «Información»: la ficha de la etapa o de la
+  // carrera. En la propia jornada es la pestaña activa; fuera de ella reemplaza
+  // al antiguo «Ir a la carrera / etapa» (mismo destino).
   let raceBtn = '';
-  if (!isJornada) {
+  const infoBtn = (href, current = false) =>
+    `<a class="asset-btn" href="${href}"${current ? ' aria-current="page"' : ''}>${_ACT_SVGS.info}<span class="asset-btn__label">${t('stage.info')}</span></a>`;
+  if (isJornada) {
+    if (rd?.id || rd?.slug) raceBtn = infoBtn(jornadaUrl(rd), true);
+  } else {
     const isStageView = view === 'startOrder' || view === 'perfil' || view === 'resultados' || view === 'mapa';
     if (isOneDay) {
-      const label = isEn ? 'Go to the race' : 'Ir a la carrera';
       const href = jornadaUrl(rd?.id ? rd : { id: race?.id, slug: race?.slug, slugEn: race?.slugEn, dateKey: rd?.dateKey });
-      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(href);
     } else if (isStageView && rd?.id) {
       // Vuelta por etapas, vista de etapa → jornada de esta etapa.
-      const label = isEn ? 'Go to the stage' : 'Ir a la etapa';
-      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(jornadaUrl(rd));
     } else if (race?.id) {
       // Vuelta por etapas, vista de carrera (inscritos) → competición.
-      const label = isEn ? 'Go to the race' : 'Ir a la carrera';
-      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(raceUrl(race));
     }
   }
 
@@ -1293,7 +1644,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const startlistLabel = race.startlistProvisional
       ? t('startlist.provisional')
       : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
-    startlistBtn = `<a class="asset-btn" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}<span class="asset-btn__label">${startlistLabel}</span></a>`;
+    startlistBtn = `<a class="asset-btn" data-side-link="startlist" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}<span class="asset-btn__label">${startlistLabel}</span></a>`;
   }
 
   // ── Botones de recorrido (assets de la jornada) ──
@@ -1324,17 +1675,19 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     // Documentos: el mismo enlace en todos los dispositivos (las jornadas se
     // generan en el build). Los propios llevan data-asset-viewer y en
     // escritorio los abre en el visor el manejador delegado de openAssetModal.
-    const docLink = (url, labelHtml) => {
+    const docLink = (url, labelHtml, extraAttrs = '') => {
       const own = url.startsWith('https://assets.calendariociclismo.app');
-      return `<a class="asset-btn" href="${esc(url)}" target="_blank" rel="noopener"${own ? ' data-asset-viewer' : ''}>${labelHtml}</a>`;
+      return `<a class="asset-btn"${extraAttrs} href="${esc(url)}" target="_blank" rel="noopener"${own ? ' data-asset-viewer' : ''}>${labelHtml}</a>`;
     };
 
     function assetBtnHtml(a, labelKey = a.type) {
       const label = _actLabel(labelKey);
+      // La guía técnica («Libro de ruta») pasa a la columna lateral en escritorio.
+      const side = a.type === 'technicalGuide' ? ' data-side-link="guide"' : '';
       if (a.type === 'startOrder') {
         return `<a class="asset-btn" href="${startOrderUrl(rd)}">${label}</a>`;
       }
-      return docLink(a.url || a.filePath, label);
+      return docLink(a.url || a.filePath, label, side);
     }
 
     // Perfil dinámico (GPX) sustituye al asset estático.
@@ -1447,11 +1800,16 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // navegación y a los demás assets: inmediatamente después de la web oficial.
   const hasTechnicalGuide = (assets || []).some(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
   const technicalGuideBtn = hasTechnicalGuide ? (routeBtns.shift() || '') : '';
-  const all = `${resultsBtn}${websiteBtn}${technicalGuideBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
-  if (!all) return '';
+  const parts = [raceBtn, resultsBtn, websiteBtn, technicalGuideBtn, startlistBtn, ...routeBtns].filter(Boolean);
+  const all = parts.join('');
+  if (!all) return { bar: '', side: '' };
+  const sideAttr = / data-side-link="[a-z]+"/;
+  const sideCells = parts.filter(part => sideAttr.test(part)).map(part => part.replace(sideAttr, ''));
+  const sideOnly = sideCells.length === parts.length;
   const styleAttr = style ? ` style="${style}"` : '';
   const nextLabel = isEn ? 'More actions' : 'Más acciones';
-  return `<div class="asset-links-wrap${standalone ? ' cc-assets-standalone' : ''}"${styleAttr}><div class="asset-links" data-scroll-rail>${all}</div>${arrowHtml('prev', isEn ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', nextLabel, 'hidden')}</div>`;
+  const bar = `<div class="asset-links-wrap${standalone ? ' cc-assets-standalone' : ''}${sideOnly ? ' asset-links-wrap--side-only' : ''}"${styleAttr}><div class="asset-links" data-scroll-rail>${all}</div>${arrowHtml('prev', isEn ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', nextLabel, 'hidden')}</div>`;
+  return { bar, side: sideLinksNavHtml(sideCells.join('')) };
 }
 
 if (typeof document !== 'undefined') {
@@ -1498,10 +1856,17 @@ export function cleanFeminineName(name, activeCat) {
 // categoría, más la fecha larga y, si procede, el banner de jornada anulada.
 // `stage` sustituye al texto de etapa calculado desde la jornada (resultados,
 // donde la etapa activa puede ser la clasificación final).
-export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: stageText } = {}) {
+export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: stageText, facts = '' } = {}) {
   const showFlag = !(race?.hideFlag && !rd.countryCode);
   const stage = stageText !== undefined ? stageText : stageLabel(rd.stageNumber, rd._stageSuffix);
   const uci = race?.uciCategory || '';
+  // La ruta (salida › meta) va en la línea de detalle: por debajo de 1100px la
+  // columna lateral no existe y el recorrido seguiría sin verse.
+  const route = rd.startLocation
+    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation
+        ? rdLocation(rd, 'startLocation')
+        : `${rdLocation(rd, 'startLocation')} › ${rdLocation(rd, 'finishLocation')}`)
+    : '';
 
   const cancelledHtml = showCancelledBanner && rd.isCancelledDay
     ? `<div class="jornada-cancelled-banner">
@@ -1514,9 +1879,10 @@ export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: st
     race,
     countryCode: effectiveCountryCode(rd, race || {}),
     hideFlag: !showFlag,
-    detail: [stage, uciCategoryName(uci)].filter(Boolean).join(' · '),
+    detail: [stage, route, uciCategoryName(uci)].filter(Boolean).join(' · '),
     date: rd.dateKey ? formatDateKeyLong(rd.dateKey) : '',
     extraHtml: cancelledHtml,
+    facts,
   });
 }
 
@@ -1541,6 +1907,7 @@ export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: st
  *  - stats         línea de stats (p.ej. "23 equipos · 189 corredores")
  *  - action        HTML del botón/acción a la derecha (PDF, ver jornada…)
  *  - extraHtml     HTML extra al final (p.ej. banner de carrera anulada)
+ *  - facts         datos de carrera de la columna lateral (buildRaceFacts)
  */
 export function buildRaceHeader({
   race,
@@ -1554,6 +1921,7 @@ export function buildRaceHeader({
   action = '',
   extraHtml = '',
   logoHtml: logoOverride = null,
+  facts = '',
 } = {}) {
   const r = race || {};
   const name = raceName(r) || '';
@@ -1564,8 +1932,8 @@ export function buildRaceHeader({
   const showFlag = !hideFlag;
   // `logoHtml`: un logo propio (ficha CX, con fuente de respaldo) en lugar del de la carrera.
   const logoHtml = logoOverride ?? (r.logoUrl
-    ? `<img class="race-header__logo" src="${r.logoUrl}" alt="${esc(name)}" loading="lazy" onerror="this.style.display='none'">`
-    : '');
+    ? `<img class="race-header__logo" src="${r.logoUrl}" alt="${esc(name)}" loading="lazy" ${LOGO_ONERROR}>`
+    : logoPlaceholderHtml('race-header__logo'));
 
   // Resolución del enlace del nombre: explícito → o competición (no one_day) → o sin enlace
   const href = nameHref !== undefined
@@ -1581,28 +1949,27 @@ export function buildRaceHeader({
     : '';
 
   // Subtítulo: label destacado + detalle, unidos por " · "
-  const subParts = [
-    label ? `<span class="race-header__label">${label}</span>` : '',
-    detail ? esc(detail) : '',
-  ].filter(Boolean).join(' · ');
+  // El detalle va en su propio span: en la columna lateral de escritorio se
+  // oculta (la carrera ya aparece descrita por categoría, fechas y país) y
+  // solo queda la etiqueta («Inscritos», «Orden de salida»).
+  const subParts = (label ? `<span class="race-header__label">${label}</span>` : '')
+    + (detail ? `<span class="race-header__detail">${label ? ' · ' : ''}${esc(detail)}</span>` : '');
 
   const colorVar = r.colorHex ? ` style="--card-color:${r.colorHex}"` : '';
 
   return `<div class="race-header"${colorVar}>
     <div class="race-header__inner">
       <div class="race-header__main">
-        ${logoHtml
-          ? `<div class="race-header__brand">
-               ${logoHtml}
-               ${showFlag ? `<span class="race-header__flag">${flag}</span>` : ''}
-             </div>`
-          : (showFlag ? `<div class="race-header__flag race-header__flag--solo">${flag}</div>` : '')
-        }
+        <div class="race-header__brand">
+          ${logoHtml}
+          ${showFlag ? `<span class="race-header__flag">${flag}</span>` : ''}
+        </div>
         <div class="race-header__text">
           ${nameHtml}
           ${subParts ? `<div class="race-header__subtitle">${subParts}</div>` : ''}
           ${date ? `<div class="race-header__date">${date}</div>` : ''}
           ${stats ? `<div class="race-header__stats">${stats}</div>` : ''}
+          ${facts || ''}
         </div>
       </div>
       ${action || ''}

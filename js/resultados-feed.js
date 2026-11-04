@@ -20,8 +20,9 @@
 //   · El feed solo publica clasificaciones propias.
 // ─────────────────────────────────────────────────────────────────
 
+import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 import { fetchAllRows, fetchByIds } from './services/paged-query.js';
-import { enrichResultFeed } from './services/result-feed-context.js';
+import { enrichResultFeed, resolveRiderTeams, resolveCxWinnerTeams } from './services/result-feed-context.js';
 import { classificationLabel, classificationColor } from './services/race-presentation.js';
 import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          setMeta, setMetaProperty, resolveTypeBadges,
@@ -32,7 +33,7 @@ import { localizedTeamName } from './services/national-team-name.js';
 import { cyclocrossHome, roadPinned, setRoadPinned } from './services/today-season.js';
 import { roadPinButtonHtml } from './components/discipline-switch.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
-import { cxSeason, cxRaceName, cxRacePageUrl, cxRoundBadge } from './cx/presentation.js';
+import { cxSeason, cxRaceName, cxRacePageUrl, cxRoundBadge, cxClassLabel } from './cx/presentation.js';
 import { cxResultEntries, cxFeedNeedsReload, CX_FULL_REFRESH_MS } from './cx/results-feed.js';
 import { isNonWinnerIrm } from './results/uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
@@ -69,6 +70,12 @@ function safeCardColor(hex) {
     return '#' + darken(r) + darken(g) + darken(b);
   }
   return '#' + full;
+}
+
+// Luminancia aproximada de un #rrggbb: true si es casi blanco.
+function isLightColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 200;
 }
 
 function stageLabel(sn, isEn, suffix = '') {
@@ -207,40 +214,6 @@ async function fetchEntries(fromKey, toKey, isEn) {
     || null;
   const entryRd = (s, race) => rdFor(s, race);
 
-  // La vista de resultados duplica las clasificaciones finales bajo la última
-  // etapa publicada: conserva sus pestañas F, pero la columna de contexto
-  // (ruta, perfil y assets) es la de esa jornada. Localizamos aquí esa etapa
-  // para que la card de la general final entre directamente en ese contexto.
-  // Solo cuenta una clasificación de etapa realmente publicada: si no existe,
-  // se mantiene el enlace histórico a la pestaña final independiente.
-  const finalStageContextByRace = new Map();
-  const isLaterStage = (candidate, current) => {
-    if (!current) return true;
-    const date = (candidate.rd?.dateKey || candidate.stageDate || '').localeCompare(
-      current.rd?.dateKey || current.stageDate || ''
-    );
-    if (date) return date > 0;
-    const time = (candidate.rd?.neutralStartTimeUtc || '').localeCompare(current.rd?.neutralStartTimeUtc || '');
-    if (time) return time > 0;
-    if (candidate.sn !== current.sn) return candidate.sn > current.sn;
-    return (candidate.suffix || '').localeCompare(current.suffix || '') > 0;
-  };
-  for (const s of (stages || [])) {
-    if (s.classKind !== 'stage' || s.stageNumber == null) continue;
-    const race = raceById.get(s.raceId);
-    if (!race) continue;
-    const rd = entryRd(s, race);
-    if (rd?.isRestDay || rd?.isCancelledDay) continue;
-    const candidate = {
-      sn: s.stageNumber,
-      suffix: rd?._stageSuffix || '',
-      rd,
-      stageDate: s.stageDate,
-    };
-    const current = finalStageContextByRace.get(s.raceId);
-    if (isLaterStage(candidate, current)) finalStageContextByRace.set(s.raceId, candidate);
-  }
-
   for (const s of (stages || [])) {
     const race = raceById.get(s.raceId);
     if (!race) continue;
@@ -272,18 +245,16 @@ async function fetchEntries(fromKey, toKey, isEn) {
       });
     } else if (isFinalGc) {
       // General final de una vuelta: entrada propia, POR DELANTE de la etapa
-      // de su carrera (subOrder 0 < 1; cmpEntries la pega a su carrera). La
-      // URL entra en la última etapa para que las clasificaciones F se vean
-      // con el contexto de esa jornada.
+      // de su carrera (subOrder 0 < 1; cmpEntries la pega a su carrera). Su
+      // enlace es la clasificación final de la carrera (sin etapa).
       const k = `${s.raceId}#gcfinal`;
       if (seen.has(k)) continue;
       seen.add(k);
-      const finalStage = finalStageContextByRace.get(s.raceId);
       entries.push({
         _k: k, _stageRef: s.id, kind: 'inhouse', isGcFinal: true,
         date, race, sn: null, subOrder: 0, rd: null,
         winner: cleanWinner(s.winnerName),
-        href: inhouseHref(race, finalStage?.sn ?? null, 'gc', isEn, finalStage?.suffix || ''),
+        href: inhouseHref(race, null, null, isEn),
       });
     } else if (s.classKind === 'stage' && s.stageNumber != null) {
       const k = key(s.raceId, s.stageNumber, s.raceDayId);
@@ -346,37 +317,15 @@ async function fetchEntries(fromKey, toKey, isEn) {
         && !e.isGcFinal
         && (e.rd?.primaryType === 'ttt' || (byRef.get(e._stageRef)?.size || 0) > 1));
       const creIds = new Map(creEntries.map(e => [e, [...(byRef.get(e._stageRef) || [])].slice(0, 3)]));
-      const creRiderIds = [...new Set([...creIds.values()].flat())];
-      const creRaceIds = [...new Set(creEntries.map(e => e.race.id))];
-      if (creRiderIds.length) {
-        try {
-          const { data: slr } = await supabase.from('startlist_riders_resolved')
-            .select('raceId, globalRiderId, teamId').in('raceId', creRaceIds).in('globalRiderId', creRiderIds);
-          const pksFor = e => {
-            const ids = new Set(creIds.get(e));
-            return [...new Set((slr || []).filter(r => r.raceId === e.race.id && ids.has(r.globalRiderId))
-              .map(r => r.teamId).filter(Boolean))];
-          };
-          const slPks = [...new Set(creEntries.map(pksFor).filter(pks => pks.length === 1).flat())];
-          const { data: slts } = slPks.length
-            ? await supabase.from('startlist_teams').select('id, teamId, teamName').in('id', slPks)
-            : { data: [] };
-          const sltById = new Map((slts || []).map(row => [row.id, row]));
-          const teamIds = [...new Set((slts || []).map(row => row.teamId).filter(Boolean))];
-          const { data: tms } = teamIds.length
-            ? await supabase.from('teams').select('id, name, teamKind, selectionScope, countryCode, selectionCode').in('id', teamIds)
-            : { data: [] };
-          const teamById = new Map((tms || []).map(row => [row.id, row]));
-          for (const e of creEntries) {
-            const pks = pksFor(e);
-            if (pks.length !== 1) continue;
-            const slt = sltById.get(pks[0]);
-            if (!slt) continue;
-            const team = slt.teamId ? teamById.get(slt.teamId) : null;
-            const teamWinner = team?.name || slt.teamName || '';
-            if (teamWinner) e.winner = localizedTeamName(teamWinner, team, isEn);
-          }
-        } catch (_) { /* se queda el ganador que hubiera */ }
+      // Mismo resolvedor que las filas normales (result-feed-context.js): cada
+      // corredor rank 1 → su equipo; si todos coinciden, ese es el ganador. Un
+      // corredor con dos equipos en la carrera deja la CRE sin ganador.
+      const teamByRider = await resolveRiderTeams(supabase, creEntries.flatMap(e =>
+        creIds.get(e).map(globalRiderId => ({ raceId: e.race.id, globalRiderId }))), isEn);
+      for (const e of creEntries) {
+        if (creIds.get(e).some(id => teamByRider.ambiguous?.has(`${e.race.id}:${id}`))) continue;
+        const teams = new Set(creIds.get(e).map(id => teamByRider.get(`${e.race.id}:${id}`)).filter(Boolean));
+        if (teams.size === 1) e.winner = [...teams][0];
       }
     }
   } catch (_) { /* ganador crudo si falla la resolución */ }
@@ -397,7 +346,7 @@ async function fetchEntries(fromKey, toKey, isEn) {
 
   // Cronología inversa; dentro del día, orden canónico de carreras (las
   // generales finales pegadas a su carrera y por delante).
-  await enrichResultFeed(supabase,entries);
+  await enrichResultFeed(supabase,entries,isEn);
   // Como en Hoy, las carreras destacadas del día abren ese día, con todas sus
   // entradas (etapa y general final) juntas.
   const featuredDays = new Set(entries.filter(e => e._featured).map(e => `${e.date}#${e.race.id}`));
@@ -436,12 +385,16 @@ function entryRowHtml(e, isEn, locale) {
   const flag = flagCc ? `<span class="feed-row__flag">${countryFlag(flagCc)}</span>` : '';
   // Todas las filas reservan la misma columna para el logo y la bandera.
   const logo = e.race.logoUrl
-    ? `<img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
-    : '';
-  const leftCol = `<span class="feed-row__logo">${logo}${flag}</span>`;
+    ? `<img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" ${LOGO_ONERROR}>`
+    : logoPlaceholderHtml('race-logo-img');
+  // Categoría UCI bajo el logo y la bandera debajo (columna izquierda).
+  const cat = e.race.uciCategory ? `<span class="feed-row__cat">${esc(e.race.uciCategory)}</span>` : '';
+  const leftCol = `<span class="feed-row__logo">${logo}${cat}${flag}</span>`;
   const fem = (e.race.gender === 'female' && !nameImpliesFemale(e.race.name || ''))
     ? femaleMark({ cls: 'feed-row__fem' }) : '';
-  const name = `${esc(getRaceName(e.race))}${fem}`;
+  // «Etapa X» pasa al título, tras el nombre y en peso normal.
+  const stagePart = e.isGcFinal ? '' : stageLabel(e.sn, isEn, e.suffix || '');
+  const name = `${esc(getRaceName(e.race))}${fem}${stagePart ? ` <span class="feed-row__stage">${esc(stagePart)}</span>` : ''}`;
   const color = safeCardColor(e.race.colorHex);
 
   // Línea 2: etapa, km y desnivel + badge solo para CRI/CRE/cronoescalada.
@@ -460,9 +413,7 @@ function entryRowHtml(e, isEn, locale) {
       // es-ES no agrupa por defecto por debajo de 10.000.
       ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`
       : '';
-    const stagePart = stageLabel(e.sn, isEn, e.suffix || '');
     const seg = [];
-    if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
     if (km) seg.push(`<strong>${esc(km)}</strong>`);
     if (elevation) seg.push(esc(elevation));
     const text = seg.join(' · ');
@@ -474,17 +425,25 @@ function entryRowHtml(e, isEn, locale) {
     subHtml = `${text}${badges}`;
   }
 
+  // Equipo entre paréntesis y en peso normal tras el nombre (solo corredores).
+  const teamHtml = team => team ? ` <span class="feed-row__team">(${esc(team)})</span>` : '';
   const winnerHtml = e.winner
-    ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong></span>` : '';
+    ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong>${teamHtml(e.winnerTeam)}</span>` : '';
 
   // Destacada (espejo de FeedRowView en iOS/Android): la misma fila con sus
   // clasificaciones complementarias debajo. Solo las vueltas por etapas las
   // tienen; una destacada sin complementarias se pinta como fila normal.
   const leaders = e._featured ? (e.leaders || []).map(c => {
-    const dot = classificationColor(c)
-      ? `<span class="feed-row__leader-dot" style="background:${classificationColor(c)}"></span>` : '';
-    const winners = c.winners.map(w => esc(w.name)).join(' / ');
-    return `<span class="feed-row__leader">${dot}<span class="feed-row__leader-label">${esc(classificationLabel(c, isEn ? 'en' : 'es'))}</span>${winners ? `<span class="feed-row__leader-name">${winners}</span>` : ''}</span>`;
+    // Punto y etiqueta del color de la clasificación; sin color, un hueco
+    // invisible mantiene alineadas las columnas. Los colores casi blancos
+    // (jóvenes) no tiñen la etiqueta: se perdería sobre el fondo claro.
+    const col = classificationColor(c);
+    const dot = col
+      ? `<span class="feed-row__leader-dot" style="background:${col}"></span>`
+      : '<span class="feed-row__leader-dot feed-row__leader-dot--none"></span>';
+    const tint = col && !isLightColor(col) ? ` style="--leader-color:${col}"` : '';
+    const winners = c.winners.map(w => esc(w.name) + teamHtml(w.team)).join(' / ');
+    return `<span class="feed-row__leader">${dot}<span class="feed-row__leader-label"${tint}>${esc(classificationLabel(c, isEn ? 'en' : 'es'))}</span>${winners ? `<span class="feed-row__leader-name">${winners}</span>` : ''}</span>`;
   }).join('') : '';
 
   return `
@@ -502,22 +461,28 @@ function entryRowHtml(e, isEn, locale) {
 // clasificaciones complementarias, una línea por categoría con su código y
 // el ganador o la ganadora. La línea secundaria identifica torneo, manga y
 // sede, como la tarjeta de Hoy de Ciclocross.
-function cxEntryRowHtml(e, isEn, rounds) {
+function cxEntryRowHtml(e, isEn, rounds, teams) {
   const lang = isEn ? 'en' : 'es';
   const race = e.race, tournament = race.cx_tournaments;
   const logoUrl = race.logoUrl || tournament?.logoUrl;
-  const logo = logoUrl ? `<img class="race-logo-img" src="${esc(logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+  const logo = logoUrl ? `<img class="race-logo-img" src="${esc(logoUrl)}" alt="" loading="lazy" ${LOGO_ONERROR}>` : logoPlaceholderHtml('race-logo-img');
   const flag = race.countryCode ? `<span class="feed-row__flag">${countryFlag(race.countryCode)}</span>` : '';
+  // Clase UCI (C2, CDM…) bajo el logo y la bandera debajo, como las cards de carretera.
+  const cat = race.class ? `<span class="feed-row__cat">${esc(cxClassLabel(race.class, lang))}</span>` : '';
   const name = cxRaceName(race, lang);
   const sub = [tournament ? esc(cxRaceName(tournament, lang)) : '', cxRoundBadge(rounds?.get(race.id)), race.venue && race.venue !== name ? esc(race.venue) : ''].filter(Boolean).join(' · ');
-  const leaders = e.categories.map(c => `<span class="feed-row__leader"><span class="feed-row__leader-label" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name">${esc(c.winnerName)}</span></span>`).join('');
+  // Código de categoría en mini-badge con contorno; ganador en negrita y, si se
+  // conoce, su equipo entre paréntesis en gris (mismo estilo que carretera).
+  const leaders = e.categories.map(c => {
+    const team = teams?.get(`${race.id}:${c.category}`);
+    return `<span class="feed-row__leader"><span class="feed-row__cx-code" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name"><strong>${esc(c.winnerName)}</strong>${team ? ` <span class="feed-row__team">(${esc(team)})</span>` : ''}</span></span>`;
+  }).join('');
   return `
       <a class="feed-row feed-row--featured feed-row--cx" href="${esc(cxRacePageUrl(race, lang, 'results', e.categories[0].category))}">
-        <span class="feed-row__logo">${logo}${flag}</span>
+        <span class="feed-row__logo">${logo}${cat}${flag}</span>
         <span class="feed-row__main"><span class="feed-row__race">${esc(name)}</span>
           ${sub ? `<span class="feed-row__sub">${sub}</span>` : ''}
           <span class="feed-row__leaders">${leaders}</span></span>
-        <span class="feed-row__chevron" aria-hidden="true">›</span>
       </a>`;
 }
 
@@ -557,7 +522,7 @@ function packFeaturedEntries(root) {
 // categorías. Cada columna apila sus tarjetas sin huecos (mampostería): la
 // rejilla usa filas de 1 px y cada tarjeta abarca su altura más la separación;
 // el flujo denso la coloca en la columna que queda más arriba.
-const CX_CARD_GAP = 10;
+const CX_CARD_GAP = 16;
 function packCxDays(root) {
   root.querySelectorAll('.feed-day__cx-grid').forEach((grid) => {
     const cards = [...grid.children];
@@ -579,19 +544,19 @@ export function renderResultsFeed(content) {
   const locale = _isEn ? 'en-GB' : 'es-ES';
   const todayKey = toDateKey(new Date());
   let fromKey = initialResultsFromKey(todayKey);
-  // Pestaña Ciclocross, primera, mientras la home es Ciclocross (del cierre de
-  // la temporada de carretera al 31 de diciembre; services/today-season.js).
-  // En ese periodo las tres vistas forman el conmutador de Hoy y Carretera
-  // abre por defecto si está fijada con su chincheta.
+  // Pestaña Ciclocross mientras la home es Ciclocross (del cierre de la
+  // temporada de carretera al 31 de diciembre; services/today-season.js). El
+  // orden visible es Carretera | Ciclocross | Ránking (Figma), pero en esa
+  // ventana abre Ciclocross, salvo que Carretera esté fijada con su chincheta.
   const cxTab = cyclocrossHome(todayKey);
-  const views = cxTab ? ['cx', 'latest', 'ranking'] : ['latest', 'ranking'];
+  const views = cxTab ? ['latest', 'cx', 'ranking'] : ['latest', 'ranking'];
   const viewLabels = {
     cx: _isEn ? 'Cyclocross' : 'Ciclocross',
     latest: cxTab ? (_isEn ? 'Road' : 'Carretera') : (_isEn ? 'Latest Results' : 'Últimos resultados'),
     ranking: _isEn ? 'UCI Ranking' : 'Ránking UCI',
   };
   const viewShortLabels = { cx: 'CX', latest: _isEn ? 'Road' : 'Ruta', ranking: _isEn ? 'Ranking' : 'Ránking' };
-  let activeView = cxTab && roadPinned() ? 'latest' : views[0];
+  let activeView = cxTab && !roadPinned() ? 'cx' : 'latest';
   let rankingGender = 'male';
   let feedEntries = null;
   let rankingRows = null;
@@ -670,7 +635,7 @@ export function renderResultsFeed(content) {
         } else if (activeView === 'cx') {
           // Se pinta lo cargado y se sondea enseguida, como al volver a la
           // pestaña: no se espera al siguiente ciclo de 60 s.
-          if (cxEntries) { renderCx(cxEntries); refreshCx(); } else loadCx();
+          if (cxEntries) { renderCx(cxEntries); refreshCx(); loadCxTeams(); } else loadCx();
         } else if (feedEntries) {
           renderFeed(feedEntries);
           refreshFeed();
@@ -983,6 +948,9 @@ export function renderResultsFeed(content) {
   // Sondeo: marca de agua = última importación de resultados leída antes de
   // descargar la temporada (como `feedWatermark` en carretera).
   let cxWatermark = null, cxLoadedAt = 0, cxProbing = false;
+  // Equipo del ganador de cada categoría (`${raceId}:${category}`), leído de
+  // cx_results con UNA consulta por lotes tras pintar la tarjeta sin equipo.
+  const cxTeams = new Map(), cxTeamsAsked = new Set();
 
   function renderCx(entries) {
     const visible = entries.filter(e => e.date >= cxFromKey);
@@ -999,7 +967,7 @@ export function renderResultsFeed(content) {
           curDate = e.date;
           html += `<div class="feed-day feed-day--cx"><div class="feed-day__hdr">${esc(dayHeader(e.date))}</div><div class="feed-day__cx-grid">`;
         }
-        html += cxEntryRowHtml(e, _isEn, cxRounds);
+        html += cxEntryRowHtml(e, _isEn, cxRounds, cxTeams);
       }
       html += '</div></div>';
     }
@@ -1014,7 +982,27 @@ export function renderResultsFeed(content) {
       cxFromKey = addDays(cxFromKey, -CX_WINDOW_DAYS);
       renderCx(cxEntries);
       window.scrollTo(0, y);
+      loadCxTeams();
     });
+  }
+
+  // Equipos de los ganadores visibles que aún no se han pedido: no bloquea el
+  // primer pintado; al llegar se repinta solo si siguen en la pestaña CX.
+  async function loadCxTeams() {
+    // Clave por ganador: si un refresco cambia el ganador de una categoría, se
+    // vuelve a pedir su equipo.
+    const askKey = (e, c) => `${e.race.id}:${c.category}#${c.winnerName}`;
+    const pending = (cxEntries || []).filter(e => e.date >= cxFromKey && e.categories.some(c => !cxTeamsAsked.has(askKey(e, c))));
+    if (!pending.length) return;
+    pending.forEach(e => e.categories.forEach(c => cxTeamsAsked.add(askKey(e, c))));
+    const found = await resolveCxWinnerTeams(supabase, pending);
+    let added = false;
+    found.forEach((team, key) => { if (cxTeams.get(key) !== team) { cxTeams.set(key, team); added = true; } });
+    if (added && activeView === 'cx' && cxEntries && content.isConnected) {
+      const y = window.scrollY;
+      renderCx(cxEntries);
+      window.scrollTo(0, y);
+    }
   }
 
   async function loadCx({ refresh = false } = {}) {
@@ -1039,6 +1027,7 @@ export function renderResultsFeed(content) {
       const changed = !cxEntries || JSON.stringify(next) !== JSON.stringify(cxEntries);
       cxEntries = next;
       if (activeView === 'cx' && changed) renderCx(cxEntries);
+      if (activeView === 'cx') loadCxTeams();
     } catch (error) {
       if (request !== cxRequest || activeView !== 'cx') return;
       console.error('[resultados-feed] ciclocross', error);

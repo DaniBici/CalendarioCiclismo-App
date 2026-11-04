@@ -1,29 +1,54 @@
 /* ─────────────────────────────────────────────────────────────────
    FICHAJES — /fichajes/ (+ EN /en/transfers/)
-   Mercado de fichajes 2027: feed de confirmaciones + equipos por división
-   + vista de equipo (continúan / llegan / se marchan).
+   Mercado de fichajes 2027 en dos vistas (interruptor Mercado | Equipos):
+   filtros + feed de confirmaciones, y equipos por división con su vista de
+   plantilla (plantilla / llegan / se marchan).
    ───────────────────────────────────────────────────────────────── */
 
+/* Tintes de la plantilla según el año de fin de contrato (verde = margen de 2
+   años o más, amarillo = 1, rojo = vence este año). PÁLIDO para los que
+   continúan, FUERTE para las llegadas. El texto es --text sobre todos ellos
+   (≥4.5:1 en ambos temas). Mismo reparto de temas que app.css §1. */
+:root {
+  --tr-green-pale: #12301c;   --tr-green-strong: #1f5a2c;
+  --tr-yellow-pale: #3a3512;  --tr-yellow-strong: #5c5217;
+  --tr-red-pale: #3d1b1b;     --tr-red-strong: #6b2424;
+}
+html.light {
+  --tr-green-pale: #e3f9e0;   --tr-green-strong: #8dfe96;
+  --tr-yellow-pale: #fcf8db;  --tr-yellow-strong: #fef18d;
+  --tr-red-pale: #fcdbdb;     --tr-red-strong: #f9a8a8;
+}
+@media (prefers-color-scheme: light) {
+  html:not(.dark) {
+    --tr-green-pale: #e3f9e0;   --tr-green-strong: #8dfe96;
+    --tr-yellow-pale: #fcf8db;  --tr-yellow-strong: #fef18d;
+    --tr-red-pale: #fcdbdb;     --tr-red-strong: #f9a8a8;
+  }
+}
+
 .tr-main {
+  width: var(--page-width);
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 1rem 1rem 3.5rem;
+  padding: 1rem 0 3.5rem;
   box-sizing: border-box;
 }
 
 .tr-heading {
   font-family: var(--font-display);
-  font-size: var(--fs-5);
+  font-size: var(--fs-6);
   font-weight: 700;
-  margin: 0.75rem 0 0.5rem;
+  margin: 0.75rem 0 0.25rem;
 }
+/* h1 de la vista Equipos: sigue en el DOM pero solo para lectores (el título
+   visible es el h2); .sr-only no debe perder su margen negativo. */
+.tr-heading.sr-only { margin: -1px; }
 
-.tr-section-title {
-  font-family: var(--font-display);
+.tr-subtitle {
+  margin: 0 0 1rem;
   font-size: var(--fs-4);
-  font-weight: 600;
   color: var(--text);
-  margin: 1.75rem 0 0.6rem;
 }
 
 .tr-empty {
@@ -34,42 +59,83 @@
 
 .tr-dim { color: var(--text-muted); }
 
-/* ── Feed de confirmaciones ─────────────────────────────────────── */
-.tr-feed-day {
-  font-size: var(--fs-2);
-  font-weight: 600;
-  color: var(--text-muted);
-  margin: 0;
-  padding: 10px 12px 4px;
+/* ── Interruptor Mercado | Equipos ──────────────────────────────── */
+/* Mismo aspecto que las pestañas de vista de Resultados: la activa en una caja
+   con contorno y fondo tintado, la inactiva solo texto. */
+.tr-view-switch {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.tr-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: 600 var(--fs-4)/1.25 var(--font-display);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.tr-view-btn:hover { background: var(--hover-bg); }
+.tr-view-btn--active,
+.tr-view-btn--active:hover {
+  border-color: var(--control-border);
+  background: var(--bg-tint);
+}
+@media (min-width: 761px) {
+  /* Figma: cajas de 182×48 separadas 16 px, título y subtítulo en líneas de
+     24 y 16 px a 16 y 8 px de distancia. */
+  .tr-view-switch { gap: 1rem; margin-top: 0; }
+  .tr-view-btn { width: 182px; min-height: 48px; padding: 0 0.5rem; font-size: var(--fs-5); }
+  .tr-heading { margin: 1rem 0 0.5rem; line-height: 24px; }
+  .tr-subtitle { line-height: 1; }
 }
 
+/* ── Tablas con contorno (feed y vista de equipo) ───────────────── */
+.tr-feed-box,
+.tr-table {
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.tr-feed-box > :last-child,
+.tr-table > :last-child { border-bottom: 0; }
+
+/* Cabecera de día del feed: fila tintada entre filetes. */
+.tr-feed-day {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 12px;
+  background: var(--bg-tint);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: var(--fs-2);
+  font-weight: 500;
+  color: var(--text);
+}
+.tr-feed-box > .tr-feed-day:not(:first-child) { border-top: 1px solid var(--border-strong); }
+
+/* Fila de 32px con filete inferior; la celda del año (.tr-contract) cierra la
+   fila con su propio filete vertical. */
 .tr-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
-  border-radius: var(--radius);
-  margin-bottom: 0.35rem;
-  font-size: var(--fs-3);
-  line-height: 1.35;
+  min-height: 32px;
+  padding: 0 0 0 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-2);
+  line-height: 1.3;
 }
-
-/* En móvil las filas del feed son algo más densas para que el selector y el
-   inicio de la parrilla de equipos asomen en la primera pantalla, sin
-   sacrificar la lectura a una línea. */
-@media (max-width: 768px) {
-  .tr-row {
-    gap: 0.45rem;
-    padding: 0.38rem 0.55rem;
-    margin-bottom: 0.25rem;
-    font-size: var(--fs-2);
-    line-height: 1.25;
-  }
-  .tr-contract { font-size: var(--fs-1); }
-  .tr-div-btn { padding: 0.28rem 0.7rem; }
-}
+.tr-row > * { min-width: 0; }
 
 .tr-row__flag {
   flex-shrink: 0;
@@ -80,61 +146,92 @@
    tamaño y recorte que countryFlag(). */
 .tr-row__flag > img { display: inline-block; width: 1.2em; height: 0.9em; object-fit: cover; border-radius: 2px; vertical-align: -0.05em; }
 
-/* Corredor + equipo trunca con "…" a una línea (misma fórmula que las cards de
-   la vista Hoy): sin doble altura, y los badges (contrato/rumor), que son
-   hermanos del body con flex-shrink:0, quedan fijos a la derecha. */
+/* Frase corrida de las renovaciones/retiradas: trunca con "…" a una línea. */
 .tr-row__body {
   flex: 1;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* FILA de corredor enlazada a la ficha de un equipo (Llegan → equipo de origen;
-   Se marchan → equipo destino). Toda la fila es el <a>: hereda el color del
-   texto (el nombre no cambia de color) y adopta exactamente el hover de las
-   tarjetas de equipo de esta pantalla. */
+/* FILA de corredor enlazada a la ficha de un equipo (destino del feed; Llegan →
+   equipo de origen; Se marchan → equipo destino). Toda la fila es el <a>: hereda
+   el color del texto (el nombre no cambia de color). */
 .tr-row--link {
   cursor: pointer;
   color: inherit;
   text-decoration: none;
-  transition: background 0.15s ease;
+  transition: background var(--transition);
 }
-.tr-row--link:hover {
-  background: var(--bg-card-hover);
-}
+.tr-row--link:hover { background: var(--hover-bg); }
 
-/* En el feed: el nombre del corredor va en negrita y la flecha (→) lo separa
-   ya del equipo de destino, así que no hace falta divisor extra. */
-.tr-name { font-weight: 600; }
-
-/* Sin margen propio: el espacio en blanco del marcado ya separa la flecha del
-   corredor y del equipo por igual (antes margin-right 0.15rem ensanchaba el
-   lado derecho). */
-.tr-arrow { color: var(--text-dim); }
-
-/* El año de contrato como BADGE (chip), no texto suelto: se lee de un vistazo
-   junto a los chips de rumor/duda. */
-.tr-contract {
-  flex-shrink: 0;
-  font-size: var(--fs-1);
+.tr-name {
   font-weight: 700;
-  letter-spacing: 0.02em;
-  /* El fondo propio de la chapa aclara la base y --text-muted se quedaba en
-     4.44:1 en tema oscuro (WCAG 1.4.3); en claro ya pasa. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Flecha larga entre el corredor y el equipo; ← (origen) es la misma volteada. */
+.tr-arrow-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
   color: var(--text-muted);
+}
+.tr-arrow { display: block; width: 2.5rem; height: 0.52rem; }
+.tr-arrow-cell--left .tr-arrow { transform: scaleX(-1); }
+
+/* Equipo del movimiento: franjas + nombre, una línea. */
+.tr-dest {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tr-dest strong { overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.tr-dest .team-stripes { vertical-align: baseline; }
+
+/* Filas del feed en rejilla: columnas fijas (bandera, corredor, flecha, equipo,
+   año) para que las flechas y los filetes del año queden alineados. */
+.tr-row--feed {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 2.75rem minmax(0, 1fr) 4.5rem;
+  column-gap: 0.5rem;
+  align-items: center;
+}
+.tr-row--feed > .tr-row__body--wide { grid-column: 2 / 5; }
+.tr-row--feed > .tr-dest { min-width: 0; }
+
+/* El año de contrato: celda a la derecha separada por filete. */
+.tr-contract {
+  box-sizing: border-box;
+  flex: 0 0 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch;
+  min-height: 32px;
+  padding: 0 12px;
+  border-left: 1px solid var(--border-strong);
+  font-size: var(--fs-2);
+  font-weight: 400;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
-  background: none;
-  padding: 0;
-  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
-html.light .tr-contract { color: var(--text-muted); }
-
-/* Mitad de temporada en lugar del año: mismo texto que el año de contrato. */
-.tr-contract--midseason { text-transform: none; letter-spacing: 0; }
+/* Mitad de temporada en lugar del año: texto largo, puede partirse en dos. */
+.tr-contract--midseason {
+  padding: 0 6px;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  font-size: var(--fs-1);
+  line-height: 1.1;
+}
 
 .tr-chip {
   flex-shrink: 0;
@@ -147,14 +244,23 @@ html.light .tr-contract { color: var(--text-muted); }
   white-space: nowrap;
 }
 
-.tr-chip--rumor {
-  background: rgba(245, 158, 11, 0.16);
-  /* #d97706 se quedaba en 2.81:1 sobre su propio tinte (WCAG 1.4.3). */
-  color: #a04607;
+/* RUMOR: la misma marca en toda la vista de equipo (plantilla, llegadas y
+   salidas): la fila entera sobre un tinte azul suave, que se localiza de un
+   vistazo, y RUMOR en versalitas en el azul de enlace a la derecha. El tinte
+   azul prevalece sobre el del contrato de la plantilla. */
+.tr-row.tr-row--rumor,
+.tr-row.tr-row--rumor.tr-tint { background: color-mix(in srgb, var(--accent) 9%, var(--bg-card)); }
+.tr-row.tr-row--rumor.tr-row--link:hover { background: color-mix(in srgb, var(--accent) 16%, var(--bg-card)); }
+.tr-rumor-label {
+  flex: none;
+  color: var(--accent-text);
+  font-size: var(--fs-1);
+  font-weight: 700;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
-
-html.dark .tr-chip--rumor,
-html:not(.light) .tr-chip--rumor { color: #fbbf24; }
 
 /* Duda ≠ rumor: un rumor es una noticia sin confirmar, una duda es la
    ausencia de noticia. Violeta para que no se lean como el mismo estado. */
@@ -166,9 +272,12 @@ html:not(.light) .tr-chip--rumor { color: #fbbf24; }
 html.dark .tr-chip--doubt,
 html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 
+/* RUMOR a la derecha de la fila, antes del año si lo hay. */
+.tr-row--team > .tr-rumor-label { margin-left: auto; margin-right: 12px; }
+
 /* Aviso de continuidad del equipo en duda (vista de equipo). */
 .tr-team-notice {
-  margin: 0.6rem 0 0;
+  margin: 0.75rem 0 0;
   padding: 0.55rem 0.75rem;
   border-radius: var(--radius);
   background: rgba(139, 92, 246, 0.1);
@@ -177,144 +286,292 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   line-height: 1.4;
 }
 
-.tr-more {
+/* ── Filtros del mercado ────────────────────────────────────────── */
+.tr-filters__title {
+  margin: 0 0 0.5rem;
+  font: 500 var(--fs-4)/1 var(--font-display);
+  color: var(--text);
+}
+.tr-filters__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.9rem 2.5rem;
+  padding: 0.5rem 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--bg-tint);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.tr-filter-group { min-width: 0; }
+.tr-filter-label {
   display: block;
-  margin: 0.75rem auto 0;
-  padding: 0.45rem 1.3rem;
+  margin-bottom: 0.3rem;
   font-size: var(--fs-2);
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--accent-text, var(--accent));
-  background: var(--accent-dim);
-  border: none;
-  border-radius: var(--radius-pill);
+  color: var(--text);
+}
+.tr-filter-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* Chip de filtro: como .tcat-btn pero más pequeño; activo = relleno. */
+.tr-filter-chip {
+  min-width: 64px;
+  min-height: 24px;
+  padding: 0 0.6rem;
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: 600 var(--fs-1)/1.2 var(--font-body);
   cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.tr-filter-chip:hover { background: var(--hover-bg); border-color: var(--text); }
+.tr-filter-chip--active,
+.tr-filter-chip--active:hover {
+  background: var(--selected-bg);
+  border-color: var(--selected-border);
+  color: var(--selected-text);
 }
 
-/* ── Divisiones + equipos ───────────────────────────────────────── */
+.tr-filters-clear {
+  margin-left: auto;
+  min-height: 24px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent-text);
+  font: 700 var(--fs-2)/1.3 var(--font-body);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tr-filters-clear:disabled { opacity: 0.55; cursor: default; }
+
+@media (max-width: 760px) {
+  .tr-filters__panel { gap: 0.9rem 1.5rem; padding: 0.75rem 1rem; }
+  .tr-filters-clear { margin-left: 0; width: 100%; text-align: left; }
+}
+@media (max-width: 600px) {
+  .tr-filter-chip { min-height: 32px; }
+  .tr-filters-clear { min-height: 32px; }
+}
+
+/* ── Divisiones ─────────────────────────────────────────────────── */
 .tr-div-btns {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
-/* Mismos filtros que la vista Hoy (.tcat-btn): inactivo sobre la superficie
-   de ficha; activo con el azul al 15 % y texto azul. */
+/* Mismos filtros que la vista Hoy (.tcat-btn): contorno de control; activo
+   con los colores de selección. */
 .tr-div-btn {
-  padding: 0.32rem 0.8rem;
+  min-height: 24px;
+  padding: 0 0.9rem;
   font-size: var(--fs-2);
   font-family: var(--font-body);
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-card);
-  border: none;
-  border-radius: var(--radius-pill);
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
+.tr-div-btn:hover { background: var(--hover-bg); border-color: var(--text); }
+@media (min-width:761px) { .tr-div-btn { min-width: 91px; } }
+@media (max-width:600px) { .tr-div-btn { min-height: 32px; } }
 
-.tr-div-btn--active {
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
-  color: var(--accent-text, var(--accent));
+.tr-div-btn--active, .tr-div-btn--active:hover {
+  background: var(--selected-bg);
+  border-color: var(--selected-border);
+  color: var(--selected-text);
   font-weight: 700;
 }
 
-.tr-team-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+/* ── Losetas de equipo ──────────────────────────────────────────── */
+.tr-team-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+@media (max-width:1279px) { .tr-team-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width:1099px) { .tr-team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width:760px) { .tr-team-grid { grid-template-columns: 1fr; } }
+
+/* Colores (fondo/texto) en línea desde el JS: los del diseño o la pareja
+   editorial del equipo. Contorno de 2 px en tinta, como en el Figma. */
 .tr-team-card {
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-  min-width:0; min-height:54px; padding:10px 12px; text-align:left;
-  background:var(--bg-card); color:var(--text);
-  border:0; border-radius: var(--radius); box-shadow: var(--card-shadow);
-  font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 101px;
+  padding: 0;
+  text-align: left;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 2px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font: 400 var(--fs-4)/1.3 var(--font-body);
+  cursor: pointer;
+  transition: filter var(--transition);
 }
-.tr-team-card:hover { background:var(--bg-card-hover); }
-/* Franjas de maillot (las de Resultados) delante del nombre del equipo. */
-.tr-team-card__name { overflow-wrap:anywhere; }
-.tr-team-card__label { min-width:0; }
-.tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }
-.tr-team-chevron { flex:none; font-size: var(--fs-5); }
-@media (max-width:1100px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:760px) { .tr-team-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:360px) { .tr-team-grid { grid-template-columns:1fr; } }
+.tr-team-card:hover { filter: brightness(1.05); }
+/* Visible sobre cualquier color de loseta: el anillo va por fuera. */
+.tr-team-card:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+
+/* Franjas como banda vertical de 24 px a todo el alto, separada del fondo por
+   un filete de 2 px en tinta, en la loseta y en el banner del equipo. */
+.tr-team-card__stripes,
+.tr-team-banner__stripes {
+  display: flex;
+  flex: none;
+  width: 26px;
+  border-right: 2px solid var(--control-border);
+}
+.tr-team-card__stripes .team-stripes,
+.tr-team-banner__stripes .team-stripes {
+  flex: 1;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border: 0;
+}
+
+.tr-team-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+}
+.tr-team-card__name {
+  font: 700 var(--fs-5)/1.2 var(--font-display);
+  overflow-wrap: anywhere;
+}
+.tr-team-card__country,
+.tr-team-banner__country {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+/* El chip de duda del equipo conserva su legibilidad sobre cualquier color. */
+.tr-team-card .tr-chip--doubt {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
 
 /* ── Vista de equipo ────────────────────────────────────────────── */
 /* El "volver a todos los equipos" vive en el botón ← del header (ccHeaderBack
    en js/header.js), no en el cuerpo de esta vista. */
-.tr-team-header {
-  margin-top: 0.75rem;   /* aire bajo el header sticky (antes lo daba el botón volver) */
+.tr-team-banner {
   display: flex;
+  align-items: stretch;
+  min-height: 52px;
+  margin-top: 1rem;
+  border: 2px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.tr-team-banner__content {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.9rem 1rem;
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
-  border-radius: var(--radius);
+  gap: 0.25rem 1.5rem;
+  min-width: 0;
+  padding: 0.5rem 1rem;
+}
+.tr-team-banner__name {
+  margin: 0;
+  font: 700 var(--fs-5)/1.2 var(--font-display);
+  overflow-wrap: anywhere;
+}
+.tr-team-banner__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.5rem;
+  margin-left: auto;
+  font-size: var(--fs-4);
+}
+@media (max-width: 760px) {
+  .tr-team-banner__meta { margin-left: 0; width: 100%; }
 }
 
-.tr-team-header__name {
+/* Secciones en rejilla de columnas (las filas no se parten entre columnas):
+   1 columna, 2 desde 761px (plantilla | resto) y 3 desde 1100px. */
+.tr-team-sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  padding-top: 1rem;
+}
+.tr-team-sections > .tr-empty { grid-column: 1 / -1; }
+.tr-col { min-width: 0; }
+.tr-col section:not([hidden]) ~ section:not([hidden]) { margin-top: 2rem; }
+@media (min-width: 761px) {
+  .tr-team-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto auto 1fr; }
+  .tr-col--squad { grid-row: 1 / span 3; }
+  .tr-col--ends, .tr-col--moves { grid-column: 2; }
+}
+@media (min-width: 1100px) {
+  /* Figma: plantilla y terminan contrato 354 px, llegan/se marchan 570 px. */
+  .tr-team-sections { grid-template-columns: minmax(0, 354fr) minmax(0, 354fr) minmax(0, 570fr); grid-template-rows: none; gap: 1.5rem 2rem; }
+  .tr-col--squad { grid-row: auto; }
+  .tr-col--moves { grid-column: 3; }
+}
+@media (min-width: 1280px) {
+  .tr-team-sections { column-gap: 4rem; }
+}
+
+.tr-section-title {
+  margin: 0 0 0.25rem;
   font-family: var(--font-display);
   font-size: var(--fs-5);
-  font-weight: 700;
-  margin: 0;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--text);
 }
 
-.tr-team-header__cat {
-  color: var(--text-muted);
-  font-size: var(--fs-2);
+/* Filas de la vista de equipo: nombre en negrita, equipo con franjas. */
+.tr-row--team > .tr-name { flex: 0 1 auto; }
+.tr-row--solo > .tr-name { flex: 1 1 0; }
+.tr-row--team > .tr-chip { margin-right: 12px; }
+.tr-row--team > .tr-chip--doubt { margin-left: auto; }
+
+/* Tintes de la plantilla: pálido = continúa, fuerte = llega. */
+.tr-tint--green  { background: var(--tr-green-pale); }
+.tr-tint--yellow { background: var(--tr-yellow-pale); }
+.tr-tint--red    { background: var(--tr-red-pale); }
+.tr-tint--green.tr-tint--strong  { background: var(--tr-green-strong); }
+.tr-tint--yellow.tr-tint--strong { background: var(--tr-yellow-strong); }
+.tr-tint--red.tr-tint--strong    { background: var(--tr-red-strong); }
+
+/* ── Feed: Fichajes y Renovaciones ──────────────────────────────── */
+/* Móvil: un panel a la vez, elegido con los botones. Desde 761px, las dos
+   columnas lado a lado como en el diseño. Sin desplazamiento interno. */
+.tr-feed-column { display: none; min-width: 0; }
+.tr-feed-column--active { display: block; }
+.tr-feed-title {
+  display: none;
+  margin: 0 0 0.5rem;
+  font: 500 var(--fs-5)/1.2 var(--font-display);
+  color: var(--text);
+}
+.tr-feed-column .tr-empty { padding: 12px; }
+@media (min-width: 761px) {
+  #trFeedBtns { display: none; }
+  .tr-feed-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; align-items: start; }
+  .tr-feed-column { display: block; }
+  .tr-feed-title { display: block; }
 }
 
-.tr-team-sections section { margin-top: 0.25rem; }
-
-.tr-row--team { font-size: var(--fs-3); }
-
-.tr-team-header { min-height:44px; padding:9px 12px; background:var(--bg-card); color:var(--text); }
-.tr-team-header__text { display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; width:100%; }
-.tr-team-header__cat { margin-left:auto; }
-.tr-team-header__name { font-size: var(--fs-5); overflow-wrap:anywhere; }
-.tr-team-header__cat { color:inherit; font-weight:600; }
-#trTeamView { margin-inline:auto; }
-.tr-team-sections { columns:350px 2; column-gap:24px; padding-top:1.75rem; }
-.tr-team-sections>section { min-width:0; margin-top:0; }
-.tr-team-sections>section:not([hidden]) ~ section { padding-top:1.75rem; }
-.tr-team-sections .tr-section-title { break-after:avoid; margin-top:0; }
-.tr-team-sections .tr-section-title--duplicate {
-  break-before: column;
-  margin-top: 0;
-}
-.tr-team-sections .tr-row { break-inside:avoid; }
-/* Conservar el ancho de las antiguas columnas cuando cabían tres. */
-@media (min-width:1146px) {
-  .tr-main:has(#trTeamView:not([hidden])) { width:calc((var(--page-width) - 48px) / 3 * 2 + 24px); }
-}
-.tr-div-btn { font-weight:600; }
-.tr-div-btn--active { font-weight:700; }
-@media (max-width:760px) { .tr-team-sections { column-count:1; } }
-
-.tr-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }
-
-/* Fichajes y Renovaciones: paneles como Puntos clave (cabecera y filas con
-   filete). Por debajo de 900 px se ve uno, elegido con los botones. */
-.tr-feed-column { display:none; min-width:0; overflow:hidden; background:var(--bg-card); box-shadow:var(--card-shadow); border-radius:var(--radius); }
-.tr-feed-column--active { display:block; }
-.tr-feed-title { display:none; align-items:center; min-height:48px; margin:0; padding:10px 12px; border-bottom:1px solid var(--border); color:var(--text); font: 600 var(--fs-4) var(--font-display); }
-.tr-feed-column .tr-row { margin:0; padding:8px 12px; background:none; box-shadow:none; border-radius:0; border-bottom:1px solid var(--border); }
-.tr-feed-column .tr-row--link:hover { background:var(--hover-bg); }
-.tr-feed-list { margin-bottom:-1px; }
-.tr-feed-column .tr-empty { padding:12px; }
-/* Fichajes y Renovaciones a la misma altura fija, con desplazamiento propio
-   en todos los anchos. */
-.tr-feed-list {
-  height: 22rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-/* Desde 900 px, lado a lado (columnas de 414 px): sin «renueva con», solo los
-   equipos de nombre más largo truncan; desde 996 px no trunca ninguna fila. */
-@media(min-width:900px) {
-  #trFeedBtns { display:none; }
-  #trFeed { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
-  .tr-feed-column { display:block; }
-  .tr-feed-title { display:flex; }
+/* Columnas estrechas (761–1099px, dos tablas lado a lado): flecha y año más
+   compactos para que los nombres no se queden en una sílaba. */
+@media (min-width: 761px) and (max-width: 1099px) {
+  .tr-row--feed { grid-template-columns: 1.5rem minmax(0, 1.1fr) 1.75rem minmax(0, 1fr) 3.5rem; column-gap: 0.35rem; }
+  .tr-row--feed .tr-arrow { width: 1.5rem; }
+  .tr-row--feed > .tr-contract { flex-basis: 3.5rem; padding: 0 8px; }
+  .tr-row { padding-left: 8px; }
 }

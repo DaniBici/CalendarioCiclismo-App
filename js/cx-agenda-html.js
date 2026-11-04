@@ -119,12 +119,12 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
     const boxAttrs=open?` href="${esc(cxRaceUrl(race,lang,c.category))}" aria-label="${esc(catName)}" title="${esc(catName)}"`:` aria-label="${esc(catName)}" title="${esc(catName)}"`;
     return `<span class="cx-category-cell"${open?` data-cx-timing="${esc(key)}"`:''}><${open?'a':'span'} class="cx-category-box"${boxAttrs}>${c.category}</${open?'a':'span'}><span class="cx-category-state">${dynamic||!open?cxCardScheduleHtml(race,c,open):''}</span></span>`;
   }).join('')}</div>`;
-  // Logo con el de su torneo de respaldo; sin ninguno, el hueco se oculta.
-  const logo=cxLogoHtml(race,tournament,{onUnavailable:"this.closest('.race-card__logo').classList.add('race-card__logo--without-logo')"});
+  // Logo con el de su torneo de respaldo; sin ninguno, el hueco de la marca (.logo-ph).
+  const logo=cxLogoHtml(race,tournament,{onUnavailable:"var s=this.closest('.race-card__logo');s.classList.add('race-card__logo--without-logo');s.firstElementChild.classList.add('race-logo-img','logo-ph')"});
   // Estructura común de components/race-card.js; la columna derecha son las
   // categorías con su horario o su resultado.
   const inner=raceCardHtml({
-    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}">${logo}</span><span>${countryFlag(race.countryCode)}</span></div>`,
+    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}"${logo?'':' class="race-logo-img logo-ph"'}>${logo}</span><span>${countryFlag(race.countryCode)}</span></div>`,
     name:`${href}${esc(cxRaceName(race,lang))}${hrefEnd}${menu}`,
     sub:meta,
     badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span><span class="cx-card-badges" data-cx-badges="${esc(`${race.id}:${date}`)}">${dynamic?cxCardBadgesHtml(race,date,open):''}</span>`,

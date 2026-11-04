@@ -8,9 +8,9 @@
 //  build (js/html-fingerprint.js).
 // ─────────────────────────────────────────────────────────────────
 
-import { esc, formatTimeUser, routeBlockDayHtml, raceUrl, rdLocation, buildRaceHero, buildStageNav, buildActionButtons,
-         perfilUrl, enBase, startFinishLabels } from './shared.js';
-import { fixedDecimal } from './fixed-number.js';
+import { esc, formatTimeUser, timeWithDay, raceUrl, buildRaceHero, buildStageNav, raceSideStageList, buildActionLinks,
+         buildStageTiles, buildRaceFacts, buildRaceBreadcrumb, raceCrumbItems, raceDateKeys, raceLayoutHtml,
+         stageLabel, jornadaUrl, perfilUrl, enBase, startFinishLabels } from './shared.js';
 import { t, getLang } from './i18n.js';
 import { stageProfileHtml } from './stage/profile.js';
 import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
@@ -30,84 +30,59 @@ function mapaUrl(rd) {
   return rd.slug ? `/mapa/${encodeURIComponent(rd.slug)}/` : `/mapa.html?id=${rd.id}`;
 }
 
-const ARROW_SVG = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="7" y1="0" x2="7" y2="17" stroke-width="1.5" stroke-linecap="round"/><polyline points="3,13 7,19 11,13" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-
-// Recorrido, distancia y horarios. Las horas llevan su instante en
-// <time datetime>, como en la jornada.
-function routeGridHtml(rd, race) {
-  const isEn = getLang() === 'en';
-  const startName  = rdLocation(rd, 'startLocation');
-  const finishName = rdLocation(rd, 'finishLocation');
-  const sameLocation = startName && (!finishName || startName === finishName);
-  const recorridoHtml = !startName
-    ? `<div class="route-block__note route-block__note--empty">${t('stage.noData')}</div>`
-    : sameLocation
-      ? `<div class="route-block__place route-block__place--solo">${startName}</div><div class="route-block__note">${t('search.startAndFinish')}</div>`
-      : `<div class="route-block__place">${startName}</div>${ARROW_SVG}<div class="route-block__place">${finishName || '-'}</div>`;
-
-  const kmHtml = rd.distanceKm
-    ? `<div class="route-block__km">${fixedDecimal(rd.distanceKm, { lang: isEn ? 'en' : 'es' })}${isEn ? 'km' : ' km'}</div>`
-    : `<div class="route-block__km route-block__km--empty">-</div>`;
-  const elevGain = rd.elevationProfile?.elevationGain;
-  const elevHtml = elevGain != null
-    ? `<div class="route-block__elev">+${String(Math.round(elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, isEn ? ',' : '.')} m</div>`
-    : '';
-  const tipoHtml = rd.primaryType === 'itt' || rd.primaryType === 'ttt'
-    ? `<div class="route-block__type">${t(`types.${rd.primaryType}`)}</div>`
-    : '';
-
+// Horario de la etapa para la última tesela (como en la jornada): salida y
+// meta en la zona del visitante, con la hora de Madrid en el tooltip si
+// difiere. Las horas llevan su instante en <time datetime>.
+function scheduleTile(rd, race) {
+  if (rd.isCancelledDay) return null;
   const startTU  = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
   const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
-  const startDay  = routeBlockDayHtml(startTU);
-  const finishDay = routeBlockDayHtml(finishTU);
-  const start  = startTU?.display  ?? null;
-  const finish = finishTU?.display ?? null;
+  const start  = timeWithDay(startTU);
+  const finish = timeWithDay(finishTU);
+  if (!start && !finish) return null;
   const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
   const { startLabel, finishLabel } = startFinishLabels(rd, race);
-  const startTip  = tzDiffers ? t('profile.startMadrid').replace('{time}', startTU?.tooltip ?? start) : startLabel;
-  const finishTip = tzDiffers ? t('profile.finishMadrid').replace('{time}', finishTU?.tooltip ?? finish) : finishLabel;
-  const timeTag = (iso, text) => `<time datetime="${esc(iso)}">${text}</time>`;
-  let horariosHtml;
-  if (start && finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>${ARROW_SVG}<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>`;
-  } else if (start) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div><div class="route-block__note">${startLabel}</div>`;
-  } else if (finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div><div class="route-block__note">${finishLabel}</div>`;
-  } else {
-    horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
-  }
-
-  return `<div class="jornada-section jornada-section--route-grid" style="margin-bottom:1.25rem">
-      <div class="route-grid">
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('stage.route')}</div>
-          <div class="route-grid__body route-grid__body--route">${recorridoHtml}</div>
-        </div>
-        <div class="route-grid__block">
-          <div class="route-grid__title">${t('profile.distance')}</div>
-          <div class="route-grid__body">${kmHtml}${elevHtml}${tipoHtml}</div>
-        </div>
-        <div class="route-grid__block">
-          <div class="route-grid__title" data-tooltip="${tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone')}">${t('stage.schedule')}</div>
-          <div class="route-grid__body route-grid__body--route">${horariosHtml}</div>
-        </div>
-      </div>
-    </div>`;
+  const zone = tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone');
+  const parts = [start && `${startLabel}: ${start}`, finish && `${finishLabel}: ${finish}`].filter(Boolean).join(' · ');
+  const madrid = tzDiffers ? ` · Madrid: ${[startTU?.tooltip ?? start, finishTU?.tooltip ?? finish].filter(Boolean).join(' - ')}` : '';
+  const timeTag = (iso, text) => (iso ? `<time datetime="${esc(iso)}">${text}</time>` : text);
+  return {
+    label: t('stage.tileSchedule'),
+    value: [start, finish].filter(Boolean).join(' - '),
+    html: [start && timeTag(rd.neutralStartTimeUtc, start), finish && timeTag(rd.estimatedFinishTimeUtc, finish)].filter(Boolean).join(' - '),
+    tooltip: `${parts}${madrid} (${zone})`,
+  };
 }
 
-// Selector de etapas, cabecera de carrera, botones y rejilla, comunes a las
-// dos páginas. `view`: 'perfil' o 'mapa' (buildActionButtons omite el botón
-// de la propia vista).
-function stagePageHeadHtml({ rd, race, siblings, assets, view, urlBuilder }) {
-  const stageNavHtml = buildStageNav(siblings.filter(s => !s.isRestDay), rd.id, urlBuilder, raceUrl(race));
-  // Margen superior (como en jornada, orden y resultados) para que el panel no
-  // se pegue al separador inferior de la cabecera (.race-header).
-  const actionButtonsHtml = race ? buildActionButtons({
-    race, rd, view, assets, hasStartlist: !!race.startlistImportedAt,
-    style: 'margin:1.25rem auto 0.85rem', standalone: true,
-  }) : '';
-  return `${stageNavHtml}${buildRaceHero(rd, race)}${actionButtonsHtml}${routeGridHtml(rd, race)}`;
+// Página completa con la composición de la ficha de jornada: en escritorio,
+// selector de etapas, cabecera, enlaces de la carrera y lista de etapas en la
+// columna lateral; migas de pan (… › Etapa › Perfil interactivo), pestañas,
+// teselas y `bodyHtml` en la principal. `view`: 'perfil' o 'mapa'
+// (buildActionLinks omite la pestaña de la propia vista).
+function stagePageHtml({ rd, race, siblings, assets, view, urlBuilder, bodyHtml }) {
+  const navSiblings = siblings.filter(s => !s.isRestDay);
+  const r = race || {};
+  const { start: raceStart, end: raceEnd } = raceDateKeys(r, siblings.length ? siblings : [rd]);
+  const facts = race ? buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, countryCode: race.hideFlag ? '' : race.countryCode }) : '';
+  const { bar, side } = race ? buildActionLinks({
+    race, rd, view, assets, hasStartlist: !!race.startlistImportedAt, style: 'margin-bottom:0.85rem', standalone: true,
+  }) : { bar: '', side: '' };
+  const tiles = buildStageTiles(rd, r, { last: scheduleTile(rd, r) });
+  const isOneDay = r.raceFormat === 'one_day';
+  const crumbs = raceCrumbItems(r, { stageText: isOneDay ? '' : stageLabel(rd.stageNumber, rd._stageSuffix) });
+  // La etapa enlaza a su ficha y la vista cierra las migas.
+  const stageCrumb = crumbs[crumbs.length - 1];
+  if (crumbs.length > 1) stageCrumb.href = jornadaUrl(rd);
+  crumbs.push({ label: t(view === 'mapa' ? 'assets.mapInteractive' : 'assets.profileInteractive'), href: '' });
+  return raceLayoutHtml({
+    navHtml: buildStageNav(navSiblings, rd.id, urlBuilder, raceUrl(r)),
+    headerHtml: buildRaceHero(rd, race, { facts }),
+    sideLinksHtml: side,
+    sideExtraHtml: raceSideStageList(race, navSiblings, { currentId: rd.id, href: urlBuilder }),
+    crumbsHtml: buildRaceBreadcrumb(crumbs),
+    mainHtml: `${bar}${tiles ? `<div class="jornada-section jornada-section--route-grid">${tiles}</div>` : ''}${bodyHtml}`,
+    facts: !!facts,
+  });
 }
 
 /**
@@ -120,7 +95,7 @@ export function perfilHtml({ rd, race, siblings = [], assets = [] }) {
   const profileHtml = profile
     ? `<div id="pfeProfile" class="${profile.className}">${profile.html}</div>`
     : stagePageNoticeHtml('profile.noElevation');
-  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'perfil', urlBuilder: perfilUrl })}${profileHtml}`;
+  return stagePageHtml({ rd, race, siblings, assets, view: 'perfil', urlBuilder: perfilUrl, bodyHtml: profileHtml });
 }
 
 const fmtInt = (v, sep = '.') => (v != null ? String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, sep) : '?');
@@ -167,5 +142,6 @@ function mapKeyPointsHtml(rd) {
  * mountRouteMap, con alto reservado en css/app.css) y debajo los puntos clave.
  */
 export function mapaHtml({ rd, race, siblings = [], assets = [] }) {
-  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'mapa', urlBuilder: mapaUrl })}<div class="cc-map-wrap" id="ccRouteMapWrap"></div>${mapKeyPointsHtml(rd)}`;
+  return stagePageHtml({ rd, race, siblings, assets, view: 'mapa', urlBuilder: mapaUrl,
+    bodyHtml: `<div class="cc-map-wrap" id="ccRouteMapWrap"></div>${mapKeyPointsHtml(rd)}` });
 }

@@ -29,7 +29,6 @@
        899 / 900    ficha de resultados con columna lateral de 280px
        1099 / 1100  escritorio: nombres de día completos, ficha de resultados
                     fija y columna lateral de 320px
-       701, 1200    margen de página (--page-gutter: 24px y 32px)
      De componente
        420          cabecera: acciones solo con icono
        480          rejilla de recorrido y aviso de cambios en una columna;
@@ -46,20 +45,74 @@
 
 /* Variables propias de la web (tema oscuro por defecto). */
 :root {
+  /* Tipografía del diseño (el panel conserva Google Sans de tokens.css):
+     Montserrat para el texto, con un respaldo de métricas equivalentes, y
+     Momo Trust Display para el logotipo. Ficheros en css/fonts.css. */
+  --font-display: 'Montserrat', 'Montserrat Fallback', sans-serif;
+  --font-body:    'Montserrat', 'Montserrat Fallback', sans-serif;
+  --font-logo:    'Momo Trust Display', 'Montserrat', 'Montserrat Fallback', sans-serif;
+  /* Paleta oscura Grafito (la de tokens.css y las apps: superficies grafito
+     casi sin croma) con la composición del diseño: superficies con contorno;
+     --border-strong dibuja el aro de tarjetas (el contorno neutro de Android)
+     y --control-border el de chips, selectores y botones de icono. El lima de
+     la marca y las teselas claras son del Figma. */
+  --bg:            #0b0c0f;
+  --bg-card:       #24262b;
+  --bg-card-hover: #2e3036;
+  --bg-header:     #222429;
+  --bg-tint:       #2e3036;
+  --border:        #3a3d44;
+  --border-light:  #4c5058;
+  --border-strong: #8f949d;
+  --text:          #f2f3f5;
+  --header-text:   #f2f3f5;
+  --text-muted:    #a9adb5;
+  --text-dim:      #8f949d;
+  --accent:        #1a73e8;
+  --accent-text:   #6aa6f8;
+  --accent-dim:    rgba(26,115,232,0.20);
+  --brand:         #b7f34a;
+  --control-border: #f2f3f5;
+  --selected-bg:   transparent;
+  --selected-text: #b7f34a;
+  --selected-border: #b7f34a;
+  --day-selected-bg:     #f2f3f5;
+  --day-selected-text:   #0b0c0f;
+  --day-selected-border: #f2f3f5;
+  --card-shadow:   0 0 0 1px var(--border-strong);
+  /* Pasar el puntero tiñe (--hover-bg); los neutros de badges y botones de
+     panel (tokens.css) usan el mismo tono. */
+  --hover-bg:      color-mix(in srgb, var(--bg-tint) 70%, transparent);
+  --badge-neutral-hover: var(--hover-bg);
   --profile-dark-correction: 1;
   --profile-light-correction: 0;
   /* A 55% sobre --bg-card compone un gris grafito oscuro: mantiene visible la
      silueta pendiente y deja al menos ~3:1 frente a colores de carrera desde
      la luminancia mínima corregida. El gris claro anterior componía #838990 y
      se confundía con identificativos claros como el #999999 de Flandrien. */
-  --profile-pending-color: #53575f;
-  --page-width: min(var(--content-max), calc(100vw - 2 * var(--page-gutter)));
+  --profile-pending-color: #4c5058;
+  /* Porcentaje (no vw): el ancho útil descuenta la barra de desplazamiento, así
+     el margen real es el de --page-gutter. */
+  --page-width: min(var(--content-max), calc(100% - 2 * var(--page-gutter)));
   /* La navegación vive dentro de la cabecera: no añade altura propia. */
   --primary-nav-h: 0px;
-  --dorsal-bg-a: #1c1e22;
   /* Relleno y suelo del perfil de la pantalla de carga: en oscuro, la
      superficie de ficha; el acento al 10 % componía una franja azul marino. */
   --loading-terrain: var(--bg-card);
+  --dorsal-bg-a: #2e3036;
+  /* Teselas de la ficha de etapa (distancia, perfil): verde y ámbar. */
+  /* El diseño oscuro conserva las teselas claras (texto oscuro, >4,5:1). */
+  --tile-green-bg:     #c2f6e7;
+  --tile-green-border: #4fd3a5;
+  --tile-green-text:   #006b43;
+  --tile-amber-bg:     #f6e7c2;
+  --tile-amber-border: #e0bf62;
+  --tile-amber-text:   #6b4e00;
+  /* «Selección inversa»: pestañas segmentadas, etapa actual de la columna
+     lateral y botón principal. Oscuro: relleno claro con texto oscuro. */
+  --inverse-bg:     #f2f3f5;
+  --inverse-text:   #0b0c0f;
+  --inverse-border: #f2f3f5;
   /* Los diálogos consumen la misma jerarquía cromática que la web. Estos
      alias evitan que una superficie modal conserve una paleta independiente
      cuando cambian los fondos, bordes o cabeceras globales. */
@@ -69,33 +122,77 @@
   --modal-field:      var(--bg);
   --modal-border:     var(--border);
 }
-/* Tema claro. La cabecera y la barra inferior son una superficie, como las
-   tarjetas, igual que en el tema oscuro (el panel conserva su token). */
+/* Tema claro (clase que js/theme.js fija según el dispositivo). */
 html.light {
-  --bg-header: var(--bg-card);
+  --bg:            #f5f8fd;
+  --bg-card:       #f5f8fd;
+  --bg-card-hover: #e8f1ff;
+  --bg-header:     #f5f8fd;
+  --bg-tint:       #e8f1ff;
+  --border:        #c3ccd8;
+  --border-light:  #cfd7e2;
+  --border-strong: #7c8a9f;
+  --text:          #10233f;
+  --header-text:   #10233f;
+  --text-muted:    #44546b;
+  --text-dim:      #56657b;
+  --accent:        #1769e0;
+  --accent-text:   #1455c0;
+  --accent-dim:    rgba(23,105,224,0.10);
+  --brand:         #1769e0;
+  --control-border: #10233f;
+  --selected-bg:   #10233f;
+  --selected-text: #ffffff;
+  --selected-border: #10233f;
+  --day-selected-bg:     #e8f1ff;
+  --day-selected-text:   #10233f;
+  --day-selected-border: #10233f;
+  --card-shadow:   0 0 0 1px var(--border-strong);
+  --hover-bg:      var(--bg-tint);
   --profile-dark-correction: 0;
   --profile-light-correction: 1;
   --profile-pending-color: #657185;
-  --dorsal-bg-a: #eeeff2;
   --loading-terrain: color-mix(in srgb, var(--accent) 10%, transparent);
+  --dorsal-bg-a: #e8f1ff;
+  --inverse-bg:     #10233f;
+  --inverse-text:   #ffffff;
+  --inverse-border: #10233f;
+  --tile-green-bg:     #c2f6e7;
+  --tile-green-border: #4fd3a5;
+  --tile-green-text:   #006b43;
+  --tile-amber-bg:     #f6e7c2;
+  --tile-amber-border: #e0bf62;
+  --tile-amber-text:   #6b4e00;
 }
 /* Reset. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: var(--fs-4); scroll-behavior: smooth; }
-/* Canal de la barra de scroll reservado: sin él, las vistas que no desbordan
-   (Programa de CX) se recentran media barra a la derecha respecto a las que
-   sí. Sin efecto con barras superpuestas. */
-html { scrollbar-gutter: stable; }
+html {
+  font-size: var(--fs-4);
+  scroll-behavior: smooth;
+  /* La cabecera fija no debe tapar anclas ni elementos enfocados. */
+  scroll-padding-top: calc(var(--site-header-h, 0px) + 8px);
+  /* Única barra de desplazamiento de la web: fina y sin saltos de ancho. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  /* Canal de la barra de scroll reservado: sin él, las vistas que no desbordan
+     (Programa de CX) se recentran media barra a la derecha respecto a las que
+     sí. Sin efecto con barras superpuestas. */
+  scrollbar-gutter: stable;
+}
 /* Las capas a pantalla completa bloquean el scroll y no pintan sobre el canal:
    lo liberan para cubrir todo el ancho. */
 html:has(dialog:modal, body.cc-map-expanded-lock) { scrollbar-gutter: auto; }
 body {
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
   font-weight: 400;
   line-height: 1.5;
+  /* clip (y no hidden) para que el cuerpo no sea un segundo contenedor de
+     desplazamiento: html es el único que desplaza y la cabecera fija funciona. */
   overflow-x: hidden;
+  overflow-x: clip;
   /* Safe areas laterales y bottom (home indicator iOS).
      El top lo gestiona .site-header para que su fondo cubra
      toda la zona de la Dynamic Island / notch. */
@@ -173,7 +270,7 @@ main:focus, main:focus-visible { outline: none; }
    de la propia cabecera o de las barras sticky ya están siempre visibles, y
    darles margen de scroll hace que el navegador desplace la página en cada
    tabulación —subiendo de card en card antes de llegar a la lista—. */
-main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 9rem; }
+main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 5rem; }
 :where(.site-header, .primary-nav, .hoy-sticky, .cx-agenda-sticky, .temporada-filters, .cal-mes-bar) :where(a, button, select, input, textarea, [tabindex]) {
   scroll-margin-top: 0;
 }
@@ -205,14 +302,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   body { padding-bottom: calc(61px + env(safe-area-inset-bottom)); }
 }
 
-@media (min-width: 701px) {
-  :root { --page-gutter: 24px; }
-}
-
-@media (min-width: 1200px) {
-  :root { --page-gutter: 32px; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after {
@@ -225,22 +314,18 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 
 /* ═══ Cabecera, navegación y pie ════════════════════════════════════════ */
 
-/* Una sola franja: marca, cinco destinos y acciones. Por debajo de 1280 px los
-   destinos bajan a una segunda fila dentro de la misma cabecera; por debajo de
-   601 px forman la barra inferior y la cabecera se desplaza con la página.
-   Las barras fijas de cada página leen --site-header-h (js/header.js), que vale
-   0 cuando la cabecera no es fija. */
+/* Fila de marca (logo y acciones) y, debajo, la franja de destinos a todo el
+   ancho; por debajo de 601 px los destinos forman la barra inferior. Desde
+   601 px la cabecera es fija y las barras fijas de cada página cuelgan de
+   --site-header-h (js/header.js); en móvil se desplaza con la página y vale 0. */
 .site-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   padding: env(safe-area-inset-top, 0) 0 0;
   background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
   /* js/header.js rellena el elemento tras el primer pintado: sin alto
-     reservado, toda la página bajaba 57 px (CLS). Es el alto de la barra de
-     una fila; en tablet la cabecera real es mayor y el resto lo ocupa JS. */
-  min-height: 57px;
+     reservado, toda la página bajaba (CLS). Es el alto real por tramo. */
+  min-height: 56px;
 }
 .site-header__inner {
   /* Hueco de la flecha de volver (32 px − 12 px de solape + 24 px de
@@ -261,14 +346,33 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   align-items: center;
   min-height: 56px;
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 700;
   font-size: var(--fs-5);
   letter-spacing: -0.01em;
-  color: var(--accent-text);
+  color: var(--brand);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.site-logo__text { color: var(--header-text); }
+.site-logo__text { color: var(--brand); }
+/* Logotipo: placa con los dos iconos de siempre (calendario y bicicleta), de
+   la altura de las dos líneas, y a su derecha el nombre con la firma debajo,
+   alineada a la derecha, en Momo Trust Display. En móvil solo queda la placa. */
+.site-logo__mark {
+  flex: none;
+  width: 3.3em;
+  height: 1.9em;
+  margin-right: 0.5em;
+}
+.site-logo__text {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-logo);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.site-logo__by { margin-top: 0.15em; font-size: 0.5em; letter-spacing: 0; }
 
 /* Botón atrás. El insertado por ccHeaderBack() puede ser un <button> (Fichajes
    vuelve a la lista sin recargar): se neutralizan los estilos de UA. */
@@ -281,7 +385,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   margin-right: -0.75rem;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-5);
   transition: color var(--transition), background var(--transition);
 }
@@ -317,7 +421,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-muted);
+  color: var(--text);
   font: 500 var(--fs-3) var(--font-display);
   white-space: nowrap;
   cursor: pointer;
@@ -339,7 +443,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-muted);
+  color: var(--text);
   font: 500 var(--fs-3) var(--font-display);
   cursor: pointer;
   transition: color var(--transition), background var(--transition);
@@ -379,6 +483,25 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   transform: rotate(90deg);
 }
 
+/* Carriles de desplazamiento horizontal (filtros, pestañas, acciones, meses):
+   sin barra visible, encajan al soltar y no arrastran la página. Cuando hay
+   contenido oculto, el borde correspondiente se difumina (24 px) con la línea
+   de tiempo de scroll; sin ella (Firefox) basta con las flechas y el gesto. */
+@property --rail-fade-l { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --rail-fade-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes rail-fade-l { from { --rail-fade-l: 0px; } to { --rail-fade-l: 24px; } }
+@keyframes rail-fade-r { from { --rail-fade-r: 24px; } to { --rail-fade-r: 0px; } }
+.asset-links, .res-tabs__inner, .res-stages__inner, .cal-month-chips { scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; }
+.asset-links > *, .res-tabs__inner > *, .res-stages__inner > *, .cal-month-chips > * { scroll-snap-align: start; }
+@supports (animation-timeline: scroll()) {
+  .asset-links, .res-tabs__inner, .res-stages__inner, .cal-month-chips {
+    mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-l), #000 calc(100% - var(--rail-fade-r)), transparent);
+    animation: rail-fade-l linear both, rail-fade-r linear both;
+    animation-timeline: scroll(self inline), scroll(self inline);
+    animation-range: 0 24px, calc(100% - 24px) 100%;
+  }
+}
+
 /* Navegación principal (js/header.js): cinco destinos (cuatro con la home cedida a Ciclocross, en la que Hoy alberga las dos disciplinas). */
 .primary-nav { flex: 1 1 auto; min-width: 0; align-self: stretch; }
 .primary-nav__inner {
@@ -400,7 +523,10 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   white-space: nowrap;
   transition: color var(--transition), background var(--transition);
 }
-.primary-nav__inner a:hover { color: var(--header-text); background: var(--hover-bg); }
+/* La franja ya es --bg-tint: el hover (--hover-bg) no se vería, se aclara al fondo de página. */
+.primary-nav__inner a:hover { color: var(--header-text); background: var(--bg); }
+/* La franja recorta lo que sale de su caja (clip-path): el foco va por dentro. */
+.primary-nav__inner a:focus-visible { outline-offset: -2px; }
 .primary-nav a.active { color: var(--accent-text); font-weight: 700; }
 .primary-nav a.active::after {
   content: '';
@@ -464,13 +590,88 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
 .giro-countdown__days strong { font-weight: 600; }
 .giro-countdown__chevron { flex: none; color: var(--accent-text); }
 
-/* Pie: autoría y, debajo, secciones secundarias y acciones en una fila. */
+/* Pie del rediseño (montado por js/header.js sobre el de cada página): banda a
+   todo el ancho con el fondo y el filete de la cabecera. Arriba, la marca y dos
+   columnas de enlaces (Secciones y Más); abajo, tras un filete, la autoría del
+   sitio y la firma del rediseño, a la misma escala.
+   Siempre bajo el pliegue: el pie va al fondo del cuerpo, que mide al menos
+   una pantalla más el propio pie (--site-footer-h, medido en js/header.js;
+   antes, una estimación). En una página corta el pie empieza justo donde
+   acaba la pantalla y nunca asoma a media altura. */
+body:has(> .site-footer) {
+  position: relative;
+  min-height: calc(100vh + var(--site-footer-h, 14rem));
+  min-height: calc(100lvh + var(--site-footer-h, 14rem));
+  padding-bottom: calc(var(--site-footer-h, 14rem) + 3rem + env(safe-area-inset-bottom));
+}
 .site-footer {
-  width: var(--page-width);
-  margin: 2rem auto 0;
-  padding: 1.5rem 0;
+  position: absolute;
+  right: 0;
+  bottom: env(safe-area-inset-bottom);
+  left: 0;
+  margin: 0;
+  padding: 0 max(var(--page-gutter), calc((100% - var(--content-max)) / 2));
+  /* Fondo propio, un punto más tintado que la página (claro: azul del diseño;
+     oscuro: grafito de las tarjetas), para separar el pie del contenido. */
+  background: color-mix(in srgb, var(--bg-tint) 45%, var(--bg));
+  border-top: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font: 400 var(--fs-2)/1.5 var(--font-body);
+}
+.site-footer__top {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  padding: 2.5rem 0 2rem;
+}
+.site-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  justify-self: start;
+  gap: 0.6rem;
+  font-size: var(--fs-5);
+  color: var(--brand);
+  text-decoration: none;
+}
+.site-footer__mark { flex: none; width: 3.3em; height: 1.9em; }
+.site-footer__brand-text {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-logo);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.site-footer__brand-by { margin-top: 0.15em; font-size: 0.5em; letter-spacing: 0; }
+.site-footer a.site-footer__brand, .site-footer a.site-footer__brand:hover { color: var(--brand); text-decoration: none; }
+.site-footer__brand:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: var(--radius-sm); }
+.site-footer__heading {
+  margin: 0 0 0.6rem;
+  font: 700 var(--fs-1)/1.2 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.site-footer__list,
+.site-footer p.site-footer__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 2rem;
+  padding: 1rem 0 1.25rem;
   border-top: 1px solid var(--border);
-  text-align: center;
 }
 /* Pie sin pintar mientras la pantalla de carga está abierta
    (js/page-loading.js), que ya lo tapa: el contenido que llega lo desplaza y
@@ -490,26 +691,28 @@ body:has(> .page-loading:not(.page-loading--hide)) > .site-footer { visibility: 
    calendario; las tarjetas se pintan, como antes, en el mismo fotograma en que
    se retira el marcador. */
 body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaContent, #calMain, #campeonatosContent):has(.loading) { visibility: hidden; }
-.site-footer p {
-  font-family: var(--font-display);
-  font-size: var(--fs-1);
-  color: var(--text-muted);
-  margin: 0;
-}
+/* Antes de montarse (y en el pie de cada página tal cual) solo hay el
+   copyright. */
+.site-footer > p { padding: 1.25rem 0; }
+.site-footer p { margin: 0; font-size: var(--fs-1); color: var(--text-muted); }
 .site-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  transition: color var(--transition), text-decoration-color var(--transition);
+}
+.site-footer a:hover { color: var(--text); text-decoration-color: currentColor; }
+/* El dueño del sitio, el nombre que más pesa de la línea de autoría. */
+.site-footer__legal a[href*="danisanchez"] { color: var(--text); font-weight: 600; }
+/* Firma del rediseño: Style Script, como en el pie de su web, del alto visual
+   del texto que la acompaña y en el gris del pie (no compite con el dueño). */
+.site-footer a.site-footer__signature {
+  font: 400 0.9375rem/1 'Style Script', cursive;
   color: var(--text-muted);
   text-decoration: none;
-  transition: color var(--transition);
 }
-.site-footer a:hover { color: var(--text); }
-.site-footer p.site-footer__actions {
-  margin-top: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem 1.5rem;
-  flex-wrap: wrap;
-}
+.site-footer a.site-footer__signature:hover { color: var(--text); }
 .footer-link {
   padding: 0;
   border: 0;
@@ -520,16 +723,50 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
   text-decoration: none;
   transition: color var(--transition);
 }
-.site-footer .footer-link { color: var(--text-muted); padding-block: 0.25rem; }
-.site-footer .footer-link:hover { color: var(--text); text-decoration: underline; }
+/* Enlaces de las columnas: texto, con el icono en gris cuando lo hay. */
+.site-footer .footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 500 var(--fs-2)/1.3 var(--font-body);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.25em;
+}
+.site-footer .footer-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.site-footer .footer-link:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 2px; }
 .footer-link--icon { display: inline-flex; align-items: center; gap: 0.35rem; }
-.footer-link--icon svg { width: 14px; height: 14px; }
+.footer-link--icon svg { flex: none; width: 16px; height: 16px; }
+.site-footer .footer-link--icon svg { color: var(--text-muted); }
+@media (max-width: 760px) {
+  .site-footer__top { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem 1rem; padding: 2rem 0 1.5rem; }
+  .site-footer__brand { grid-column: 1 / -1; }
+  .site-footer__bottom { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 600px) {
+  /* El pie queda encima de la barra inferior fija; enlaces de 40 px de alto
+     táctil. */
+  body:has(> .site-footer) {
+    min-height: calc(100vh + var(--site-footer-h, 30rem) + 61px + env(safe-area-inset-bottom));
+    min-height: calc(100lvh + var(--site-footer-h, 30rem) + 61px + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--site-footer-h, 30rem) + 2rem + 61px + env(safe-area-inset-bottom));
+  }
+  .site-footer { bottom: calc(61px + env(safe-area-inset-bottom)); }
+  .site-footer .footer-link { min-height: 40px; }
+}
 
 @media (max-width: 600px) {
-  /* La cabecera se desplaza con la página: solo la barra inferior y los
-     controles propios de cada agenda quedan fijos. */
-  .site-header { position: relative; }
+  /* Solo la barra inferior y los controles propios de cada agenda quedan fijos. */
   .site-logo__text { display: none; }
+  .site-logo__mark { margin-right: 0; width: 49px; height: 28px; }
+  /* Flecha, placa y cuatro acciones en una fila desde 320 px. */
+  .site-header__inner { column-gap: 0.75rem; }
   .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display: none; }
   .nav-apps-btn, .header-support-link { width: 40px; padding: 0; justify-content: center; }
   /* Zona táctil de 44 px; la cabecera mide 56 px y no crece. */
@@ -544,7 +781,7 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
     z-index: 150;
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--bg-header);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-strong);
   }
   .primary-nav__inner a {
     flex: 1 1 0;
@@ -558,7 +795,8 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
   }
   .primary-nav__inner a>span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .primary-nav__icon { width: 22px; height: 22px; }
-  .primary-nav a.active::after { top: -1px; bottom: auto; right: 30%; left: 30%; }
+  .primary-nav a.active { color: var(--text); }
+  .primary-nav a.active::after { top: -1px; bottom: auto; right: 30%; left: 30%; background: var(--brand); }
   .giro-countdown__link { justify-content: flex-start; padding-block: 6px; }
   .giro-countdown__body { flex-direction: column; align-items: flex-start; gap: 0; max-width: 100%; }
   /* Subtítulo del cintillo en una sola línea, con puntos suspensivos si no cabe. */
@@ -572,24 +810,71 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
   .nav-apps-btn, .header-support-link { width: 32px; padding: 0; justify-content: center; }
 }
 
-@media (min-width: 601px) and (max-width: 1279px) {
-  /* Tableta y escritorio estrecho: los destinos ocupan una segunda fila
-     dentro de la cabecera. Marca, menú y acciones necesitan unos 1140 px
-     para compartir fila; por debajo de 1280 px las acciones se partían. */
-  .primary-nav { order: 3; flex-basis: 100%; margin-inline: calc(-1 * var(--page-gutter)); border-top: 1px solid var(--border); }
-  .primary-nav__inner a { min-height: 44px; }
-}
-
 @media (min-width: 601px) {
+  /* Fila de marca de 64 px; la franja de destinos (40 px) es la segunda fila
+     a todos los anchos. La cabecera queda fija arriba. */
+  .site-header { position: sticky; top: 0; min-height: 104px; }
+  .site-header__inner, .site-logo { min-height: 64px; }
   /* Simetría con el hueco de la flecha de volver. */
   .header-actions { margin-right: var(--back-slot); }
+  /* Franja a todo el ancho de la página: el sombreado de 100vmax pinta el
+     relleno y el recorte lo limita al alto de la franja (sin desbordar). El
+     fondo de la franja hace de regla superior e inferior; el interior, de
+     relleno. */
+  .primary-nav {
+    order: 3;
+    flex-basis: 100%;
+    height: 40px;
+    padding-block: 1px;
+    background: var(--border-strong);
+    box-shadow: 0 0 0 100vmax var(--border-strong);
+    clip-path: inset(0 -100vmax);
+  }
+  .primary-nav__inner {
+    background: var(--bg-tint);
+    box-shadow: 0 0 0 100vmax var(--bg-tint);
+    clip-path: inset(0 -100vmax);
+  }
+  .primary-nav__inner a {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 0.5rem;
+    color: var(--text);
+    font: 400 var(--fs-4) var(--font-display);
+  }
+  .primary-nav a.active { color: var(--text); font-weight: 700; }
+  .primary-nav a.active::after, .primary-nav__icon { display: none; }
+}
+
+@media (min-width: 1100px) {
+  .site-header { min-height: 112px; }
+  .site-header__inner, .site-logo { min-height: 72px; }
+  /* Idioma: ES sobre EN. */
+  .lang-switcher { flex-direction: column; }
+  .lang-btn { min-height: 28px; font-size: var(--fs-4); }
+}
+
+@media (min-width: 1100px) and (max-width: 1279px) {
+  .nav-apps-btn, .header-support-link { gap: 0.5rem; font-size: var(--fs-4); }
+  .header-action-icon { width: 20px; height: 20px; }
 }
 
 @media (min-width: 1280px) {
-  .primary-nav__inner a { min-height: 56px; }
-  /* Menú centrado en la página, independiente del ancho de la marca y de las
-     acciones. */
-  .primary-nav { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); }
+  .site-header { min-height: 120px; }
+  .site-header__inner, .site-logo { min-height: 80px; }
+  .site-logo { font-size: var(--fs-6); }
+  .primary-nav__inner a { font-size: var(--fs-5); }
+  /* Acciones: Apps y Apoyar con icono de 24 px; y una regla
+     antes del idioma. El separador del marcado pasa tras Apoyar. */
+  .header-actions { gap: 1.5rem; }
+  .nav-apps-btn { order: 1; }
+  .header-support-link { order: 2; }
+  .header-actions__divider { display: block; order: 3; width: 1px; height: 40px; background: var(--text); }
+  .lang-switcher { order: 4; }
+  .lang-btn { font-size: var(--fs-3); }
+  .nav-apps-btn, .header-support-link { gap: 0.75rem; font-size: var(--fs-5); }
+  .header-action-icon { width: 24px; height: 24px; }
 }
 
 /* ═══ Estados de carga y vacíos ═════════════════════════════════════════ */
@@ -822,8 +1107,8 @@ html.cc-booting::before {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.agenda-filter-cats { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.agenda-filter-divider { display: none; }
+.agenda-filter-cats { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.agenda-filter-divider { display: none; }   /* sin divisor: «Ordenar» va al extremo */
 .agenda-sort-wrap {
   display: flex;
   align-items: center;
@@ -832,30 +1117,28 @@ html.cc-booting::before {
 /* Desplegable compartido con .res-teamfilter__select y con la etiqueta del
    desplegable de categoría de Hoy (.agenda-cat-wrap). */
 .agenda-sort-select, .agenda-cat-wrap {
-  min-height: 36px;
+  min-height: 24px;
   max-width: 100%;
-  padding: 7px 30px 7px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  font: 600 var(--fs-3) var(--font-body);
-  color: var(--text-muted);
-  background-color: var(--bg-card);
+  padding: 2px 26px 2px 0.9rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  font: 600 var(--fs-2) var(--font-body);
+  color: var(--text);
+  background-color: transparent;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.55rem center;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  transition: color var(--transition);
+  transition: background-color var(--transition), border-color var(--transition);
 }
-.agenda-sort-select:hover, .agenda-sort-select:focus { color: var(--text); }
+.agenda-sort-select:hover, .agenda-sort-select:focus, .agenda-cat-wrap:hover, .agenda-cat-wrap:has(.agenda-cat-select:focus) { background-color: var(--hover-bg); border-color: var(--text); }
 .agenda-sort-select:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 /* Categoría en desplegable (Hoy): solo hasta 600 px, en lugar de los chips.
    La etiqueta da el ancho; el select nativo, transparente, la cubre y abre el
    selector del sistema. Con la predeterminada activa, chincheta tras el texto. */
 .agenda-cat-wrap { display: none; position: relative; align-items: center; gap: 0.3rem; flex-shrink: 0; }
-.agenda-cat-wrap:hover { color: var(--text); }
 .agenda-cat-wrap:has(.agenda-cat-select:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .agenda-cat-wrap__label { white-space: nowrap; }
 .agenda-cat-wrap__pin { display: none; width: 12px; height: 12px; color: var(--accent-text); }
@@ -877,26 +1160,31 @@ html.cc-booting::before {
 .discipline-switch {
   display: inline-flex;
   flex-shrink: 0;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--card-shadow);
-  background: var(--bg-card);
+  align-items: stretch;
+  min-height: 24px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
 }
 .discipline-switch__option {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.7rem;
-  border-radius: var(--radius-pill);
-  font: 500 var(--fs-2) var(--font-body);
+  padding: 0 0.9rem;
+  border-radius: 0;
+  font: 600 var(--fs-2) var(--font-body);
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--text);
   transition: color var(--transition), background var(--transition);
 }
+/* Las opciones comparten contorno: el filete entre ambas es el borde de la
+   segunda y el fondo activo respeta las esquinas redondeadas. */
+.discipline-switch__option:first-child { border-radius: calc(var(--radius-sm) - 1px) 0 0 calc(var(--radius-sm) - 1px); }
+.discipline-switch__option:last-child { border-radius: 0 calc(var(--radius-sm) - 1px) calc(var(--radius-sm) - 1px) 0; }
+.discipline-switch__option + .discipline-switch__option { border-left: 1px solid var(--control-border); }
 /* Resultados usa botones en lugar de enlaces (js/resultados-feed.js). */
 :where(button.discipline-switch__option) { border: 0; background: none; cursor: pointer; }
-.discipline-switch__option:is(a, button, :has(> .discipline-switch__select)):not(.discipline-switch__option--active):hover { color: var(--text); background: var(--bg-card-hover); }
-.discipline-switch__option--active { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); font-weight: 700; }
+.discipline-switch__option:is(a, button, :has(> .discipline-switch__select)):not(.discipline-switch__option--active):hover { background: var(--hover-bg); }
+.discipline-switch__option--active, .discipline-switch__option--active:hover { color: var(--selected-text); background: var(--selected-bg); font-weight: 700; }
 /* Chincheta de Carretera, la de los chips (`.tcat-pin`): botón en Hoy de
    carretera y en Resultados; en la agenda de Ciclocross, solo el icono cuando
    está fijada. En Resultados, el botón de la vista ocupa toda la opción y la
@@ -908,13 +1196,6 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 .discipline-switch__select { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .discipline-switch__select::before { content: ''; position: absolute; inset: 0; }
 .discipline-switch__option > button.discipline-switch__pin { position: relative; z-index: 1; }
-/* Franja de Hoy en escritorio: chips, desplegables y conmutador a la misma
-   altura que este (28 px); los desplegables medían 36 px. En móvil los iguala
-   la regla de hasta 600 px (32 px). */
-@media (min-width: 601px) {
-  .agenda-filters .tcat-btn, .agenda-filters .agenda-sort-select, .agenda-filters .agenda-cat-wrap { min-height: 28px; }
-  .agenda-filters .agenda-sort-select, .agenda-filters .agenda-cat-wrap { padding-block: 0; }
-}
 /* Los chips de carretera, la fecha completa y el conmutador con la chincheta
    de Carretera piden unos 980 px: por debajo, la categoría pasa al
    desplegable, como en móvil. Sin conmutador los chips caben desde unos
@@ -934,7 +1215,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 
 /* Filtros de Temporada y Mes (calendario/). */
 .temporada-filters {
-  background: var(--bg-card);
+  background: var(--bg);
   position: sticky;
   top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
   z-index: 50;
@@ -963,7 +1244,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   flex-wrap: wrap;
   width: 100%;
 }
-.temporada-filter-cats { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.temporada-filter-cats { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 /* País: ancho flexible pero acotado. */
 .temporada-select--country {
   flex: 1;
@@ -980,29 +1261,29 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   text-overflow: ellipsis;
 }
 
-/* Botón de categoría: pastilla suave, mismo lenguaje en Hoy, Temporada y Mes. */
+/* Botón de categoría: chip con contorno, mismo lenguaje en Hoy, Temporada y
+   Mes; el activo se rellena (claro) o cambia de color (oscuro). */
 .tcat-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3rem;
-  padding: 0.32rem 0.8rem;
-  border: none;
-  border-radius: var(--radius-pill);
-  font-family: var(--font-body);
-  font-size: var(--fs-2);
-  font-weight: 500;
+  min-height: 24px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  font: 600 var(--fs-2) var(--font-body);
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
-  color: var(--text-muted);
-  /* Como TodayFilterChip/CxFilterChip en iOS: inactivo sobre la superficie de
-     ficha con texto secundario; activo con el azul al 15 % y texto azul. */
-  background: var(--bg-card);
+  color: var(--text);
+  background: transparent;
   cursor: pointer;
-  transition: color var(--transition), background var(--transition);
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
 }
-.tcat-btn:hover { color: var(--text); background: var(--bg-card-hover); }
-.tcat-btn--active, .tcat-btn--active:hover { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); font-weight: 700; }
+.tcat-btn:hover { background: var(--hover-bg); border-color: var(--text); }
+.tcat-btn--active, .tcat-btn--active:hover { color: var(--selected-text); background: var(--selected-bg); border-color: var(--selected-border); }
 /* Chincheta: fija el filtro como predeterminado. */
 .tcat-pin {
   display: inline-flex;
@@ -1081,9 +1362,21 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
   }
   .agenda-filter-cats::-webkit-scrollbar { display: none; }
-  .agenda-filters .tcat-btn { padding: 0.3rem 0.7rem; }
+  .agenda-filter-cats > * { scroll-snap-align: start; }
+  @supports (animation-timeline: scroll()) {
+    .agenda-filter-cats {
+      mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-l), #000 calc(100% - var(--rail-fade-r)), transparent);
+      animation: rail-fade-l linear both, rail-fade-r linear both;
+      animation-timeline: scroll(self inline), scroll(self inline);
+      animation-range: 0 24px, calc(100% - 24px) 100%;
+    }
+  }
+  .agenda-filters .tcat-btn { padding: 0 0.7rem; }
+  .tcat-btn { min-height: 32px; }
   /* Hoy: la categoría pasa de chips a desplegable. */
   .agenda-filters .agenda-filter-cats { display: none; }
   .agenda-filters .agenda-cat-wrap { display: flex; }
@@ -1105,6 +1398,20 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   .agenda-filters__inner:has(.discipline-switch) .agenda-date { order: 1; flex-basis: 100%; margin-right: 0; }
   .agenda-filters__inner:has(.discipline-switch) .agenda-cat-wrap { margin-left: auto; }
   .agenda-filters__inner:not(:has(.discipline-switch)) .agenda-date__wd { display: none; }
+  /* Conmutador, «Categoría» y «Ordenar» en una sola fila a cualquier ancho:
+     rejilla con los dos desplegables a partes iguales del hueco restante, y la
+     fecha completa debajo. */
+  .agenda-filters__inner:has(.discipline-switch) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.35rem;
+  }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-date { grid-column: 1 / -1; grid-row: 2; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-cat-wrap { min-width: 0; margin-left: 0; padding-left: 0.6rem; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-cat-wrap__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-sort-wrap { min-width: 0; }
+  .agenda-filters__inner:has(.discipline-switch) .agenda-sort-select { width: 100%; max-width: none; padding-left: 0.6rem; text-overflow: ellipsis; }
   /* Móvil: botón iCal de la fila 1 visible, solo con icono; el de la fila 2, oculto. */
   .btn-ical--inline {
     display: inline-flex;
@@ -1114,6 +1421,12 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   }
   .btn-ical__label { display: none; }
   .btn-ical--row2 { display: none; }
+}
+
+@media (max-width: 360px) {
+  /* Calendario en 320 px: temporada, país, mes, iCal y el cambio de vista no
+     caben en una fila; el cambio de vista pasa a la siguiente. */
+  .temporada-filters__row1 { flex-wrap: wrap; row-gap: 0.4rem; }
 }
 
 /* ═══ Agenda Hoy ════════════════════════════════════════════════════════ */
@@ -1139,7 +1452,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   width: var(--page-width);
   max-width: var(--content-max);
   margin-inline: auto;
-  padding: 0.75rem 0 0.5rem;
+  padding: 1rem 0 0.75rem;
   background: transparent;
 }
 /* El gesto de cambio de día también empieza sobre el selector (initDaySwipe):
@@ -1176,10 +1489,10 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   width: 3rem;
   min-width: 0;
   max-width: none;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0.3rem 0;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
   font-family: var(--font-body);
@@ -1194,36 +1507,32 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 }
 .date-pill__wd {
   font-size: var(--fs-1);
-  font-weight: 600;
+  font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--text-muted);
+  color: var(--text);
   transition: color var(--transition);
 }
 .date-pill__num { font-size: var(--fs-4); font-weight: 600; line-height: 1.1; }
-.date-pill:hover { background: var(--accent-dim); }
-/* Hoy sin seleccionar: tinte suave con borde, como en las apps. */
-.date-pill.is-today:not(.active) {
-  background: var(--accent-dim);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-/* Día seleccionado: relleno azul suave, texto en acento. */
-.date-pill.active { background: var(--accent-dim); }
-.date-pill.active .date-pill__wd { color: var(--accent-text); }
-.date-pill.active .date-pill__num { color: var(--accent-text); }
+.date-pill:hover { background: var(--hover-bg); }
+/* Hoy sin seleccionar: solo contorno. */
+.date-pill.is-today:not(.active) { border-color: var(--border-strong); }
+/* Día seleccionado: relleno y contorno propios del tema. */
+.date-pill.active { background: var(--day-selected-bg); border-color: var(--day-selected-border); }
+.date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { color: var(--day-selected-text); }
 .date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { font-weight: 700; }
 /* Botón HOY: aparece al alejarse del día actual. */
 .date-today-btn {
   flex-shrink: 0;
   align-self: stretch;
-  min-height: 40px;
+  min-height: 44px;
   max-width: 0;
   padding: 0.35rem 0;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: var(--accent-dim);
-  color: var(--accent-text);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
   font-family: var(--font-body);
   font-size: var(--fs-3);
   font-weight: 600;
@@ -1240,8 +1549,9 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   max-width: 6rem;
   padding-left: 0.85rem;
   padding-right: 0.85rem;
+  border-color: var(--control-border);
 }
-.date-today-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.date-today-btn:hover { background: var(--hover-bg); border-color: var(--text); }
 /* Flechas de semana: mismo aspecto que .cc-scroll-arrow; ≥24px de área táctil. */
 .date-week-arrow {
   display: inline-flex;
@@ -1253,17 +1563,16 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   min-width: 28px;
   min-height: 24px;
   padding: 0;
-  border: 0;
-  border-radius: 0;
-  color: var(--text-muted);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
   background: transparent;
   font: 400 26px/1 var(--font-body);
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
-.date-week-arrow:hover { color: var(--accent-text); }
 .date-week-arrow:disabled { opacity: 0.3; cursor: default; }
-.date-week-arrow:not(:disabled):hover { color: var(--accent-text); background: var(--accent-dim); }
+.date-week-arrow:not(:disabled):hover { background: var(--hover-bg); border-color: var(--text); }
 .date-week-arrow:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 /* Lista de tarjetas (main#raceList.race-list). El gesto de cambio de día
@@ -1296,12 +1605,50 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 @media (max-width: 600px) {
   .date-bar { padding-block: 0.4rem; }
   #raceList { padding-bottom: 1rem; }
+  /* Móvil: flechas sin contorno (el chevrón basta) y días con aire entre sí;
+     el contorno se queda en HOY y en el día elegido. */
+  .date-week-arrow { border-color: transparent; }
+  .date-week-arrow:not(:disabled):hover { border-color: transparent; }
+  .date-pill__wd { font-size: var(--fs-1); }
 }
 
+@media (max-width: 360px) {
+  /* Siete días, HOY y dos flechas en 320 px: huecos mínimos para que los
+     contornos de día no se solapen. */
+  .date-bar, .date-bar__left { gap: 0.15rem; }
+  .date-bar__pills { gap: 0; padding: 0; }
+  .date-week-arrow { flex-basis: 24px; width: 24px; min-width: 24px; }
+  .date-today-btn--visible { padding-left: 0.4rem; padding-right: 0.4rem; }
+  /* «Sáb» y «Dom» sin tocarse en días de 24 px. */
+  .date-pill__wd { font-size: 0.6875rem; letter-spacing: -0.02em; }
+  /* «Categoría» y «Ordenar» enteros junto al conmutador. */
+  .agenda-filters__inner:has(.discipline-switch) :is(.agenda-cat-wrap, .agenda-sort-select) {
+    padding-left: 0.5rem;
+    padding-right: 20px;
+    background-position: right 0.4rem center;
+    font-size: var(--fs-1);
+  }
+  .agenda-filters .discipline-switch__option { padding-inline: 0.5rem; }
+}
+
+@media (min-width: 601px) {
+  /* Días de 64×48 centrados; ceden ancho solo si no caben. */
+  .date-bar__pills-wrap { flex: 0 1 auto; }
+  .date-bar__pills { gap: 0.25rem; }
+  .date-pill { flex: 0 1 64px; width: 64px; min-height: 48px; padding-block: 0.1rem; }
+  .date-pill__num { font-size: var(--fs-5); }
+  .date-pill__wd { font-size: var(--fs-2); }
+  .date-week-arrow { align-self: center; height: 32px; }
+}
 
 @media (min-width: 761px) {
   /* Rejilla de dos columnas; los estados de carga, vacío y error ocupan la fila. */
-  #raceList { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #raceList { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+  /* Figma: días a 24 px bajo la franja, filtros 34 px bajo los días y las
+     tarjetas pegadas (8 px) a los filtros. */
+  .date-bar { padding: 1.5rem 0 1.875rem; }
+  .agenda-filters__inner { padding-bottom: 0; }
+  .date-bar__pills { gap: 1rem; }
   #raceList>:is(.loading,.empty-state,.day-load-error) { grid-column: 1/-1; }
   /* Una sola jornada: media anchura, centrada. */
   #raceList>.race-card:only-child { grid-column: 1/-1; justify-self: center; width: calc((100% - 0.5rem) / 2); }
@@ -1314,8 +1661,11 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   /* Fondo neutro. El color de la carrera solo rellena la tarjeta como avance
      de una jornada en directo (--progress, js/app.js); sin directo no hay tinte. */
   background: linear-gradient(to right, color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card)) var(--progress, 0%), var(--bg-card) var(--progress, 0%));
+  /* Relleno de la tarjeta y hueco del marco del miniperfil, que lo comparte. */
+  --card-px: 1.25rem;
+  --card-py: 1rem;
   border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
+  padding: var(--card-py) var(--card-px);
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 0.75rem 1rem;
@@ -1324,7 +1674,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   transition: background var(--transition);
   position: relative;
   overflow: hidden;
-  /* Sin borde: la elevación común de las tarjetas la separa del fondo. */
+  /* Sin borde: el aro común de las tarjetas la separa del fondo. */
   box-shadow: var(--card-shadow);
 }
 /* Enlace indexable de las cards NO clicables: oculto a la vista, pero
@@ -1352,13 +1702,13 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 .race-card:hover {
   background: linear-gradient(to right, color-mix(in srgb, var(--card-color, var(--accent)) 12%, var(--bg-card-hover)) var(--progress, 0%), var(--bg-card-hover) var(--progress, 0%));
 }
-/* Con perfil de elevación: fondo sólido (sin gradiente de progreso) y hueco para el SVG. */
+/* Con perfil de elevación: fondo sólido (sin gradiente de progreso) y hueco para el marco del SVG. */
 .race-card--elevation {
   background: var(--bg-card);
-  padding-bottom: 58px;
+  padding-bottom: calc(58px + var(--card-py) + 0.75rem);
 }
 .race-card--elevation:hover { background: var(--bg-card-hover); }
-/* Silueta del perfil, anclada al pie de la tarjeta. */
+/* Silueta del perfil, dentro del marco .race-card__profile. */
 .race-card__elevation {
   position: absolute;
   bottom: 0;
@@ -1538,7 +1888,7 @@ button.badge {
 .badge--type-chrono { background: var(--type-chrono-bg); color: var(--type-chrono-color); }
 .badge--type-cobbles { background: var(--type-cobble-bg); color: var(--type-cobble-color); }
 .badge--type-sterra { background: var(--type-sterra-bg); color: var(--type-sterra-color); }
-.race-card__meta-top { display: flex; align-items: center; gap: 0.4rem; }
+.race-card__meta-top { display: flex; align-items: center; gap: 0.5rem; }
 .race-card__overview-btn {
   display: inline-flex;
   align-items: center;
@@ -1552,10 +1902,23 @@ button.badge {
   font-size: var(--fs-1);
   line-height: 1;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
   flex-shrink: 0;
 }
 .race-card__overview-btn:hover { background: var(--badge-neutral-hover); color: var(--text); }
+/* Botones de icono de la tarjeta: cuadrados de 32 px con contorno. */
+.race-card .race-card__overview-btn, .race-card .badge--icon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+}
+.race-card .race-card__overview-btn:hover, .race-card .badge--icon:hover { background: var(--hover-bg); border-color: var(--text); color: var(--text); }
+/* Zona táctil de 40 px sin crecer el icono. */
+.race-card .race-card__overview-btn::after, .race-card .badge--icon::after { content: ''; position: absolute; inset: -4px; }
 .badge--tv { background: var(--badge-neutral-bg); color: var(--text); }
 /* Los badges que son enlaces sí son objetivos táctiles: 24 px de alto
    mínimo (WCAG 2.5.8). Los badges informativos no se tocan. */
@@ -1590,7 +1953,7 @@ a.badge { min-height: 24px; }
   letter-spacing: normal;
 }
 .badge--icon:hover { background: var(--hover-bg); color: var(--text); }
-.badge--icon svg { width: 1.35rem; height: 1.35rem; }
+.badge--icon svg { width: 18px; height: 18px; }
 /* Oculta la etiqueta de texto pero la conserva para lectores de pantalla */
 .badge--icon .badge__label {
   position: absolute;
@@ -1608,7 +1971,7 @@ a.badge { min-height: 24px; }
 .badge--startlist, .badge--startorder { background: var(--badge-neutral-bg); color: var(--text); text-decoration: none; }
 .badge--startlist:hover, .badge--startorder:hover { background: var(--badge-neutral-hover); }
 /* Dorsales solo-icono (programa CX): sin fondo, como la copa de resultados. */
-.badge--startlist.badge--icon { background: none; color: var(--text-muted); }
+.badge--startlist.badge--icon { background: none; color: var(--text); }
 .badge--startlist.badge--icon:hover { background: var(--hover-bg); color: var(--text); }
 .badge--time {
   background: transparent;
@@ -1624,9 +1987,9 @@ a.badge { min-height: 24px; }
   padding: 0.2rem 0.45rem;
   border-radius: var(--radius-sm);
   line-height: 1.4;
-  transition: background 0.15s;
+  transition: background var(--transition);
 }
-.badge--asset:hover { background: rgba(136,136,136,0.2); }
+.badge--asset:hover { background: var(--hover-bg); }
 /* Solo color: tipografía, espaciado y caja los hereda de .badge para que
    "Cancelada" se lea igual que el resto de badges de la fila. */
 .badge--cancelled-day { background: rgba(229,85,85,0.12); color: var(--red); }
@@ -1645,6 +2008,21 @@ a.badge { min-height: 24px; }
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
+/* Hueco de logo (components/logo-placeholder.js): carrera sin logo o logo que
+   no carga. La marca de la web apagada sobre el tinte, con la caja del logo
+   que sustituye. */
+.logo-ph {
+  --logo-ph-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 32'%3E%3Cdefs%3E%3Cmask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='56' height='32'%3E%3Crect width='56' height='32' fill='%23fff'/%3E%3Cg fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(4 4)'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/g%3E%3Cg transform='translate(28 4)'%3E%3Ccircle cx='18.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='5.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='15' cy='5' r='1'/%3E%3Cpath d='M12 17.5V14l-3-3 4-3 2 3h2'/%3E%3C/g%3E%3C/g%3E%3C/mask%3E%3C/defs%3E%3Crect width='56' height='32' rx='8' fill='%235d626b' mask='url(%23m)'/%3E%3C/svg%3E");
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tint) var(--logo-ph-icon) center / 70% auto no-repeat;
+  object-fit: none;
+}
+html.light .logo-ph { --logo-ph-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 32'%3E%3Cdefs%3E%3Cmask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='56' height='32'%3E%3Crect width='56' height='32' fill='%23fff'/%3E%3Cg fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(4 4)'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/g%3E%3Cg transform='translate(28 4)'%3E%3Ccircle cx='18.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='5.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='15' cy='5' r='1'/%3E%3Cpath d='M12 17.5V14l-3-3 4-3 2 3h2'/%3E%3C/g%3E%3C/g%3E%3C/mask%3E%3C/defs%3E%3Crect width='56' height='32' rx='8' fill='%23a9b9d2' mask='url(%23m)'/%3E%3C/svg%3E"); }
+@media (prefers-color-scheme: light) { html:not(.dark) .logo-ph { --logo-ph-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 32'%3E%3Cdefs%3E%3Cmask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='56' height='32'%3E%3Crect width='56' height='32' fill='%23fff'/%3E%3Cg fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(4 4)'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/g%3E%3Cg transform='translate(28 4)'%3E%3Ccircle cx='18.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='5.5' cy='17.5' r='3.5'/%3E%3Ccircle cx='15' cy='5' r='1'/%3E%3Cpath d='M12 17.5V14l-3-3 4-3 2 3h2'/%3E%3C/g%3E%3C/g%3E%3C/mask%3E%3C/defs%3E%3Crect width='56' height='32' rx='8' fill='%23a9b9d2' mask='url(%23m)'/%3E%3C/svg%3E"); } }
+span.race-header__logo.logo-ph { width: 2.5rem; }
 /* Silueta del miniperfil tenue: el nombre de la carrera pesa más que la banda.
    La parte recorrida conserva el color de la carrera con algo más de opacidad. */
 .race-card__elevation path:first-of-type { fill-opacity: 0.3; }
@@ -1654,12 +2032,15 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
    km y desnivel fluyen en el subtítulo. */
 .race-card__profile {
   position: absolute;
-  inset: auto 0 0 0;
-  width: 100%;
+  inset: auto var(--card-px) var(--card-py);
   height: 58px;
   min-width: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tint);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 .race-card__profile>.race-card__elevation, .race-card__profile>.race-card__ep-inds { height: 100%; }
+.race-card__profile>.race-card__elevation { border-radius: var(--radius-sm); }
 .race-card__schedule {
   display: flex;
   flex-wrap: wrap;
@@ -1736,7 +2117,7 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   .race-card__logo, .race-card__flag { grid-row: 1 / span 2; align-self: center; }
   /* El estado horario ocupa la derecha del bloque de texto. El perfil conserva
      una banda inferior completa y no interviene en su centrado vertical. */
-  .race-card__main { grid-row: 1; grid-column: 2; padding-right: 4rem; }
+  .race-card__main { grid-row: 1; grid-column: 2; padding-right: 5.25rem; }
   /* Ruta (salida › llegada) oculta en móvil SOLO en la home (#raceList): con el
      ancho reducido + km/desnivel + iconos, la ruta colapsaba a un muñón ("Brus…")
      o dejaba dos · seguidos. El · adyacente viaja DENTRO del wrap (ver buildCard),
@@ -1747,7 +2128,7 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   #raceList .race-card__sep--after-route { display: none; }
   /* Modo terminado: 2 iconos (copa+TV) necesitan algo más de hueco que el
      horario apilado → reserva 4.9rem para que no rocen el texto fundido. */
-  .race-card--finished .race-card__main { padding-right: 4.9rem; }
+  .race-card--finished .race-card__main { padding-right: 5.25rem; }
   #raceList .race-card__schedule { flex-direction: column; align-items: flex-end; gap: 2px; }
   #raceList .race-card__schedule--waiting {
     flex-direction: row;
@@ -1784,7 +2165,8 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
     column-gap: 12px;
     row-gap: 0;
     align-items: center;
-    padding: 0.875rem 1rem;
+    --card-px: 1rem;
+    --card-py: 0.875rem;
   }
   #raceList .race-card:not(.race-card--placeholder)>.race-card__main { display: contents; }
   #raceList .race-card:not(.race-card--placeholder)>:is(.race-card__logo,.race-card__flag) { grid-column: 1; grid-row: 1 / span 3; align-self: start; }
@@ -1805,38 +2187,84 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   #raceList .race-card__schedule>strong { font-size: var(--fs-3); }
   /* Iconos de jornada terminada, más pequeños y tenues; mismos en Hoy y en
      Competición. */
-  :is(#raceList, #competicionContent) .race-card__meta .badge--icon { width: 1.75rem; height: 1.75rem; color: var(--text-dim); }
-  :is(#raceList, #competicionContent) .race-card__meta .badge--icon svg { width: 1.15rem; height: 1.15rem; }
+  :is(#raceList, #competicionContent) .race-card__meta .badge--icon svg { width: 16px; height: 16px; }
+  /* Sin contorno en una columna: el nombre conserva el ancho; la zona táctil
+     de 40 px (::after) se mantiene. */
+  .race-card .race-card__overview-btn, .race-card .badge--icon { width: 28px; height: 28px; border-color: transparent; }
   /* Miniperfil: banda de 36 px. */
-  #raceList .race-card--elevation, #raceList .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
+  #raceList .race-card--elevation, #raceList .race-card:has(.race-card__profile) { padding-bottom: calc(36px + var(--card-py) + 0.75rem); }
   #raceList :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
   /* Competición: mismas medidas de tarjeta que Hoy (relleno, interlineado,
      iconos arriba a la derecha y banda de perfil de 36 px). */
-  #competicionContent .race-card:not(.race-card--placeholder) { padding: 0.875rem 1rem; }
+  #competicionContent .race-card:not(.race-card--placeholder) { --card-px: 1rem; --card-py: 0.875rem; }
   #competicionContent .race-card__name { font-size: var(--fs-4); line-height: 1.3; }
   #competicionContent .race-card:not(.race-card--placeholder) .race-card__sub { margin: 2px 0 0; line-height: 1.35; }
+  /* Salida y meta enteras: el subtítulo pasa a otra línea antes que recortar
+     la ruta a «C…». */
+  #competicionContent .race-card__sub { white-space: normal; flex-wrap: wrap; row-gap: 0.15rem; }
+  #competicionContent .race-card__route-wrap { white-space: normal; overflow: visible; text-overflow: clip; flex-basis: 100%; }
+  #competicionContent .race-card__sep--after-route { display: none; }
   #competicionContent .race-card:not(.race-card--placeholder)>.race-card__meta { align-self: start; margin-top: 0; }
-  #competicionContent .race-card--elevation, #competicionContent .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
+  #competicionContent .race-card--elevation, #competicionContent .race-card:has(.race-card__profile) { padding-bottom: calc(36px + var(--card-py) + 0.75rem); }
   #competicionContent :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
 }
 
 /* Lista de jornadas de Competición: una columna en móvil y dos desde 761 px,
    como la lista de Hoy. */
-.stage-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0.5rem; }
+div.stage-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0.5rem; }
+/* Fila de la clasificación general bajo las etapas (Competición) y en la lista
+   lateral de etapas: la misma caja con contorno que las tarjetas. */
+.competition-gc {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color var(--transition), border-color var(--transition);
+}
+.competition-gc:hover { background: var(--hover-bg); border-color: var(--text); }
+.competition-gc:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.competition-gc__icon { flex: none; width: 22px; height: 22px; }
+.competition-gc__text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.competition-gc__label { font: 600 var(--fs-4)/1.3 var(--font-display); }
+.competition-gc__note { font-size: var(--fs-2); color: var(--text-muted); }
+.competition-gc__chev { flex: none; font-size: var(--fs-5); color: var(--text-muted); }
+@media (min-width: 761px) { .competition-gc { padding: 1rem 1.5rem; } }
 @media (min-width: 761px) {
-  .stage-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  div.stage-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
 @media (min-width: 761px) {
-  #raceList>.race-card { align-items: start; padding: 1rem 1.25rem 58px; }
+  .race-card { --card-px: 1.5rem; --card-py: 1.25rem; }
+  /* Tableta: dos columnas estrechas; el título crece a partir de 1100 px. */
+  .race-card__name { font-weight: 600; }
+  .race-card__sub { font-size: var(--fs-1); }
+  .race-card .race-logo-img { width: 64px; height: 64px; }
+  #raceList>.race-card { align-items: start; padding-bottom: calc(58px + var(--card-py) + 0.75rem); }
   /* Competición: contenido e iconos alineados arriba, como en Hoy. */
   #competicionContent .race-card:not(.race-card--placeholder) { align-items: start; }
   /* Sin diseño propio para las destacadas: la ordenación por categoría ya las
      pone primeras. Una tarjeta única conserva el ancho de columna. */
   #raceList .race-card--placeholder .race-card__main { justify-content: flex-start; }
   #raceList .race-card__flag { line-height: 1.25rem; }
+  /* El nombre baja de línea antes que recortarse a «Tour de …». */
+  #raceList .race-card__name > span:first-child { white-space: normal; overflow-wrap: anywhere; }
   #raceList .race-card__sub { white-space: normal; flex-wrap: wrap; row-gap: 0.15rem; }
   #raceList .race-card__route-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+@media (min-width: 1100px) {
+  .race-card__name { font-size: var(--fs-5); }
+}
+
+@media (min-width: 1280px) {
+  .race-card { --card-px: 2rem; --card-py: 2rem; }
+  .race-card__name { font-size: var(--fs-6); }
 }
 
 
@@ -1920,10 +2348,8 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
 .race-header__label { color: var(--text); }
 .race-header__date { color: var(--text-muted); font-size: var(--fs-4); margin-top: 0.3rem; }
 .race-header__stats { font-size: var(--fs-2); color: var(--text-dim); margin-top: 0.35rem; }
-/* Dentro de los contenedores de página, la cabecera y las secciones ocupan
-   todo el ancho sin margen propio. */
-#jornadaContent>.race-header,
-#competicionContent>.race-header,
+/* Dentro de los contenedores de página, las secciones ocupan todo el ancho
+   sin margen propio (la cabecera, en .race-layout). */
 #jornadaContent .jornada-section,
 #competicionContent .jornada-section {
   width: 100%;
@@ -1931,7 +2357,133 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
   padding-inline: 0;
 }
 /* Tras el selector de etapas, la cabecera no repite el respiro superior. */
-#jornadaContent>.stage-nav+.race-header { padding-top: 1rem; }
+.race-layout:has(.stage-nav) .race-header { padding-top: 1rem; }
+
+/* Disposición de la ficha (js/shared.js applyRaceLayout): cabecera y lista de
+   etapas en una columna lateral; el resto del contenido, en la principal. Por
+   debajo de 1100px no hay columnas: las dos cajas desaparecen y los bloques
+   conservan su orden (el selector de etapas va primero, como siempre). */
+.race-layout {
+  --side-w: 280px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--page-width);
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+#jornadaContent .race-layout, #competicionContent .race-layout { width: 100%; max-width: none; }
+.race-layout__side, .race-layout__main { display: contents; }
+.race-layout .race-header { width: 100%; max-width: none; padding-inline: 0; }
+/* Los bloques de página de las vistas que se montan en la columna principal
+   ocupan su ancho, no el de la página. */
+.race-layout__main :is(.res-layout, .res-stages, .res-tabs, .res-table-wrap, .so-table-wrap, .so-filters__inner, .so-tz-note, .startlist-toolbar, .startlist-grid, .cc-assets-standalone) {
+  width: 100%;
+  max-width: none;
+}
+nav.stage-list { display: none; }
+.stage-list ol { margin: 0; padding: 0; list-style: none; }
+.stage-list li { border-bottom: 1px solid var(--border); }
+.stage-list__item, .stage-list__all {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 30px;
+  padding: 0.2rem 0.75rem;
+  font-size: var(--fs-1);
+  line-height: 1.3;
+  color: var(--text);
+  transition: background var(--transition);
+}
+.stage-list__item:hover, .stage-list__all:hover { background: var(--hover-bg); }
+.stage-list__n { flex: none; font-weight: 700; }
+.stage-list__route { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-list__item[aria-current="page"], .stage-list__item[aria-current="page"]:hover,
+.stage-list__all[aria-current="page"], .stage-list__all[aria-current="page"]:hover {
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  box-shadow: inset 0 0 0 1px var(--inverse-border);
+}
+.stage-list__all { border-bottom: 1px solid var(--border); font-weight: 700; }
+/* Evento que aún no ha ocurrido (etapa sin resultados, general final sin
+   publicar): fila sin enlace, atenuada y con el mismo alto que las demás. */
+.stage-list__item--disabled, .stage-list__item--disabled:hover {
+  background: transparent;
+  color: var(--text-dim);
+  cursor: default;
+}
+
+/* Grandes Vueltas: color distintivo de cada marca como acento en sus páginas
+   (competición, jornada, resultados, inscritos, salida, perfil y mapa), en ES y
+   EN. Solo CSS: se detecta por la URL canónica o por el enlace «Ver todas las
+   etapas», presentes desde el primer pintado del HTML prerenderizado. Se casa
+   el prefijo con el año («-2») para no coger otras carreras (giro-della-...).
+   La tinta (--race-accent-ink) da ≥4.5:1 sobre el acento en claro y oscuro. */
+:root:has(link[rel="canonical"][href*="/tour-de-francia-2"]),
+:root:has(a.stage-list__all[href*="/tour-de-francia-2"]),
+:root:has(link[rel="canonical"][href*="/tour-de-francia-femenino-2"]),
+:root:has(a.stage-list__all[href*="/tour-de-francia-femenino-2"]),
+:root:has(link[rel="canonical"][href*="/tour-de-france-2"]),
+:root:has(a.stage-list__all[href*="/tour-de-france-2"]),
+:root:has(link[rel="canonical"][href*="/tour-de-france-femmes-2"]),
+:root:has(a.stage-list__all[href*="/tour-de-france-femmes-2"]) {
+  --race-accent: #FFE100;       /* amarillo del maillot */
+  --race-accent-ink: #10233f;   /* 14:1 */
+}
+:root:has(link[rel="canonical"][href*="/giro-de-italia-2"]),
+:root:has(a.stage-list__all[href*="/giro-de-italia-2"]),
+:root:has(link[rel="canonical"][href*="/giro-de-italia-femenino-2"]),
+:root:has(a.stage-list__all[href*="/giro-de-italia-femenino-2"]),
+:root:has(link[rel="canonical"][href*="/giro-ditalia-2"]),
+:root:has(a.stage-list__all[href*="/giro-ditalia-2"]),
+:root:has(link[rel="canonical"][href*="/giro-ditalia-women-2"]),
+:root:has(a.stage-list__all[href*="/giro-ditalia-women-2"]) {
+  --race-accent: #EF5A9D;       /* rosa de la maglia rosa */
+  --race-accent-ink: #10233f;   /* 5:1 (el blanco solo da 3.4:1) */
+}
+:root:has(link[rel="canonical"][href*="/la-vuelta-2"]),
+:root:has(a.stage-list__all[href*="/la-vuelta-2"]),
+:root:has(link[rel="canonical"][href*="/la-vuelta-femenina-2"]),
+:root:has(a.stage-list__all[href*="/la-vuelta-femenina-2"]) {
+  --race-accent: #E30613;       /* rojo de La Vuelta */
+  --race-accent-ink: #fff;      /* 4.9:1 */
+}
+/* Sin --race-accent (resto de carreras) los var() caen al estilo normal.
+   Se antepone :root para ganar en especificidad a las reglas base. */
+:root .race-layout__side .race-header { box-shadow: inset 0 4px 0 var(--race-accent, transparent); }
+:root .stage-list__item[aria-current="page"], :root .stage-list__item[aria-current="page"]:hover,
+:root .stage-list__all[aria-current="page"], :root .stage-list__all[aria-current="page"]:hover,
+:root .asset-btn[aria-current="page"], :root .asset-btn[aria-current="page"]:hover {
+  background: var(--race-accent, var(--inverse-bg));
+  color: var(--race-accent-ink, var(--inverse-text));
+}
+:root .res-stage-btn--active:not(.cx-category-nav *), :root .res-stage-btn--active:not(.cx-category-nav *):hover {
+  background: var(--race-accent, var(--selected-bg));
+  border-color: var(--race-accent, var(--selected-border));
+  color: var(--race-accent-ink, var(--selected-text));
+}
+:root .res-tab--active { border-bottom-color: var(--race-accent, var(--text)); }
+
+/* Migas de pan (shared.buildRaceBreadcrumb). Por debajo de 1100px van las
+   primeras de la página (order); en escritorio abren la columna principal. */
+.race-crumbs {
+  order: -1;
+  /* Va dentro del contenedor de la página, que ya tiene el ancho y los
+     márgenes: sin ancho propio queda alineada con el contenido. */
+  width: auto;
+  margin: 0;
+  padding: 0.75rem 0 0;
+  font-size: var(--fs-1);
+  line-height: 1.4;
+}
+.race-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.5rem; list-style: none; }
+.race-crumbs li + li::before { content: '>' / ''; margin-right: 0.5rem; color: var(--text-muted); }
+.race-crumbs a { color: var(--text); text-decoration: none; }
+.race-crumbs li:first-child a { font-weight: 600; }
+.race-crumbs a:hover { text-decoration: underline; }
+.race-crumbs [aria-current="page"] { color: var(--text-muted); }
+/* Datos de la carrera y enlaces de la columna lateral: solo escritorio. */
+.race-header__facts, .race-side-links { display: none; }
 
 /* Cabecera de jornada heredada (js/competicion.js). */
 .jornada-hero {
@@ -2047,92 +2599,68 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   color: var(--text-muted);
 }
 
-/* Rejilla de recorrido: recorrido, distancia y tipo, horarios. */
+/* Teselas de la ficha de etapa (shared.buildStageTiles): distancia y desnivel
+   en verde, perfil y final en ámbar, horario o velocidad media con contorno
+   neutro. Etiqueta arriba a la izquierda y cifra centrada debajo. Los
+   anchos relativos (152/256/212) son los del diseño; por debajo de 1280px
+   pasan a 2–3 por fila y a una sola en móvil estrecho. */
 .jornada-section--route-grid { padding-block: 0.4rem 0; }
-.route-grid {
+.stage-tiles {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
-  border-radius: var(--radius);
-  overflow: hidden;
-  margin-bottom: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0 0 1.25rem;
 }
-/* Dos columnas sin horarios o sin recorrido; una sola con distancia y tipo. */
-.route-grid--2col { grid-template-columns: 1fr 1fr; }
-.route-grid--1col { grid-template-columns: 1fr; }
-.route-grid__block {
+.stage-tile {
   display: flex;
   flex-direction: column;
-  padding: 0.75rem 1rem;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0.25rem 0.75rem 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
 }
-.route-grid__block + .route-grid__block { border-left: 1px solid var(--border); }
-/* El tipo de etapa se identifica por el color de su texto (los de Hoy); el
-   bloque no lleva tinte propio. */
-.route-grid__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-2);
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-bottom: 0.4rem;
-  text-align: center;
-}
-.route-grid__body {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+.stage-tile--green { border-color: var(--tile-green-border); background: var(--tile-green-bg); color: var(--tile-green-text); }
+.stage-tile--amber { border-color: var(--tile-amber-border); background: var(--tile-amber-bg); color: var(--tile-amber-text); }
+/* Escala de dureza (componentes 24–28 del Figma, js/shared.js
+   stageTileLevels): fondo y borde del diseño; el texto, más oscuro que su
+   borde para pasar AA. Las teselas son claras también en el tema oscuro. */
+.stage-tile--l1 { border-color: #18b400; background: #c9f6c2; color: #1a6410; }
+.stage-tile--l2 { border-color: var(--tile-green-border); background: var(--tile-green-bg); color: var(--tile-green-text); }
+.stage-tile--l3 { border-color: #9cb400; background: #eef6c2; color: #546300; }
+.stage-tile--l4 { border-color: var(--tile-amber-border); background: var(--tile-amber-bg); color: var(--tile-amber-text); }
+.stage-tile--l5 { border-color: #b40000; background: #f6c2c2; color: #8f0000; }
+.stage-tile:is(.stage-tile--l1, .stage-tile--l2, .stage-tile--l3, .stage-tile--l4, .stage-tile--l5) .stage-tile__label { color: #10233f; }
+.stage-tile__label { font-size: var(--fs-1); font-weight: 400; line-height: 1.3; }
+.stage-tile__value {
   flex: 1;
-}
-.route-grid__body--route { gap: 0.15rem; }
-.route-block__place {
-  font-family: var(--font-display);
-  font-size: var(--fs-4);
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.2;
-  text-align: center;
-}
-.route-block__place--solo { font-size: var(--fs-6); line-height: 1.1; }
-.route-block__note { font-size: var(--fs-2); color: var(--text); text-align: center; }
-/* Día de la hora cuando cae en otra fecha que la jornada («(sáb.)»). */
-.route-block__day { font-family: var(--font-body); font-size: var(--fs-2); font-weight: 400; color: var(--text-muted); line-height: 1.2; text-align: center; }
-.route-block__note--empty { font-style: italic; }
-.route-block__km {
-  font-family: var(--font-display);
-  font-size: var(--fs-6);
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.1;
-  margin-bottom: 0.28rem;
-  text-align: center;
-}
-.route-block__km--empty { color: var(--text-muted); }
-.route-block__elev {
-  font-family: var(--font-display);
-  font-size: var(--fs-4);
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.2;
-  margin-bottom: 0.22rem;
-  text-align: center;
-}
-.route-block__type {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  margin-top: 0.15rem;
+  margin: 0;
+  font-family: var(--font-display);
+  /* --fs-5 (20px): con --fs-6 la tesela pasa de los ~52px del diseño a ~64px. */
+  font-size: var(--fs-5);
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-/* Texto en el color de su tipo, sin caja de etiqueta. */
-.route-block__type .badge { gap: 0; padding: 0; background: none; font-size: var(--fs-2); font-weight: 600; }
-.route-block__type .badge + .badge::before { content: '·'; margin: 0 0.3em; color: var(--text-muted); }
-.route-arrow {
-  width: 14px;
-  height: 22px;
-  flex-shrink: 0;
-  stroke: var(--text-muted);
-  margin: 0.1rem 0;
+/* El tipo de etapa conserva su texto (resolveTypeBadges) pero con el color de
+   la tesela: sin caja de etiqueta ni color propio. */
+.stage-tile__value .badge { gap: 0; padding: 0; background: none; color: inherit; font: inherit; text-transform: none; letter-spacing: 0; }
+.stage-tile__value .badge + .badge::before { content: '·'; margin: 0 0.3em; }
+/* Dos tipos (p. ej. Media montaña · Final en repecho): pasan a otra línea
+   antes que salirse de la tesela en móvil. */
+.stage-tile__value { flex-wrap: wrap; column-gap: 0; }
+.stage-tile__value .badge { white-space: normal; }
+@media (min-width: 1280px) {
+  .stage-tiles { display: flex; }
+  .stage-tile--sm { flex: 152 1 0; }
+  .stage-tile--lg { flex: 256 1 0; }
+  .stage-tile--md { flex: 212 1 0; }
 }
 
 /* Emisiones de televisión y vídeo. */
@@ -2156,7 +2684,8 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   transition: background var(--transition), color var(--transition);
 }
 .tv-filter-btn:hover:not(.tv-filter-btn--active) {
-  background: var(--accent-dim);
+  background: var(--hover-bg);
+  box-shadow: 0 0 0 1px var(--text);
   color: var(--text);
 }
 .tv-live-text { color: var(--green); }
@@ -2304,15 +2833,12 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
 .stage-tv-grid .tv-embed-block { grid-column: 1/-1; }
 .stage-tv-grid .tv-entry { min-width: 0; }
 
-/* Documentación de la etapa: carril de botones entre flechas. */
+/* Documentación de la etapa: fila de pestañas segmentadas (con flechas cuando
+   desborda y se desplaza). */
 .asset-links-wrap {
   position: relative;
   display: flex;
   min-width: 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
 }
 .asset-links-wrap>.cc-scroll-arrow:first-of-type { order: 0; }
 .asset-links-wrap>.cc-scroll-arrow:last-of-type { order: 2; }
@@ -2324,7 +2850,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   gap: 0;
   min-width: 0;
   margin: 0;
-  padding: 0;
+  padding: 0 1px 1px 0;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scrollbar-width: none;
@@ -2352,6 +2878,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
 }
 @keyframes cc-rail-overflow { from, to { flex-basis: 28px; width: 28px; min-width: 28px; visibility: visible; } }
 .asset-btn {
+  position: relative;
   display: inline-flex;
   flex: 0 0 auto;
   flex-direction: row;
@@ -2359,39 +2886,52 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   justify-content: center;
   gap: 8px;
   min-width: 0;
-  min-height: 50px;
-  padding: 10px 16px;
+  min-height: 28px;
+  /* Celdas contiguas: cada una comparte 1px de contorno con la anterior. */
+  margin: 0 -1px -1px 0;
+  padding: 0 1rem;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--border-strong);
   border-radius: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-2);
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: var(--fs-1);
+  font-weight: 500;
   letter-spacing: 0;
-  line-height: 1.12;
+  line-height: 1.2;
   text-align: center;
   text-transform: none;
   white-space: nowrap;
   color: var(--text);
   background: transparent;
   cursor: pointer;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
-.asset-btn:hover { color: var(--text); background: var(--hover-bg); }
-.asset-btn svg { color: var(--text-muted); flex: none; }
+.asset-btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.asset-btn:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.asset-btn:only-child { border-radius: var(--radius-sm); }
+/* La celda con el puntero sube un nivel para que su contorno se vea entero. */
+.asset-btn:hover { z-index: 1; color: var(--text); background: var(--hover-bg); border-color: var(--text); }
+.asset-btn svg { width: 14px; height: 14px; color: inherit; flex: none; }
 .asset-btn__label {
   display: block;
-  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--fs-3);
-  font-weight: 600;
-  white-space: normal;
+  font: inherit;
+  white-space: nowrap;
 }
-/* Clasificaciones (in-house): primer botón de la barra de assets. Fondo azul de
-   marca (--accent, idéntico en claro y oscuro) con texto e icono en blanco. */
-.asset-btn--results { color: var(--accent-text); font-weight: 700; }
-.asset-btn--results svg { color: currentColor; }
+/* Resultados (in-house) de la jornada actual: algo más marcada que el resto. */
+.asset-btn--results { font-weight: 600; }
+/* Pestaña de la página actual (Información en la jornada, Resultados en la
+   clasificación): relleno inverso, como la etapa activa de la columna lateral. */
+.asset-btn[aria-current="page"], .asset-btn[aria-current="page"]:hover {
+  z-index: 1;
+  border-color: var(--inverse-border);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  font-weight: 700;
+}
+.asset-links-wrap[hidden] { display: none; }
+.asset-links-wrap[hidden] + hr { display: none; }
 
 /* Navegación entre etapas. */
 .stage-nav {
@@ -2407,10 +2947,10 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   align-items: center;
   flex: 1;
   min-width: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-card);
-  box-shadow: var(--card-shadow);
+  box-shadow: 0 0 0 1px var(--control-border);
 }
 .stage-nav__picker:has(:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .stage-nav__arrow {
@@ -2428,7 +2968,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   justify-content: center;
   transition: color var(--transition), background var(--transition);
 }
-.stage-nav__arrow:hover:not(.disabled) { color: var(--text); background: rgba(128,128,128,0.08); }
+.stage-nav__arrow:hover:not(.disabled) { color: var(--text); background: var(--hover-bg); }
 .stage-nav__arrow.disabled { opacity: 0.3; cursor: default; }
 .stage-nav__select {
   flex: 1;
@@ -2484,9 +3024,11 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   /* Altura común de las cabeceras de panel (Perfil, Puntos clave, Televisión). */
   min-height: 48px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  background: var(--bg-tint);
 }
-.stage-profile-heading h2 { font-size: var(--fs-4); font-weight: 600; margin: 0; }
+.stage-profile-heading h2 { font-size: var(--fs-5); font-weight: 600; line-height: 1.2; margin: 0; }
 .stage-profile-modes { display: flex; flex-wrap: wrap; gap: 2px; }
 /* Botones de panel (Ver todos, Todas/Mi región, Ver, Quitar, Interactivo/
    Oficial): texto en acento sin caja; fondo neutro solo al pasar el puntero.
@@ -2502,9 +3044,21 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   cursor: pointer;
   text-decoration: none;
 }
-.stage-profile-modes button:hover, .stage-key-toggle:hover, .tv-panel .tv-link-btn:hover, .stage-profile-readout__clear:hover { background: var(--hover-bg); }
-.stage-profile-modes button { color: var(--text-muted); font-weight: 500; }
-.stage-profile-modes [aria-pressed=true] { color: var(--accent-text); font-weight: 700; }
+/* Sobre las cabeceras tintadas el relleno no se distingue: se añade subrayado. */
+.stage-profile-modes button:hover, .stage-key-toggle:hover, .tv-panel .tv-link-btn:hover, .stage-profile-readout__clear:hover { background: var(--hover-bg); text-decoration: underline; }
+/* Interactivo / Oficial: botones con contorno; el activo, relleno (Figma). */
+.stage-profile-modes { gap: 8px; }
+.stage-profile-modes button {
+  min-height: 28px;
+  padding: 2px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+.stage-profile-modes button:hover { background: var(--hover-bg); text-decoration: none; }
+.stage-profile-modes [aria-pressed=true],
+.stage-profile-modes [aria-pressed=true]:hover { border-color: var(--inverse-border); background: var(--inverse-bg); color: var(--inverse-text); }
 .stage-profile-graphic {
   min-width: 0;
   width: 100%;
@@ -2546,6 +3100,25 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
 .stage-profile-readout__label { font-weight: 600; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 .stage-profile-readout strong { font-weight: 700; }
 .stage-profile-readout__clear { padding: 0 4px; line-height: 1.15; }
+/* Móvil: la lectura (km y altitud al tocar el perfil) no cabe junto al título
+   y los modos y dejaba una fila vacía en la cabecera. Flota sobre la esquina
+   superior del gráfico: no reserva hueco ni desplaza nada al aparecer. */
+@media (max-width: 600px) {
+  .stage-profile-panel { position: relative; }
+  .stage-profile-panel > .stage-profile-heading > .stage-profile-readout {
+    position: absolute;
+    top: calc(48px + 6px);
+    right: 8px;
+    z-index: 2;
+    height: auto;
+    max-width: calc(100% - 16px);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+    box-shadow: var(--card-shadow);
+  }
+  .stage-profile-panel > .stage-profile-heading > .stage-profile-readout:empty { display: none; }
+}
 @media (max-width: 600px) {
   /* Móvil: la lectura ocupa su propia línea reservada bajo el título. */
   .stage-profile-readout { order: 3; flex-basis: 100%; align-items: flex-start; text-align: left; }
@@ -2561,13 +3134,15 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   stroke-dasharray: 4 3;
   pointer-events: none;
 }
-.stage-key-panel { display: flex; flex-direction: column; overflow: hidden; }
+/* La lista crece con sus filas: sin barra interna. !important anula el
+   max-height en línea que fija stage/profile.js (sizePoints). */
+.stage-key-panel { display: flex; flex-direction: column; overflow: hidden; max-height: none !important; }
 /* Columna lateral: Puntos clave y, en escritorio, las acciones de la jornada. */
 .stage-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .stage-side__actions:empty { display: none; }
 .stage-side__actions .ical-bar { justify-content: flex-start; width: auto; margin: 0; padding: 0 2px; }
 .stage-key-shell { display: flex; flex-direction: column; min-height: 0; }
-.stage-key-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.stage-key-list { min-height: 0; }
 .stage-key-row {
   display: grid;
   grid-template-columns: 4.75em max-content minmax(0,1fr);
@@ -2596,6 +3171,24 @@ button.stage-key-row { cursor: pointer; }
    gris, sin icono de color. */
 .stage-key-row--foot { padding-block: 4px; font-size: var(--fs-1); color: var(--text-dim); }
 .stage-key-foot-mark { display: inline-block; width: 20px; }
+/* Añadir al calendario y Reportar cambios en la ficha de etapa: el primero
+   con contorno y el segundo relleno, como los filtros activos. */
+body:has(#jornadaContent) .ical-bar .btn-ical {
+  min-height: 32px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: 500 var(--fs-2) var(--font-body);
+}
+body:has(#jornadaContent) .ical-bar .btn-ical:hover { background: var(--hover-bg); border-color: var(--text); color: var(--text); text-decoration: none; }
+body:has(#jornadaContent) .ical-bar .btn-ical--report,
+body:has(#jornadaContent) .ical-bar .btn-ical--report:hover {
+  border-color: var(--inverse-border);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+}
 /* Datos del perfil: columna lateral de las jornadas sin puntos clave. */
 /* En pantallas estrechas el perfil queda solo, como antes. */
 @media (max-width: 1023px) { .stage-side--summary { display: none; } }
@@ -2618,6 +3211,36 @@ button.stage-key-row { cursor: pointer; }
   .stage-tv-grid { grid-template-columns: 1fr; }
 }
 
+@media (min-width: 761px) {
+  /* Las pestañas de documentación pasan a la línea siguiente si no caben. */
+  .asset-links { flex-wrap: wrap; overflow: visible; }
+}
+/* Móvil: las pestañas caben enteras en lugar de desplazarse; celdas iguales en
+   rejilla (tres por fila a 320 px), icono sobre el texto y el texto en dos
+   líneas si hace falta, como en la versión anterior. */
+@media (max-width: 600px) {
+  .asset-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+    overflow: visible;
+    padding: 0 1px 1px 0;
+  }
+  .asset-links-wrap > .cc-scroll-arrow { display: none !important; }
+  .asset-links .asset-btn {
+    flex-direction: column;
+    gap: 4px;
+    min-height: 48px;
+    padding: 6px 4px;
+    border-radius: 0;
+    white-space: normal;
+  }
+  .asset-links .asset-btn:first-child { border-top-left-radius: var(--radius-sm); }
+  .asset-links .asset-btn:last-child { border-bottom-right-radius: var(--radius-sm); }
+  .asset-links .asset-btn:only-child { border-radius: var(--radius-sm); }
+  .asset-links .asset-btn svg { width: 16px; height: 16px; }
+  .asset-links .asset-btn__label { white-space: normal; overflow-wrap: anywhere; hyphens: auto; text-overflow: clip; }
+}
+
 @media (max-width: 600px) {
   .race-header__name { font-size: var(--fs-6); }
   .race-header__inner { flex-wrap: wrap; }
@@ -2626,29 +3249,181 @@ button.stage-key-row { cursor: pointer; }
   .jornada-hero { padding: 1.5rem 1rem 1rem; }
   .jornada-section { padding: 1rem; }
   .jornada-section.jornada-section--route-grid { padding-block: 0.4rem 0; }
-  .asset-btn {
-    flex-direction: column;
-    min-height: 66px;
-    width: max-content;
-    min-width: 88px;
-    max-width: 150px;
-    padding: 8px 10px;
-    text-align: center;
-  }
+  /* Táctil: celdas de 44px. */
+  .asset-btn { min-height: 44px; padding: 0 0.9rem; }
+  body:has(#jornadaContent) .ical-bar .btn-ical { min-height: 44px; }
 }
 
 @media (max-width: 480px) {
-  .route-grid, .route-grid--2col, .route-grid--1col { grid-template-columns: 1fr; }
-  .route-grid__block + .route-grid__block { border-left: 0; border-top: 1px solid var(--border); }
-  .route-block__km { font-size: var(--fs-5); }
+  /* Dos cifras por fila; las anchas (horario, tipo) ocupan la fila entera. */
+  .stage-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-tile--lg, .stage-tile--md { grid-column: 1 / -1; }
   .stage-nav__race { display: none; }
 }
 
-@media (min-width: 1024px) {
-  .stage-profile-layout--points { grid-template-columns: minmax(0,1fr) 330px; align-items: start; }
-  /* Con Puntos clave al lado, Televisión (una emisión) y Descripción toman el
-     ancho del panel de perfil. */
-  #jornadaContent:has(.stage-profile-layout--points) :is(.tv-panel--single, .stage-text-panel) { width: calc(100% - 330px - 24px); }
+@media (min-width: 1100px) {
+  /* Composición de Race_Info del Figma: el perfil a todo el ancho; debajo,
+     los puntos clave como tarjetas con «Añadir al calendario» y «Reportar
+     cambios» a la derecha; y al final, Detalles (descripción) y, en una
+     columna de 272 px a su derecha, la televisión. La columna principal es la
+     rejilla y el contenedor del perfil se disuelve (display: contents) para
+     que sus piezas sean filas de ella. */
+  .race-layout__main:has(> .stage-profile-layout--points) {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 272px;
+    grid-auto-flow: row dense;
+    column-gap: 64px;
+    align-items: start;
+  }
+  .race-layout__main:has(> .stage-profile-layout--points) > * { grid-column: 1 / -1; }
+  .race-layout__main > .stage-profile-layout--points { display: contents; }
+  .race-layout__main > .stage-profile-layout--points > .stage-profile-panel { grid-column: 1 / -1; margin-block: 16px 20px; }
+  .race-layout__main > .stage-profile-layout--points > .stage-side {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    column-gap: 24px;
+    align-items: start;
+    margin-block: 0 24px;
+  }
+  /* Puntos clave sin caja: título de sección y tarjetas. */
+  .race-layout__main .stage-side > .stage-key-panel { overflow: visible; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  .race-layout__main .stage-side > .stage-key-panel > .stage-profile-heading { min-height: 0; padding: 0 0 8px; border: 0; background: none; }
+  /* «Ver todos» pertenece a la lista, no a las acciones: enlace pequeño junto
+     al título, lejos de «Añadir al calendario» y «Reportar cambios». */
+  .race-layout__main .stage-side > .stage-key-panel > .stage-profile-heading { justify-content: flex-start; align-items: baseline; gap: 12px; }
+  .race-layout__main .stage-side .stage-key-toggle { min-height: 0; padding: 0; font-size: var(--fs-2); font-weight: 500; color: var(--accent-text); text-decoration: underline; text-underline-offset: 0.2em; }
+  .race-layout__main .stage-side .stage-key-toggle:hover { background: none; color: var(--text); }
+  .race-layout__main .stage-side .stage-key-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    gap: 8px;
+  }
+  .race-layout__main .stage-side .stage-key-row {
+    grid-template-columns: max-content minmax(0,1fr);
+    grid-template-areas: "mark name" ". km";
+    align-items: start;
+    gap: 2px 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+  }
+  .race-layout__main .stage-side button.stage-key-row:hover { background: var(--hover-bg); border-color: var(--text); }
+  .race-layout__main .stage-side .stage-key-row > svg, .race-layout__main .stage-side .stage-key-foot-mark { grid-area: mark; margin-top: 2px; }
+  .race-layout__main .stage-side .stage-key-name { grid-area: name; font-size: var(--fs-4); font-weight: 600; }
+  .race-layout__main .stage-side .stage-key-name small { font-weight: 400; }
+  .race-layout__main .stage-side .stage-key-km { grid-area: km; }
+  .race-layout__main .stage-side .stage-key-row--foot { padding-block: 8px; }
+  .race-layout__main .stage-side .stage-key-row--foot .stage-key-name { font-size: var(--fs-2); font-weight: 500; }
+  .race-layout__main .stage-side > .stage-side__actions { align-self: start; padding-top: 32px; }
+  .race-layout__main .stage-side > .stage-side__actions .ical-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  /* Detalles a la izquierda y televisión en la columna derecha cuando están
+     las dos; si falta una, la otra ocupa el ancho. */
+  .race-layout__main:has(> .stage-profile-layout--points):has(> .stage-text-panel) > .tv-panel { grid-column: 2; }
+  .race-layout__main:has(> .stage-profile-layout--points):has(> .tv-panel) > .stage-text-panel { grid-column: 1; }
+  #jornadaContent .race-layout__main:has(> .stage-profile-layout--points) > .tv-panel--single { width: auto; }
+}
+
+@media (min-width: 1100px) {
+  /* A sangre: la columna lateral queda pegada al borde izquierdo de la
+     ventana y el contenido ocupa el resto (sin 100vw: no desborda). */
+  #jornadaContent:has(> .race-layout), #competicionContent:has(> .race-layout), .pfe-wrap:has(> .race-layout) { width: 100%; max-width: none; }
+  .pfe-wrap:has(> .race-layout) { padding-top: 0; }
+  .race-layout {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0,1fr);
+    align-items: start;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    min-height: calc(100svh - var(--site-header-h, 0px));
+  }
+  /* Filete vertical que cierra la columna lateral y llega hasta el pie. */
+  .race-layout::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    /* Sigue bajo el hueco que separa el contenido del pie (relleno de la
+       página y del cuerpo); el pie, pintado encima, la corta en su borde. */
+    bottom: -9rem;
+    left: calc(var(--side-w) - 1px);
+    width: 1px;
+    background: var(--border-strong);
+  }
+  .race-layout__side, .race-layout__main { display: block; min-width: 0; }
+  .race-layout__main { padding: 1rem 2rem 0 36px; }
+  .race-crumbs { order: 0; width: auto; max-width: none; margin: 0; padding: 0 0 0.75rem; }
+  /* Fija bajo la cabecera; si es más alta que la ventana sigue el
+     desplazamiento de la página (nunca tiene barra propia). */
+  .race-layout__side {
+    position: sticky;
+    top: var(--site-header-h, 0px);
+    align-self: start;
+    padding-bottom: 1rem;
+  }
+  .race-layout:has(nav.stage-list) .stage-nav { display: none; }
+  .race-layout__side nav.stage-list { display: block; margin-top: 0.5rem; border-top: 1px solid var(--border); }
+  /* Cabecera compacta en la columna lateral. */
+  .race-layout .race-layout__side .race-header { padding: 1rem 1rem 0.5rem; }
+  .race-layout__side .race-header__inner { flex-wrap: wrap; align-items: flex-start; }
+  .race-layout__side .race-header__main { flex-wrap: nowrap; align-items: flex-start; gap: 0.75rem; }
+  .race-layout__side .race-header__logo { max-width: 64px; max-height: 64px; }
+  .race-layout__side .race-header__text { flex: 1 1 0; }
+  .race-layout__side .race-header__name { font-size: var(--fs-4); line-height: 1.15; }
+  .race-layout__side .race-header__subtitle,
+  .race-layout__side .race-header__date,
+  .race-layout__side .race-header__stats { font-size: var(--fs-1); font-weight: 400; margin-top: 0.2rem; }
+  .race-layout__side .race-header__flag { font-size: var(--fs-4); }
+  /* Con datos de carrera (categoría, fechas, país) el detalle de etapa y la
+     bandera bajo el logo sobran: la etapa ya la marca la lista de etapas. */
+  .race-layout--facts .race-header__facts { display: flex; flex-direction: column; margin-top: 0.2rem; font-size: var(--fs-1); line-height: 1.4; color: var(--text); }
+  .race-layout--facts .race-header__fact--country { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .race-layout--facts .race-header__detail,
+  .race-layout--facts .race-header__date,
+  .race-layout--facts .race-header__flag { display: none; }
+  .race-layout--facts .race-header__subtitle:not(:has(.race-header__label)) { display: none; }
+  /* Web oficial · Libro de ruta · Dorsales: enlaces subrayados bajo la cabecera. */
+  .race-side-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 2rem; padding: 0 1rem 0.75rem; }
+  /* La fila mezcla botones de recurso y, en ciclocross, la pestaña Dorsales:
+     misma caja para todos, con el texto centrado en ella. */
+  .race-side-links > * {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    font-size: var(--fs-1);
+    line-height: 1.2;
+  }
+  .race-side-links[hidden] { display: none; }
+  /* Un solo enlace: centrado en la columna. */
+  .race-side-links:has(> :only-child) { justify-content: center; }
+  /* Web oficial, libro de ruta e inscritos vienen dos veces en el marcado
+     (también prerenderizado): en la fila de pestañas, marcados con
+     data-side-link, y en la columna lateral. Desde 1100 px solo se ven en la
+     columna; la fila se oculta si no le queda otra pestaña. */
+  .race-layout .asset-links [data-side-link] { display: none; }
+  .race-layout .asset-links-wrap--side-only { display: none; }
+  .race-layout .cx-race-docs:not(:has(.asset-links > :not([data-side-link]))) { display: none; }
+  /* Ciclocross: la pestaña Dorsales también vive en la columna lateral. */
+  .race-layout .res-tabs__inner > [data-side-link] { display: none; }
+  .race-side-links .asset-btn {
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--accent-text);
+    font-weight: 500;
+    text-decoration: underline;
+  }
+  /* !important: los iconos de competicion.js llevan display en línea. */
+  .race-side-links .asset-btn svg { display: none !important; }
+  .race-side-links .asset-btn:hover { border: 0; background: none; color: var(--text); }
+}
+@media (min-width: 1280px) {
+  .race-layout { --side-w: 312px; }
 }
 
 /* ═══ Inscritos y orden de salida ═══════════════════════════════════════ */
@@ -2678,7 +3453,7 @@ button.stage-key-row { cursor: pointer; }
 /* Rejilla de equipos: tantas columnas de ≥300px como quepan. */
 .startlist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr));
+  grid-template-columns: minmax(0,1fr);
   gap: 16px;
   width: var(--page-width);
   max-width: var(--content-max);
@@ -2686,6 +3461,17 @@ button.stage-key-row { cursor: pointer; }
   padding: 1rem 0 3rem;
 }
 .startlist-toolbar + .startlist-grid { padding-top: 0; }
+/* «Descargar PDF»: botón con contorno. */
+.race-header .btn-ical {
+  min-height: 32px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--fs-2) var(--font-body);
+}
+.race-header .btn-ical:hover { background: var(--hover-bg); border-color: var(--text); }
 .startlist-team { background: var(--bg-card); box-shadow: var(--card-shadow); min-width: 0; }
 .startlist-team__header {
   background: var(--bg-card-hover);
@@ -2733,27 +3519,33 @@ button.stage-key-row { cursor: pointer; }
 /* Franjas en un solo elemento (teamStripes): un hijo vacío conserva la línea
    base de la caja con hijos, y con ella su posición vertical. */
 .team-stripes::before { content: ''; flex: 1; }
-.startlist-team__riders { padding: 0.4rem 0; }
+.startlist-team__riders { padding: 0; }
+/* Fila de 32px: columna del dorsal con filete y fondo alterno. */
 .startlist-rider {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.6rem;
-  padding: 0.2rem 1rem;
+  min-height: 32px;
+  padding: 0 1rem 0 0;
+  border-bottom: 1px solid var(--border);
   font-size: var(--fs-3);
-  line-height: 1.5;
+  line-height: 1.3;
 }
+.startlist-rider:last-child { border-bottom: 0; }
+.startlist-rider:nth-child(even) { background: var(--dorsal-bg-a); }
 .startlist-rider__dorsal {
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--text-muted);
-  min-width: 1.8rem;
-  min-height: 1.1rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 2.5rem;
   flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   font-size: var(--fs-2);
-  border-radius: var(--radius-sm);
-  padding: 0.05rem 0.3rem;
-  background: var(--dorsal-bg-a);
+  color: var(--text);
 }
 .startlist-rider__flag {
   display: inline-flex;
@@ -2848,7 +3640,7 @@ button.stage-key-row { cursor: pointer; }
 .so-th--rider { min-width: 10rem; }
 .so-th--team { width: 42%; min-width: 10rem; color: var(--text-muted); }
 .so-row { border-bottom: 1px solid var(--border); transition: background 0.1s; }
-.so-row:hover { background: var(--bg-hover, rgba(0,0,0,0.03)); }
+.so-row:hover { background: var(--bg-card-hover); }
 .so-td { padding: 0.55rem 0.75rem; vertical-align: middle; }
 .so-td--time {
   font-family: var(--font-display);
@@ -2955,6 +3747,15 @@ button.stage-key-row { cursor: pointer; }
 
 @media (hover: hover) {
   .startlist-rider[data-rider-name]:hover { background: var(--bg-card-hover); }
+}
+
+@media (min-width: 761px) {
+  .startlist-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (min-width: 1100px) {
+  /* Figma: tres columnas con 48 px entre equipos. */
+  .startlist-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px 48px; }
 }
 
 /* ═══ Perfil y mapa ═════════════════════════════════════════════════════ */
@@ -3635,6 +4436,13 @@ body:has(dialog:modal) { overflow: hidden; }
   color: var(--text);
 }
 .apps-modal__platform-sub { font-size: var(--fs-2); color: var(--text-muted); }
+/* Móviles estrechos: el nombre y la línea de la tienda caben junto al icono y
+   el botón de descarga. */
+@media (max-width: 400px) {
+  .apps-modal__card { gap: 0.75rem; padding: 1rem; }
+  .apps-modal__platform-sub { font-size: var(--fs-1); }
+  .apps-modal__dl-badge { padding: 0.4rem 0.7rem; }
+}
 .apps-modal__dl-badge {
   font-family: var(--font-display);
   font-size: var(--fs-2);

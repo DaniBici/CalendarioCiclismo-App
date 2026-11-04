@@ -6,6 +6,7 @@
 // inferior. Cada página decide el contenido de cada zona; las piezas de
 // jornada de carretera (cifras, horario, perfil, resultados, activación)
 // están en stage-card.js.
+import { LOGO_ONERROR, logoPlaceholderHtml } from './logo-placeholder.js';
 
 function hexLuminance(hex) {
   if (!hex || !/^#[0-9a-fA-F]{3,6}$/.test(hex)) return null;
@@ -32,14 +33,16 @@ export function createRaceCard(colorHex, extraClass = '', tag = 'div') {
   return card;
 }
 
+// Sin logo, el hueco de la marca (logo-placeholder.js): todas las tarjetas
+// tienen la misma columna izquierda.
 export function cardLogoHtml(logoUrl, flag, hideFlag) {
-  if (logoUrl) {
-    return `<div class="race-card__logo">
-         <img class="race-logo-img" src="${logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">
-         ${hideFlag ? '' : `<span>${flag}</span>`}
-       </div>`;
-  }
-  return hideFlag ? '' : `<div class="race-card__flag">${flag}</div>`;
+  const logo = logoUrl
+    ? `<img class="race-logo-img" src="${logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
+    : logoPlaceholderHtml('race-logo-img');
+  return `<div class="race-card__logo">
+       ${logo}
+       ${hideFlag ? '' : `<span>${flag}</span>`}
+     </div>`;
 }
 
 // Acceso a la competición o al torneo junto al nombre.
