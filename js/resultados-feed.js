@@ -23,6 +23,7 @@
 import { fetchResultEntries as fetchEntries } from './services/result-feed-entries.js';
 import { cxDaysHtml, cxEmptyHtml, feedDaysHtml, feedEmptyHtml, feedHeroHtml, feedMoreHtml, feedTabsHtml, feedViews, rankingBodyHtml } from './resultados-feed-html.js';
 import { bindRankingRows, packCxDays, packFeaturedEntries } from './resultados-feed-layout.js';
+import { resolveCxWinnerTeams } from './services/result-feed-context.js';
 import { supabase, esc, setMeta, setMetaProperty } from './shared.js';
 import { getLang } from './i18n.js';
 import { cyclocrossHome, roadPinned, setRoadPinned } from './services/today-season.js';
@@ -69,13 +70,13 @@ export function renderResultsFeed(content) {
   const locale = _isEn ? 'en-GB' : 'es-ES';
   const todayKey = toDateKey(new Date());
   let fromKey = initialResultsFromKey(todayKey);
-  // Pestaña Ciclocross, primera, mientras la home es Ciclocross (del cierre de
-  // la temporada de carretera al 31 de diciembre; services/today-season.js).
-  // En ese periodo las tres vistas forman el conmutador de Hoy y Carretera
-  // abre por defecto si está fijada con su chincheta.
+  // Pestaña Ciclocross mientras la home es Ciclocross (del cierre de la
+  // temporada de carretera al 31 de diciembre; services/today-season.js). El
+  // orden visible es Carretera | Ciclocross | Ránking (Figma), pero en esa
+  // ventana abre Ciclocross, salvo que Carretera esté fijada con su chincheta.
   const cxTab = cyclocrossHome(todayKey);
   const views = feedViews(cxTab);
-  let activeView = cxTab && roadPinned() ? 'latest' : views[0];
+  let activeView = cxTab && !roadPinned() ? 'cx' : 'latest';
   let rankingGender = 'male';
   let feedEntries = null;
   let rankingRows = null;
@@ -122,7 +123,7 @@ export function renderResultsFeed(content) {
         } else if (activeView === 'cx') {
           // Se pinta lo cargado y se sondea enseguida, como al volver a la
           // pestaña: no se espera al siguiente ciclo de 60 s.
-          if (cxEntries) { renderCx(cxEntries); refreshCx(); } else loadCx();
+          if (cxEntries) { renderCx(cxEntries); refreshCx(); loadCxTeams(); } else loadCx();
         } else if (feedEntries) {
           renderFeed(feedEntries);
           refreshFeed();
@@ -333,10 +334,13 @@ export function renderResultsFeed(content) {
   // Sondeo: marca de agua = última importación de resultados leída antes de
   // descargar la temporada (como `feedWatermark` en carretera).
   let cxWatermark = null, cxLoadedAt = 0, cxProbing = false;
+  // Equipo del ganador de cada categoría (`${raceId}:${category}`), leído de
+  // cx_results con UNA consulta por lotes tras pintar la tarjeta sin equipo.
+  const cxTeams = new Map(), cxTeamsAsked = new Set();
 
   function renderCx(entries) {
     const visible = entries.filter(e => e.date >= cxFromKey);
-    let html = visible.length ? cxDaysHtml(visible, cxRounds, _isEn, locale) : cxEmptyHtml(entries.length > 0, _isEn);
+    let html = visible.length ? cxDaysHtml(visible, cxRounds, _isEn, locale, cxTeams) : cxEmptyHtml(entries.length > 0, _isEn);
     if (entries.some(e => e.date < cxFromKey)) html += feedMoreHtml('cxMoreBtn', _isEn);
     content.innerHTML = shell(html);
     bindViewTabs();
@@ -346,7 +350,27 @@ export function renderResultsFeed(content) {
       cxFromKey = addDays(cxFromKey, -CX_WINDOW_DAYS);
       renderCx(cxEntries);
       window.scrollTo(0, y);
+      loadCxTeams();
     });
+  }
+
+  // Equipos de los ganadores visibles que aún no se han pedido: no bloquea el
+  // primer pintado; al llegar se repinta solo si siguen en la pestaña CX.
+  async function loadCxTeams() {
+    // Clave por ganador: si un refresco cambia el ganador de una categoría, se
+    // vuelve a pedir su equipo.
+    const askKey = (e, c) => `${e.race.id}:${c.category}#${c.winnerName}`;
+    const pending = (cxEntries || []).filter(e => e.date >= cxFromKey && e.categories.some(c => !cxTeamsAsked.has(askKey(e, c))));
+    if (!pending.length) return;
+    pending.forEach(e => e.categories.forEach(c => cxTeamsAsked.add(askKey(e, c))));
+    const found = await resolveCxWinnerTeams(supabase, pending);
+    let added = false;
+    found.forEach((team, key) => { if (cxTeams.get(key) !== team) { cxTeams.set(key, team); added = true; } });
+    if (added && activeView === 'cx' && cxEntries && content.isConnected) {
+      const y = window.scrollY;
+      renderCx(cxEntries);
+      window.scrollTo(0, y);
+    }
   }
 
   async function loadCx({ refresh = false } = {}) {
@@ -376,6 +400,7 @@ export function renderResultsFeed(content) {
       const changed = !cxEntries || JSON.stringify(next) !== JSON.stringify(cxEntries);
       cxEntries = next;
       if (activeView === 'cx' && changed) renderCx(cxEntries);
+      if (activeView === 'cx') loadCxTeams();
     } catch (error) {
       if (request !== cxRequest || activeView !== 'cx') return;
       console.error('[resultados-feed] ciclocross', error);

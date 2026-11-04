@@ -37,7 +37,7 @@ export function packFeaturedEntries(root) {
 // categorías. Cada columna apila sus tarjetas sin huecos (mampostería): la
 // rejilla usa filas de 1 px y cada tarjeta abarca su altura más la separación;
 // el flujo denso la coloca en la columna que queda más arriba.
-const CX_CARD_GAP = 10;
+const CX_CARD_GAP = 16;
 export function packCxDays(root) {
   root.querySelectorAll('.feed-day__cx-grid').forEach((grid) => {
     const cards = [...grid.children];

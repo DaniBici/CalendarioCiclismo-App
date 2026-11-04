@@ -358,10 +358,11 @@ function paintMonth(data, { refresh = false } = {}) {
 function scrollToToday(smooth = true) {
   const el = document.getElementById(`cal-day-${toDateKey(today)}`);
   if (!el) return;
-  const headerH = document.querySelector('.site-header')?.offsetHeight || 56;
-  const navH = document.querySelector('.primary-nav')?.offsetHeight || 0;
+  // Alto de la cabecera fija (navegación incluida) que publica js/header.js;
+  // vale 0 cuando la cabecera no es fija (móvil).
+  const headerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--site-header-h')) || 0;
   const barH = document.getElementById('mesBar')?.offsetHeight || 0;
-  const top = el.getBoundingClientRect().top + window.scrollY - headerH - navH - barH - 6;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerH - barH - 6;
   window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'instant' });
 }
 

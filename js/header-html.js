@@ -5,9 +5,20 @@
 // ─────────────────────────────────────────────────────────────────
 import { cyclocrossHome } from './services/today-season.js';
 
+// Marca: los dos iconos del logotipo de siempre (calendario y bicicleta,
+// Lucide, trazo 2) calados juntos en una placa del color de la marca, junto
+// al nombre en Momo Trust Display; en móvil queda sola.
 const LOGO_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.35em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
+  '<svg class="site-logo__mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 32" width="1.75em" height="1em" aria-hidden="true" focusable="false"><defs><mask id="ccLogoMask" maskUnits="userSpaceOnUse" x="0" y="0" width="56" height="32"><rect width="56" height="32" fill="#fff"/><g fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(4 4)"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></g><g transform="translate(28 4)"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></g></g></mask></defs><rect width="56" height="32" rx="8" fill="currentColor" mask="url(#ccLogoMask)"/></svg>';
+
+// Marca del pie: la misma placa que la cabecera (con su propia máscara: los id
+// no se repiten en la página) y el nombre con la firma.
+export function footerBrandHtml(s) {
+  const mark = LOGO_SVG.replace(/ccLogoMask/g, 'ccFooterLogoMask').replace('site-logo__mark', 'site-footer__mark');
+  return `<a class="site-footer__brand" href="${s.home}" aria-label="${s.logoAria}">${mark}` +
+    '<span class="site-footer__brand-text"><span class="site-footer__brand-name">Calendario Ciclismo</span>' +
+    '<span class="site-footer__brand-by">by Dani Sánchez</span></span></a>';
+}
 
 // Flecha de volver con el mismo trazo que los iconos del menú.
 export const BACK_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
@@ -40,6 +51,8 @@ export const STRINGS = {
     aboutHref: '/about/', aboutText: 'Acerca de mí',
     openHref: '/abierto/', openText: 'Datos abiertos',
     icalHref: '/suscripcion/', icalText: 'Calendario iCal',
+    designText: 'Rediseño',
+    footerSections: 'Secciones', footerMore: 'Más',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
     appsText: 'Apps', appsLabel: 'Abrir opciones de apps',
     viewsAria: 'Vistas',
@@ -57,6 +70,8 @@ export const STRINGS = {
     aboutHref: '/en/about/', aboutText: 'About me',
     openHref: '/en/open/', openText: 'Open Data',
     icalHref: '/en/subscription/', icalText: 'iCal calendar',
+    designText: 'Redesign',
+    footerSections: 'Sections', footerMore: 'More',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
     appsText: 'Apps', appsLabel: 'Open app options',
     viewsAria: 'Views',
@@ -79,9 +94,11 @@ export const CX_HOME = cyclocrossHome(`${_now.getFullYear()}-${String(_now.getMo
 // Hoy alberga Ciclocross y carretera): en escritorio comparten fila con la
 // marca y las acciones; en móvil forman la barra inferior, sin
 // desplazamiento. «Acerca de mí» y «Datos abiertos» viven en el pie.
+// Orden del diseño (Figma): Fichajes · Resultados · Hoy · Calendario ·
+// Ciclocross, con Hoy en el centro.
 export const PRIMARY_NAV_ITEMS = CX_HOME
-  ? ['today', 'results', 'transfers', 'calendar']
-  : ['today', 'results', 'transfers', 'cyclocross', 'calendar'];
+  ? ['transfers', 'results', 'today', 'calendar']
+  : ['transfers', 'results', 'today', 'calendar', 'cyclocross'];
 
 // Selector ES/EN escrito con la cabecera (también en el HTML generado en el
 // build): montarlo al cargar desplazaba la cabecera. js/lang-switch.js solo le
@@ -110,7 +127,9 @@ export function headerHtml({ lang = 'es', hasBack = false, active = null } = {})
   return `<a class="skip-link" id="skipLink" href="#main">${s.skipText}</a>` +
     '<div class="site-header__inner">' +
       backBtn +
-      `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text">Calendario Ciclismo</span></a>` +
+      // Logotipo del diseño: nombre y firma en Momo Trust Display (≥601 px); en
+      // móvil, solo los iconos.
+      `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text"><span class="site-logo__name">Calendario Ciclismo</span><span class="site-logo__by">by Dani Sánchez</span></span></a>` +
       primaryNav +
       // Cluster de utilidades, SIEMPRE visible: Apps · apoyar · idioma.
       '<div class="header-actions">' +

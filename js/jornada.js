@@ -18,6 +18,7 @@ import { STAGE_SIBLING_COLUMNS, buildInhouseResultsMatcher, hasCalendarForYear, 
 import { jornadaHtml } from './jornada-html.js';
 import { visitorTimeZoneLabel } from './shared.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 
 function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set()) {
   const color  = race.colorHex || '#888';
@@ -78,6 +79,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   // Página generada en el build con el mismo HTML: se conserva el DOM y solo
   // se monta lo interactivo.
   applyPrerenderedHtml(content, html);
+  enableGcFinalRow(document, race);
   const profileHost = content.querySelector('[data-integrated-profile]');
   mountStageProfile(profileHost, { day:{ ...rd, _hasInhouse:hasActualResults }, race, assets, points:true, temporal:true, timeZoneLabel });
   syncTvPanelWidth(content);

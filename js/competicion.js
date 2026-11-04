@@ -1,3 +1,4 @@
+import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 import { todayRaceState } from './services/race-presentation.js';
 // ─────────────────────────────────────────────────────────────────
 //  COMPETICIÓN — competicion.html?id=RACE_ID
@@ -14,6 +15,7 @@ import { supabase, stageLabel, countryFlag,
          from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
@@ -242,6 +244,7 @@ async function init() {
     const html = competitionPageHtml(race, days, rd => ({ ...cardOptions, title: stageLabel(rd.stageNumber, rd._stageSuffix) }), { dynamic: false });
     if (content.dataset.prerendered != null) applyPrerenderedHtml(content, html);
     else content.innerHTML = html;
+    enableGcFinalRow(content, race);
     wireCompetitionCards(content, rdMap, () => race);
     watchCompetitionCards(content, rdMap, () => race);
     wireTvEmbeds(content, rdMap, () => race);
@@ -542,14 +545,11 @@ async function loadChallenge(slug, content, params, i18nReady = Promise.resolve(
     // Hero
     let html = `<div class="jornada-hero" style="--card-color:${color}">
       <div style="display:flex;align-items:center;gap:1.25rem">`;
-    if (cg.logoUrl) {
-      html += `<div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;flex-shrink:0">
-        <img class="jornada-hero__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">
+    // Sin logo, el hueco de la marca (logo-placeholder.js).
+    html += `<div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;flex-shrink:0">
+        ${cg.logoUrl ? `<img class="jornada-hero__logo" src="${cg.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>` : logoPlaceholderHtml('jornada-hero__logo')}
         ${cg.hideFlag ? '' : `<span style="font-size:1.5rem">${flag}</span>`}
       </div>`;
-    } else if (!cg.hideFlag) {
-      html += `<span style="font-size:2rem">${flag}</span>`;
-    }
     html += `<div>
         <div class="jornada-hero__name">${cg.name}${isFemale ? femaleMark({ style: 'font-size:0.8em;opacity:0.7;font-weight:400' }) : ''}</div>
         <div class="jornada-hero__stage">${[cg.uciCategory, cg.year].filter(Boolean).join(' · ')} · ${t(allDays.length !== 1 ? 'stage.racesCount_other' : 'stage.racesCount_one').replace('{n}', allDays.length)}</div>

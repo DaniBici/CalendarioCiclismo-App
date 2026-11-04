@@ -12,6 +12,7 @@ import { supabase, stageLabel,
 import { t, getLang, initI18n } from './i18n.js';
 import { mountRouteMap } from './route-map.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 import { mapaHtml, stagePageNoticeHtml } from './perfil-mapa-html.js';
 import { visitorTimeZoneLabel } from './shared.js';
 import { MAPA_DAY_COLUMNS, MAPA_SIBLING_COLUMNS, STAGE_PAGE_RACE_COLUMNS, sortStagePageSiblings } from './services/races.js';
@@ -180,6 +181,7 @@ function render(rd, race, siblings, assets = []) {
   // Contenido (js/perfil-mapa-html.js): la página generada en el build con el
   // mismo HTML se conserva y solo se monta el mapa (MapLibre, terreno 3D).
   applyPrerenderedHtml(content, mapaHtml({ rd, race, siblings, assets, timeZoneLabel: visitorTimeZoneLabel() }));
+  enableGcFinalRow(document, race);
   mountRouteMap(document.getElementById('ccRouteMapWrap'), {
     gpxUrl: rd.routeGpxUrl, distanceKm: rd.distanceKm, colorHex: race?.colorHex,
     elevationProfile: rd.elevationProfile, summits: rd.profileSummits ?? [], waypoints: rd.profileWaypoints ?? [],

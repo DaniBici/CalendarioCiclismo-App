@@ -1,10 +1,10 @@
 // HTML de Últimos resultados: filas de carretera y de ciclocross, ránking y
 // pestañas. Sin DOM: lo usan el navegador y el servidor que publica la página.
-import { esc, countryFlag, raceName as getRaceName, resolveTypeBadges, nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
+import { esc, countryFlag, raceName as getRaceName, resolveTypeBadges, categoryBadge, nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
 import { t } from './i18n.js';
 import { classificationLabel, classificationColor } from './services/race-presentation.js';
 import { roadPinButtonHtml } from './components/discipline-switch.js';
-import { cxRaceName, cxRacePageUrl, cxRoundBadge } from './cx/presentation.js';
+import { cxRaceName, cxRacePageUrl, cxRoundBadge, cxClassLabel } from './cx/presentation.js';
 import { decorateUciRanking, formatUciRankingUpdated, UciRankingTier, uciRankingRuleText } from './results/uci-team-ranking.js';
 import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 
@@ -25,6 +25,12 @@ function safeCardColor(hex) {
     return '#' + darken(r) + darken(g) + darken(b);
   }
   return '#' + full;
+}
+
+// Luminancia aproximada de un #rrggbb: true si es casi blanco.
+function isLightColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 200;
 }
 
 function stageLabel(sn, isEn, suffix = '') {
@@ -49,8 +55,12 @@ function entryRowHtml(e, isEn, locale) {
   const leftCol = `<span class="feed-row__logo">${logo}${flag}</span>`;
   const fem = (e.race.gender === 'female' && !nameImpliesFemale(e.race.name || ''))
     ? femaleMark({ cls: 'feed-row__fem' }) : '';
+  // Categoría UCI como badge de la fila de distintivos, como en Hoy.
+  const catBadge = e.race.uciCategory ? categoryBadge(e.race.uciCategory) : '';
   // Nombre en una línea con puntos suspensivos; el símbolo femenino, visible.
-  const name = `<span class="feed-row__race-name">${esc(getRaceName(e.race))}</span>${fem}`;
+  // «Etapa X» pasa al título, tras el nombre y en peso normal.
+  const stagePart = e.isGcFinal ? '' : stageLabel(e.sn, isEn, e.suffix || '');
+  const name = `<span class="feed-row__race-name">${esc(getRaceName(e.race))}</span>${fem}${stagePart ? ` <span class="feed-row__stage">${esc(stagePart)}</span>` : ''}`;
   const color = safeCardColor(e.race.colorHex);
 
   // Línea 2: etapa, km y desnivel + badge solo para CRI/CRE/cronoescalada.
@@ -58,7 +68,7 @@ function entryRowHtml(e, isEn, locale) {
   // día: sin etiqueta.
   let subHtml = '';
   if (e.isGcFinal) {
-    subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>`;
+    subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>${catBadge ? `<span class="feed-row__badges">${catBadge}</span>` : ''}`;
   } else {
     const rd = e.rd;
     const km = rd?.distanceKm
@@ -69,31 +79,37 @@ function entryRowHtml(e, isEn, locale) {
       // es-ES no agrupa por defecto por debajo de 10.000.
       ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`
       : '';
-    const stagePart = stageLabel(e.sn, isEn, e.suffix || '');
     const seg = [];
-    if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
     if (km) seg.push(`<strong>${esc(km)}</strong>`);
     if (elevation) seg.push(esc(elevation));
     const text = seg.join(' · ');
     const showType = rd?.primaryType === 'itt' || rd?.primaryType === 'ttt';
     const resultSecondary = rd?.primaryType === 'itt' && ['chrono_climb', 'summit_finish'].includes(rd?.secondaryType)
       ? rd.secondaryType : null;
-    const badges = showType
-      ? `<span class="feed-row__badges">${resolveTypeBadges(rd.primaryType, resultSecondary, e.race.countryCode)}</span>` : '';
+    const typeBadges = showType ? resolveTypeBadges(rd.primaryType, resultSecondary, e.race.countryCode) : '';
+    const badges = catBadge || typeBadges ? `<span class="feed-row__badges">${catBadge}${typeBadges}</span>` : '';
     subHtml = `${text}${badges}`;
   }
 
+  // Equipo entre paréntesis y en peso normal tras el nombre (solo corredores).
+  const teamHtml = team => team ? ` <span class="feed-row__team">(${esc(team)})</span>` : '';
   const winnerHtml = e.winner
-    ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong></span>` : '';
+    ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong>${teamHtml(e.winnerTeam)}</span>` : '';
 
   // Destacada (espejo de FeedRowView en iOS/Android): la misma fila con sus
   // clasificaciones complementarias debajo. Solo las vueltas por etapas las
   // tienen; una destacada sin complementarias se pinta como fila normal.
   const leaders = e._featured ? (e.leaders || []).map(c => {
-    const dot = classificationColor(c)
-      ? `<span class="feed-row__leader-dot" style="background:${classificationColor(c)}"></span>` : '';
-    const winners = c.winners.map(w => esc(w.name)).join(' / ');
-    return `<span class="feed-row__leader">${dot}<span class="feed-row__leader-label">${esc(classificationLabel(c, isEn ? 'en' : 'es'))}</span>${winners ? `<span class="feed-row__leader-name">${winners}</span>` : ''}</span>`;
+    // Punto y etiqueta del color de la clasificación; sin color, un hueco
+    // invisible mantiene alineadas las columnas. Los colores casi blancos
+    // (jóvenes) no tiñen la etiqueta: se perdería sobre el fondo claro.
+    const col = classificationColor(c);
+    const dot = col
+      ? `<span class="feed-row__leader-dot" style="background:${col}"></span>`
+      : '<span class="feed-row__leader-dot feed-row__leader-dot--none"></span>';
+    const tint = col && !isLightColor(col) ? ` style="--leader-color:${col}"` : '';
+    const winners = c.winners.map(w => esc(w.name) + teamHtml(w.team)).join(' / ');
+    return `<span class="feed-row__leader">${dot}<span class="feed-row__leader-label"${tint}>${esc(classificationLabel(c, isEn ? 'en' : 'es'))}</span>${winners ? `<span class="feed-row__leader-name">${winners}</span>` : ''}</span>`;
   }).join('') : '';
 
   return `
@@ -111,7 +127,7 @@ function entryRowHtml(e, isEn, locale) {
 // clasificaciones complementarias, una línea por categoría con su código y
 // el ganador o la ganadora. La línea secundaria identifica torneo, manga y
 // sede, como la tarjeta de Hoy de Ciclocross.
-function cxEntryRowHtml(e, isEn, rounds) {
+function cxEntryRowHtml(e, isEn, rounds, teams) {
   const lang = isEn ? 'en' : 'es';
   const race = e.race, tournament = race.cx_tournaments;
   const logoUrl = race.logoUrl || tournament?.logoUrl;
@@ -120,16 +136,22 @@ function cxEntryRowHtml(e, isEn, rounds) {
     ? `<img class="race-logo-img" src="${esc(logoUrl)}" alt="" loading="lazy" ${national ? `onerror="this.style.display='none'"` : LOGO_ONERROR}>`
     : (national ? '' : logoPlaceholderHtml('race-logo-img'));
   const flag = race.countryCode ? `<span class="feed-row__flag">${countryFlag(race.countryCode)}</span>` : '';
+  // Clase UCI (C2, CDM…) como badge de la fila de distintivos, como en Hoy.
+  const catBadge = race.class ? `<span class="feed-row__badges"><span class="badge badge--1">${esc(cxClassLabel(race.class, lang))}</span></span>` : '';
   const name = cxRaceName(race, lang);
   const sub = [tournament ? esc(cxRaceName(tournament, lang)) : '', cxRoundBadge(rounds?.get(race.id)), race.venue && race.venue !== name ? esc(race.venue) : ''].filter(Boolean).join(' · ');
-  const leaders = e.categories.map(c => `<span class="feed-row__leader"><span class="feed-row__leader-label" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name">${esc(c.winnerName)}</span></span>`).join('');
+  // Código de categoría en mini-badge con contorno; ganador en negrita y, si se
+  // conoce, su equipo entre paréntesis en gris (mismo estilo que carretera).
+  const leaders = e.categories.map(c => {
+    const team = teams?.get(`${race.id}:${c.category}`);
+    return `<span class="feed-row__leader"><span class="feed-row__cx-code" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name"><strong>${esc(c.winnerName)}</strong>${team ? ` <span class="feed-row__team">(${esc(team)})</span>` : ''}</span></span>`;
+  }).join('');
   return `
       <a class="feed-row feed-row--featured feed-row--cx" href="${esc(cxRacePageUrl(race, lang, 'results', e.categories[0].category))}">
         <span class="feed-row__logo">${logo}${flag}</span>
         <span class="feed-row__main"><span class="feed-row__race"><span class="feed-row__race-name">${esc(name)}</span></span>
-          ${sub ? `<span class="feed-row__sub">${sub}</span>` : ''}
+          ${sub || catBadge ? `<span class="feed-row__sub">${sub}${catBadge}</span>` : ''}
           <span class="feed-row__leaders">${leaders}</span></span>
-        <span class="feed-row__chevron" aria-hidden="true">›</span>
       </a>`;
 }
 
@@ -156,7 +178,7 @@ export function feedDaysHtml(entries, isEn, locale) {
 }
 
 /** Días de ciclocross, en el orden de `entries`. */
-export function cxDaysHtml(entries, rounds, isEn, locale) {
+export function cxDaysHtml(entries, rounds, isEn, locale, teams) {
   let html = '';
   let curDate = null;
   for (const e of entries) {
@@ -165,7 +187,7 @@ export function cxDaysHtml(entries, rounds, isEn, locale) {
       curDate = e.date;
       html += `<div class="feed-day feed-day--cx"><div class="feed-day__hdr">${esc(dayHeaderText(e.date, locale))}</div><div class="feed-day__cx-grid">`;
     }
-    html += cxEntryRowHtml(e, isEn, rounds);
+    html += cxEntryRowHtml(e, isEn, rounds, teams);
   }
   if (curDate !== null) html += '</div></div>';
   return html;
@@ -183,7 +205,7 @@ export const feedMoreHtml = (id, isEn) => `<div class="feed-more-wrap"><button c
 // Conmutador Ciclocross / Carretera / Ránking (components/discipline-switch.js)
 // mientras la home es Ciclocross; pestañas el resto del año. Carretera lleva la
 // chincheta, como en Hoy: en contorno si está activa y llena si está fijada.
-export const feedViews = cxTab => (cxTab ? ['cx', 'latest', 'ranking'] : ['latest', 'ranking']);
+export const feedViews = cxTab => (cxTab ? ['latest', 'cx', 'ranking'] : ['latest', 'ranking']);
 
 export function feedTabsHtml({ cxTab, activeView, pinned, isEn }) {
   const views = feedViews(cxTab);
