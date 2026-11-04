@@ -112,13 +112,46 @@ SOFTWARE.
 
 ---
 
+## Montserrat
+
+Tipografía de texto de la web pública, autoalojada en `fonts/web/` (fuente
+variable; subconjuntos latino, latino extendido, vietnamita y cirílico).
+
+- Proyecto: https://github.com/JulietaUla/Montserrat
+- Copyright: Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git)
+- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
+
+---
+
+## Momo Trust Display
+
+Tipografía del logotipo de la web pública, autoalojada en `fonts/web/`
+(subconjuntos latino, latino extendido y vietnamita).
+
+- Proyecto: https://github.com/typeassociates/MomoTrustDisplay
+- Copyright: Copyright 2024 The MoMo Trust Display Project Authors (https://github.com/typeassociates/MomoTrustDisplay)
+- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
+
+---
+
+## Style Script
+
+Tipografía de la firma del rediseño en el pie de la web pública, autoalojada
+en `fonts/web/` (subconjunto latino).
+
+- Proyecto: https://github.com/googlefonts/style-script
+- Copyright: Copyright 2013 The Style Script Project Authors (https://github.com/googlefonts/style-script)
+- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
+
+---
+
 ## Google Sans
 
 Google Sans Medium se redistribuye en las cabeceras nativas de iOS y Android.
 Subconjuntos latinos de Google Sans Regular, Medium y Bold se sirven desde
-`fonts/pdf/` para el PDF de inscritos de la web. La fuente variable completa de
-la interfaz web se sirve autoalojada desde `fonts/web/` (subconjuntos latino,
-cirílico, griego, vietnamita y símbolos).
+`fonts/pdf/` para el PDF de inscritos de la web. La fuente variable completa
+del panel editorial se sirve autoalojada desde `fonts/web/` (subconjuntos
+latino, cirílico, griego, vietnamita y símbolos).
 
 - Proyecto: https://github.com/googlefonts/googlesans
 - Versión: 13.002
