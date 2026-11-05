@@ -2605,6 +2605,98 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
    anchos relativos (152/256/212) son los del diseño; por debajo de 1280px
    pasan a 2–3 por fila y a una sola en móvil estrecho. */
 .jornada-section--route-grid { padding-block: 0.4rem 0; }
+/* Recorrido, distancia y horarios en bloques: solo el modal de datos de la
+   jornada (js/race-data-modal.js); las fichas usan las teselas. */
+.route-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+/* Dos columnas sin horarios o sin recorrido; una sola con distancia y tipo. */
+.route-grid--2col { grid-template-columns: 1fr 1fr; }
+.route-grid--1col { grid-template-columns: 1fr; }
+.route-grid__block {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+}
+.route-grid__block + .route-grid__block { border-left: 1px solid var(--border); }
+/* El tipo de etapa se identifica por el color de su texto (los de Hoy); el
+   bloque no lleva tinte propio. */
+.route-grid__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+.route-grid__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+.route-grid__body--route { gap: 0.15rem; }
+.route-block__place {
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+  text-align: center;
+}
+.route-block__place--solo { font-size: var(--fs-6); line-height: 1.1; }
+.route-block__note { font-size: var(--fs-2); color: var(--text); text-align: center; }
+/* Día de la hora cuando cae en otra fecha que la jornada («(sáb.)»). */
+.route-block__day { font-family: var(--font-body); font-size: var(--fs-2); font-weight: 400; color: var(--text-muted); line-height: 1.2; text-align: center; }
+.route-block__note--empty { font-style: italic; }
+.route-block__km {
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 0.28rem;
+  text-align: center;
+}
+.route-block__km--empty { color: var(--text-muted); }
+.route-block__elev {
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 0.22rem;
+  text-align: center;
+}
+.route-block__type {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.15rem;
+}
+/* Texto en el color de su tipo, sin caja de etiqueta. */
+.route-block__type .badge { gap: 0; padding: 0; background: none; font-size: var(--fs-2); font-weight: 600; }
+.route-block__type .badge + .badge::before { content: '·'; margin: 0 0.3em; color: var(--text-muted); }
+.route-arrow {
+  width: 14px;
+  height: 22px;
+  flex-shrink: 0;
+  stroke: var(--text-muted);
+  margin: 0.1rem 0;
+}
+@media (max-width: 480px) {
+  .route-grid, .route-grid--2col, .route-grid--1col { grid-template-columns: 1fr; }
+  .route-grid__block + .route-grid__block { border-left: 0; border-top: 1px solid var(--border); }
+  .route-block__km { font-size: var(--fs-5); }
+}
 .stage-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
