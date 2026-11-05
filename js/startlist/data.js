@@ -29,7 +29,7 @@ export async function resolveStartlistRace({ raceId, slug, isEn }) {
  * Carga equipos, corredores, colores de temporada y abandonos de la carrera.
  * Devuelve null si no hay equipos inscritos.
  */
-export async function loadStartlistData(race) {
+export async function loadStartlistData(race, { atStage = null } = {}) {
   const raceId = race.id;
 
   // ── Fase A: todo lo que depende SOLO de raceId ──
@@ -47,11 +47,14 @@ export async function loadStartlistData(race) {
     .order('id');
   if (race.year) teamsQuery = teamsQuery.eq('team.team_seasons.year', race.year);
   const [raceDaysRes, teamsRes, uciStagesRes, ridersRes] = await Promise.all([
+    // Fechas (cabecera) y, para la lista lateral de etapas, número, ruta y
+    // slugs; desempate por id, como el build.
     supabase.from('race_days')
-      .select('dateKey, isRestDay')
+      .select('id, slug, slugEn, stageNumber, dateKey, isRestDay, startLocation, finishLocation, startLocationEn, finishLocationEn')
       .eq('raceId', raceId)
       .eq('editorialStatus', 'published')
-      .order('dateKey', { ascending: true }),
+      .order('dateKey', { ascending: true })
+      .order('id'),
     teamsQuery,
     supabase.from('race_uci_stages')
       .select('id, stageNumber, rowCount')
@@ -86,7 +89,7 @@ export async function loadStartlistData(race) {
     uciStages: uciStagesRes.data,
     riders: ridersRes.data,
     outRows: outRowsRes.data,
-  });
+  }, { atStage });
 }
 
 // Etapas con resultados in-house volcados: las únicas cuyas filas tachan abandonos.
@@ -100,7 +103,7 @@ function startlistStageRows(uciStages) {
  * sus team_seasons) embebido. Devuelve null si no hay equipos inscritos.
  */
 /** @public tools/site/prerender-inscritos.mjs lo usa como miembro del módulo cargado con import(). */
-export function prepareStartlistData(race, { raceDays, teamRows, uciStages, riders: riderRows, outRows }) {
+export function prepareStartlistData(race, { raceDays, teamRows, uciStages, riders: riderRows, outRows }, { atStage = null } = {}) {
   if (!teamRows || teamRows.length === 0) return null;
 
   // Equipo global y temporada salen del embebido; la fila de startlist queda limpia.
@@ -202,8 +205,14 @@ export function prepareStartlistData(race, { raceDays, teamRows, uciStages, ride
     // Por corredor, quedarse con la fila de mayor stageNumber (null = -1, va
     // primero y lo pisa cualquier etapa numerada). Esa es su "última palabra".
     // Solo cuentan los abandonos reales: un 'LAP' (u otro código de ruido) NO tacha.
+    // `atStage` (lista de una etapa, ?etapa=N): solo cuenta quien no tomó la
+    // salida de esa etapa, es decir, quien abandonó en una anterior o no salió
+    // (DNS) en ella; los abandonos posteriores aún no han ocurrido.
+    const before = (sn, irm) => atStage == null
+      || (sn != null && (sn < atStage || (sn === atStage && String(irm).toUpperCase() === 'DNS')));
     (outRows || []).filter(row => isAbandonIrm(row.irm)).forEach(row => {
       const sn = stageNumById.has(row.stageRef) ? stageNumById.get(row.stageRef) : null;
+      if (!before(sn, row.irm)) return;
       const prev = riderOutMap.get(row.globalRiderId);
       const snv = sn == null ? -1 : sn;
       const prevv = prev == null ? -2 : (prev.stageNumber == null ? -1 : prev.stageNumber);

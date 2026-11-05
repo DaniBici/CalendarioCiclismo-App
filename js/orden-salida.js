@@ -11,6 +11,8 @@ import { getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
 import { startlistTeamsQuery } from './team-appearance.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
+import { PERFIL_SIBLING_COLUMNS, sortStagePageSiblings } from './services/races.js';
 import { STAGE_TYPE_LABELS, ordenSalidaEmptyHtml, ordenSalidaHtml } from './orden-salida-html.js';
 
 async function init(i18nReady = Promise.resolve()) {
@@ -60,13 +62,20 @@ async function init(i18nReady = Promise.resolve()) {
   // Orden, assets de la jornada (panel de botones común), equipos de la
   // startlist con su temporada y guía técnica: todo depende solo de la jornada.
   // Listas con desempate por id, como el build (tools/site/prerender-auxiliares.mjs).
-  const [{ data: entries, error }, { data: soAssets }, { data: startlistRows }, technicalGuide] = await Promise.all([
+  const [{ data: entries, error }, { data: soAssets }, { data: startlistRows }, technicalGuide, siblingsResult] = await Promise.all([
     supabase.from('start_order_entries_resolved').select('*').eq('raceDayId', rdId).order('sortOrder', { ascending: true }).order('id'),
     supabase.from('assets').select('*').eq('raceDayId', rdId).order('id'),
     startlistTeamsQuery(supabase, rd.raceId, race?.year, 'teamId'),
     race?.id ? loadRaceTechnicalGuide(race.id) : Promise.resolve(null),
+    // Etapas de la carrera para la lista lateral (las mismas columnas y el
+    // mismo orden que el perfil).
+    rd.raceId && race?.raceFormat !== 'one_day'
+      ? supabase.from('race_days').select(PERFIL_SIBLING_COLUMNS)
+        .eq('raceId', rd.raceId).eq('editorialStatus', 'published').order('id')
+      : Promise.resolve({ data: null }),
     i18nReady,
   ]);
+  const siblings = siblingsResult?.data ? sortStagePageSiblings(siblingsResult.data) : [];
 
   if (error || !entries || entries.length === 0) {
     applyPrerenderedHtml(content, ordenSalidaEmptyHtml());
@@ -140,8 +149,9 @@ async function init(i18nReady = Promise.resolve()) {
   // Contenido (js/orden-salida-html.js): la página generada en el build con el
   // mismo HTML se conserva y solo se monta lo interactivo.
   const contextAssets = withRaceTechnicalGuide(soAssets || [], technicalGuide);
-  const { html, hasFilters } = ordenSalidaHtml({ rd, race, entries, startlistRows, assets: contextAssets });
+  const { html, hasFilters } = ordenSalidaHtml({ rd, race, entries, startlistRows, assets: contextAssets, siblings });
   applyPrerenderedHtml(content, html);
+  enableGcFinalRow(document, race);
   const cleanupProfile = mountStageProfile(document.getElementById('soProfile'), {
     day: rd, race, assets: contextAssets, hidePointNames: true,
   });

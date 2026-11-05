@@ -13,6 +13,7 @@ import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPd
 import { setupRiderTooltips } from './rider-tooltip.js';
 import { inscritosHtml, pdfButtonInner } from './inscritos-html.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 
 // ── SEO helpers ──────────────────────────────────────────────────────
 function buildFechaParentesis(race, lang) {
@@ -64,12 +65,14 @@ async function init() {
     if (loadingEl) loadingEl.textContent = t('startlist.loading');
   }
 
-  // Actualizar URL al path limpio correcto según idioma
+  // Actualizar URL al path limpio correcto según idioma; la etapa elegida
+  // (?etapa=N) se conserva.
+  const _etapaQs = params.get('etapa') ? `?etapa=${encodeURIComponent(params.get('etapa'))}` : '';
   if (_isEn && (race.slugEn || race.slug)) {
     const _slEnB = enBase();
-    history.replaceState(null, '', `${_slEnB}/startlist/${encodeURIComponent(race.slugEn || race.slug)}/`);
+    history.replaceState(null, '', `${_slEnB}/startlist/${encodeURIComponent(race.slugEn || race.slug)}/${_etapaQs}`);
   } else if (!_isEn && race.slug) {
-    history.replaceState(null, '', `/inscritos/${encodeURIComponent(race.slug)}/`);
+    history.replaceState(null, '', `/inscritos/${encodeURIComponent(race.slug)}/${_etapaQs}`);
   }
 
   // Equipos, corredores, colores de temporada y abandonos (startlist/data.js,
@@ -87,7 +90,11 @@ async function init() {
       .order('id', { referencedTable: 'assets' })
       .limit(1).maybeSingle()
     : Promise.resolve({ data: null });
-  const [data, { data: oneDayRow }] = await Promise.all([loadStartlistData(race), oneDayRequest]);
+  // ?etapa=N (vueltas por etapas): la lista de esa etapa, con tachados solo
+  // quienes ya no tomaron su salida. Misma URL canónica que la lista completa.
+  const stageParam = race.raceFormat !== 'one_day' ? parseInt(params.get('etapa') || '', 10) : NaN;
+  const atStage = Number.isInteger(stageParam) && stageParam >= 0 ? stageParam : null;
+  const [data, { data: oneDayRow }] = await Promise.all([loadStartlistData(race, { atStage }), oneDayRequest]);
   if (!data) {
     applyPrerenderedHtml(content, `<div class="startlist-empty">${t('startlist.empty')}</div>`);
     return;
@@ -233,9 +240,11 @@ async function init() {
   // (js/html-fingerprint.js) y solo se montan el tooltip y el botón del PDF.
   const html = inscritosHtml(race, data, {
     oneDayRd,
+    atStage,
     assets: withRaceTechnicalGuide(oneDayAssets, await loadRaceTechnicalGuide(race.id)),
   });
   applyPrerenderedHtml(content, html);
+  enableGcFinalRow(document, race);
 
   // ── Tooltip de corredor (hover en desktop / tap en táctil) ──
   setupRiderTooltips(content);

@@ -202,7 +202,11 @@ function pageInputs(type, index, dayId) {
   if (type === 'orden') {
     const entries = index.entriesByDay.get(dayId) || [];
     if (!entries.length) return { rd: row, notice: 'orden' };
-    return { rd: row, race: raceRow, entries, startlistRows: index.teamsByRace.get(row.raceId) || [], assets, guide };
+    // Etapas de la lista lateral: las del perfil (js/orden-salida.js).
+    const siblings = row.raceId && raceRow?.raceFormat !== 'one_day'
+      ? sortStagePageSiblings((index.daysByRace.get(row.raceId) || []).map(day => pick(day, PERFIL_SIBLING_COLUMNS)))
+      : [];
+    return { rd: row, race: raceRow, entries, startlistRows: index.teamsByRace.get(row.raceId) || [], assets, guide, siblings };
   }
   const perfil = type === 'perfil';
   const rd = pick(row, perfil ? PERFIL_DAY_COLUMNS : MAPA_DAY_COLUMNS);

@@ -69,8 +69,9 @@ export function parseScope(value) {
 
 // ── Datos ──────────────────────────────────────────────────────────────────
 // Mismas lecturas que fetchMarket() (js/fichajes.js): mismas columnas,
-// filtros y orden, con desempate por id en las paginadas. Las fichas y los
-// equipos fuera de ambas temporadas, por tramos de API_IN_CHUNK ids.
+// filtros y orden, con desempate por id en las paginadas. Las fichas, los
+// equipos fuera de ambas temporadas y el país de los equipos de la temporada,
+// por tramos de API_IN_CHUNK ids.
 const columns = list => list.replace(/\s+/g, '');
 
 const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_CHUNK) },
@@ -80,7 +81,7 @@ const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_
 // navegador instalado (js/shared.js lo necesita al cargarse).
 async function loadApiData(market, key, fetchImpl = fetch) {
   if (!key) throw new Error('Falta SUPABASE_ANON_KEY para leer los datos de fichajes');
-  const { SEASON, PREV_SEASON, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS } = market;
+  const { SEASON, PREV_SEASON, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS, TEAM_COUNTRY_COLUMNS } = market;
   const queries = {
     seasons: `team_seasons?select=${columns(SEASON_COLUMNS)}&year=eq.${SEASON}&order=teamId.asc,id.asc`,
     prevSeasons: `team_seasons?select=${columns(PREV_SEASON_COLUMNS)}&year=eq.${PREV_SEASON}&order=teamId.asc,id.asc`,
@@ -90,14 +91,16 @@ async function loadApiData(market, key, fetchImpl = fetch) {
     men: filter => `riders_men?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
     women: filter => `riders_women?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
     extraTeams: filter => `teams?select=id,name&${filter}&order=id.asc`,
+    teamCountries: filter => `teams?select=${columns(TEAM_COUNTRY_COLUMNS)}&${filter}&order=id.asc`,
   };
   const names = Object.keys(queries);
   const rows = await apiFetch(names.map(name => ({ path: queries[name] })), key, { fetchImpl });
-  const data = { ...Object.fromEntries(names.map((name, at) => [name, rows[at]])), men: [], women: [], extraTeams: [] };
+  const data = { ...Object.fromEntries(names.map((name, at) => [name, rows[at]])), men: [], women: [], extraTeams: [], teamCountries: [] };
   const ids = {
     men: market.marketRiderIds(data.transfers, 'male'),
     women: market.marketRiderIds(data.transfers, 'female'),
     extraTeams: market.marketExtraTeamIds(data.seasons, data.prevSeasons, data.transfers),
+    teamCountries: market.marketSeasonTeamIds(data.seasons),
   };
   const parts = Object.entries(ids).flatMap(([name, values]) =>
     chunked(values).map(chunk => ({ name, path: byId[name](inFilter('id', chunk)) })));

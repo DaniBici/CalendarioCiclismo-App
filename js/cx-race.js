@@ -103,6 +103,8 @@ try {
     if(legacyGeneral!=null)history.replaceState(null,'',cxRacePageUrl(race,lang,'general',legacyGeneral));
     const codes=categories.map(c=>c.category);
     for(const node of root.querySelectorAll('[data-cx-section]'))node.hidden=node.dataset.cxSection!==page;
+    // Los vídeos se cargan al abrir su sección: un iframe «lazy» oculto empezaría a descargar el reproductor.
+    if(page==='videos')for(const frame of root.querySelectorAll('[data-cx-video-src]')){frame.src=frame.dataset.cxVideoSrc;frame.removeAttribute('data-cx-video-src');}
     for(const node of root.querySelectorAll('[data-cx-section-link]')) {
       const key=node.dataset.cxSectionLink,active=key===page;
       node.classList.toggle('res-tab--active',active);
@@ -114,7 +116,7 @@ try {
     if(generalNav)generalNav.hidden=page!=='general';
     for(const node of root.querySelectorAll('[data-cx-startlist-category]'))node.hidden=node.dataset.cxStartlistCategory!==selected.category;
     for(const node of root.querySelectorAll('[data-cx-classification-content]'))node.hidden=node.dataset.cxClassificationContent!==selected.category;
-    for(const node of root.querySelectorAll('[data-cx-context-category]'))node.classList.toggle('res-stage-data__active',node.dataset.cxContextCategory===selected.category);
+    for(const node of root.querySelectorAll('[data-cx-context-category]'))node.classList.toggle('cx-schedule__row--active',node.dataset.cxContextCategory===selected.category);
     for(const node of root.querySelectorAll('[data-cx-general]'))node.hidden=node.dataset.cxGeneral!==selected.category;
     for(const node of root.querySelectorAll('[data-cx-classification],[data-cx-general-classification]')) {
       const active=(node.dataset.cxClassification||node.dataset.cxGeneralClassification)===selected.category;

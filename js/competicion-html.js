@@ -17,7 +17,8 @@
 import { todayRaceState, profileProgress, resultsTrophyHtml, tvIconHtml } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
 import { formatTimeUser, resolveTypeBadges, jornadaUrl, rdLocation, startOrderUrl, buildRaceHeader, extractYouTubeId,
-         esc, seoShortDate, seoShortMonth } from './shared.js';
+         esc, seoShortDate, seoShortMonth, buildRaceFacts, buildRaceBreadcrumb, raceCrumbItems, raceLayoutHtml,
+         raceSideStageList, raceGcLink, sideLinksNavHtml } from './shared.js';
 import { t, getLang } from './i18n.js';
 import { raceCardHtml, safeCardColor } from './components/race-card.js';
 import { noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
@@ -164,33 +165,52 @@ export function paintCompetitionCard(card, rd, options) {
 }
 
 // Botones de la competición: web oficial, guía técnica (en el visor) e
-// inscritos. La guía se guarda una vez en assets de cualquier etapa.
+// inscritos. La guía se guarda una vez en assets de cualquier etapa. `bar`: la
+// barra de la columna principal (en escritorio el CSS la oculta, porque todas
+// sus celdas llevan data-side-link); `side`: la misma fila en la lateral.
 function actionsHtml(race, days) {
   const website = race.websiteUrl
-    ? `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`
+    ? `<a class="asset-btn" data-side-link="website" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`
     : '';
   const guide = days.flatMap(day => day._assets || []).find(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
   let guideHtml = '';
   if (guide) {
     const guideUrl = guide.url || guide.filePath;
     const guideLabel = t('assets.technicalGuide');
-    guideHtml = `<button class="asset-btn" type="button" onclick="openAssetModal('${guideUrl.replace(/'/g, "\\'")}','${guideLabel.replace(/'/g, "\\'")}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg><span class="asset-btn__label">${guideLabel}</span></button>`;
+    guideHtml = `<button class="asset-btn" data-side-link="guide" type="button" onclick="openAssetModal('${guideUrl.replace(/'/g, "\\'")}','${guideLabel.replace(/'/g, "\\'")}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg><span class="asset-btn__label">${guideLabel}</span></button>`;
   }
   let startlist = '';
   if (race.startlistImportedAt) {
     const href = race.slug ? `${CONFIG.basePath}/inscritos/${encodeURIComponent(race.slug)}/` : `${CONFIG.basePath}/inscritos.html?race=${race.id}`;
     const label = race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'));
-    startlist = `<a class="asset-btn" href="${href}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg><span class="asset-btn__label">${label}</span></a>`;
+    startlist = `<a class="asset-btn" data-side-link="startlist" href="${href}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg><span class="asset-btn__label">${label}</span></a>`;
   }
-  if (!website && !guideHtml && !startlist) return '';
+  if (!website && !guideHtml && !startlist) return { bar: '', side: '' };
   const en = getLang() === 'en';
-  return `<div class="asset-links-wrap" style="margin-bottom:0.85rem"><div class="asset-links" data-scroll-rail>${website}${guideHtml}${startlist}</div>${arrowHtml('prev', en ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', en ? 'More actions' : 'Más acciones', 'hidden')}</div>`
-    + '<hr style="border:none;border-top:1px solid var(--border);margin:0 0 0.85rem">';
+  const cells = website + guideHtml + startlist;
+  return {
+    bar: `<div class="asset-links-wrap asset-links-wrap--side-only" style="margin-bottom:0.85rem"><div class="asset-links" data-scroll-rail>${cells}</div>${arrowHtml('prev', en ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', en ? 'More actions' : 'Más acciones', 'hidden')}</div>`
+      + '<hr style="border:none;border-top:1px solid var(--border);margin:0 0 0.85rem">',
+    side: sideLinksNavHtml(cells.replace(/ data-side-link="[^"]*"/g, '')),
+  };
+}
+
+// Fila de la clasificación general tras las etapas: la de la última etapa con
+// resultados (la final cuando ya se corrió la última), o '' si no hay.
+const GC_TROPHY = '<svg class="competition-gc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
+function gcCardHtml(race, days) {
+  const gc = raceGcLink(race, days.filter(d => !d.isRestDay && !d.isCancelledDay), d => d._hasInhouse);
+  return gc
+    ? `<a class="competition-gc" href="${esc(gc.href)}">${GC_TROPHY}<span class="competition-gc__text"><span class="competition-gc__label">${gc.label}</span><span class="competition-gc__note">${gc.note}</span></span><span class="competition-gc__chev" aria-hidden="true">›</span></a>`
+    : '';
 }
 
 /**
- * HTML de #competicionContent: cabecera (rango de fechas · categoría · nº de
- * etapas), botones y lista de jornadas. `days`: jornadas ordenadas, con
+ * HTML de #competicionContent: columna lateral (cabecera con rango de fechas ·
+ * categoría · nº de etapas y datos de la carrera, botones y lista de etapas) y
+ * principal (migas, botones, tarjetas de jornada y clasificación general).
+ * La fila «Clasificación general final» de la lista lateral sale desactivada y
+ * marcada (gcFinal null): js/race-gc-final.js la activa en el navegador. `days`: jornadas ordenadas, con
  * `_broadcasts`, `_tvBlocked`, `_assets` y `_hasInhouse`; `card(rd)`:
  * opciones de competitionCardHtml() de cada jornada.
  */
@@ -204,16 +224,27 @@ export function competitionPageHtml(race, days, card, { dynamic = true } = {}) {
     ? (n !== 1 ? 'stage.stagesCount_other' : 'stage.stagesCount_one')
     : (n !== 1 ? 'stage.racesCount_other' : 'stage.racesCount_one');
   const detail = [dateRange ? `${dateRange} ${race.year}` : race.year, race.uciCategory, t(countKey).replace('{n}', n)].filter(Boolean).join(' · ');
-  let html = buildRaceHeader({ race, nameHref: '', detail });
-  html += '<div style="padding:1rem 0 3rem">' + actionsHtml(race, days);
+  const facts = buildRaceFacts(race, { startKey: first || '', endKey: last || '', countryCode: race.hideFlag ? '' : race.countryCode });
+  const headerHtml = buildRaceHeader({ race, nameHref: '', detail, facts });
+  const actions = actionsHtml(race, days);
+  let html = '<div style="padding:1rem 0 3rem">' + actions.bar;
   if (!days.length) {
     html += `<div class="empty-state" style="padding:3rem 0">
         <div class="empty-state__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>
         <div class="empty-state__text">${t('stage.noStages')}</div></div>`;
   } else {
     html += `<div class="stage-list" data-stage-list>${days.map(rd => competitionCardHtml(rd, card(rd), { dynamic })).join('')}</div>`;
+    html += gcCardHtml(race, days);
   }
-  return html + '</div>';
+  return raceLayoutHtml({
+    headerHtml,
+    sideLinksHtml: actions.side,
+    // La página actual es «Ver todas las etapas».
+    sideExtraHtml: raceSideStageList(race, days, { allCurrent: true }),
+    crumbsHtml: buildRaceBreadcrumb(raceCrumbItems(race)),
+    mainHtml: html + '</div>',
+    facts: !!facts,
+  });
 }
 
 /** Orden de las jornadas de la competición: etapa y hora de salida; sin etapa, fecha. */
