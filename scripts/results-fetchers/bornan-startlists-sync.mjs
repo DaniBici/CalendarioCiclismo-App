@@ -10,9 +10,10 @@
  *   2. Resuelve el equipo por selección nacional (ISO-2 + género) y deja que la
  *      importación resuelva la identidad de cada corredor por nombre, nacimiento
  *      y `uciProfileId`.
- *   3. `prepare_startlist_import` + `apply_startlist_import` marcan la lista como
- *      provisional mientras no haya Start List oficial; al publicarse esta, la
- *      convierten en oficial (con dorsales).
+ *   3. `vps_import_bornan_startlist` (envuelve `prepare_startlist_import` +
+ *      `apply_startlist_import`, solo para carreras con `source='bornan'`) marca
+ *      la lista como provisional mientras no haya Start List oficial; al
+ *      publicarse esta, la convierte en oficial (con dorsales).
  *
  * Uso:
  *   node scripts/results-fetchers/bornan-startlists-sync.mjs [--race-id <id>] [--dry-run]
@@ -255,15 +256,13 @@ async function syncRace(client, target) {
       return { status: 'dry-run', official };
     }
 
-    const prepared = (await client.query(
-      'select public.prepare_startlist_import($1, $2::jsonb, $3) as report',
-      [target.raceId, JSON.stringify(document), !official],
-    )).rows[0]?.report || {};
     const overrides = OVERRIDES[target.raceId] ?? {};
-    const applied = (await client.query(
-      'select public.apply_startlist_import($1, $2::jsonb) as report',
-      [prepared.importId, JSON.stringify(overrides)],
+    const report = (await client.query(
+      'select public.vps_import_bornan_startlist($1, $2::jsonb, $3, $4::jsonb) as report',
+      [target.raceId, JSON.stringify(document), !official, JSON.stringify(overrides)],
     )).rows[0]?.report || {};
+    const prepared = report.prepared || {};
+    const applied = report.applied || {};
     if (applied.status !== 'applied') {
       const issues = applied.issues || prepared.issues || [];
       const byCode = {};

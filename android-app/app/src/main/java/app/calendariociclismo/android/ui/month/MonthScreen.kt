@@ -486,12 +486,9 @@ private fun MonthDayPage(
 ) {
     val monthPrefix = "%04d-%02d".format(year, monthNum)
 
-    // Filter days for this month + active category. En la semana de Campeonatos
-    // (22-28 jun) las CN NO se muestran sueltas: se colapsan en una fila
-    // sintética "Campeonatos Nacionales" que enlaza a la pantalla de Campeonatos
-    // (espejo de la web `js/calendario-mes.js` → `champRowHtml`/`passesCategoryFilter`).
+    // Filter days for this month + active category.
     val isChampYear = year == ChampionshipsConfig.YEAR
-    val filtered = remember(allDaysWithPlaceholders, raceMap, category, monthPrefix, isChampYear) {
+    val filtered = remember(allDaysWithPlaceholders, raceMap, category, monthPrefix) {
         val inMonth = if (category == Constants.CategoryFilter.ALL) {
             allDaysWithPlaceholders.filter { it.dateKey.startsWith(monthPrefix) }
         } else {
@@ -500,15 +497,12 @@ private fun MonthDayPage(
                     rd.raceId?.let { raceMap[it] }?.let { RaceLogic.matchesCategory(it, category) } == true
             }
         }
-        // En Mes NINGUNA CN se muestra suelta, independientemente de la fecha: los
-        // Campeonatos se representan SOLO por la fila sintética de la semana 22-28
-        // jun (que se inserta en esos días). Paridad EXACTA con la web
-        // (`js/calendario-mes.js`: `if (cat === 'CN') return false` en
-        // `passesCategoryFilter`) y con iOS. Antes solo se ocultaban las CN dentro
-        // del rango 22-28 → las CN de junio fuera de esas fechas se colaban sueltas.
-        if (!isChampYear) inMonth
-        else inMonth.filterNot { rd ->
-            rd.raceId?.let { raceMap[it]?.uciCategory } == "CN"
+        // Las CN de la pantalla de Campeonatos no se muestran sueltas: las representa
+        // la fila sintética de la semana 22-28 jun (que se inserta en esos días). Las
+        // de fuera de la ventana de esa pantalla se listan por día. Paridad con
+        // `passesCategoryFilter` de `js/calendario-mes.js` y con iOS.
+        inMonth.filterNot { rd ->
+            ChampionshipsConfig.isOnChampionshipsScreen(rd.raceId?.let { raceMap[it] })
         }
     }
 

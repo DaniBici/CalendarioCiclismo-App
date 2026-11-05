@@ -36,7 +36,7 @@ const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
 const decode = value => value.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (match, code) => code[0] === '#'
   ? String.fromCodePoint(code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1)))
   : ENTITIES[code.toLowerCase()] ?? match);
-const clean = value => decode(String(value ?? '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+export const clean = value => decode(String(value ?? '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 
 // «https://www.acn-timing.com/?lng=EN#/events/<id>/ctx/<ctx>/…» o «…ListeRapports.aspx?eventId=<id>».
 export function acnTarget(url) {
@@ -173,6 +173,8 @@ export function buildAcnCxDocument({ event, ctx, tables, raceId, seasonKey, date
 const getJson = async url => {
   const response = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
   if (!response.ok) throw new Error(`HTTP ${response.status} en ${url}`);
+  // Contexto o tabla que Chronorace aún no publica.
+  if (response.status === 204) return null;
   return response.json();
 };
 

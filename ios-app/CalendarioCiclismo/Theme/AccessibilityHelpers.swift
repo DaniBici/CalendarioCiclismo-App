@@ -58,8 +58,8 @@ enum AccessibilityCategoryLabel {
             "2.1": "UCI clase 2.1",
             "1.2": "UCI clase 1.2",
             "2.2": "UCI clase 2.2",
-            "1.2U": "UCI clase 1.2 sub-23",
-            "2.2U": "UCI clase 2.2 sub-23",
+            "1.2U": "UCI clase 1.2 sub23",
+            "2.2U": "UCI clase 2.2 sub23",
         ]
         return "Categoría \(descriptions[cat] ?? cat)"
     }
@@ -113,16 +113,20 @@ enum AccessibilityRaceDescription {
             parts.append(tvDesc)
         }
 
+        // Día entre paréntesis cuando la hora cae en otra fecha que la jornada.
+        let withDay = { (iso: String, time: String) -> String in
+            DateFormatting.otherDayLabel(iso, dateKey: rd.dateKey).map { "\(time) (\($0))" } ?? time
+        }
         if let startTime = rd.neutralStartTimeUtc,
            let startStr = DateFormatting.formatTimeLocal(startTime) {
-            parts.append("salida a las \(startStr)")
+            parts.append("salida a las \(withDay(startTime, startStr))")
             if let finishTime = rd.estimatedFinishTimeUtc,
                let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                parts.append("meta estimada a las \(finishStr)")
+                parts.append("meta estimada a las \(withDay(finishTime, finishStr))")
             }
         } else if let finishTime = rd.estimatedFinishTimeUtc,
                   let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-            parts.append("meta estimada a las \(finishStr)")
+            parts.append("meta estimada a las \(withDay(finishTime, finishStr))")
         }
 
         if item.isPlaceholder {
@@ -161,36 +165,6 @@ enum AccessibilityRaceDescription {
 
         if race.isStageRace {
             parts.append("carrera por etapas")
-        }
-
-        return parts.joined(separator: ", ")
-    }
-
-    /// Builds a VoiceOver description for a month day cell.
-    static func monthDayCellLabel(day: Int, month: Int, year: Int, isToday: Bool, raceDays: [RaceDay], raceMap: [String: Race]) -> String {
-        var parts: [String] = []
-
-        parts.append("\(day)")
-
-        if isToday {
-            parts.append("hoy")
-        }
-
-        let raceCount = raceDays.count
-        if raceCount == 0 {
-            parts.append("sin carreras")
-        } else if raceCount == 1 {
-            if let name = raceDays.first?.raceId.flatMap({ raceMap[$0] })?.name {
-                parts.append("1 carrera: \(name)")
-            } else {
-                parts.append("1 carrera")
-            }
-        } else {
-            let names = raceDays.prefix(3).compactMap { $0.raceId.flatMap { raceMap[$0] }?.name }
-            parts.append("\(raceCount) carreras: \(names.joined(separator: ", "))")
-            if raceCount > 3 {
-                parts.append("y \(raceCount - 3) más")
-            }
         }
 
         return parts.joined(separator: ", ")

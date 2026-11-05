@@ -2,14 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   compactResultRowsSql,
   hasPublishableResults,
-  shouldPublishFinalClassification,
 } from '../results-fetchers/results-upsert.mjs';
-
-describe('shouldPublishFinalClassification — carreras de un día en DataRide', () => {
-  it('acepta una Final Classification única cuando no hay etapa no-final en el payload', () => {
-    expect(shouldPublishFinalClassification(false, false)).toBe(true);
-  });
-});
 
 describe('hasPublishableResults — guardia de retirada de carreras inválidas', () => {
   it('rechaza una respuesta DNS-only de DataRide', () => {

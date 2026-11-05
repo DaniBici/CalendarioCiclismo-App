@@ -13,18 +13,26 @@
     <style name="Theme.CalendarioCiclismo" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <!-- Barras transparentes: Material 3 hereda de AppCompat
+             statusBarColor = colorPrimaryDark (lavanda #D0BCFF en oscuro,
+             #6750A4 en claro), que core-splashscreen aplica en API 31-34. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
     <!--
       Splash theme: la Activity arranca con este tema para que la core-splashscreen
-      library muestre fondo azul + icono (calendario + bici) en todas las APIs.
+      library muestre fondo + icono (calendario + bici) en todas las APIs.
       En API 31+ la librería delega al Splash Screen nativo del sistema.
       postSplashScreenTheme transiciona al tema Material3 real.
+      Colores de values / values-night: en API 31+ siguen el modo noche de la
+      app (UiModeManager.setApplicationNightMode); por debajo, el del sistema.
+      El fondo del icono coincide con el de la pantalla para no dibujar círculo.
     -->
     <style name="Theme.CalendarioCiclismo.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
         <item name="postSplashScreenTheme">@style/Theme.CalendarioCiclismo</item>
     </style>
 </resources>

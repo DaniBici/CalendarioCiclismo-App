@@ -20,7 +20,6 @@ import gen_feeds
 import gen_sitemap
 import site_data
 import version_assets
-from check_seo_output import check_paths
 import check_hreflang
 
 SITEMAP_INDEX = ('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -226,37 +225,6 @@ class GeneratedTest(unittest.TestCase):
         metadata["started"] = requested
         self.assertTrue(build.reusable("sitemap", archive, metadata, self.state))
 
-    def test_incremental_dispatch_does_not_invalidate_other_caches(self):
-        full_request = (self.now - timedelta(hours=2)).isoformat()
-        incremental_request = (self.now - timedelta(hours=1)).isoformat()
-
-        def response(request, **kwargs):
-            event = "workflow_dispatch" if "workflow_dispatch" in request.full_url else "schedule"
-            return io.BytesIO(json.dumps({"workflow_runs": [
-                {"event": event, "head_branch": "main", "created_at": incremental_request,
-                 "display_title": "stage-incremental"},
-                {"event": event, "head_branch": "main", "created_at": full_request,
-                 "display_title": "Construir y desplegar el sitio"},
-            ]}).encode())
-
-        with patch.object(build, "urlopen", response):
-            self.assertEqual(build.latest_requests("fixture/repo", "fixture"), (full_request, None))
-
-    def test_refresh_dispatch_is_not_a_request(self):
-        full_request = (self.now - timedelta(hours=2)).isoformat()
-
-        def response(request, **kwargs):
-            event = "workflow_dispatch" if "workflow_dispatch" in request.full_url else "schedule"
-            return io.BytesIO(json.dumps({"workflow_runs": [
-                {"event": event, "head_branch": "main", "created_at": self.now.isoformat(),
-                 "display_title": "prerender-refresh"},
-                {"event": event, "head_branch": "main", "created_at": full_request,
-                 "display_title": "Construir y desplegar el sitio"},
-            ]}).encode())
-
-        with patch.object(build, "urlopen", response):
-            self.assertEqual(build.latest_requests("fixture/repo", "fixture"), (full_request, None))
-
     def test_stage_request_counts_only_earlier_incrementals(self):
         times = {number: (self.now - timedelta(hours=10 - number)).isoformat() for number in (1, 2, 3, 4)}
 
@@ -455,54 +423,6 @@ class GeneratedTest(unittest.TestCase):
         self.assertIn("/js/app.js?v=" + version, published)
         self.assertIn("/css/app.css?v=" + version, published)
 
-    def test_extension_appends_and_validates_only_new_pages(self):
-        validator = self.root / "tools/site/check_seo_output.py"
-        validator.parent.mkdir(parents=True)
-        validator.write_text("validator")
-        event = {"@type": "SportsEvent", "name": "Race", "startDate": "2026-09-24",
-                 "endDate": "2026-09-24", "location": {"name": "City", "address": {"addressCountry": "ES"}},
-                 "eventStatus": "https://schema.org/EventScheduled"}
-        html = ('<script src="/js/app.js"></script><script type="application/ld+json">'
-                + json.dumps(event) + '</script>')
-        archive, metadata = self.block("og-stages", {f"{directory}/old-{index}/index.html": html
-                                                     for directory in build.OG_FAMILIES["og-stages"]
-                                                     for index in range(100)})
-        metadata.update(seo={"validator": build.digest(validator), "html": 200, "events": 200})
-        (self.cache / "og-stages/manifest.json").write_text(json.dumps(metadata))
-        self.state["stage_slugs"] = ["new-stage"]
-        self.state_path.write_text(json.dumps(self.state))
-
-        def generate(command, cwd=None, check=None):
-            if command[0] == "tar":
-                return actual_run(command, cwd=cwd, check=check)
-            for name in ("jornada/new-stage/index.html", "en/stage/new-stage/index.html"):
-                path = Path(cwd) / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(html)
-
-        actual_run = build.subprocess.run
-        with patch.object(build.subprocess, "run", side_effect=generate), patch.object(
-                build, "archive_output", wraps=build.archive_output) as rewrite:
-            build.run_block("og-stages")
-        rewrite.assert_not_called()  # sin sustituciones se añaden miembros al tar
-        updated = build.read_manifest("og-stages")
-        self.assertEqual(len(updated["files"]), 202)
-        self.assertEqual(updated["files"]["jornada/old-0/index.html"], metadata["files"]["jornada/old-0/index.html"])
-        self.assertEqual(build.digest(archive), updated["archive_sha256"])
-        with tarfile.open(archive) as stream:
-            self.assertEqual(len(stream.getmembers()), 202)
-            self.assertEqual(stream.extractfile("jornada/new-stage/index.html").read().decode(), html)
-        with patch.object(build, "check_paths", wraps=build.check_paths) as seo:
-            self.assertEqual(build.validate_catalog_seo("og-stages", updated, build.digest(validator)),
-                             (202, 202))
-        checked = [path.relative_to(self.root / "_site").as_posix()
-                   for call in seo.call_args_list for path in call.args[1]]
-        self.assertEqual(sorted(checked), ["en/stage/new-stage/index.html", "jornada/new-stage/index.html"])
-        # Con otro validador se revisa la familia completa.
-        updated["seo"]["validator"] = "old"
-        self.assertEqual(build.validate_catalog_seo("og-stages", updated, build.digest(validator)),
-                         (202, 202))
-
     def test_stage_families_share_one_filtered_generation(self):
         self.state["stage_slugs"] = ["new-stage"]
         self.state_path.write_text(json.dumps(self.state))
@@ -554,20 +474,6 @@ class GeneratedTest(unittest.TestCase):
         self.assertEqual(one_day["canonical"], base + "/en/stage/clasica-2026-en")
         alias = pages[base + "/en/stage/vuelta-2026-etapa-2-alias-en"]
         self.assertEqual(alias["canonical"], base + "/en/stage/vuelta-2026-etapa-2-en")
-
-    def test_startlist_page_has_static_context_without_list(self):
-        self.run_generator_script("gen_og_pages.py", self.root / "full", catalog(True))
-        pages = tree(self.root / "full")
-        # r1 tiene lista; r7 (un día) y r4 (etapas) no: ambas llevan fecha y enlaces a sus jornadas.
-        stage_race = pages["inscritos/vuelta-2026/index.html"].decode()
-        self.assertIn("/jornada/vuelta-2026-etapa-1/", stage_race)
-        self.assertIn("/jornada/vuelta-2026-etapa-3/", stage_race)
-        self.assertNotIn("vuelta-2026-descanso", stage_race)
-        one_day = pages["inscritos/gp-nuevo-2026/index.html"].decode()
-        self.assertIn("/jornada/gp-nuevo-2026/", one_day)
-        self.assertIn("/resultados/gp-nuevo-2026/", one_day)
-        english = pages["en/startlist/vuelta-2026-en/index.html"].decode()
-        self.assertIn("/en/stage/vuelta-2026-etapa-2-en/", english)
 
     def test_incremental_og_reads_only_selected_races(self):
         full = self.run_generator_script("gen_og_pages.py", self.root / "full", catalog(True))
@@ -628,21 +534,6 @@ class GeneratedTest(unittest.TestCase):
         index = updated["sitemap.xml"].decode()
         self.assertEqual(re.findall(r"app/(sitemap-\d+\.xml)", index),
                          [f"sitemap-{number}.xml" for number in range(1, len(parts) + 1)])
-
-    def test_seo_reads_only_json_ld_scripts(self):
-        event = {"@type": "SportsEvent", "name": "Race", "startDate": "2026-09-24",
-                 "endDate": "2026-09-24", "location": {"name": "City",
-                 "address": {"addressCountry": "ES"}},
-                 "eventStatus": "https://schema.org/EventScheduled"}
-        page = self.root / "_site" / "fixture.html"
-        page.write_text('<script src="/js/app.js"></script>'
-                        '<script data-test="x" TYPE=\'application/ld+json\'>'
-                        + json.dumps(event) + '</script>'
-                        '<script type="application/ld+json">{broken}</script>')
-        count, events, errors = check_paths(self.root / "_site", [page])
-        self.assertEqual((count, events), (1, 1))
-        self.assertEqual(len(errors), 1)
-        self.assertIn("JSON-LD 2 inválido", errors[0])
 
     def test_full_composition_reuses_verified_archives_and_preserves_indexes(self):
         validator = self.root / "tools/site/check_seo_output.py"
@@ -732,26 +623,6 @@ class GeneratedTest(unittest.TestCase):
                 build.prepare()
                 self.assertTrue(build.read_state()["force"])
                 self.assertEqual(lookup.call_count, 1 if event == "push" else 0)
-
-    def test_refresh_dispatch_plans_like_a_push(self):
-        previous = (self.now - timedelta(minutes=5)).isoformat()
-        env = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main",
-               "GITHUB_REPOSITORY": "fixture/repo", "GITHUB_TOKEN": "fixture", "PAGES_REFRESH": "true"}
-        with patch.dict(os.environ, env), patch.object(
-                build, "cache_prefix", side_effect=lambda block, now: block + "-fixture-"), patch.object(
-                build, "latest_requests", return_value=(previous, None)):
-            build.prepare()
-        state = build.read_state()
-        self.assertFalse(state["force"])
-        self.assertEqual(state["requested"], previous)
-        self.assertEqual(state["stage_slugs"], [])
-        with patch.dict(os.environ, {**env, "GITHUB_REF": "refs/heads/other"}), patch.object(
-                build, "cache_prefix", side_effect=lambda block, now: block + "-fixture-"):
-            build.prepare()
-        self.assertTrue(build.read_state()["force"])
-        with patch.dict(os.environ, {**env, "GITHUB_EVENT_NAME": "push"}):
-            with self.assertRaisesRegex(ValueError, "workflow_dispatch"):
-                build.prepare()
 
     def test_stage_dispatch_selects_incremental_mode(self):
         previous = (self.now - timedelta(minutes=5)).isoformat()

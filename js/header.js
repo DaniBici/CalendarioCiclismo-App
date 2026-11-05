@@ -56,8 +56,8 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Destinos secundarios en el pie: tras el copyright, en la misma fila que
-// Calendario iCal y Gestión de cookies (js/cookie-consent.js la completa).
+// Destinos secundarios en el pie de todas las páginas: tras el copyright, en
+// la misma fila que Gestión de cookies (js/cookie-consent.js la completa).
 function buildFooterNav(s) {
   const footer = document.querySelector('.site-footer');
   if (!footer || footer.querySelector('.footer-link--about')) return;
@@ -69,7 +69,8 @@ function buildFooterNav(s) {
   }
   actions.insertAdjacentHTML('afterbegin',
     `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
-    `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>`);
+    `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>`);
 }
 
 function buildHeader(el) {

@@ -1,5 +1,6 @@
+import {readFileSync} from 'node:fs';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {collectCxAcnRace,collectCxKbwbRace,collectCxRace,collectCxSmartwebRace,collectCxWiclaxRace,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
+import {collectCxAcnRace,collectCxGolazoRace,collectCxKbwbRace,collectCxRace,collectCxRoundBonuses,collectCxSmartwebRace,collectCxWiclaxRace,collectCxZone4Race,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
 import {applyCxResults,loadCxResultsContext} from '../results-fetchers/cx-results-upsert.mjs';
 import {finishAutomationRun,recordAutomationSourceRun,startAutomationRun} from '../automation-monitor.mjs';
 
@@ -104,7 +105,9 @@ function pipelineClient(candidates,request=null,{acquired=true}={}){
     return answers[calls.length-1]||{rows:[]};
   }};
 }
+const noBonuses={candidates:0,applied:[],unchanged:[],skipped:[],pending:[],reviews:[]};
 const quiet={
+  collectBonuses:async()=>noBonuses,
   promote:async()=>({promoted:0,categories:[]}),
   enqueuePushes:async()=>({found:0,scheduled:0,updated:0,cancelled:0}),
 };
@@ -153,9 +156,10 @@ describe('pasadas operativas CX separadas de carretera',()=>{
     const order=[];const client=pipelineClient([]);
     const at=new Date('2026-11-01T23:00:00Z');
     const value=await runCxPipeline(client,{now:at,
+      collectBonuses:async()=>{order.push(['bonuses']);return noBonuses;},
       promote:async(c,options)=>{order.push(['promote',options.now]);return {asOf:'2026-11-02',promoted:2,categories:[]};},
       processQueue:async()=>{order.push(['standings']);return [];},enqueuePushes:async()=>{order.push(['pushes']);return {found:0,scheduled:0,updated:0,cancelled:0};}});
-    expect(order.map(step=>step[0])).toEqual(['promote','standings','pushes']);expect(order[0][1]).toBe(at);
+    expect(order.map(step=>step[0])).toEqual(['bonuses','promote','standings','pushes']);expect(order[1][1]).toBe(at);
     expect(value).toMatchObject({status:'success',promoted:{promoted:2}});
 
     const dry=pipelineClient([]);
@@ -164,13 +168,95 @@ describe('pasadas operativas CX separadas de carretera',()=>{
     await promoteCxProvisionalResults({query:async(_sql,params)=>{calls.push(params);return {rows:[{promoted:{promoted:0,categories:[]}}]};}},{now:at});
     expect(calls).toEqual([[at.toISOString()]]);
   });
-  it('registra avisos programados y retirados como cambios de cola, sin atribuirles entregas',async()=>{
-    const client=pipelineClient([]);const pushes={found:4,scheduled:2,updated:0,cancelled:1};
-    const value=await runCxPipeline(client,{...quiet,now,processQueue:async()=>[],enqueuePushes:async()=>pushes});
-    expect(value).toMatchObject({status:'success',pushes});
-    const source=sourceRun('cx_push');
-    expect([source.itemsFound,source.itemsMatched,source.itemsChanged,source.errors??0]).toEqual([4,2,3,0]);expect(source.summary.delivery).toBe('scheduled_queue');
-    expect(value.results).toEqual([]);
+});
+
+// Bonos por ronda: lectura del informe de Chronorace y RPC idempotente, sin reemplazar resultados.
+describe('bonos por ronda desde Chronorace',()=>{
+  const read=name=>JSON.parse(readFileSync(new URL(`./fixtures/chronorace-koppenbergcross-2026-me-${name}.json`,import.meta.url),'utf8'));
+  const tree={Childs:[{Type:'Folder',Name:'CROME',Childs:['RES31','BEST31'].map(key=>({Type:'result',Id:key,Route:JSON.stringify({Params:{key}})}))}]};
+  const after=new Date('2026-11-01T16:01:00Z');
+  const candidate=(extra={})=>({raceId:'koppenberg',dateKey:'2026-11-01',category:'ME',bonusSourceUrl:null,resultsImportedAt:'2026-11-01T15:30:00Z',
+    publication:{provider:'chronorace',contextSuffix:'x2o'},
+    rows:[{id:'10',rank:1,riderDisplay:'Thibau Nys',uciLicenseId:'10065004835',bonusSeconds:null},
+      {id:'11',rank:2,riderDisplay:'Michael Vanthourenhout',uciLicenseId:'10007155651',bonusSeconds:null},
+      {id:'12',rank:3,riderDisplay:'Gerben Kuypers',uciLicenseId:'10016322757',bonusSeconds:null},
+      {id:'13',rank:null,irm:'DNF',riderDisplay:'Victor Van de Putte',uciLicenseId:'10064985940',bonusSeconds:null},
+      {id:'14',rank:4,riderDisplay:'Pim Ronhaar',uciLicenseId:'10023108212',bonusSeconds:null}],...extra});
+  const client=(candidates,applied={unchanged:false,rows:5})=>{
+    const rpc=[];
+    return {rpc,query:async(sql,params)=>{
+      if(sql.includes('cx_bonus_candidates'))return {rows:candidates};
+      rpc.push(params);
+      if(applied instanceof Error)throw applied;
+      return {rows:[{applied}]};
+    }};
+  };
+  const fetchers={fetchTree:async()=>tree,fetchTable:async(_ctx,key)=>read(key==='RES31'?'res':'best')};
+  it('aplica los bonos de todas las filas con la fuente y sus premios como evidencia',async()=>{
+    const db=client([candidate()]);const contexts=[];
+    const value=await collectCxRoundBonuses(db,{now:after,...fetchers,fetchTree:async ctx=>{contexts.push(ctx);return tree;}});
+    expect(contexts).toEqual(['20261101_x2o']);
+    expect(value).toMatchObject({candidates:1,applied:[{raceId:'koppenberg',category:'ME'}],reviews:[],pending:[]});
+    const [[raceId,category,bonuses,evidence]]=db.rpc;
+    expect([raceId,category]).toEqual(['koppenberg','ME']);
+    expect(JSON.parse(bonuses)).toEqual({10:15,11:20,12:10,13:15,14:0});
+    expect(JSON.parse(evidence)).toMatchObject({bonusSourceUrl:'https://results.chronorace.be/api/results/table/search/20261101_x2o/RES31?srch=&fromRecord=0&pageSize=1000',
+      bonusEvidence:{context:'20261101_x2o',awards:expect.arrayContaining([expect.objectContaining({name:'KUYPERS Gerben',seconds:10,lap:2})])}});
+  });
+  it('con bonos cargados no consulta Chronorace salvo en la comprobación periódica, que es idempotente',async()=>{
+    const known=candidate({bonusSourceUrl:'https://results.chronorace.be/x'});known.rows=known.rows.map(row=>({...row,bonusSeconds:0}));
+    let trees=0;const countTree=async()=>{trees++;return tree;};
+    const idle=client([known]);
+    expect(await collectCxRoundBonuses(idle,{now:after,...fetchers,fetchTree:countTree})).toMatchObject({candidates:1,applied:[],unchanged:[]});
+    expect(trees).toBe(0);expect(idle.rpc).toHaveLength(0);
+    const check=client([known],{unchanged:true});
+    expect(await collectCxRoundBonuses(check,{now:new Date('2026-11-01T16:30:00Z'),...fetchers,fetchTree:countTree})).toMatchObject({unchanged:[{category:'ME'}],applied:[]});
+    expect(trees).toBe(1);
+    const manual=client([known],{unchanged:true,skipped:'other_source'});
+    expect(await collectCxRoundBonuses(manual,{now:new Date('2026-11-01T16:30:00Z'),...fetchers})).toMatchObject({skipped:[{category:'ME'}],unchanged:[]});
+  });
+  it('sin informe o con la tabla aún cambiando espera; pasadas 6 horas lo deja en revisión',async()=>{
+    const absent={fetchTree:async()=>null,fetchTable:async()=>{throw new Error('No se consulta');}};
+    const soon=client([candidate()]);
+    expect(await collectCxRoundBonuses(soon,{now:after,...absent})).toMatchObject({pending:[{reason:expect.stringContaining('20261101_x2o sin publicar')}],reviews:[]});
+    expect(soon.rpc).toHaveLength(0);
+    expect(await collectCxRoundBonuses(client([candidate()]),{now:new Date('2026-11-01T22:00:00Z'),...absent})).toMatchObject({pending:[],reviews:[{category:'ME'}]});
+    const live=client([candidate()]);
+    expect(await collectCxRoundBonuses(live,{now:new Date('2026-11-01T15:13:00Z'),...fetchers})).toMatchObject({pending:[{reason:'Chronorace aún actualiza el informe'}]});
+    expect(live.rpc).toHaveLength(0);
+    const down=client([candidate()]);
+    expect(await collectCxRoundBonuses(down,{now:after,...fetchers,fetchTree:async()=>{throw new Error('HTTP 503');}})).toMatchObject({pending:[{reason:'Chronorace no responde: HTTP 503'}],reviews:[]});
+  });
+  it('sin bonos pasado el plazo sigue en revisión en cada pasada y solo consulta en la comprobación periódica',async()=>{
+    const late=new Date('2026-11-05T09:07:00Z');let trees=0;
+    const value=await collectCxRoundBonuses(client([candidate()]),{now:late,fetchTree:async()=>{trees++;return null;},fetchTable:fetchers.fetchTable});
+    expect(trees).toBe(0);expect(value).toMatchObject({reviews:[{category:'ME',reason:expect.stringContaining('cada 30 minutos')}],pending:[]});
+    const check=await collectCxRoundBonuses(client([candidate()]),{now:new Date('2026-11-05T09:30:00Z'),fetchTree:async()=>{trees++;return null;},fetchTable:fetchers.fetchTable});
+    expect(trees).toBe(1);expect(check).toMatchObject({reviews:[{reason:expect.stringContaining('sin publicar')}],pending:[]});
+    const published=client([candidate()]);
+    expect(await collectCxRoundBonuses(published,{now:new Date('2026-11-05T09:30:00Z'),...fetchers})).toMatchObject({applied:[{category:'ME'}],reviews:[]});
+  });
+  it('con bonos cargados, un informe que no responde no es una revisión',async()=>{
+    const known=candidate({bonusSourceUrl:'https://results.chronorace.be/x'});known.rows=known.rows.map(row=>({...row,bonusSeconds:0}));
+    const value=await collectCxRoundBonuses(client([known]),{now:new Date('2026-11-02T06:30:00Z'),...fetchers,fetchTree:async()=>{throw new Error('HTTP 503');}});
+    expect(value).toMatchObject({reviews:[],pending:[{reason:'Chronorace no responde: HTTP 503'}]});
+  });
+  it('un fallo al leer los bonos deja la pasada parcial sin detener oficializaciones, generales ni avisos',async()=>{
+    const order=[];
+    const value=await runCxPipeline(pipelineClient([]),{now,collectBonuses:async()=>{throw new Error('statement timeout');},
+      promote:async()=>{order.push('promote');return {promoted:0,categories:[]};},processQueue:async()=>{order.push('standings');return [];},
+      enqueuePushes:async()=>{order.push('pushes');return {found:0,scheduled:0,updated:0,cancelled:0};}});
+    expect(order).toEqual(['promote','standings','pushes']);
+    expect(value).toMatchObject({status:'partial',bonuses:{reviews:[{reason:'Lectura de bonos: statement timeout'}]}});
+    expect(sourceRun('chronorace_cx')).toMatchObject({status:'warning'});
+  });
+  it('un premiado sin fila queda en revisión sin escribir y una clasificación reemplazada se reintenta',async()=>{
+    const missing=candidate();missing.rows=missing.rows.filter(row=>row.id!=='12');
+    const db=client([missing]);
+    expect(await collectCxRoundBonuses(db,{now:after,...fetchers})).toMatchObject({applied:[],reviews:[{reason:expect.stringContaining('KUYPERS')}]});
+    expect(db.rpc).toHaveLength(0);
+    const conflict=Object.assign(new Error('La clasificación cambió'),{code:'40001'});
+    expect(await collectCxRoundBonuses(client([candidate()],conflict),{now:after,...fetchers})).toMatchObject({applied:[],reviews:[],pending:[{category:'ME'}]});
   });
 });
 
@@ -343,6 +429,48 @@ describe('recogida CX desde KBWB',()=>{
   });
 });
 
+function zone4Fixture(id='own-zone4'){
+  const {context}=fixture(id);context.link=null;
+  context.categories[0].startTimeUtc='2026-11-01T13:00:00Z';
+  context.categories.push({...context.categories[0],category:'MJ'});
+  context.timingLink={raceId:id,provider:'zone4',categoryKeys:{'2026-11-01/bb48534c/Elite M/H':'ME','2026-11-01/bb48534c/U19 M/H':'MJ'},
+    syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  const T0=Date.parse('2026-11-01T13:00:00Z')*1000;
+  const tree={date:['2026-11-01',null],name:['Sunday Wave 8-9',1],_child_startgroups:[{uuid:['sg',null],recorded_start_time:[T0,1]}],
+    _child_courses:[{uuid:['c-me',null],points_list:[[{mode:'start'},{mode:'lap'}],1]},{uuid:['c-mj',null],points_list:[[{mode:'start'},{mode:'lap'}],1]}],
+    _child_resultformats:[{uuid:['bb48534c-x',null],name:['Overall',1],_child_resultgroups:[
+      {name:['Elite M/H',1],description:['Official',1],criteria_list:[[{course:'c-me'}],1]},
+      {name:['U19 M/H',1],description:['Unofficial',1],criteria_list:[[{course:'c-mj'}],1]}]}],
+    _child_racers:[{bib:['1',1],first_name:['A',1],last_name:['PRUEBA',1],nat:['ESP',1],team:['TEAM X',1],
+      _child_timedentitys:[{course:['c-me',1],startgroup:['sg',1],time_1_list:[[T0+3600e6,'d'],1]}]}]};
+  let fetches=0;
+  return {context,fetchTree:async url=>{fetches++;return {date:'2026-11-01',formatId:'bb48534c',resultsUrl:url,tree};},fetches:()=>fetches};
+}
+describe('recogida CX desde Zone4',()=>{
+  it('importa provisional los grupos «Official» y deja pendientes los demás',async()=>{
+    const {context,fetchTree,fetches}=zone4Fixture();
+    const client=collectorClient([context]);
+    const value=await collectCxZone4Race(client,context.race.id,{now,fetchTree});
+    expect(value).toMatchObject({provider:'zone4',status:'ok',rowsFound:1,rowsChanged:1,reviews:[]});
+    expect(value.pending).toEqual([{category:'MJ',reason:'Clasificación no marcada «Official» en Zone4; se reintenta en la siguiente pasada'}]);
+    expect(fetches()).toBe(1);
+    const [prepared]=client.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'zone4',zone4:{key:'2026-11-01/bb48534c/Elite M/H',status:'Official'}});
+    expect(prepared.imports[0].rows[0]).toMatchObject({globalRiderId:'own-rider',timeSeconds:'3600'});
+  });
+  it('no sustituye categorías oficiales y despacha desde collectCxRace',async()=>{
+    const official=zone4Fixture('official');Object.assign(official.context.categories[0],{resultsProvider:'zone4',resultsStatus:'official'});
+    const officialClient=collectorClient([official.context]);
+    const kept=await collectCxZone4Race(officialClient,'official',{now,fetchTree:official.fetchTree});
+    expect(kept.skipped[0].reason).toContain('ya oficiales');expect(officialClient.ingests).toHaveLength(0);
+
+    const only=zone4Fixture('only');const client=collectorClient([only.context]);let acn=0;
+    const value=await collectCxRace(client,'only',{now,fetchTree:only.fetchTree,fetchTables:async()=>{acn++;}});
+    expect(value).toMatchObject({provider:'zone4',rowsChanged:1});expect(acn).toBe(0);
+  });
+});
+
 const SMARTWEB_URL='https://fccv.es/index.php/smartweb/inscripciones/clasificacion/35255';
 function smartwebFixture(id='own-smartweb'){
   const {context}=fixture(id);context.link=null;
@@ -400,5 +528,52 @@ describe('recogida CX desde smartweb',()=>{
 
     const only=smartwebFixture('only');const routed=smartwebClient([only.context],new Date(now.getTime()-5*60000).toISOString());
     expect(await collectCxRace(routed,'only',{now,fetchRace:only.fetchRace})).toMatchObject({provider:'smartweb',rowsChanged:1});
+  });
+});
+
+// Elite masculina del Koppenbergcross 01-11-2026 (60 min) en koppenbergcross.be: tabla en directo y tabla final.
+const GOLAZO_SITE='https://www.koppenbergcross.be/';
+const golazoHtml=name=>readFileSync(new URL(`./fixtures/golazo-koppenbergcross-2026-me-${name}.html`,import.meta.url),'utf8');
+function golazoFixture(id,{html,sourceState={},manga={}}){
+  const {context}=fixture(id);context.link=null;
+  Object.assign(context.categories[0],{durationMinutes:60,...manga});
+  context.timingLink={raceId:id,provider:'kbwb',categoryKeys:{'14995':'ME'},syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  context.golazoLink={raceId:id,provider:'golazo',sourceUrl:GOLAZO_SITE,categoryKeys:{'uitslagen-elite-mannen':'ME'},syncEnabled:true,
+    syncStartOffsetMinutes:-20,syncStopOffsetMinutes:180,syncIntervalMinutes:1,lastFetchAt:null,sourceState};
+  let fetches=0;
+  return {context,fetches:()=>fetches,fetchPages:async(siteUrl,map)=>{fetches++;return Object.entries(map).map(([page,category])=>({url:`${siteUrl}${page}/`,page,category,html}));}};
+}
+// sourceState que la pasada guarda en el enlace (último parámetro de su actualización).
+const golazoState=client=>JSON.parse(client.calls.at(-1).at(-1));
+describe('recogida CX desde Golazo',()=>{
+  const at=minutes=>new Date(Date.parse('2026-11-01T15:00:00Z')+minutes*60000);
+  it('sigue al líder en directo e importa provisional la tabla final estable',async()=>{
+    const live=golazoFixture('golazo',{html:golazoHtml('live')});const liveClient=collectorClient([live.context]);
+    const first=await collectCxGolazoRace(liveClient,'golazo',{now:at(0),fetchPages:live.fetchPages});
+    expect(first).toMatchObject({provider:'golazo',status:'ok',rowsChanged:0});
+    expect(first.pending[0].reason).toContain('dos pasos');expect(liveClient.ingests).toHaveLength(0);
+
+    const final=golazoFixture('golazo',{html:golazoHtml('final'),sourceState:golazoState(liveClient)});const finalClient=collectorClient([final.context]);
+    const second=await collectCxGolazoRace(finalClient,'golazo',{now:at(15),fetchPages:final.fetchPages});
+    expect(second.pending[0].reason).toContain('sin cambios');expect(finalClient.ingests).toHaveLength(0);
+
+    // La misma tabla con otra caché siete minutos después.
+    const recached=golazoHtml('final').replace(/cache x2o (\S+) \S+/,'cache x2o $1 16:25:00');
+    const stable=golazoFixture('golazo',{html:recached,sourceState:golazoState(finalClient)});const stableClient=collectorClient([stable.context]);
+    const third=await collectCxGolazoRace(stableClient,'golazo',{now:at(22),fetchPages:stable.fetchPages});
+    expect(third).toMatchObject({provider:'golazo',rowsChanged:third.rowsFound});
+    const [prepared]=stableClient.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'golazo',golazo:{sourceUrl:GOLAZO_SITE,page:'uitslagen-elite-mannen'}});
+    expect(prepared.imports[0].evidence.sourceGeneratedAt).toBeUndefined();
+  });
+  it('no consulta categorías cargadas desde otra fuente y despacha desde collectCxRace',async()=>{
+    const kbwb=golazoFixture('kbwb',{html:golazoHtml('final'),manga:{resultsStatus:'provisional',resultsProvider:'kbwb'}});
+    const value=await collectCxGolazoRace(collectorClient([kbwb.context]),'kbwb',{now:at(15),fetchPages:kbwb.fetchPages});
+    expect(value).toMatchObject({provider:'golazo',status:'skipped',decisions:[]});expect(kbwb.fetches()).toBe(0);
+
+    const only=golazoFixture('only',{html:golazoHtml('live')});only.context.timingLink=null;
+    expect(await collectCxRace(collectorClient([only.context]),'only',{now:at(0),fetchPages:only.fetchPages})).toMatchObject({provider:'golazo',status:'ok'});
+    expect(only.fetches()).toBe(1);
   });
 });

@@ -30,6 +30,16 @@ final class CyclocrossAgendaModel {
     private var index: CxCached<[CxRace]>?
     private var dayDetails: [String: CxCached<[CxRace]>] = [:]
     private var dayTask: Task<Void, Never>?
+    /// Día contiguo al mostrado con su detalle en precarga.
+    private var prefetching: Set<String> = []
+    /// Antigüedad máxima del detalle de un día para pintarlo sin esperar a la
+    /// red (memoria o copia local). Un detalle más antiguo puede carecer de
+    /// dorsales, emisiones o documentos que la red sí trae, y las tarjetas
+    /// cambiarían al llegar la respuesta.
+    static let detailMaxAge: TimeInterval = 300
+    /// Espera a la red antes de pintar un detalle más antiguo que
+    /// `detailMaxAge` (red lenta).
+    static let networkWait: Duration = .seconds(3)
     /// Orden de lanzamiento de las recargas de Hoy: solo la última aplica.
     private var refreshSequence = 0
     /// Meses de la temporada abierta (los siete tras `open`).
@@ -69,6 +79,12 @@ final class CyclocrossAgendaModel {
     /// Hoy puede pintarse: con datos o, sin ninguno, con el error de la carga.
     /// Barra de fechas, orden y lista aparecen a la vez.
     var isAgendaReady: Bool { hasLoaded || (!busy && error != nil) }
+    /// Día mostrado con carreras y sin detalle vigente: la lista muestra la
+    /// carga hasta tenerlo, en lugar de tarjetas del índice ligero (sin
+    /// documentos, emisiones ni vídeos) que ganarían Dorsales, TV, Resumen y
+    /// el acceso a la ficha en una segunda pintura.
+    private(set) var awaitingDay: String?
+    var isAwaitingDay: Bool { awaitingDay == dateKey }
     /// El usuario eligió día: las cargas posteriores ya no recolocan la
     /// apertura.
     private var userNavigated = false
@@ -166,9 +182,11 @@ final class CyclocrossAgendaModel {
     /// al siguiente con carreras (auto-navegación de Hoy).
     private func settle(on date: String) {
         guard tournamentId == nil else { return }
+        let previous = dateKey
         dateKey = CyclocrossLogic.clamp(date, season: season)
         if filter == .all, dayRaces.isEmpty, let next = nextDayWithRaces { dateKey = next }
         if dateKey == agendaToday { lastTodayKey = dateKey }
+        if dateKey != previous { awaitDetailIfNeeded() }
     }
     /// Tras una carga: sin navegación del usuario, el día de apertura (hoy o
     /// el siguiente día con carreras del filtro); con ella, el día elegido.
@@ -177,9 +195,25 @@ final class CyclocrossAgendaModel {
         if userNavigated {
             settle(on: dateKey)
         } else {
+            let previous = dateKey
             dateKey = CyclocrossLogic.openingDay(today: agendaToday, raceDays: raceDays)
             lastTodayKey = agendaToday
+            if dateKey != previous { awaitDetailIfNeeded() }
         }
+    }
+    /// Al cambiar el día mostrado: si tiene carreras y su detalle no es
+    /// vigente, la lista espera a la carga del día.
+    private func awaitDetailIfNeeded() {
+        awaitingDay = !dayRaces.isEmpty && !isCurrent(dayDetails[dateKey]) ? dateKey : nil
+    }
+    /// Detalle leído de la red hace menos de `detailMaxAge`.
+    private func isCurrent(_ detail: CxCached<[CxRace]>?) -> Bool {
+        guard let savedAt = detail?.savedAt else { return false }
+        return Date().timeIntervalSince(savedAt) <= Self.detailMaxAge
+    }
+    /// Termina la espera de `day`: se pinta con lo que haya.
+    private func release(_ day: String) {
+        if awaitingDay == day { awaitingDay = nil }
     }
     /// Auto-avance de medianoche: si el día mostrado era el «hoy» anterior y la
     /// fecha local cambió, pasa al nuevo día; la navegación manual se respeta.
@@ -221,6 +255,7 @@ final class CyclocrossAgendaModel {
         jumpDate = nil
         hasLoaded = false
         userNavigated = false
+        awaitingDay = nil
         defer { if generation == revision { busy = false } }
         guard !allowed.isEmpty else { error = CyclocrossPresentation.t("Temporada inválida", "Invalid season"); months = []; return }
         months = allowed
@@ -275,7 +310,8 @@ final class CyclocrossAgendaModel {
     /// Apertura de Hoy. Primero la caché local (índice y día de apertura); la
     /// red trae a la vez el índice, el día, las destacadas y las rondas, y
     /// después, si la apertura recae en otro día, ese día. La primera pintura
-    /// (`hasLoaded`) lleva siempre el día de apertura con su detalle.
+    /// (`hasLoaded`) lleva siempre el día de apertura con su detalle, y desde
+    /// la copia local solo si ese detalle es vigente (`detailMaxAge`).
     private func openToday(generation: Int) async {
         let selectedSeason = season
         // Destacadas de la última lectura: el día pintado desde la caché sale
@@ -293,15 +329,28 @@ final class CyclocrossAgendaModel {
             guard generation == revision else { return }
             dayDetails[dateKey] = cachedDay
             rebuild()
+            if isCurrent(cachedDay) { release(dateKey) }
         }
         guard generation == revision else { return }
-        // La caché se pinta solo completa: índice y detalle del día de
-        // apertura. Con el índice solo, las tarjetas saldrían sin documentos,
-        // emisiones ni dorsales y cambiarían al llegar el detalle.
-        if index != nil, dayDetails[dateKey] != nil { hasLoaded = true }
+        // La caché se pinta solo completa y vigente: índice y detalle del día
+        // de apertura leído hace menos de `detailMaxAge`. Con el índice solo,
+        // las tarjetas saldrían sin documentos, emisiones ni dorsales; con un
+        // detalle antiguo (el de la última visita a ese día), sin lo publicado
+        // después, y cambiarían al llegar la red.
+        if index != nil, isCurrent(dayDetails[dateKey]) { hasLoaded = true }
+        // Con red lenta, la copia antigua se pinta pasado `networkWait`.
+        let fallback = Task { [weak self] in
+            try? await Task.sleep(for: Self.networkWait)
+            guard let self, !Task.isCancelled, generation == self.revision, !self.hasLoaded,
+                  self.index != nil, self.dayDetails[self.dateKey] != nil else { return }
+            self.release(self.dateKey)
+            self.hasLoaded = true
+        }
+        defer { fallback.cancel() }
         do {
             let requested = dateKey
             let outcome = try await downloadToday(day: requested, includeIndex: true, forceRounds: false)
+            fallback.cancel()
             guard applyToday(outcome, day: requested, generation: generation) else { return }
             if index == nil, dayDetails.isEmpty, let failure = outcome.failure { self.error = failure.localizedDescription }
             rebuild()
@@ -315,6 +364,7 @@ final class CyclocrossAgendaModel {
             }
             hasLoaded = index != nil || dayDetails[requested] != nil
             if painted, dateKey != requested { await loadDay(dateKey, generation: generation) }
+            prefetchNeighbors(generation: generation)
         } catch {
             guard !Task.isCancelled, !(error is CancellationError) else { return }
             if generation == revision { self.error = error.localizedDescription }
@@ -373,12 +423,14 @@ final class CyclocrossAgendaModel {
         if let fresh = download.index {
             index = fresh
             // El índice recién descargado es más reciente que el detalle de
-            // los demás días: se descartan y se vuelven a pedir al visitarlos.
-            dayDetails = dayDetails.filter { $0.key == day }
+            // los demás días: los no vigentes se descartan y se vuelven a
+            // pedir al visitarlos.
+            dayDetails = dayDetails.filter { $0.key == day || isCurrent($0.value) }
         }
         if let fresh = download.day { dayDetails[day] = fresh }
         featured = download.featured
         rounds = download.rounds.isEmpty ? localRounds() : download.rounds
+        release(day)
         return true
     }
 
@@ -391,21 +443,56 @@ final class CyclocrossAgendaModel {
         dayTask = Task { await loadDay(target, generation: generation) }
     }
 
-    /// Detalle de un día: primero la copia local y después la red, sin pantalla
-    /// de carga. Un fallo conserva lo mostrado.
+    /// Detalle de un día. Con detalle vigente en memoria o en la copia local,
+    /// el día se pinta ya y la red lo renueva; si no, espera a la red
+    /// (`awaitingDay`) y, con red lenta, pasado `networkWait`, se pinta la
+    /// copia antigua. Sin red se pinta la copia local y, sin ella, el índice.
     private func loadDay(_ target: String, generation: Int) async {
-        if dayDetails[target] == nil, let cached = await repo.cachedDay(season: season, dateKey: target) {
+        if !isCurrent(dayDetails[target]), let cached = await repo.cachedDay(season: season, dateKey: target) {
             guard generation == revision else { return }
-            dayDetails[target] = cached
-            rebuild()
+            if dayDetails[target] == nil || (cached.savedAt ?? .distantPast) > (dayDetails[target]?.savedAt ?? .distantPast) {
+                dayDetails[target] = cached
+                rebuild()
+            }
+            if isCurrent(cached) { release(target) }
         }
+        let fallback = Task { [weak self] in
+            try? await Task.sleep(for: Self.networkWait)
+            guard let self, !Task.isCancelled, generation == self.revision, self.dayDetails[target] != nil else { return }
+            self.release(target)
+        }
+        defer { fallback.cancel() }
         do {
             let fresh = try await repo.day(season: season, dateKey: target)
             guard generation == revision, !Task.isCancelled else { return }
             dayDetails[target] = fresh
             rebuild()
+            release(target)
+            if target == dateKey { prefetchNeighbors(generation: generation) }
         } catch {
             // Sin red ni copia local el día se muestra con el índice.
+            if generation == revision { release(target) }
+        }
+    }
+
+    /// Precarga el detalle del día con carreras anterior y del siguiente al
+    /// mostrado, destinos de las flechas y del gesto, como Hoy de carretera
+    /// con sus días contiguos: al navegar, las tarjetas salen completas sin
+    /// esperar a la red.
+    private func prefetchNeighbors(generation: Int) {
+        guard tournamentId == nil else { return }
+        let day = dateKey
+        let targets = [raceDays.last { $0 < day }, raceDays.first { $0 > day }].compactMap { $0 }
+        for target in targets where !isCurrent(dayDetails[target]) && !prefetching.contains(target) {
+            prefetching.insert(target)
+            Task {
+                defer { prefetching.remove(target) }
+                guard let fresh = try? await repo.day(season: season, dateKey: target),
+                      !fresh.offline, generation == revision else { return }
+                dayDetails[target] = fresh
+                rebuild()
+                release(target)
+            }
         }
     }
 

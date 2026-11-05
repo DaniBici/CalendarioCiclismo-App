@@ -7,7 +7,7 @@
 //  (js/html-fingerprint.js).
 // ─────────────────────────────────────────────────────────────────
 
-import { broadcastRegionBadgeLabel, formatTimeUser, resolveTypeBadges, esc, raceUrl, jornadaUrl,
+import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, routeBlockDayHtml, resolveTypeBadges, esc, raceUrl, jornadaUrl,
          buildRaceHero, buildStageNav, buildActionButtons, rdLocation, filterBroadcastsByRegion, enBase,
          startFinishLabels } from './shared.js';
 import { fixedDecimal } from './fixed-number.js';
@@ -108,10 +108,13 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   // está en la zona del usuario y <time datetime> fija el momento exacto.
   const zoned = text => timeZoneLabel ? `${text} ${timeZoneLabel}` : text;
   const timeTag = (iso, text) => iso ? `<time datetime="${esc(iso)}">${zoned(text)}</time>` : zoned(text);
-  const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+  const startTU  = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
+  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
   const start  = startTU?.display  ?? null;
   const finish = finishTU?.display ?? null;
+  // Hora en otra fecha que la jornada: el día, debajo de la hora.
+  const startDay  = routeBlockDayHtml(startTU);
+  const finishDay = routeBlockDayHtml(finishTU);
   const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
   const startMadrid  = startTU?.tooltip  ?? start;
   const finishMadrid = finishTU?.tooltip ?? finish;
@@ -163,14 +166,14 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
     const finishTipText = tzDiffers ? `${finishLabel} · Madrid: ${finishMadrid}` : finishLabel;
     let horariosHtml = '';
     if (start && finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>
         ${arrowSvg}
-        <div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}</div>`;
+        <div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>`;
     } else if (start) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${startTipText}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>
         <div class="route-block__note">${startLabel}</div>`;
     } else if (finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTipText}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>
         <div class="route-block__note">${finishLabel}</div>`;
     } else {
       horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
@@ -277,8 +280,8 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
       }
 
       const renderEntry = (b, hidden = false) => {
-        const bTimeTU = formatTimeUser(b.startTimeUtc);
-        const bTime   = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
+        const bTimeTU = formatTimeUser(b.startTimeUtc, rd.dateKey);
+        const bTime   = hasReviveBroadcast ? null : timeWithDay(bTimeTU);
         const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
         const regionLabel = filterBroadcastsByRegion([b]).length ? '' : broadcastRegionBadgeLabel(b.country);
         // `getBroadcastEmbed` aplica la allowlist y respeta embeddable=false.

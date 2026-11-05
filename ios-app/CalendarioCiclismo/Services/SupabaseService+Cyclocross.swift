@@ -82,8 +82,9 @@ extension SupabaseService: CxRemote {
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
-        // Badge de TV de la tarjeta (`CyclocrossPresentation.agendaBroadcast`).
-        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)," +
+        // Badges de TV y de resumen de la tarjeta (`CyclocrossPresentation.agendaBroadcast`
+        // y `agendaVideo`, que cuenta las emisiones de YouTube ya terminadas).
+        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder,embeddable)," +
         // Badge de resumen (`CyclocrossPresentation.agendaVideo`).
         "cx_videos(id,raceId,category,title,url,sortOrder)"
     }

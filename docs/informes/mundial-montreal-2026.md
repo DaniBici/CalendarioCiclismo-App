@@ -44,10 +44,11 @@ número y lo pasa al fetcher como `--tissot-event`. No reasignar `competitionId`
 La lista provisional de la UCI ya está cargada (sin dorsales). La Start List
 oficial de Tissot se importa a mano con `cc-startlists-corredores`: el carril
 automático `tissot-startlists-sync.mjs` se retiró del runner del VPS el
-2026-09-25. El script se conserva en el repositorio; al ejecutarlo sustituye la
-provisional y fija `startlistProvisional=false`, y en las CRI aplica además el
-orden de salida con hora local (`start_order_entries`, `timezone`, asset
-`startOrder`). Prueba dirigida sin escritura:
+2026-09-25 y el script se eliminó del repositorio el 2026-11-01. Ejecutado
+entonces, sustituía la provisional y fijaba `startlistProvisional=false`, y en
+las CRI aplicaba además el orden de salida con hora local
+(`start_order_entries`, `timezone`, asset `startOrder`). Prueba dirigida sin
+escritura usada entonces:
 
 ```
 node scripts/results-fetchers/tissot-startlists-sync.mjs --race-id <raceId> --dry-run

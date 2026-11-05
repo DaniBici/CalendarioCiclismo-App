@@ -1,4 +1,4 @@
-import { esc, formatTimeUser, rdLocation } from '../shared.js';
+import { esc, formatTimeUser, rdLocation, timeWithDay } from '../shared.js';
 import { getLang } from '../i18n.js';
 import { fixedDecimal } from '../fixed-number.js';
 import { formatDurationSeconds, hasValidTimeLimit } from '../services/race-presentation.js';
@@ -18,7 +18,7 @@ export function stageMetricsHtml(day, { hideNeutralStart = false } = {}) {
   const route = start && sameStartFinish
     ? [[en ? 'Start and finish' : 'Salida y llegada', start]]
     : [start ? [en ? 'Start' : 'Salida', start] : null, finish ? [en ? 'Finish' : 'Llegada', finish] : null];
-  const neutralStart = day.neutralStartTimeUtc && !hideNeutralStart ? formatTimeUser(day.neutralStartTimeUtc)?.display : null;
+  const neutralStart = day.neutralStartTimeUtc && !hideNeutralStart ? timeWithDay(formatTimeUser(day.neutralStartTimeUtc, day.dateKey)) : null;
   const metrics = [
     ...route,
     day.distanceKm ? [en ? 'Distance' : 'Distancia', `${fixedDecimal(day.distanceKm, { lang })} km`] : null,

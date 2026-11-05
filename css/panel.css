@@ -567,6 +567,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
   padding: 0.35rem 0.75rem;
   font-size: var(--fs-2);
 }
+.editor-topbar__actions [hidden] { display: none !important; }
 
 /* ── Editor tabs ─────────────────────────────────────────────── */
 .editor-tabs {
@@ -578,6 +579,9 @@ html.dark  .date-nav__input { color-scheme: dark; }
   padding: 0 1.25rem;
   z-index: 9;
 }
+.editor-tabs[hidden] { display: none; }
+/* Sin barra de pestañas, el hueco que dejaba bajo la cabecera pasa al contenido. */
+.editor-content:has(> .editor-tabs[hidden]) { padding-top: 1rem; }
 .editor-tab {
   background: none;
   border: none;

@@ -13,6 +13,7 @@ import { MARKET_SEASON } from './constants.js';
 import { formatCount, showToast, toSlug, uciRankSimple } from './helpers.js';
 import { getAuthHeaders, R2_PUBLIC_BASE, r2PutObject } from './uploads.js';
 import { ensureRaceYearLoaded } from './agenda.js';
+import { panelScopeReduced } from './scope.js';
 
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE NOTIFICACIONES PUSH
@@ -127,28 +128,45 @@ const PUSH_TAB_OPTIONS = {
   cx: [['cyclocross', 'Ciclocross']],
 };
 
+// Alcance reducido: sin áreas, el formulario y las listas reúnen carretera y
+// ciclocross; el destino elegido decide la categoría (resolveCxPushTarget).
+const activePushArea = () => (panelScopeReduced ? 'all' : panelArea());
+const PUSH_AREA_LISTS = { all: ['general', 'cyclocross'], cx: ['cyclocross'], road: ['general'] };
+const pushAreaOptions = (options, area) => (area === 'all' ? [...options.road, ...options.cx] : options[area === 'cx' ? 'cx' : 'road']);
+const pushListCategories = () => PUSH_AREA_LISTS[activePushArea()] || PUSH_AREA_LISTS.road;
+
+/**
+ * Sin áreas, las listas reúnen solo los avisos creados en el panel: los
+ * automáticos de manga comparten la categoría `cyclocross` y, por el límite de
+ * filas, desplazarían a los manuales. El autor es `createdBy` en la cola y
+ * `sentBy` en el historial.
+ */
+const withoutCxAutoPushes = (query, authorColumn) => (activePushArea() === 'all'
+  ? query.or(`${authorColumn}.is.null,${authorColumn}.neq.cx_auto_dispatch`)
+  : query);
+
 /** Categoría de la vía `send-push` según el área activa del panel. */
-function _pushAreaCategory(area = panelArea()) {
+function _pushAreaCategory(area = activePushArea()) {
   return area === 'cx' ? 'cyclocross' : 'general';
 }
 
 /** Ajusta formulario y etiquetas de la vista de Notificaciones al área activa. */
-function applyPushArea(area = panelArea()) {
+function applyPushArea(area = activePushArea()) {
   const isCx = area === 'cx';
   const areaLabel = document.getElementById('pushAreaLabel');
-  if (areaLabel) areaLabel.textContent = isCx ? 'Ciclocross' : 'Carretera';
+  if (areaLabel) areaLabel.textContent = area === 'all' ? '' : isCx ? 'Ciclocross' : 'Carretera';
   const formLabel = document.getElementById('pushFormLabel');
-  if (formLabel) formLabel.textContent = isCx ? 'Enviar aviso de ciclocross' : 'Enviar anuncio de carretera';
+  if (formLabel) formLabel.textContent = area === 'all' ? 'Enviar notificación' : isCx ? 'Enviar aviso de ciclocross' : 'Enviar anuncio de carretera';
 
   const typeSelect = document.getElementById('push-deepLinkType');
   if (typeSelect) {
-    const options = [...PUSH_DEEPLINK_OPTIONS.common, ...(isCx ? PUSH_DEEPLINK_OPTIONS.cx : PUSH_DEEPLINK_OPTIONS.road)];
+    const options = [...PUSH_DEEPLINK_OPTIONS.common, ...pushAreaOptions(PUSH_DEEPLINK_OPTIONS, area)];
     typeSelect.innerHTML = options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
     typeSelect.value = '';
   }
   const tabSelect = document.getElementById('push-deepLinkTab');
   if (tabSelect) {
-    const options = isCx ? PUSH_TAB_OPTIONS.cx : PUSH_TAB_OPTIONS.road;
+    const options = pushAreaOptions(PUSH_TAB_OPTIONS, area);
     tabSelect.innerHTML = options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
   }
 
@@ -534,8 +552,7 @@ async function _loadPushDebugDevices() {
   }
 }
 
-/** @public Lo consultan las pruebas del módulo importado. */
-export function _clearPushForm() {
+function _clearPushForm() {
   ++_pushCxRaceRequest;
   const cxRaceSelect = document.getElementById('push-deepLinkCxRace');
   cxRaceSelect.innerHTML = '<option value="">Seleccionar carrera CX</option>';
@@ -547,7 +564,7 @@ export function _clearPushForm() {
   document.getElementById('push-imageUrl').value = '';
   document.getElementById('push-deepLinkType').value = '';
   document.getElementById('push-cxRaceSelector').style.display = 'none';
-  _setPushAudience(panelArea() === 'cx' ? cxPushAudienceLabel() : '');
+  _setPushAudience(activePushArea() === 'cx' ? cxPushAudienceLabel() : '');
   document.getElementById('push-tabSelector').style.display = 'none';
   document.getElementById('push-raceSelector').style.display = 'none';
   document.getElementById('push-stageSelector').style.display = 'none';
@@ -600,8 +617,7 @@ function pushPlatformsLabel(platforms) {
   return platforms.map(pushPlatformLabel).join(', ');
 }
 
-/** @public Lo consultan las pruebas del módulo importado. */
-export function getPushAudienceTarget() {
+function getPushAudienceTarget() {
   const type = document.getElementById('push-deepLinkType').value;
   if (type === 'cxRace' &&
       document.getElementById('push-deepLinkCxRace').disabled) throw new Error('Espera a que se carguen las carreras de ciclocross.');
@@ -610,8 +626,7 @@ export function getPushAudienceTarget() {
   return resolveCxPushTarget({ category: _pushAreaCategory(), deepLink: getComposedDeepLink() });
 }
 
-/** @public Lo consultan las pruebas del módulo importado. */
-export async function sendPushNotification() {
+async function sendPushNotification() {
   if (_pushSending) return;
   const errorDiv = document.getElementById('pushSendError');
   let target;
@@ -830,12 +845,13 @@ async function loadScheduledNotifications() {
   wireScheduledActions(container);
   try {
     // Acotado al área activa: carretera → anuncios generales; ciclocross →
-    // avisos CX. Las categorías automáticas de carretera se gestionan fuera.
-    const { data, error } = await supabase
+    // avisos CX; sin áreas, solo los manuales. Las categorías automáticas de
+    // carretera se gestionan fuera.
+    const { data, error } = await withoutCxAutoPushes(supabase
       .from('scheduled_push_notifications')
       .select('*')
       .in('status', ['pending', 'processing', 'failed', 'cancelled'])
-      .eq('category', _pushAreaCategory())
+      .in('category', pushListCategories()), 'createdBy')
       .order('scheduledAt', { ascending: true })
       .limit(30);
     if (error) throw error;
@@ -989,11 +1005,12 @@ async function cancelScheduledNotification(id) {
 async function loadPushHistory() {
   const container = document.getElementById('pushHistoryList');
   try {
-    // Historial del área activa; excluye las categorías automáticas de carretera.
-    const { data, error } = await supabase
+    // Historial del área activa; excluye las categorías automáticas de carretera
+    // y, sin áreas, los avisos automáticos de ciclocross.
+    const { data, error } = await withoutCxAutoPushes(supabase
       .from('push_notifications')
       .select('*')
-      .eq('category', _pushAreaCategory())
+      .in('category', pushListCategories()), 'sentBy')
       .order('sentAt', { ascending: false })
       .limit(20);
     if (error) throw error;

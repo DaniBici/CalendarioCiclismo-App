@@ -10,6 +10,10 @@ final class SeasonViewModel {
     var races: [Race] = []
     /// Challenges del año (`challenge_groups`): sus pruebas se agrupan en una fila.
     var challengeGroups: [ChallengeGroup] = []
+    /// Grupos de la lista: los challenges y los campeonatos agrupados.
+    var seasonGroups: [ChallengeGroup] {
+        challengeGroups + SeasonChallengeLogic.championshipGroups(races: races)
+    }
     /// Arranca en `true`: la primera imagen es la pantalla de carga, no una
     /// temporada vacía.
     var isLoading = true
@@ -57,11 +61,11 @@ final class SeasonViewModel {
     }
 
     /// Países únicos en las carreras cargadas (para el selector), normalizados (como en web).
-    /// Excluye los Campeonatos Nacionales: se muestran colapsados en una sola fila
-    /// y no deben poblar el selector de país (espejo de `js/temporada.js`).
+    /// Excluye las CN de la pantalla de Campeonatos: se muestran colapsadas en una
+    /// sola fila y no deben poblar el selector de país (espejo de `js/temporada.js`).
     var availableCountries: [(code: String, label: String)] {
         let normalized = Set(races.compactMap { race -> String? in
-            guard !ChampionshipsConfig.isChampionship(race),
+            guard !ChampionshipsConfig.isOnChampionshipsScreen(race),
                   let cc = race.countryCode, !cc.isEmpty else { return nil }
             let lower = cc.lowercased()
             return lower.hasPrefix("es-") ? "es" : lower
@@ -83,14 +87,14 @@ final class SeasonViewModel {
     /// Carreras filtradas por categoría y país, ordenadas por fecha de inicio.
     /// Compartidas por `racesByMonth` y `shouldCollapseToAll`.
     ///
-    /// Los Campeonatos Nacionales (`uciCategory == "CN"`) se EXCLUYEN aquí: en su
-    /// lugar la vista inyecta una única fila sintética "Campeonatos Nacionales"
-    /// que enlaza a la pantalla de Campeonatos (igual que la vista de Mes y la
-    /// web). El indicador de si hay que inyectarla es `hasChampionships`.
+    /// Las CN de la pantalla de Campeonatos se EXCLUYEN aquí: en su lugar la vista
+    /// inyecta una única fila sintética "Campeonatos Nacionales" que enlaza a esa
+    /// pantalla (igual que la web). El indicador de si hay que inyectarla es
+    /// `hasChampionships`. Las de fuera de su ventana se listan agrupadas por país.
     private var filteredRaces: [Race] {
         races
             .filter {
-                !ChampionshipsConfig.isChampionship($0)
+                !ChampionshipsConfig.isOnChampionshipsScreen($0)
                     && RaceLogic.matchesCategory($0, filter: activeFilter)
                     && matchesCountry($0)
             }
@@ -138,10 +142,10 @@ final class SeasonViewModel {
         return [allEntry] + groupedByMonth(filtered)
     }
 
-    /// Carreras por mes (1-12), ordenados. Las pruebas de un challenge van al
-    /// mes de la primera, donde se muestra su fila.
+    /// Carreras por mes (1-12), ordenados. Las pruebas de un grupo van al mes de
+    /// la primera, donde se muestra su fila.
     func groupedByMonth(_ races: [Race]) -> [(month: Int, races: [Race])] {
-        let groupingDates = SeasonChallengeLogic.groupingStartDates(races: races, groups: challengeGroups)
+        let groupingDates = SeasonChallengeLogic.groupingStartDates(races: races, groups: seasonGroups)
         let grouped = Dictionary(grouping: races) { race -> Int in
             guard let sd = groupingDates[race.id] ?? race.startDate, let date = DateFormatting.date(from: sd) else { return 0 }
             return Calendar.current.component(.month, from: date)

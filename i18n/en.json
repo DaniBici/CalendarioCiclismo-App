@@ -41,10 +41,12 @@
     "revive": "Replay",
     "videos": "Videos",
     "summary": "Summary",
+    "fullRace": "{category} full race",
+    "fullBroadcast": "Full broadcast",
     "noVideos": "Videos pending.",
     "standings": "Overall standings",
     "general": "Standings",
-    "calendar": "Calendar",
+    "races": "Races",
     "droppedResult": "Dropped result",
       "moreRounds": "More rounds",
     "official": "Official results",
@@ -85,7 +87,6 @@
     "about": "About",
     "search": "Search",
     "subscribe": "Subscribe",
-    "icalCalendar": "iCal calendar",
     "privacy": "Privacy"
   },
   "cal": {
@@ -227,6 +228,7 @@
   },
   "days": {
     "short": ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    "abbr": ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
     "singular": "day",
     "plural": "days"
   },

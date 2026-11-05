@@ -16,7 +16,7 @@ function hexLuminance(hex) {
 }
 
 // Color visible como raya/borde en ambos temas: los muy claros se oscurecen.
-function safeCardColor(hex) {
+export function safeCardColor(hex) {
   const c = hexLuminance(hex);
   if (!c) return '#888';
   if (c.lum <= 210) return hex;

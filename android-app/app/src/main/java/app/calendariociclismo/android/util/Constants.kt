@@ -22,14 +22,6 @@ object Constants {
         "1.2" to 11.0, "2.2" to 12.0, "1.2U" to 13.0, "2.2U" to 14.0,
     )
 
-    /** Agrupación de categorías por tier. */
-    val CATEGORY_TIERS: Map<String, List<String>> = mapOf(
-        "WC" to listOf("WC", "CC"),
-        "WT" to listOf("1.UWT", "2.UWT", "1.WWT", "2.WWT"),
-        "PRO" to listOf("1.Pro", "2.Pro", "1.1", "2.1"),
-        "MINOR" to listOf("1.2", "2.2", "1.2U", "2.2U"),
-    )
-
     // ── Tipos de etapa ────────────────────────────────────────────
 
     val TYPE_LABEL_RES: Map<String, Int> = mapOf(

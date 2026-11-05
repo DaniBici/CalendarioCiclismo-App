@@ -240,6 +240,29 @@ enum DateFormatting {
         return f.string(from: date)
     }
 
+    /// Abreviatura del día ("sáb." / "Sat") cuando la hora, en la zona pasada
+    /// (por defecto, la del dispositivo), cae en otra fecha que `dateKey`, la
+    /// fecha en que aparece la jornada: salidas de Asia u Oceanía la víspera
+    /// en Europa, llegadas pasada la medianoche. `nil` si es la misma fecha.
+    /// Paridad con `formatTimeUser` (js/shared.js) y Android.
+    static func otherDayLabel(
+        _ isoString: String,
+        dateKey: String,
+        timeZone: TimeZone = .current,
+        isEnglish: Bool = LocaleService.shouldShowEnglishContent
+    ) -> String? {
+        guard let date = parseISO(isoString) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let c = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+        guard let year = c.year, let month = c.month, let day = c.day, let weekday = c.weekday else { return nil }
+        guard String(format: "%04d-%02d-%02d", year, month, day) != dateKey else { return nil }
+        let names = isEnglish
+            ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            : ["dom.", "lun.", "mar.", "mié.", "jue.", "vie.", "sáb."]
+        return names[weekday - 1]
+    }
+
     /// Última lectura de una clasificación en hora local: "11 oct, 06:22" /
     /// "11 Oct, 06:22", en el idioma del contenido. Paridad con la web
     /// (`showPublication` en js/resultados.js) y Android.

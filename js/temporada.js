@@ -17,10 +17,11 @@ import { staleWhileRevalidate } from './services/local-cache.js';
 import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, campUrl, campTitle } from './campeonatos-config.js';
+import { CAMP, campUrl, campTitle, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
 
 // Fila sintética "Campeonatos Nacionales" (CN) — aparece en TODAS las categorías
-// porque se inyecta tras el filtro. Enlaza a la página de Modo Campeonatos.
+// porque se inyecta tras el filtro. Enlaza a la página de Modo Campeonatos, que
+// recoge las CN de su ventana; las de fuera se listan agrupadas por país.
 const CHAMPIONSHIPS_ITEM = {
   id: '__championships__', _isChampionshipsLink: true,
   name: CAMP.TITLE_ES, nameEn: CAMP.TITLE_EN, uciCategory: 'CN',
@@ -71,7 +72,9 @@ function formatDateRange(days) {
 // ── Estado ───────────────────────────────────────────────────────
 let allRaces          = [];   // [{...raceData, id, _days:[{dateKey}]}]
 let allChallengeGroups = [];  // [{...groupData, id, _races:[raceObj]}]
-const expandedChallenges = new Set(); // ids de challenges desplegados (sobrevive a los repintados)
+// Ids de los grupos desplegados: sobreviven a los repintados y a la vuelta desde una carrera.
+const _navOnLoad = JSON.parse(sessionStorage.getItem('cc_nav') || '{}');
+const expandedChallenges = new Set(_navOnLoad.from === 'temporada' ? _navOnLoad.expanded : []);
 // Año por defecto: el siguiente tras el cierre de la temporada de carretera
 // (services/today-season.js).
 const _now = new Date();
@@ -196,10 +199,11 @@ window._temporadaCat = activeCat;
 
   // Guardar estado de navegación (incluido scroll) al salir a una carrera
   document.getElementById('temporadaContent').addEventListener('click', e => {
-    if (e.target.closest('.t-race:not(.t-race--challenge))')) {
+    if (e.target.closest('.t-race:not(.t-race--challenge)')) {
       sessionStorage.setItem('cc_nav', JSON.stringify({
         from: 'temporada', year: activeYear, cat: activeCat,
-        scrollY: Math.round(window.scrollY)
+        scrollY: Math.round(window.scrollY),
+        expanded: [...expandedChallenges],
       }));
     }
   });
@@ -266,6 +270,7 @@ const COUNTRY_LIST_T = [
   { code: 'co', name: 'Colombia' },
   { code: 'cr', name: 'Costa Rica' },
   { code: 'cu', name: 'Cuba' },
+  { code: 'cv', name: 'Cabo Verde' },
   { code: 'cy', name: 'Chipre' },
   { code: 'cz', name: 'República Checa' },
   // D
@@ -313,6 +318,7 @@ const COUNTRY_LIST_T = [
   // L
   { code: 'lb', name: 'Líbano' },
   { code: 'li', name: 'Liechtenstein' },
+  { code: 'ls', name: 'Lesoto' },
   { code: 'lt', name: 'Lituania' },
   { code: 'lu', name: 'Luxemburgo' },
   { code: 'lv', name: 'Letonia' },
@@ -326,6 +332,7 @@ const COUNTRY_LIST_T = [
   { code: 'mx', name: 'México' },
   { code: 'my', name: 'Malasia' },
   // N
+  { code: 'na', name: 'Namibia' },
   { code: 'ng', name: 'Nigeria' },
   { code: 'ni', name: 'Nicaragua' },
   { code: 'nl', name: 'Países Bajos' },
@@ -357,6 +364,7 @@ const COUNTRY_LIST_T = [
   { code: 'sk', name: 'Eslovaquia' },
   { code: 'sn', name: 'Senegal' },
   { code: 'sv', name: 'El Salvador' },
+  { code: 'sx', name: 'San Martín' },
   // T
   { code: 'th', name: 'Tailandia' },
   { code: 'tj', name: 'Tayikistán' },
@@ -474,14 +482,14 @@ async function _loadMonth(monthKey) {
 
   // Re-renderizar solo la sección del mes afectado
   _rerenderMonth(monthKey);
-  // Un challenge desplegado muestra pruebas de otros meses: se repinta su fila.
+  // Un grupo desplegado muestra pruebas de otros meses: se repinta su fila.
   _rerenderExpandedChallengeMonths(monthKey);
 }
 
-// Repinta los meses cuyo challenge desplegado incluye pruebas del mes recién cargado.
+// Repinta los meses cuyo grupo desplegado incluye pruebas del mes recién cargado.
 function _rerenderExpandedChallengeMonths(loadedMonthKey) {
   const months = new Set();
-  allChallengeGroups.forEach(cg => {
+  _getFilteredData().challengeGroups.forEach(cg => {
     if (!expandedChallenges.has(cg.id)) return;
     if (!cg._races.some(r => (r.startDate || '').slice(0, 7) === loadedMonthKey)) return;
     const first = _firstDateKeyGroup(cg).slice(0, 7);
@@ -523,6 +531,9 @@ function _rerenderMonth(monthKey) {
 const _EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RS','RU','SE','SI','SK','SM','TR','UA','VA','XK']);
 
 function _applyCategoryFilter(races) {
+  // CN fuera de la página de Campeonatos: mismas reglas que en Hoy y Mes.
+  const championships = races.filter(r => r.uciCategory === 'CN' && !isOnChampionshipsPage(r)
+    && (activeCat === 'all' || championshipMatchesCategoryFilter(r, activeCat)));
   races = races.filter(r => r.uciCategory !== 'CN');
   if (activeCat === 'pro') {
     races = races.filter(r => r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
@@ -541,7 +552,7 @@ function _applyCategoryFilter(races) {
       return true;
     });
   }
-  return races;
+  return [...races, ...championships];
 }
 
 function _applyCountryFilter(races) {
@@ -560,6 +571,54 @@ function _applyCategoryFilterCG(challengeGroups) {
 function _applyCountryFilterCG(challengeGroups) {
   if (!activeCountry) return challengeGroups;
   return challengeGroups.filter(cg => tNormalizeCC(cg.countryCode || '') === activeCountry);
+}
+
+// Nombre del campeonato sin la prueba: «Campeonato de Asia CRI femenino» →
+// «Campeonato de Asia»; «Asian Championships - Women's Elite ITT» → «Asian Championships».
+const championshipBaseName = name => (name || '').replace(/\s+(?:-\s|(?:CRI|CRE|línea|[Mm]en's|[Ww]omen's)\b).*$/, '');
+
+// Pruebas que se agrupan: campeonatos continentales, mundiales y nacionales, y las
+// que llevan «Panamericano» o «Juegos» en el nombre.
+const isGroupedEvent = race => ['CC', 'CN', 'WC'].includes(race.uciCategory)
+  || /\b(?:panamericanos?|juegos)\b/i.test(race.name || '');
+
+// Solo la prueba, para la fila bajo el grupo: «CRI femenina», «Línea sub23
+// masculina», «Women's Elite ITT». El nombre completo no cabe en el móvil y todas
+// las filas se verían iguales. El género concuerda con la modalidad.
+function championshipEventName(name) {
+  const event = name.slice(championshipBaseName(name).length).replace(/^\s+(?:-\s+)?/, '')
+    .replace('femenino', 'femenina').replace('masculino', 'masculina');
+  return event.charAt(0).toUpperCase() + event.slice(1);
+}
+
+// Campeonatos y Juegos visibles, agrupados como un challenge: una fila
+// desplegable con las fechas de la primera a la última prueba. Con una
+// sola prueba visible no se agrupa. Un país con pruebas a ambos lados de la
+// ventana de la página de Campeonatos forma un grupo por cada lado.
+function _buildChampionshipGroups(races) {
+  const byEvent = new Map();
+  races.forEach(race => {
+    if (!isGroupedEvent(race)) return;
+    const afterPage = race.uciCategory === 'CN' && (race.startDate || '').slice(5) > CAMP.QUERY_END.slice(5);
+    const key = `${race.year}-${race.uciCategory}-${championshipBaseName(race.name)}${afterPage ? '-2' : ''}`;
+    if (!byEvent.has(key)) byEvent.set(key, []);
+    byEvent.get(key).push(race);
+  });
+  return [...byEvent].filter(([, members]) => members.length > 1).map(([key, members]) => {
+    const [first] = members;
+    return {
+      id: key.normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase(),
+      name: championshipBaseName(raceName(first)),
+      gender: members.every(r => r.gender === first.gender) ? first.gender : null,
+      uciCategory: first.uciCategory,
+      countryCode: first.countryCode,
+      colorHex: first.colorHex,
+      logoUrl: first.logoUrl,
+      raceIds: members.map(r => r.id),
+      _races: members,
+      _isChampionship: true,
+    };
+  });
 }
 
 function _firstDateKey(race) {
@@ -615,6 +674,7 @@ function _getFilteredData() {
   let challengeGroups = allChallengeGroups.filter(cg => (cg.year || 0) === activeYear);
   challengeGroups = _applyCategoryFilterCG(challengeGroups);
   challengeGroups = _applyCountryFilterCG(challengeGroups);
+  challengeGroups = [...challengeGroups, ..._buildChampionshipGroups(races)];
   const racesInChallenges = new Set(challengeGroups.flatMap(cg => (cg.raceIds || [])));
   const standaloneRaces = races.filter(r => !racesInChallenges.has(r.id));
   // Inyectar la fila de Campeonatos TRAS el filtro de categoría (así aparece en todas
@@ -723,7 +783,7 @@ function render({ refresh = false } = {}) {
   const keepScrollY = refresh ? window.scrollY : null;
 
   // Poblar selector de país con las carreras del año (antes del filtro de país)
-  updateTemporadaCountrySelector(allRaces.filter(r => (r.year || 0) === activeYear && r.uciCategory !== 'CN'));
+  updateTemporadaCountrySelector(allRaces.filter(r => (r.year || 0) === activeYear && !isOnChampionshipsPage(r)));
 
   const { standaloneRaces, challengeGroups } = _getFilteredData();
 
@@ -917,12 +977,11 @@ function render({ refresh = false } = {}) {
 }
 
 // ── Renderiza una carrera individual (fila estándar) ─────────────
-function renderRaceRow(race) {
+function renderRaceRow(race, name = raceName(race)) {
   // Fila sintética de Campeonatos: enlaza a la página, badge CN, sin logo/país.
   if (race._isChampionshipsLink) {
     const dStr = formatDateRange([{ dateKey: CAMP.RANGE_START }, { dateKey: CAMP.RANGE_END }]);
-    return `<a class="t-race" href="${campUrl(getLang())}" style="--rc:var(--accent)">
-      <span class="t-race__flag"></span><span class="t-race__logo-empty"></span>
+    return `<a class="t-race t-race--no-logo t-race--no-flag" href="${campUrl(getLang())}" style="--rc:var(--accent)">
       <span class="t-race__name">${campTitle(getLang())}</span>
       <span class="t-race__dates">${dStr}</span>
       <span class="t-race__cat">${categoryBadge('CN')}</span></a>`;
@@ -963,51 +1022,45 @@ function renderRaceRow(race) {
   const isFemale = needsFemaleMark(race, activeCat);
   const colorStyle = `--rc:${raceColor(race.colorHex)}`;
   const isPlaceholder = !hasDays;
+  // Los Campeonatos Nacionales no llevan logo: sin hueco.
+  const noLogo = race.uciCategory === 'CN';
+  const rowClass = noLogo ? 't-race t-race--no-logo' : 't-race';
 
   const inner = `
     <span class="t-race__flag">${flag}</span>
-    ${race.logoUrl
+    ${noLogo ? '' : race.logoUrl
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
       : '<span class="t-race__logo-empty"></span>'
     }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
 
   if (href) {
-    return `<a class="t-race" href="${href}" style="${colorStyle}"${race.isCancelled ? ' data-ph-tooltip="Carrera cancelada"' : ''} >${inner}</a>`;
+    return `<a class="${rowClass}" href="${href}" style="${colorStyle}"${race.isCancelled ? ' data-ph-tooltip="Carrera cancelada"' : ''} >${inner}</a>`;
   }
   // Abre el modal de datos: <button> real para que entre en el orden de
   // tabulación y responda a Enter/Espacio (WCAG 2.1.1).
   if (modalRdId) {
-    return `<button type="button" class="t-race t-race--modal" style="${colorStyle}" data-rdid="${modalRdId}" data-raceid="${race.id}">${inner}</button>`;
+    return `<button type="button" class="${rowClass} t-race--modal" style="${colorStyle}" data-rdid="${modalRdId}" data-raceid="${race.id}">${inner}</button>`;
   }
   const todayStr = new Date().toISOString().slice(0, 10);
   const phTooltip = race.isCancelled ? 'Carrera cancelada'
     : (race.startDate && todayStr < race.startDate ? 'Por ahora sin información extra' : 'Sin información extra');
-  return `<div class="t-race t-race--placeholder" style="${colorStyle}" data-ph-tooltip="${phTooltip}">${inner}</div>`;
+  return `<div class="${rowClass} t-race--placeholder" style="${colorStyle}" data-ph-tooltip="${phTooltip}">${inner}</div>`;
 }
 
-// ── Renderiza un challenge group (fila desplegable) ───────────────
+// ── Renderiza un challenge group o un campeonato (fila desplegable) ───
 // La fila es un botón que despliega bajo ella las pruebas del grupo, igual que
 // las apps.
 const CHEVRON_SVG = '<svg class="t-race__chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>';
 
 function renderChallengeGroup(cg) {
-  const allDays  = cg._races.flatMap(r => r._days);
-  // Fallback de fechas para challenges con carreras placeholder (sin race_days)
-  let dateStr = formatDateRange(allDays);
-  if (!dateStr) {
-    const starts = cg._races.map(r => r.startDate).filter(Boolean).sort();
-    const ends   = cg._races.map(r => r.endDate || r.startDate).filter(Boolean).sort();
-    if (starts.length) {
-      dateStr = formatDateRange([
-        { dateKey: starts[0] },
-        { dateKey: ends[ends.length - 1] },
-      ]);
-    }
-  }
+  // De la primera a la última prueba: las jornadas de otros meses pueden no estar cargadas.
+  const firstKey = _firstDateKeyGroup(cg);
+  const dateStr  = firstKey === '9999-99-99' ? ''
+    : formatDateRange([{ dateKey: firstKey }, { dateKey: _lastDateKeyGroup(cg) }]);
   const cat        = cg.uciCategory || '1.1';
   const flag       = countryFlag(cg.countryCode);
   const color      = raceColor(cg.colorHex);
@@ -1021,12 +1074,15 @@ function renderChallengeGroup(cg) {
     ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
     : '';
 
-  const members = [...cg._races].sort((a, b) => _firstDateKey(a).localeCompare(_firstDateKey(b)));
+  const noLogo = cat === 'CN';
+
+  const members = [...cg._races].sort((a, b) =>
+    _firstDateKey(a).localeCompare(_firstDateKey(b)) || raceName(a).localeCompare(raceName(b)));
 
   return `<div class="t-challenge">
-    <button type="button" class="t-race t-race--challenge" style="${colorStyle}" data-cgid="${cg.id}" aria-expanded="${expanded}" aria-controls="${panelId}">
+    <button type="button" class="t-race t-race--challenge${noLogo ? ' t-race--no-logo' : ''}" style="${colorStyle}" data-cgid="${cg.id}" aria-expanded="${expanded}" aria-controls="${panelId}">
       <span class="t-race__flag">${flag}</span>
-      ${cg.logoUrl
+      ${noLogo ? '' : cg.logoUrl
         ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
         : '<span class="t-race__logo-empty"></span>'
       }
@@ -1035,12 +1091,12 @@ function renderChallengeGroup(cg) {
       ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
     </button>
     <div class="t-challenge__races" id="${panelId}"${expanded ? '' : ' hidden'}>
-      ${members.map(renderRaceRow).join('')}
+      ${members.map(r => renderRaceRow(r, cg._isChampionship ? championshipEventName(raceName(r)) : undefined)).join('')}
     </div>
   </div>`;
 }
 
-// Despliega o pliega un challenge sin repintar la lista.
+// Despliega o pliega un grupo sin repintar la lista.
 function toggleChallenge(button) {
   const id = button.dataset.cgid;
   const open = !expandedChallenges.has(id);
@@ -1050,7 +1106,7 @@ function toggleChallenge(button) {
   if (panel) panel.hidden = !open;
   if (!open) return;
   // Las jornadas de los meses aún sin cargar dan enlace a sus pruebas.
-  const cg = allChallengeGroups.find(g => g.id === id);
+  const cg = _getFilteredData().challengeGroups.find(g => g.id === id);
   if (cg) new Set(cg._races.map(r => (r.startDate || '').slice(0, 7)).filter(Boolean)).forEach(_loadMonth);
 }
 

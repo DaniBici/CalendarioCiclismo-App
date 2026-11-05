@@ -7,8 +7,9 @@
  * federación (`…/smartweb/inscripciones/prueba/<id>-…`). El enlace se crea solo
  * si la cuenta atrás del índice de clasificaciones confirma la fecha de la
  * carrera. `categoryKeys` usa los rótulos habituales de las federaciones para
- * las categorías del calendario propio; un rótulo distinto deja la categoría
- * pendiente hasta que se corrija el enlace en el panel.
+ * las categorías del calendario propio (varios por categoría); un rótulo
+ * distinto deja la categoría pendiente hasta que se corrija el enlace en el
+ * panel.
  *
  * Uso en producción (runner cc-cx-results como cc_results_worker):
  *   node scripts/results-fetchers/cx-smartweb-linker.mjs [--dry-run] [--limit 8]
@@ -23,8 +24,18 @@ const getArg = (name, fallback = null) => { const index = args.indexOf(`--${name
 const DRY_RUN = args.includes('--dry-run');
 const MAX_LINKS = Math.max(1, parseInt(getArg('limit') || '8', 10) || 8);
 
+// Las federaciones publican la clasificación horas después de la manga, a veces
+// pasada la medianoche (Orihuela, 31-10-2026): la ventana dura 36 h desde el
+// final estimado, frente a las 12 h por defecto de las demás fuentes.
+const SYNC_STOP_OFFSET_MINUTES = 2160;
+
 // Rótulos de las clasificaciones en smartweb (FCCV, FCPA, FGC, CyL, Madrid, RFEC).
-export const SMARTWEB_LABELS = Object.freeze({ ME: 'ELITE-SUB23', WE: 'FEM ELITE-SUB23', MJ: 'JUNIOR', WJ: 'FEM JUNIOR', MU: 'SUB23', WU: 'FEM SUB23' });
+// Las pruebas alojadas en rfec.com (Castilla-La Mancha) publican además
+// «JUNIOR FEM.», «SUB23 FEM.» y «SUB23-FEM.», a veces junto al rótulo
+// autonómico y con la misma tabla. «ELITE FEM.» no entra: excluye a las Sub-23
+// de la manga conjunta, que rfec.com publica como «FEM ELITE-SUB23».
+export const SMARTWEB_LABELS = Object.freeze({ ME: ['ELITE-SUB23'], WE: ['FEM ELITE-SUB23'], MJ: ['JUNIOR'], WJ: ['FEM JUNIOR', 'JUNIOR FEM.'],
+  MU: ['SUB23'], WU: ['FEM SUB23', 'SUB23 FEM.', 'SUB23-FEM.'] });
 
 /**
  * Carrera propia y su índice smartweb → enlace a crear o motivo para omitirla.
@@ -38,7 +49,7 @@ export function planSmartwebLink(race, categories, index) {
   if (index.dateKey < race.dateKey || index.dateKey > (race.endDateKey || race.dateKey)) {
     return { status: 'skip', reason: `Prueba smartweb del ${index.dateKey}, no del ${race.dateKey}` };
   }
-  const categoryKeys = Object.fromEntries(categories.filter(category => SMARTWEB_LABELS[category]).map(category => [SMARTWEB_LABELS[category], category]));
+  const categoryKeys = Object.fromEntries(categories.flatMap(category => (SMARTWEB_LABELS[category] || []).map(label => [label, category])));
   if (!Object.keys(categoryKeys).length) return { status: 'skip', reason: 'Sin categorías CX en el calendario propio' };
   return { status: 'link', sourceUrl, categoryKeys };
 }
@@ -83,7 +94,8 @@ async function main() {
       if (DRY_RUN) { summary.linked.push({ raceId: race.id, sourceUrl: plan.sourceUrl, categoryKeys: plan.categoryKeys, dryRun: true }); continue; }
       const { rows } = await client.query(`INSERT INTO public.cx_race_timing_links
         ("raceId",provider,"sourceUrl","categoryKeys","syncEnabled","syncStartOffsetMinutes","syncStopOffsetMinutes","syncIntervalMinutes")
-        VALUES ($1,'smartweb',$2,$3::jsonb,true,-15,720,5) ON CONFLICT DO NOTHING RETURNING "raceId"`, [race.id, plan.sourceUrl, JSON.stringify(plan.categoryKeys)]);
+        VALUES ($1,'smartweb',$2,$3::jsonb,true,-15,$4,5) ON CONFLICT DO NOTHING RETURNING "raceId"`,
+        [race.id, plan.sourceUrl, JSON.stringify(plan.categoryKeys), SYNC_STOP_OFFSET_MINUTES]);
       if (rows[0]) summary.linked.push({ raceId: race.id, sourceUrl: plan.sourceUrl });
       else summary.skipped.push({ raceId: race.id, reason: 'Conflicto de enlace smartweb; requiere revisión' });
     }

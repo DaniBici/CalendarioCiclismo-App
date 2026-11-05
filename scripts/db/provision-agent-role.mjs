@@ -17,7 +17,7 @@ import { loadEnv, mainCheckoutEnvPath, withUrl } from './env.mjs';
 
 export const AGENT_ROLE = 'cc_agent';
 
-export function scramVerifier(password, { salt = randomBytes(16), iterations = 4096 } = {}) {
+function scramVerifier(password, { salt = randomBytes(16), iterations = 4096 } = {}) {
   const salted = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
   const clientKey = createHmac('sha256', salted).update('Client Key').digest();
   const storedKey = createHash('sha256').update(clientKey).digest('base64');
@@ -27,7 +27,7 @@ export function scramVerifier(password, { salt = randomBytes(16), iterations = 4
 
 // Supavisor identifica el proyecto con el sufijo del usuario (postgres.<ref>);
 // la conexión directa usa el nombre del rol sin sufijo.
-export function agentUrl(adminUrl, password) {
+function agentUrl(adminUrl, password) {
   const url = new URL(adminUrl);
   const user = decodeURIComponent(url.username);
   const dot = user.indexOf('.');
@@ -36,7 +36,7 @@ export function agentUrl(adminUrl, password) {
   return url.toString();
 }
 
-export function roleOfUrl(value) {
+function roleOfUrl(value) {
   return decodeURIComponent(new URL(value).username).split('.')[0];
 }
 
@@ -55,7 +55,7 @@ export function upsertEnv(text, entries) {
   return `${lines.join('\n')}\n`;
 }
 
-export function parseArgs(argv) {
+function parseArgs(argv) {
   const options = { validDays: 180 };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--valid-days') options.validDays = Number(argv[++i]);

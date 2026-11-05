@@ -48,7 +48,7 @@ const OUT = getArg('out') || join(dirname(fileURLToPath(import.meta.url)), '_res
 const SHOW = hasFlag('ambiguous');
 
 // Mapa año→seasonId road de DataRide (de GetRestrictedResultsDisciplineSeasons?disciplineId=10).
-const ROAD_SEASON = { 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
+const ROAD_SEASON = { 2027: 477, 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
 
 const SUPA_URL = 'https://bcecwlkynpgovnzhbpah.supabase.co';
 const SUPA_KEY = 'sb_publishable_4j0S4lUm6dYphrb0DEUYkw_OGAUoCLL'; // publishable (pública, embebida en la web)

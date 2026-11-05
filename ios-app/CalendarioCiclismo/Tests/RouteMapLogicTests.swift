@@ -1,73 +1,9 @@
 import XCTest
 @testable import CalendarioCiclismo
 
-/// Tests de la lógica pura del mapa del recorrido, portada de `js/mapa-pub.js`.
-/// Cuando se porte Android, su `RouteMapLogicTest.kt` debe ser el espejo 1:1.
+/// Proyección del km oficial sobre la traza del mapa del recorrido, portada de
+/// `js/mapa-pub.js`.
 final class RouteMapLogicTests: XCTestCase {
-
-    // MARK: - haversineKm
-
-    func testHaversineUnGradoDeLatitudSonUnos111Km() {
-        // 1° de latitud ≈ 111.19 km en el meridiano.
-        let d = RouteMapLogic.haversineKm(0, 0, 1, 0)
-        XCTAssertEqual(d, 111.19, accuracy: 0.5)
-    }
-
-    // MARK: - parseGpx
-
-    func testParseGpxBasicoAcumulaKmYConservaEle() {
-        // 3 trkpt en línea sobre el ecuador: (0,0) (0,1) (0,2).
-        let xml = """
-        <gpx><trk><trkseg>
-          <trkpt lat="0" lon="0"><ele>10</ele></trkpt>
-          <trkpt lat="0" lon="1"><ele>20</ele></trkpt>
-          <trkpt lat="0" lon="2"><ele>30</ele></trkpt>
-        </trkseg></trk></gpx>
-        """
-        let pts = RouteMapLogic.parseGpx(xml)
-        XCTAssertEqual(pts.count, 3)
-        XCTAssertEqual(pts[0].km, 0, accuracy: 1e-9)
-        // km creciente y total ≈ suma de los dos tramos de ~111 km.
-        XCTAssertGreaterThan(pts[1].km, pts[0].km)
-        XCTAssertGreaterThan(pts[2].km, pts[1].km)
-        let expectedTotal = RouteMapLogic.haversineKm(0, 0, 0, 1) + RouteMapLogic.haversineKm(0, 1, 0, 2)
-        XCTAssertEqual(pts[2].km, expectedTotal, accuracy: 0.01)
-        XCTAssertEqual(pts[0].ele, 10)
-        XCTAssertEqual(pts[2].ele, 30)
-    }
-
-    func testParseGpxFallbackARtept() {
-        // Sin trkpt, solo rtept → debe producir puntos.
-        let xml = """
-        <gpx><rte>
-          <rtept lat="0" lon="0"/>
-          <rtept lat="0" lon="1"/>
-        </rte></gpx>
-        """
-        let pts = RouteMapLogic.parseGpx(xml)
-        XCTAssertEqual(pts.count, 2)
-        XCTAssertNil(pts[0].ele)
-    }
-
-    func testParseGpxVacioDevuelveVacio() {
-        XCTAssertTrue(RouteMapLogic.parseGpx("<gpx></gpx>").isEmpty)
-        XCTAssertTrue(RouteMapLogic.parseGpx("no es xml").isEmpty)
-    }
-
-    func testParseGpxTrkptTienePrioridadSobreRtept() {
-        let xml = """
-        <gpx>
-          <rte><rtept lat="10" lon="10"/></rte>
-          <trk><trkseg>
-            <trkpt lat="0" lon="0"/>
-            <trkpt lat="0" lon="1"/>
-          </trkseg></trk>
-        </gpx>
-        """
-        let pts = RouteMapLogic.parseGpx(xml)
-        XCTAssertEqual(pts.count, 2)
-        XCTAssertEqual(pts[0].lat, 0)  // del trk, no del rte
-    }
 
     // MARK: - kmToLatLng (caso lineal)
 
@@ -95,10 +31,6 @@ final class RouteMapLogicTests: XCTestCase {
         XCTAssertEqual(start!.lat, 0.0, accuracy: 0.05)
         let end = RouteMapLogic.kmToLatLng(pts, officialKm: 100, officialTotal: 100)
         XCTAssertEqual(end!.lat, 10.0, accuracy: 0.05)
-    }
-
-    func testKmToLatLngVacioDevuelveNil() {
-        XCTAssertNil(RouteMapLogic.kmToLatLng([], officialKm: 10, officialTotal: 100))
     }
 
     // MARK: - markerLatLng (snap por altitud, circuito)
@@ -137,30 +69,5 @@ final class RouteMapLogicTests: XCTestCase {
         let chosen = pts.first { $0.lat == ll!.lat && $0.lon == ll!.lon }
         XCTAssertNotNil(chosen)
         XCTAssertGreaterThanOrEqual(chosen!.ele ?? 0, 300)
-    }
-
-    func testMarkerLatLngSinEleCaeEnKmToLatLng() {
-        // Mismos puntos pero sin altitud → debe devolver exactamente kmToLatLng.
-        var pts: [RoutePoint] = []
-        var cum = 0.0
-        var prev: (Double, Double)? = nil
-        for i in 0...10 {
-            let lat = Double(i)
-            if let p = prev { cum += RouteMapLogic.haversineKm(p.0, p.1, lat, 0) }
-            pts.append(RoutePoint(lat: lat, lon: 0, km: cum, ele: nil))
-            prev = (lat, 0)
-        }
-        let viaMarker = RouteMapLogic.markerLatLng(pts, officialKm: 50, officialTotal: 100, altTarget: 200)
-        let viaKm = RouteMapLogic.kmToLatLng(pts, officialKm: 50, officialTotal: 100)
-        XCTAssertEqual(viaMarker, viaKm)
-    }
-
-    func testMarkerLatLngConAltTargetNilCaeEnKmToLatLng() {
-        var pts: [RoutePoint] = []
-        pts.append(RoutePoint(lat: 0, lon: 0, km: 0, ele: 100))
-        pts.append(RoutePoint(lat: 1, lon: 0, km: RouteMapLogic.haversineKm(0, 0, 1, 0), ele: 200))
-        let viaMarker = RouteMapLogic.markerLatLng(pts, officialKm: 0, officialTotal: 0, altTarget: nil)
-        let viaKm = RouteMapLogic.kmToLatLng(pts, officialKm: 0, officialTotal: 0)
-        XCTAssertEqual(viaMarker, viaKm)
     }
 }

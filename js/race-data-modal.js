@@ -3,7 +3,7 @@
 //  Usado desde mes.js y temporada.js
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, femaleMark, needsFemaleMark } from './shared.js';
+import { supabase, formatTimeUser, timeWithDay, routeBlockDayHtml, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, femaleMark, needsFemaleMark } from './shared.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
@@ -628,8 +628,10 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   const typeColor = knownPrimaryType ? _resolveTypeColor(knownPrimaryType, rd.secondaryType) : null;
 
   // — Bloque Horarios (opcional) —
-  const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+  const startTU  = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
+  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
+  const startDay  = routeBlockDayHtml(startTU);
+  const finishDay = routeBlockDayHtml(finishTU);
   const start    = startTU?.display  ?? null;
   const finish   = finishTU?.display ?? null;
   // Jornada cancelada → sin horario: la etapa no se corre y la salida/meta ya
@@ -646,14 +648,14 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
     const startTip  = tzDiffers ? `${startLabel} · Madrid: ${startMadrid}`  : startLabel;
     const finishTip = tzDiffers ? `${finishLabel} · Madrid: ${finishMadrid}` : finishLabel;
     if (start && finish) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${start}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${start}${startDay}</div>
         ${arrowSvg}
-        <div class="route-block__place" data-tooltip="${finishTip}">${finish}</div>`;
+        <div class="route-block__place" data-tooltip="${finishTip}">${finish}${finishDay}</div>`;
     } else if (start) {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${start}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${start}${startDay}</div>
         <div class="route-block__note">${startLabel}</div>`;
     } else {
-      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTip}">${finish}</div>
+      horariosHtml = `<div class="route-block__place" data-tooltip="${finishTip}">${finish}${finishDay}</div>
         <div class="route-block__note">${finishLabel}</div>`;
     }
   }
@@ -748,8 +750,8 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
 
     if (hasBroadcasts) {
       visibleBroadcasts.forEach(b => {
-        const bTimeTU  = formatTimeUser(b.startTimeUtc);
-        const bTime    = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
+        const bTimeTU  = formatTimeUser(b.startTimeUtc, rd.dateKey);
+        const bTime    = hasReviveBroadcast ? null : timeWithDay(bTimeTU);
         const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
         const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         html += `<div class="tv-entry">

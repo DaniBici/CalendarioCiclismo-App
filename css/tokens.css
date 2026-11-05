@@ -94,8 +94,8 @@
      rolling               → verde-lima
      cotas                 → verde-amarillo (mix rolling+medium)
      medium_mountain       → naranja
-     high_mountain / summit_finish / chrono_climb → rojo-coral
-     itt / ttt             → lila
+     high_mountain / summit_finish → rojo-coral
+     itt / ttt / chrono_climb → azul
      sterrato              → marrón/ámbar
   ── */
   --type-flat-bg:    rgba(140,220,100,0.15);

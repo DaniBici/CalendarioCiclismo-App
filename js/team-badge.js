@@ -6,7 +6,7 @@ const DEFAULT_WHITE = '#ffffff';
 const DEFAULT_DARKS = new Set(['#000000', '#111111']);
 
 /** Normaliza colores hex de la paleta de chapas. */
-export function normalizeTeamBadgeColor(value) {
+function normalizeTeamBadgeColor(value) {
   const color = String(value ?? '').trim().toLowerCase();
   if (/^#[0-9a-f]{6}$/.test(color)) return color;
   if (/^#[0-9a-f]{3}$/.test(color)) {

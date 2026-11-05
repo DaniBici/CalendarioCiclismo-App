@@ -504,6 +504,15 @@ function flagHtml(code) {
 // su descripción larga como tooltip (title) — p. ej. "Abandono" / "Did not
 // finish". El corredor que abandona rara vez es de WT/PT (sin tooltip de
 // ficha), así que el title es la única pista de qué significa la abreviatura.
+// Clave de una fila (`data-key`, js/dom-patch.js): un refresco conserva el
+// nodo de cada corredor o equipo y solo cambia lo que difiere.
+function resultRowKey(r, isTeams = false) {
+  if (isTeams) return `t${r.teamId || r.riderDisplay || ''}`;
+  if (r.globalRiderId != null) return `g${r.globalRiderId}`;
+  if (r.bib != null && r.bib !== '') return `b${r.bib}`;
+  return `n${r.riderDisplay || ''}`;
+}
+
 function dnfBadge(code, race, lang) {
   const label = (IRM_LABELS[code] || { es: code, en: code })[lang];
   const desc  = irmDescription(code, lang, race?.gender === 'female');
@@ -514,7 +523,7 @@ function dnfBadge(code, race, lang) {
 // Aviso de general ARRASTRADA: en una etapa cancelada las generales que se
 // muestran son las de la etapa anterior (la carrera no se movió). Sin decirlo,
 // una GC idéntica a la de ayer se lee como un volcado viejo o roto.
-export function carriedNoticeHtml(stageRow, isEn) {
+function carriedNoticeHtml(stageRow, isEn) {
   const from = stageRow?._carriedFromStage;
   if (from == null) return '';
   const fromLbl = `${from}${stageRow._carriedFromSuffix || ''}`;
@@ -642,7 +651,7 @@ function tttTableHtml(rows, stageRow, { resolver, race, lang }) {
 
     const rankCell = tr.rank != null ? tr.rank : '<span class="res-rank-dnf">–</span>';
     // Fila de equipo (pulsable → despliega corredores).
-    t += `<tr class="so-row res-team-row" data-ttt-group="${i}" tabindex="0" role="button" aria-expanded="false">`
+    t += `<tr class="so-row res-team-row" data-key="${esc(`ttt${tr.teamName}`)}" data-ttt-group="${i}" tabindex="0" role="button" aria-expanded="false">`
       + `<td class="so-td res-td--rank">${rankCell}</td>`
       + `<td class="so-td res-td--rider"><span class="res-ttt-team">${teamBadge}<span class="res-ttt-team-name">${nameInner}</span><span class="res-ttt-caret" aria-hidden="true">▾</span></span></td>`
       + `${uciPointsCellHtml(showUciPoints, tr)}<td class="so-td res-td--result">${resultCell}</td></tr>`;
@@ -664,7 +673,7 @@ function tttTableHtml(rows, stageRow, { resolver, race, lang }) {
         : (riderTimeText ? `<span class="res-gap">${esc(riderTimeText)}</span>` : '');
       // (El tooltip/enlace de ficha de las sub-filas CRE se retiró; nombre plano.)
       const nmInner = `<span class="res-rider-name">${esc(nm)}</span>`;
-      t += `<tr class="so-row res-ttt-rider" data-ttt-member="${i}" hidden><td class="so-td res-td--rank"></td>`
+      t += `<tr class="so-row res-ttt-rider" data-key="${esc(`ttt${tr.teamName}|${resultRowKey(r)}`)}" data-ttt-member="${i}" hidden><td class="so-td res-td--rank"></td>`
         + `<td class="so-td res-td--rider res-ttt-rider-cell">${flag}<span class="res-rider-main">${nmInner}</span></td>`
         + `${uciPointsCellHtml(showUciPoints, r)}<td class="so-td res-td--result">${indiv}</td></tr>`;
     });
@@ -974,7 +983,7 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
         ? `<a class="so-link" href="${esc(teamHref)}">${esc(displayName)}</a>`
         : esc(displayName);
       const teamCell = `<span class="res-team-cell">${teamBadge}${nameInner}</span>`;
-      return `<tr class="so-row"><td class="so-td res-td--rank">${rankCell}</td><td class="so-td res-td--rider">${teamCell}</td>`
+      return `<tr class="so-row" data-key="${esc(resultRowKey(r, true))}"><td class="so-td res-td--rank">${rankCell}</td><td class="so-td res-td--rider">${teamCell}</td>`
         + `${uciPointsCellHtml(showUciPoints, r)}<td class="so-td res-td--result">${resultCell}</td></tr>`;
     }
     // El corredor enlaza a SU FICHA (/corredor/<id>/) si es de las dos
@@ -1001,7 +1010,7 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
     const teamCell = teamName ? `<span class="res-team-cell">${teamBadge}${teamInner}</span>` : '';
     // Sin sangrado ni data-gap vacío: applyTeamFilter trata igual un atributo
     // ausente y uno vacío.
-    return `<tr class="so-row" data-team="${esc(teamName)}"${rowGap ? ` data-gap="${esc(rowGap)}"` : ''}>`
+    return `<tr class="so-row" data-key="${esc(resultRowKey(r))}" data-team="${esc(teamName)}"${rowGap ? ` data-gap="${esc(rowGap)}"` : ''}>`
       + `<td class="so-td res-td--rank">${rankCell}</td><td class="so-td res-td--rider">${riderCell}</td>`
       + `<td class="so-td res-td--team">${teamCell}</td>${uciPointsCellHtml(showUciPoints, r)}<td class="so-td res-td--result">${resultCell}</td></tr>`;
   });

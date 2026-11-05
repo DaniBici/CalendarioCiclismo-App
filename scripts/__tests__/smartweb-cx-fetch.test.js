@@ -30,8 +30,8 @@ describe('smartweb CX', () => {
     expect(selectSmartwebOptions(cronofec, MAP)).toMatchObject({ selected: [{ category: 'ME', variant: 'cronofec' }], skipped: [{ category: 'WJ' }] });
     const fccv = parseSmartwebIndex(index(select('categorias_cronofec', 'showCategorias_cronofec', [['285956', 'ELITE - SUB-23']])));
     expect(selectSmartwebOptions(fccv, MAP).selected).toMatchObject([{ category: 'ME', id: '285956', label: 'ELITE-SUB23' }]);
-    const ambiguous = parseSmartwebIndex(index(select('categorias', 'showCategoriasFicheros', [['1', 'FEM JUNIOR'], ['2', 'JUNIOR FEM.']])));
-    expect(selectSmartwebOptions(ambiguous, MAP).invalid).toMatchObject([{ category: 'WJ' }]);
+    const duplicated = parseSmartwebIndex(index(select('categorias', 'showCategoriasFicheros', [['1', 'FEM JUNIOR'], ['2', 'JUNIOR FEM.']])));
+    expect(selectSmartwebOptions(duplicated, MAP).selected).toMatchObject([{ category: 'WJ', id: '1', duplicates: [{ id: '2', label: 'JUNIOR FEM.' }] }]);
   });
   it('convierte llegadas, doblados, estados y filas sin puesto', () => {
     const { rows, omitted, warnings } = parseSmartwebRows([source(1, '00:53:21.787', { team: 'INDEPENDIENTE', region: '' }), source(2, '00:53:46.361'),
@@ -64,6 +64,14 @@ describe('smartweb CX', () => {
       smartweb: { sourceUrl: INDEX_URL, label: 'ELITE-SUB23', variant: 'fichero', categoryId: '1' } } }]);
     expect(document.skipped).toMatchObject([{ category: 'WJ' }]);
     expect(() => buildSmartwebCxDocument({ indexUrl: INDEX_URL, index: parsed, pages, map: MAP, raceId: 'r', seasonKey: '2026-27', dateKey: '2026-10-12' })).toThrow(/no del/);
+  });
+  it('acepta rótulos duplicados de una categoría solo con la misma tabla (rfec.com)', () => {
+    const duplicated = parseSmartwebIndex(index(select('categorias', 'showCategoriasFicheros', [['1', 'JUNIOR FEM.'], ['2', 'FEM JUNIOR']])));
+    const row = time => ['1', '64', 'MARC', 'MONCHO SIGNES', 'JORGE CANET-EL RALL', 'VLC', time];
+    const build = second => buildSmartwebCxDocument({ indexUrl: INDEX_URL, index: duplicated, pages: { 'fichero:1': table([row('00:41:00.000')]),
+      'fichero:2': table(second) }, map: MAP, raceId: 'r', seasonKey: '2026-27', dateKey: '2026-10-11', source: 'smartweb' });
+    expect(build([row('00:41:00.000')]).categories).toMatchObject([{ category: 'WJ', evidence: { smartweb: { label: 'JUNIOR FEM.', categoryId: '1' } } }]);
+    expect(build([row('00:42:00.000')])).toMatchObject({ categories: [], invalid: [{ category: 'WJ', reason: expect.stringContaining('JUNIOR FEM., FEM JUNIOR') }] });
   });
   it('enlaza por nombre las filas sin nacionalidad propia y desarrolla abreviaturas', () => {
     const { rows } = parseSmartwebRows([source(1, '00:50:00', { firstName: 'FCO. JOSE', lastName: 'GERICO GOMEZ' }),

@@ -55,10 +55,9 @@ comparación exacta con el display almacenado. Las denominaciones de equipos
 quedan excluidas. Se concedió ejecución de las funciones al rol
 `cc_results_worker` utilizado por el VPS.
 
-La prueba SQL reversible está en
-`scripts/data-preflight/tests/cjk-rider-names.sql`: cubre grafías mixtas,
-diacríticos, Han suplementario, nombres incompletos, ambos catálogos, snapshots,
-resultados sin dorsal y exclusión de equipos. El conector no permite
+La prueba SQL reversible `cjk-rider-names.sql` (retirada el 2026-11-01)
+cubría grafías mixtas, diacríticos, Han suplementario, nombres incompletos,
+ambos catálogos, snapshots, resultados sin dorsal y exclusión de equipos. El conector no permite
 `SET ROLE cc_results_worker`; sus permisos se comprobaron con
 `has_function_privilege`, y la escritura real se probó con `service_role`.
 La comprobación web pública mostró `Sheng Yi Liao`, dorsal 193, en

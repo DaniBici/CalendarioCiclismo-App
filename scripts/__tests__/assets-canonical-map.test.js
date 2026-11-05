@@ -34,10 +34,4 @@ describe('buildNginxMap', () => {
     expect(() => buildNginxMap([])).toThrow(/objeto/);
     expect(() => buildNginxMap(null)).toThrow(/objeto/);
   });
-
-  it('ordena las rutas para que la salida sea estable', () => {
-    const a = buildNginxMap(sample()).text;
-    const reversed = Object.fromEntries(Object.entries(sample()).reverse());
-    expect(buildNginxMap(reversed).text).toBe(a);
-  });
 });

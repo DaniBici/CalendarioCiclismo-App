@@ -82,11 +82,8 @@ Fuente única de la prioridad y de la selección (espejo en 3 plataformas):
 | iOS | `RaceLogic.broadcastLinkPriority(_:)` + `isBroadcastLive(_:)` — usados por `selectedBroadcast` en `TVBadge.swift` |
 | Android | `RaceLogic.broadcastLinkPriority(url)` + `isBroadcastLive(...)` — usados por `selectedBroadcast` en `TVBadge.kt` |
 
-Tests de la precedencia en-directo: `js/__tests__/broadcast-priority.test.js` (`describe('pickBadgeBroadcast')`).
-
 ⚠️ `x.com` se ancla con `//` o `.` delante para no capturar `play.max.com` (que contiene la
-subcadena "x.com" pero es HBO Max, tier 3). Tests: `js/__tests__/broadcast-priority.test.js`,
-`RaceLogicTest.kt`, `RaceLogicTests.swift`.
+subcadena "x.com" pero es HBO Max, tier 3).
 
 > **Nota:** la lógica **Revive** (botón post-carrera) es independiente y SÍ agrupa
 > Eurosport/HBO Max/YouTube/Facebook intencionadamente (`showInRevive`); este cambio de

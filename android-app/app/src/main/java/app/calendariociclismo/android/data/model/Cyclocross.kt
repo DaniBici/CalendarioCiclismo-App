@@ -241,6 +241,8 @@ data class CxBroadcast(
     val sortOrder: Int = 0,
     val showInRevive: Boolean = false,
     val isSporza: Boolean = false,
+    /** Inserción permitida según oEmbed; null sin verificar. */
+    val embeddable: Boolean? = null,
 )
 
 @Serializable

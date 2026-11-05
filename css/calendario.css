@@ -101,11 +101,14 @@ button.t-race {
   font: inherit;
   text-align: left;
   background: none;
-  border: 0;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
 }
+/* Sin borde del navegador, con especificidad nula: las pruebas de un grupo
+   desplegado no van envueltas, y el filete entre ellas (`> * + *`) debe
+   aplicarse también a las filas <button>. */
+:where(button.t-race) { border: 0; }
 .t-race:hover { background: var(--hover-bg); }
 
 .t-race__flag {
@@ -139,6 +142,10 @@ button.t-race {
 }
 /* Carrera cancelada: nombre tachado; conserva contraste AA (0,65 de opacidad). */
 .t-race__name--cancelled { text-decoration: line-through; opacity: 0.65; }
+/* Campeonatos Nacionales: sin logo ni hueco; el nombre ocupa también su columna.
+   La fila «Campeonatos Nacionales» tampoco lleva bandera. */
+.t-race--no-logo .t-race__name { grid-column: 2 / 4; }
+.t-race--no-flag .t-race__name { grid-column: 1 / 4; }
 .t-race__female {
   font-size: var(--fs-1);
   font-weight: 400;

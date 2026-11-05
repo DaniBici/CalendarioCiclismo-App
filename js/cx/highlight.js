@@ -2,6 +2,7 @@ import {cxDateInSeason} from './season.js';
 import {cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl} from './presentation.js';
 import {cxLogoSources} from '../components/cx-logo.js';
 
+/** @public cintillo-cx.js lo reexporta para cintillo.js, que lo carga con import(). */
 export function cxHighlightSlide(highlight,race,lang='es') {
   if(highlight.targetType!=='cxRace'||!race||race.id!==highlight.cxRaceId||!cxDateInSeason(race.seasonKey,race.dateKey)||(race.endDateKey&&!cxDateInSeason(race.seasonKey,race.endDateKey)))return null;
   const title=lang==='en'?(highlight.customTitleEn||highlight.customTitle):(highlight.customTitle);
@@ -13,6 +14,7 @@ export function cxHighlightSlide(highlight,race,lang='es') {
 // Destino «torneo»: la página de serie (/ciclocross/torneos/<slug>/ o
 // /en/cyclocross/series/<slug>/). El torneo no tiene fecha propia; el detalle
 // por defecto es su temporada.
+/** @public cintillo-cx.js lo reexporta para cintillo.js, que lo carga con import(). */
 export function cxTournamentHighlightSlide(highlight,tournament,lang='es') {
   if(highlight.targetType!=='cxTournament'||!tournament||tournament.id!==highlight.cxTournamentId)return null;
   const title=lang==='en'?(highlight.customTitleEn||highlight.customTitle):(highlight.customTitle);

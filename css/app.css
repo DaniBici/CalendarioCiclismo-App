@@ -82,6 +82,13 @@ html.light {
 /* Reset. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: var(--fs-4); scroll-behavior: smooth; }
+/* Canal de la barra de scroll reservado: sin él, las vistas que no desbordan
+   (Programa de CX) se recentran media barra a la derecha respecto a las que
+   sí. Sin efecto con barras superpuestas. */
+html { scrollbar-gutter: stable; }
+/* Las capas a pantalla completa bloquean el scroll y no pintan sobre el canal:
+   lo liberan para cubrir todo el ancho. */
+html:has(dialog:modal, body.cc-map-expanded-lock) { scrollbar-gutter: auto; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -2089,6 +2096,8 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
 }
 .route-block__place--solo { font-size: var(--fs-6); line-height: 1.1; }
 .route-block__note { font-size: var(--fs-2); color: var(--text); text-align: center; }
+/* Día de la hora cuando cae en otra fecha que la jornada («(sáb.)»). */
+.route-block__day { font-family: var(--font-body); font-size: var(--fs-2); font-weight: 400; color: var(--text-muted); line-height: 1.2; text-align: center; }
 .route-block__note--empty { font-style: italic; }
 .route-block__km {
   font-family: var(--font-display);
@@ -2710,8 +2719,7 @@ button.stage-key-row { cursor: pointer; }
   align-items: center;
   line-height: 0;
 }
-/* Chapa de equipo reutilizable (24px por defecto) y franjas de maillot. */
-.team-badge { display: inline-block; vertical-align: middle; line-height: 0; }
+/* Colores de equipo: tres franjas de maillot (teamStripes de team-appearance.js). */
 .team-stripes {
   display: inline-flex;
   width: 14px;

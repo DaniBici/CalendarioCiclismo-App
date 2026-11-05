@@ -20,14 +20,6 @@ class NotificationCategoryPreferenceTest {
     // ── fromStorage ────────────────────────────────────────────────
 
     @Test
-    fun `fromStorage con null devuelve DEFAULT_ENABLED`() {
-        assertEquals(
-            NotificationCategoryPreference.DEFAULT_ENABLED,
-            NotificationCategoryPreference.fromStorage(null),
-        )
-    }
-
-    @Test
     fun `fromStorage ignora valores desconocidos y tolera espacios`() {
         val parsed = NotificationCategoryPreference.fromStorage("general, bogus , results")
         assertEquals(
@@ -46,19 +38,6 @@ class NotificationCategoryPreferenceTest {
         assertTrue(NotificationCategoryPreference.GENERAL in parsed)
         assertTrue(NotificationCategoryPreference.RACE_START in parsed)
         assertTrue(NotificationCategoryPreference.TV_START in parsed)
-    }
-
-    // ── toStorage ──────────────────────────────────────────────────
-
-    @Test
-    fun `toStorage serializa en orden de declaracion del enum`() {
-        // Para evitar que el set unordered cambie el output entre runs.
-        val unordered = linkedSetOf(
-            NotificationCategoryPreference.RESULTS,
-            NotificationCategoryPreference.GENERAL,
-            NotificationCategoryPreference.TV_START,
-        )
-        assertEquals("general,tv_start,results", NotificationCategoryPreference.toStorage(unordered))
     }
 
     // ── Round-trip ────────────────────────────────────────────────

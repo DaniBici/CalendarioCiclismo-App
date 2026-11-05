@@ -46,7 +46,7 @@ export function hasReviveBroadcastsForDay(broadcasts, hasCurrentResults, isCance
     && reviveBroadcastsForDay(broadcasts, isCancelled).some(b => !!b.url);
 }
 
-export function broadcastLinkPriority(url) {
+function broadcastLinkPriority(url) {
   const u = url || '';
   if (isCyltvPlayerUrl(u)) return -1;
   if (_YT.test(u)) return 0;

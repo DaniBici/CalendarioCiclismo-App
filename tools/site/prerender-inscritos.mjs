@@ -71,19 +71,19 @@ const LANGS = {
   en: { dir: 'en/startlist', slug: race => race.slugEn },
 };
 
-export function parseScope(value) {
+function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
   if (!Object.hasOwn(SCOPES, scope)) throw new Error(`PRERENDER_INSCRITOS no admitido: «${scope}» (off, es, all o listas)`);
   return scope;
 }
 
 /** Primer día (AAAA-MM-DD, UTC) del ámbito: hoy menos WINDOW_DAYS. */
-export function scopeSince(now = new Date()) {
+function scopeSince(now = new Date()) {
   return new Date(now.getTime() - WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
 }
 
 /** Si la carrera termina (o empieza, sin fecha de fin) en `since` o después; sin `since`, todas. */
-export function inWindow(race, since) {
+function inWindow(race, since) {
   if (since == null) return true;
   const end = race?.endDate || race?.startDate;
   return !!end && end >= since;
@@ -93,7 +93,7 @@ export function inWindow(race, since) {
  * Carreras con lista (equipos en startlist_counts) que entran en la ventana,
  * en el orden de `races`. Como inscritos_race_ids() de site_data.py.
  */
-export function listedRaces(races, counts, since) {
+function listedRaces(races, counts, since) {
   const listed = new Set(counts.filter(row => (row.teams || 0) > 0).map(row => row.raceId));
   return races.filter(race => listed.has(race.id) && inWindow(race, since));
 }
@@ -201,7 +201,7 @@ const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_
  * consulta, ordenadas por id como en el navegador. Como
  * inscritos_stage_chunks() de site_data.py.
  */
-export function stageChunks(stages) {
+function stageChunks(stages) {
   const byRace = new Map();
   for (const stage of stages) {
     if ((stage.rowCount || 0) <= 0) continue;
@@ -274,7 +274,7 @@ export function readSharedData(dir, since) {
  * anterior a `since`. Si no (volcado ausente, fallido o leído con otro
  * PRERENDER_INSCRITOS), null: los datos se leen por la API.
  */
-export function sharedDataDir(dir, since) {
+function sharedDataDir(dir, since) {
   const file = dir ? join(dir, 'manifest.json') : null;
   if (!file || !existsSync(file)) return null;
   const covered = JSON.parse(readFileSync(file, 'utf8')).inscritos;
@@ -293,7 +293,7 @@ function groupBy(rows, key) {
 }
 
 /** Índices por carrera de las carreras de la ventana desde `since` (sin `since`, todas). */
-export function buildIndex(data, since) {
+function buildIndex(data, since) {
   const rows = name => data[name] || [];
   const stageRace = new Map(rows('stages').map(stage => [stage.id, stage.raceId]));
   const oneDayByRace = new Map();
@@ -319,7 +319,7 @@ export function buildIndex(data, since) {
  * `raceId`, o null si no está en el ámbito. `rows` lleva las filas de
  * loadStartlistData; la jornada de un día va sin sus documentos, aparte.
  */
-export function inscritosInputs(index, raceId) {
+function inscritosInputs(index, raceId) {
   const race = index.races.get(raceId);
   if (!race) return null;
   const { assets: oneDayAssets = [], ...oneDayRd } = index.oneDayByRace.get(raceId) || {};
@@ -378,7 +378,7 @@ const BAD_URL = /(?:^|[/?=&#])(?:undefined|null)(?:[/?#&]|$)/;
  * enlaces de vistas que debe llevar la cabecera (js/header-html.js); `riders`:
  * corredores de la lista, que deben salir todos.
  */
-export function validatePage(page, { riders, navHrefs }) {
+function validatePage(page, { riders, navHrefs }) {
   const errors = [];
   for (const [, name, value] of page.matchAll(/\s(href|src)="([^"]*)"/g)) {
     if (BAD_URL.test(value)) errors.push(`${name} con undefined o null: ${value}`);
@@ -401,7 +401,7 @@ export function validatePage(page, { riders, navHrefs }) {
  * errors } si se generó. `render(input, header)` devuelve { html,
  * headerInner, riders }.
  */
-export function prerenderPage(source, { lang, scope, index, render, navHrefs, fingerprint }) {
+function prerenderPage(source, { lang, scope, index, render, navHrefs, fingerprint }) {
   const raceId = RACE_META.exec(source)?.[1];
   if (!raceId || !SCOPES[scope].langs.includes(lang)) return { status: 'out' };
   const input = inscritosInputs(index, raceId);

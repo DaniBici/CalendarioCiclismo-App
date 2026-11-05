@@ -131,6 +131,22 @@ describe('colector aislado de emisiones Sporza', () => {
     expect(events.some((event) => /samenvatting/i.test(event.title))).toBe(false);
   });
 
+  it('lee las filas de ciclismo del marcado Tailwind de octubre de 2026', () => {
+    const html = fixture('sporza-cx-livestream-20261030.html');
+    expect(parseSporzaLivestreamSchedule(html, { todayKey: '2026-10-30' })).toEqual([]);
+    const events = parseSporzaLivestreamSchedule(html.replaceAll('>Veldrijden<', '>Wielrennen<'), {
+      todayKey: '2026-10-30',
+    });
+    expect(events.map((event) => [event.dateKey, event.startTimeUtc, event.title, event.subtitle])).toEqual([
+      ['2026-11-01', '2026-11-01T12:30:00.000Z', 'Koppenbergcross', 'X²O-trofee vrouwen'],
+      ['2026-11-01', '2026-11-01T13:45:00.000Z', 'Koppenbergcross', 'X²O-trofee mannen'],
+      ['2026-11-07', '2026-11-07T13:50:00.000Z', 'EK veldrijden in Zeddam', 'elite vrouwen'],
+      ['2026-11-08', '2026-11-08T13:50:00.000Z', 'EK veldrijden in Zeddam', 'elite mannen'],
+    ]);
+    expect(events[0].broadcastUrl)
+      .toBe('https://sporza.be/nl/matches/veldrijden/x-o-trofee-vrouwen/2026/koppenbergcross~1789393800504/');
+  });
+
   it('traduce el vocabulario neerlandés del esquema y exige fecha de referencia', () => {
     expect(normalizeSporzaDutch('tijdrit beloften mannen')).toBe('ITT U23 men');
     expect(normalizeSporzaDutch('wegrit junioren vrouwen')).toBe('road race junior women');

@@ -16,14 +16,6 @@ enum Constants {
         "1.2": 11, "2.2": 12, "1.2U": 13, "2.2U": 14,
     ]
 
-    /// Agrupación de categorías por tier.
-    static let categoryTiers: [String: [String]] = [
-        "WC":    ["WC", "CC"],
-        "WT":    ["1.UWT", "2.UWT", "1.WWT", "2.WWT"],
-        "PRO":   ["1.Pro", "2.Pro", "1.1", "2.1"],
-        "MINOR": ["1.2", "2.2", "1.2U", "2.2U"],
-    ]
-
     // MARK: - Tipos de etapa
 
     /// Etiquetas localizadas para tipos de etapa.

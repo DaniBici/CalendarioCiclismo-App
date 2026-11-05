@@ -61,6 +61,9 @@ import { readDump } from './prerender-jornadas.mjs';
 import { apiFetch, inFilter } from './prerender-inscritos.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// fetch de Node: installBrowserEnv sustituye el global por uno que rechaza las
+// peticiones del render, y las lecturas por la API posteriores usan este.
+const NODE_FETCH = globalThis.fetch;
 const SCRIPT = fileURLToPath(import.meta.url);
 const ORIGIN = 'https://calendariociclismo.app';
 const TIME_ZONE = 'Europe/Madrid';
@@ -75,7 +78,7 @@ const CACHE_FORMAT = 1;
 // Versión de los datos de la firma: RESULTADOS_CACHE_CONTRACT de site_data.py.
 const SIGNATURE_CONTRACT = 1;
 // Carreras leídas por build como máximo: RESULTADOS_MAX_READS de site_data.py.
-export const RESULTADOS_MAX_READS = 150;
+const RESULTADOS_MAX_READS = 150;
 // RESULTADOS_ROTATION_DAYS de site_data.py.
 const ROTATION_DAYS = 28;
 const DAY_MS = 86400000;
@@ -83,7 +86,7 @@ const API_IN_CHUNK = 100;
 
 const SCOPES = { off: false, es: true };
 
-export function parseScope(value) {
+function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
   if (!Object.hasOwn(SCOPES, scope)) throw new Error(`PRERENDER_RESULTADOS no admitido: «${scope}» (off o es)`);
   return scope;
@@ -103,19 +106,19 @@ export function candidateRaces(races, stages, now = new Date()) {
 const py = value => (value === null || value === undefined ? 'None' : value === true ? 'True' : value === false ? 'False' : String(value));
 
 /** resultados_signature() de site_data.py. */
-export function raceSignature(race, stages) {
+function raceSignature(race, stages) {
   const lines = [`${SIGNATURE_CONTRACT}|${race.id}|${py(race.year)}|${py(race.startlistImportedAt)}`,
     ...stages.map(stage => `${stage.id}|${py(stage.updatedAt)}|${py(stage.rowCount)}|${py(stage.publicationStatus)}|${py(stage.updating)}`)];
   return createHash('sha1').update(lines.join('\n')).digest('hex').slice(0, 16);
 }
 
 /** Día de Madrid (AAAA-MM-DD), como site_data.madrid_today(). */
-export const madridDay = now => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+const madridDay = now => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 
 const isoDay = value => /^\d{4}-\d{2}-\d{2}/.exec(String(value ?? ''))?.[0] ?? null;
 
 /** resultados_rotation() de site_data.py. */
-export const rotationDays = raceId => ROTATION_DAYS + parseInt(createHash('sha1').update(String(raceId)).digest('hex').slice(0, 4), 16) % 14;
+const rotationDays = raceId => ROTATION_DAYS + parseInt(createHash('sha1').update(String(raceId)).digest('hex').slice(0, 4), 16) % 14;
 
 /**
  * resultados_needing() de site_data.py: { read, pending } con las candidatas
@@ -127,7 +130,7 @@ export const rotationDays = raceId => ROTATION_DAYS + parseInt(createHash('sha1'
  * la más reciente. A igualdad, el orden de `candidates`. `today`: día de
  * Madrid; `raceById`: Map de las carreras.
  */
-export function racesToRead(candidates, sigs, cachedRaces, today, raceById, limit = RESULTADOS_MAX_READS) {
+function racesToRead(candidates, sigs, cachedRaces, today, raceById, limit = RESULTADOS_MAX_READS) {
   const missing = [];
   const rotated = [];
   for (const raceId of candidates) {
@@ -202,7 +205,7 @@ async function loadApiRaces(raceIds, { races, stages }, key) {
   add('resultados_team_list', CATALOG_QUERIES.resultados_team_list);
   add('resultados_team_seasons', CATALOG_QUERIES.resultados_team_seasons(years));
   const tables = Object.fromEntries(Object.keys({ ...RACE_QUERIES, ...CATALOG_QUERIES }).map(name => [name, []]));
-  (await apiFetch(parts, key)).forEach((rows, at) => { tables[parts[at].name] = tables[parts[at].name].concat(rows); });
+  (await apiFetch(parts, key, { fetchImpl: NODE_FETCH })).forEach((rows, at) => { tables[parts[at].name] = tables[parts[at].name].concat(rows); });
   return tables;
 }
 
@@ -213,7 +216,7 @@ async function loadApiRaces(raceIds, { races, stages }, key) {
 async function loadApiData(key, now, limit, cachedRaces = {}) {
   if (!key) throw new Error('Falta SUPABASE_ANON_KEY para leer los datos de resultados');
   const names = Object.keys(BASE_QUERIES);
-  const base = Object.fromEntries((await apiFetch(names.map(name => ({ path: BASE_QUERIES[name] })), key)).map((rows, at) => [names[at], rows]));
+  const base = Object.fromEntries((await apiFetch(names.map(name => ({ path: BASE_QUERIES[name] })), key, { fetchImpl: NODE_FETCH })).map((rows, at) => [names[at], rows]));
   const state = stateFor(base, cachedRaces, now, limit);
   return { tables: { ...base, ...(await loadApiRaces(state.read, { races: base.races, stages: base.resultados_stages }, key)) }, state };
 }
@@ -294,7 +297,7 @@ export function buildIndex(tables) {
  * lista (por dorsal o globalRiderId, como createResultsResolver), equipos de
  * esas fichas y de las filas, y sus temporadas del año de la carrera.
  */
-export function raceData(tables, raceIds, index) {
+function raceData(tables, raceIds, index) {
   const ridersByRace = groupBy(tables.resultados_riders || [], 'raceId');
   const teamsByRace = groupBy(tables.resultados_teams || [], 'raceId');
   const resultsByStage = groupBy(tables.resultados_results || [], 'stageRef');
@@ -334,7 +337,7 @@ export function raceData(tables, raceIds, index) {
  * teamsForSeason: from(tabla).select(columnas).in(col, valores).eq(col, valor)
  * con las filas leídas (ya filtradas por RLS como la clave anónima).
  */
-export function localClient(tables) {
+function localClient(tables) {
   // Índices por columna, creados al primer `in` sobre ella (id, teamId).
   const indexes = new Map();
   const indexed = (table, column) => {
@@ -436,7 +439,7 @@ const OWN_ATTRS = /\sdata-prerendered="[^"]*"/g;
 const attr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /** Clave pedida por la ruta, como js/resultados.js: sin segmento, la última con datos. */
-export function requestedFromPath(segment) {
+function requestedFromPath(segment) {
   if (!segment) return { requestedKey: undefined, requestedStage: undefined, stageSuffixParam: '' };
   if (/^(prologo|prologue)$/i.test(segment)) return { requestedKey: '0', requestedStage: 0, stageSuffixParam: '' };
   const match = segment.match(/(?:etapa|stage)-(\d+)([a-z])?/i);
@@ -459,7 +462,7 @@ const SLOTS = {
  * Esqueleto con los huecos rellenos: cada uno con la huella de su HTML y la
  * tabla recortada, con data-rows.
  */
-export function fillSlots(skeleton, slots, fingerprint) {
+function fillSlots(skeleton, slots, fingerprint) {
   let html = skeleton;
   for (const [name, content] of Object.entries(slots)) {
     if (content == null) continue;
@@ -507,7 +510,7 @@ const BAD_URL = /(?:^|[/?=&#])(?:undefined|null)(?:[/?#&]|$)/;
  * enlaces de vistas que debe llevar la cabecera (js/header-html.js); `rows`:
  * filas de la tabla escritas.
  */
-export function validatePage(page, { rows, navHrefs }) {
+function validatePage(page, { rows, navHrefs }) {
   const errors = [];
   for (const [, name, value] of page.matchAll(/\s(href|src)="([^"]*)"/g)) {
     if (BAD_URL.test(value)) errors.push(`${name} con undefined o null: ${value}`);

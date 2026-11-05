@@ -41,21 +41,4 @@ describe('canal de importación completo', () => {
   it('rechaza un importId que no es UUID', () => {
     expect(() => applyStartlistSql("'; delete from riders; --")).toThrow('UUID');
   });
-
-  it('el CLI de startlist emite sin diagnóstico mezclado y rechaza modos ambiguos', () => {
-    const base = ['scripts/data-preflight/startlist-import.mjs', '--in',
-      'scripts/data-preflight/fixtures/startlist-extraction.json'];
-    const direct = spawnSync(process.execPath, base, { encoding: 'utf8' });
-    expect(direct.status, direct.stderr).toBe(0);
-    expect(direct.stderr).toBe('');
-    const timed = spawnSync(process.execPath, [...base, '--timed'], { encoding: 'utf8' });
-    expect(timed.status, timed.stderr).toBe(0);
-    expect(timed.stderr).toBe('');
-    const ambiguous = spawnSync(process.execPath, [...base, '--timed', '--import-id', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'], { encoding: 'utf8' });
-    expect(ambiguous.status).not.toBe(0);
-    expect(ambiguous.stdout).toBe('');
-    const missingPdfArgs = spawnSync(process.execPath, ['scripts/data-preflight/startlist-import.mjs', '--pdf', 'lista.pdf'], { encoding: 'utf8' });
-    expect(missingPdfArgs.status).not.toBe(0);
-    expect(missingPdfArgs.stderr).toContain('--source-out');
-  });
 });

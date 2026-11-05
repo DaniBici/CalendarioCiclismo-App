@@ -13,7 +13,7 @@ export function mainCheckoutEnvPath(cwd = process.cwd()) {
   return resolve(dirname(git.stdout.trim()), '.env');
 }
 
-export function parseEnv(text) {
+function parseEnv(text) {
   const values = {};
   for (const line of text.split('\n')) {
     const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);

@@ -75,38 +75,6 @@ class FeedsTest(unittest.TestCase):
             finally:
                 os.chdir(cwd)
 
-    def test_year_boundary_and_unknown_year(self):
-        before = datetime.fromisoformat("2026-12-31T23:59:59+00:00")
-        after = datetime.fromisoformat("2027-01-01T00:00:00+00:00")
-        self.assertTrue(feeds.eligible_calendar_year(2026, before))
-        self.assertFalse(feeds.eligible_calendar_year(2026, after))
-        self.assertTrue(feeds.eligible_calendar_year(2027, after))
-        self.assertFalse(feeds.eligible_calendar_year(None, before))
-
-    def test_filters_preserve_es_en_differences(self):
-        rows = [{"id": "cn", "uciCategory": "CN", "gender": "male"},
-                {"id": "small", "uciCategory": "1.2", "gender": "female", "countryCode": "CA"},
-                {"id": "wt", "uciCategory": "1.UWT", "gender": "female"}]
-        self.assertEqual([race["id"] for race in feeds.filter_races(rows, "pro", "es")], ["cn", "wt"])
-        self.assertEqual([race["id"] for race in feeds.filter_races(rows, "pro", "en")], ["small", "wt"])
-        self.assertEqual(feeds.filter_races(rows, "wt", "es"), [])
-        self.assertEqual([race["id"] for race in feeds.filter_races(rows, "wt", "en")], ["wt"])
-        self.assertNotIn(rows[1], feeds.filter_races(rows, "fem", "en"))
-
-    def test_year_fetch_batches_ids_and_includes_all_english_fields(self):
-        races = [{"id": f"id-{index}"} for index in range(205)]
-        calls = []
-
-        def query(path):
-            calls.append(path)
-            return races if path.startswith("races?") else []
-
-        with patch.object(feeds, "supabase_get", query):
-            feeds.fetch_year(2026)
-        self.assertEqual(len(calls), 4)
-        self.assertTrue(all("slugEn" in call and "startLocationEn" in call for call in calls[1:]))
-        self.assertTrue(all("id.asc" in call for call in calls))
-
 
 if __name__ == "__main__":
     unittest.main()

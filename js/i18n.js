@@ -50,10 +50,12 @@ const LOCALES = {
       "revive": "Revive",
       "videos": "Vídeos",
       "summary": "Resumen",
+      "fullRace": "Carrera completa {category}",
+      "fullBroadcast": "Retransmisión completa",
       "noVideos": "Vídeos pendientes.",
       "standings": "Clasificación general",
       "general": "General",
-      "calendar": "Calendario",
+      "races": "Carreras",
       "droppedResult": "Resultado descartado",
       "moreRounds": "Más rondas",
       "official": "Resultados oficiales",
@@ -62,8 +64,8 @@ const LOCALES = {
       "category": {
         "ME": "Elite masculina",
         "WE": "Elite femenina",
-        "MU": "Sub-23 masculina",
-        "WU": "Sub-23 femenina",
+        "MU": "Sub23 masculina",
+        "WU": "Sub23 femenina",
         "MJ": "Júnior masculina",
         "WJ": "Júnior femenina"
       },
@@ -90,7 +92,7 @@ const LOCALES = {
     nav: {
       today: 'Hoy', month: 'Mes', apps: 'Apps', about: 'Sobre',
       search: 'Buscar',
-      subscribe: 'Suscribirse', icalCalendar: 'Calendario iCal', privacy: 'Privacidad',
+      subscribe: 'Suscribirse', privacy: 'Privacidad',
     },
     cal: {
       noRaces: 'Sin carreras',
@@ -197,7 +199,7 @@ const LOCALES = {
       long: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
       all: 'Todos',
     },
-    days: { short: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], singular: 'día', plural: 'días' },
+    days: { short: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], abbr: ['dom.','lun.','mar.','mié.','jue.','vie.','sáb.'], singular: 'día', plural: 'días' },
     terrain: { cobblestone: 'Pavé', sterrato: 'Sterrato', ribinou: 'Ribinou' },
     filter: {
       all: 'Todas', pro: 'Pro', worldtour: 'WorldTour', wwt: 'WWT',

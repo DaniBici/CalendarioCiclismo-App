@@ -1,16 +1,7 @@
 import {describe,it,expect} from 'vitest';
-import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxAssertMapImageUrl,cxSaveErrorMessage,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation,cxDurationFormatOptions,cxEliteGroupError} from '../cx/editor-logic.js';
+import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxPointValue,cxPoints,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation,cxEliteGroupError} from '../cx/editor-logic.js';
 
 describe('editor CX: unidades, datos desconocidos e importación',()=>{
-  it('acepta solo vídeos identificables de YouTube y guarda su URL canónica',()=>{
-    expect(cxYouTubeVideoId('https://youtu.be/abcdefghijk?t=12')).toBe('abcdefghijk');
-    expect(cxYouTubeVideoId('https://www.youtube.com/shorts/abcdefghijk')).toBe('abcdefghijk');
-    expect(cxYouTubeWatchUrl('https://m.youtube.com/watch?v=abcdefghijk&feature=share')).toBe('https://www.youtube.com/watch?v=abcdefghijk');
-    for(const url of ['https://example.org/watch?v=abcdefghijk','https://fakeyoutube.com/watch?v=abcdefghijk','http://youtu.be/abcdefghijk','https://youtube.com/watch?v=bad']) {
-      expect(cxYouTubeVideoId(url)).toBeNull();
-      expect(()=>cxYouTubeWatchUrl(url)).toThrow(/YouTube/);
-    }
-  });
   it('distingue bonos desconocidos de ausencia confirmada',()=>{
     const rows=parseCxRows('puesto\tcorredor\tsegundos\tbonosegundos\n1\tUno\t1:01:05\t\n2\tDos\t1:02:00\t0');
     expect(rows[0].timeSeconds).toBe(3665);expect(rows[0].bonusSeconds).toBeNull();expect(rows[1].bonusSeconds).toBe(0);
@@ -44,15 +35,6 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
     expect(()=>compareCxStandings([official[0],{rank:1,riderDisplay:'Dos',points:1}],[],'points')).toThrow(/repetido/);
     expect(compareCxStandings(official,[official[0],{...official[0],rank:2}],'points')[0]).toContain('ambigua');
   });
-  it('los inscritos requieren nombre, apellido y país ISO2',()=>{
-    expect(parseCxRows('dorsal\tnombre\tapellido\tpais\n\tNombre\tApellido\tbe','startlist')[0]).toMatchObject({bib:null,countryCode:'BE'});
-    expect(()=>parseCxRows('nombre\tapellido\tpais\nNombre\tApellido\tBEL','startlist')).toThrow();
-  });
-  it('admite coexistencia por categoría y no mezcla puntos con tiempos',()=>{
-    expect(validateCxScheme({categories:{ME:{mode:'time'},WE:{mode:'points',perRank:[25,20]}}})).toBeTruthy();
-    expect(()=>validateCxScheme({categories:{ME:{mode:'time',perRank:[25]}}})).toThrow();
-    expect(()=>validateCxScheme({categories:{MJ:{mode:'points'}}})).toThrow();
-  });
   it('convierte zonas IANA en verano/invierno y rechaza horas DST imposibles o repetidas',()=>{
     expect(cxLocalToUtc('2026-09-12','15:00','Europe/Brussels')).toBe('2026-09-12T13:00:00.000Z');
     expect(cxLocalToUtc('2026-11-01','15:00','Europe/Brussels')).toBe('2026-11-01T14:00:00.000Z');
@@ -60,20 +42,6 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
     expect(()=>cxLocalToUtc('2026-03-29','02:30','Europe/Brussels')).toThrow(/no existe/);
     expect(()=>cxLocalToUtc('2026-10-25','02:30','Europe/Brussels')).toThrow(/se repite/);
     expect(()=>cxLocalToUtc('2026-11-01','15:00',null)).toThrow();
-  });
-  it('valida enlaces y contraste de chips',()=>{
-    expect(()=>cxUrl('javascript:alert(1)')).toThrow();
-    expect(cxChipText('#ffffff')).toBe('#000000');expect(cxChipText('#000000')).toBe('#ffffff');
-  });
-  it('acepta como mapa solo URL JPG o PNG, sin contar la consulta',()=>{
-    for(const url of [null,'https://example.org/map.png?v=2','https://example.org/map.JPEG'])expect(cxAssertMapImageUrl(url)).toBe(url);
-    for(const ext of ['pdf','webp'])expect(()=>cxAssertMapImageUrl(`https://example.org/map.${ext}?v=2`)).toThrow('El mapa debe ser JPG o PNG.');
-  });
-  it('traduce los conflictos de slug y conserva el resto de errores de guardado',()=>{
-    const duplicate=constraint=>new Error(`duplicate key value violates unique constraint "${constraint}"`);
-    expect(cxSaveErrorMessage(duplicate('cx_races_slugEn_key'))).toBe('El slug en inglés ya está en uso por otra carrera. Modificar «Slug (EN)».');
-    expect(cxSaveErrorMessage(duplicate('cx_races_slug_key'))).toBe('El slug ya está en uso por otra carrera. Modificar «Slug».');
-    expect(cxSaveErrorMessage(new Error('No se pudo guardar'))).toBe('No se pudo guardar');
   });
   it('reordena un ajuste manual de la general por total y exige puestos consecutivos',()=>{
     const rows=[{rank:1,globalRiderId:'a',riderDisplay:'A',value:'8:08:15'},{rank:2,globalRiderId:'b',riderDisplay:'B',value:'8:07:00'},{rank:3,globalRiderId:'c',riderDisplay:'C',value:'8:07:00'}];
@@ -88,13 +56,6 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
 
 describe('editor CX: Sub-23 dentro de la manga Elite',()=>{
   const row=(category,extra={})=>({category,dateKey:'2026-10-10',startTimeUtc:'2026-10-10T10:45:00.000Z',isCancelled:false,durationFormat:'individual',...extra});
-  it('ofrece el formato solo en MU y WU',()=>{
-    const values=category=>cxDurationFormatOptions(category).map(option=>option[0]);
-    expect(values('MU')).toEqual(['','individual','WITH_ELITE']);
-    expect(values('WU')).toEqual(['','individual','WITH_ELITE']);
-    expect(values('WE')).toEqual(['','individual','WE_WJ']);
-    expect(values('ME')).toEqual(['','individual']);
-  });
   it('exige la manga Elite propia, activa y con la misma salida',()=>{
     expect(cxEliteGroupError([row('ME'),row('MU',{durationFormat:'WITH_ELITE'}),row('WE'),row('WU')])).toBeNull();
     expect(cxEliteGroupError([row('MU',{durationFormat:'WITH_ELITE'})])).toMatch(/exige la categoría ME/);

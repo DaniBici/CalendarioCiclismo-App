@@ -228,6 +228,27 @@ object DateFormatting {
         return fmt.format(instant)
     }
 
+    /** Abreviatura del día ("sáb." / "Sat") cuando la hora, en la zona pasada
+     *  (por defecto, la del dispositivo), cae en otra fecha que `dateKey`, la
+     *  fecha en que aparece la jornada: salidas de Asia u Oceanía la víspera
+     *  en Europa, llegadas pasada la medianoche. `null` si es la misma fecha.
+     *  Paridad con `formatTimeUser` (js/shared.js) e iOS. */
+    fun otherDayLabel(
+        isoString: String,
+        dateKey: String,
+        zone: ZoneId = ZoneId.systemDefault(),
+        isEnglish: Boolean = LocaleHolder.shouldShowEnglishContent,
+    ): String? {
+        val local = parseIso(isoString)?.atZone(zone)?.toLocalDate() ?: return null
+        if (local.toString() == dateKey) return null
+        val names = if (isEnglish) WEEKDAY_ABBR_EN else WEEKDAY_ABBR_ES
+        return names[local.dayOfWeek.value - 1]
+    }
+
+    // Lunes primero, como java.time.DayOfWeek.
+    private val WEEKDAY_ABBR_ES = listOf("lun.", "mar.", "mié.", "jue.", "vie.", "sáb.", "dom.")
+    private val WEEKDAY_ABBR_EN = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
     /** Última lectura de una clasificación en hora local: "11 oct, 06:22" /
      *  "11 Oct, 06:22", en el idioma del CONTENIDO. Paridad con la web
      *  (`showPublication` en js/resultados.js) e iOS. */

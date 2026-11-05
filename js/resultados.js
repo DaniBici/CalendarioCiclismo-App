@@ -5,6 +5,7 @@ import { startlistTeamsQuery } from './team-appearance.js';
 import { classificationInventory, classificationLabel, classificationColor, visibleStageClassifications } from './services/race-presentation.js';
 import { installScrollRail } from './scroll-rail.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { patchHtml } from './dom-patch.js';
 import { stagePathLabel, stageSlugSegment, statusIcon, resultsStages, resultsActive, resultsPageHtml, stageNavigationHtml,
          publicationHtml, createResultsResolver, enrichRiders, enrichOverrideTeams, classificationHtml, classificationTableHtml,
          teamFilterHtml, cancelledNoticeHtml, emptyClassificationHtml, loadingHtml } from './resultados-html.js';
@@ -527,11 +528,16 @@ async function init(i18nReady = Promise.resolve()) {
     displayedStage=stageRow;
     showPublication(stageRow);
     const classification = classificationHtml(rows, stageRow, { race, raceDay, isOneDay, resolver, lang });
+    // CRE: los equipos desplegados siguen desplegados tras un refresco.
+    const openTeams = [...tableWrap.querySelectorAll('tr.res-team-row[aria-expanded="true"]')].map(row => row.dataset.key);
     const changed = classification.ttt
       ? updateResultsHtml(tableWrap, classification.head)
       : updateResultsHtml(tableWrap, classificationTableHtml(classification),
         { head: classification.head, list: classification.rows, tail: classification.tail });
     if (!changed) return;
+    tableWrap.querySelectorAll('tr.res-team-row[aria-expanded="false"]').forEach(row => {
+      if (openTeams.includes(row.dataset.key)) toggleTttGroup(row);
+    });
     // Filtro por equipo en el hueco de la barra de pestañas (vacío en la CRE).
     if (filterSlot) updateResultsHtml(filterSlot, teamFilterHtml(classification, _teamFilter, _isEn));
     if (!classification.ttt) applyTeamFilter();
@@ -619,7 +625,7 @@ async function init(i18nReady = Promise.resolve()) {
       const nextKeys=[...new Set([...latest.map(keyForStage),...racedWithStage.filter(d=>d.isCancelledDay).map(keyForDay)])].sort((a,b)=> {const [na,sa]=keyRank(a),[nb,sb]=keyRank(b);return na-nb||sa.localeCompare(sb);});
       if(JSON.stringify(nextKeys)!==JSON.stringify(stageKeys)) {
         stageKeys.splice(0,stageKeys.length,...nextKeys);
-        stagesInner.innerHTML=stageNavigationHtml(stageKeys, activeKey, { canonBase, canonSlug, isEn: _isEn });
+        patchHtml(stagesInner, stageNavigationHtml(stageKeys, activeKey, { canonBase, canonSlug, isEn: _isEn }));
         document.getElementById('resStages').hidden=stageKeys.length<2;
       }
       const fresh=activeStages.find(row=>row.classKind===activeClass.classKind)||activeStages[0];

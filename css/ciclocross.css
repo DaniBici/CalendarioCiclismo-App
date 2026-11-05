@@ -76,7 +76,7 @@
 .cx-category-section {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + 1rem);margin-bottom:16px;overflow:hidden}.cx-category-content {padding:10px 12px}.cx-category-header p {font-size: var(--fs-3);color:var(--text-muted);margin:0}.cx-category-section .res-table-wrap {width:100%;max-width:none;padding:.4rem 0}.cx-category-section .res-publication {padding:.3rem 0}.cx-category-content>h3 {font: 600 var(--fs-3) var(--font-body);margin:1rem 0 .5rem}
 .cx-category-section[hidden], [data-cx-general][hidden] {display:none!important}
 .cx-classification-nav.res-stages {width:100%;margin:0 0 12px}
-#cxRaceContent .cx-category-nav {width:var(--page-width);max-width:var(--content-max);margin:0 auto}
+#cxRaceContent .cx-category-nav,#cxAgendaContent .cx-category-nav {width:var(--page-width);max-width:var(--content-max);margin:0 auto}
 /* Secciones y categorías fijas bajo la navegación; la fila de columnas de las tablas se fija debajo. */
 #cxRaceContent>.cx-sticky-nav {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h));z-index:21;background:var(--bg)}
 #cxRaceContent>.cx-sticky-nav>.res-tabs-bar {position:static}

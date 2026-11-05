@@ -191,8 +191,9 @@ export const smartwebDigest = sourceRows => createHash('sha1').update(JSON.strin
 
 /**
  * Elige la clasificación de cada categoría de `map` ({rótulo: categoría}): el
- * archivo de los árbitros si está, si no el cronometraje. Dos rótulos de la
- * misma categoría publicados a la vez en la variante elegida son ambiguos.
+ * archivo de los árbitros si está, si no el cronometraje. Los demás rótulos de
+ * la misma categoría publicados en la variante elegida van en `duplicates`
+ * (rfec.com publica «JUNIOR FEM.» y «FEM JUNIOR» con la misma tabla).
  */
 export function selectSmartwebOptions(index, map) {
   const byCategory = new Map();
@@ -201,43 +202,51 @@ export function selectSmartwebOptions(index, map) {
     if (!byCategory.has(category)) byCategory.set(category, []);
     byCategory.get(category).push(smartwebLabel(label));
   }
-  const selected = []; const skipped = []; const invalid = [];
+  const selected = []; const skipped = [];
   for (const [category, labels] of byCategory) {
     const found = index.options.filter(option => labels.includes(option.label));
     const variant = found.some(option => option.variant === 'fichero') ? 'fichero' : 'cronofec';
     const chosen = found.filter(option => option.variant === variant);
     if (!chosen.length) skipped.push({ category, reason: 'Clasificación aún sin publicar en smartweb' });
-    else if (chosen.length > 1) invalid.push({ category, reason: `Varias clasificaciones publicadas para la categoría: ${chosen.map(option => option.label).join(', ')}` });
-    else selected.push({ category, ...chosen[0] });
+    else selected.push({ category, ...chosen[0], ...(chosen.length > 1 ? { duplicates: chosen.slice(1) } : {}) });
   }
-  return { selected, skipped, invalid };
+  return { selected, skipped };
 }
 
 /**
- * `pages`: `{ "<variante>:<id>": html }` de las opciones elegidas. Una
- * clasificación vacía queda en `skipped`; una incoherente, en `invalid`, sin
- * afectar a las demás. Con `source: 'smartweb'` cada categoría acredita el
- * enlace (`evidence.smartweb`).
+ * `pages`: `{ "<variante>:<id>": html }` de las opciones elegidas y sus
+ * duplicados. Una clasificación vacía queda en `skipped`; una incoherente, o
+ * varios rótulos de la categoría con filas distintas, en `invalid`, sin afectar
+ * a las demás. Con `source: 'smartweb'` cada categoría acredita el enlace
+ * (`evidence.smartweb`).
  */
 export function buildSmartwebCxDocument({ indexUrl, index, pages, map, raceId, seasonKey, dateKey, source = 'manual' }) {
   if (dateKey && index.dateKey && index.dateKey !== dateKey) throw new Error(`Prueba smartweb del ${index.dateKey}, no del ${dateKey}`);
-  const { selected, skipped, invalid } = selectSmartwebOptions(index, map);
-  const categories = []; const omitted = []; const warnings = [];
+  const { selected, skipped } = selectSmartwebOptions(index, map);
+  const categories = []; const invalid = []; const omitted = []; const warnings = [];
   for (const option of selected) {
-    const html = pages[`${option.variant}:${option.id}`];
-    if (html == null) throw new Error(`Falta la página ${option.variant}:${option.id}`);
-    let parsed; let sourceRows;
+    const candidates = [option, ...(option.duplicates || [])].map(item => {
+      const html = pages[`${item.variant}:${item.id}`];
+      if (html == null) throw new Error(`Falta la página ${item.variant}:${item.id}`);
+      return { ...item, html };
+    });
+    let chosen = option; let parsed; let sourceRows;
     try {
-      sourceRows = parseSmartwebTable(html);
-      if (!sourceRows.length) { skipped.push({ category: option.category, reason: 'Clasificación aún sin filas en smartweb' }); continue; }
+      const tables = candidates.map(item => ({ item, rows: parseSmartwebTable(item.html) })).filter(table => table.rows.length);
+      if (!tables.length) { skipped.push({ category: option.category, reason: 'Clasificación aún sin filas en smartweb' }); continue; }
+      if (new Set(tables.map(table => smartwebDigest(table.rows))).size > 1) {
+        invalid.push({ category: option.category, reason: `Varias clasificaciones distintas publicadas para la categoría: ${tables.map(table => table.item.label).join(', ')}` });
+        continue;
+      }
+      ({ item: chosen, rows: sourceRows } = tables[0]);
       parsed = parseSmartwebRows(sourceRows);
-    } catch (error) { invalid.push({ category: option.category, reason: `${option.label}: ${error.message}` }); continue; }
-    const sourceUrl = smartwebCategoryUrl(indexUrl, option.variant, option.id);
+    } catch (error) { invalid.push({ category: option.category, reason: `${chosen.label}: ${error.message}` }); continue; }
+    const sourceUrl = smartwebCategoryUrl(indexUrl, chosen.variant, chosen.id);
     omitted.push(...parsed.omitted.map(item => ({ category: option.category, ...item })));
     warnings.push(...parsed.warnings.map(item => ({ category: option.category, ...item })));
-    categories.push({ category: option.category, dateKey: dateKey || index.dateKey, sourceGroup: option.label, sourceVariant: option.variant,
+    categories.push({ category: option.category, dateKey: dateKey || index.dateKey, sourceGroup: chosen.label, sourceVariant: chosen.variant,
       sourceDigest: smartwebDigest(sourceRows),
-      evidence: { sourceUrl, ...(source === 'smartweb' ? { smartweb: { sourceUrl: indexUrl, label: option.label, variant: option.variant, categoryId: option.id } } : {}) },
+      evidence: { sourceUrl, ...(source === 'smartweb' ? { smartweb: { sourceUrl: indexUrl, label: chosen.label, variant: chosen.variant, categoryId: chosen.id } } : {}) },
       rows: parsed.rows });
   }
   return { schemaVersion: 1, source, disciplineId: 3, raceId, seasonKey, fetchedAt: new Date().toISOString(),
@@ -256,7 +265,7 @@ export async function fetchSmartwebRace(url, map, { fetchImpl = fetch } = {}) {
   const indexUrl = smartwebIndexUrl(url);
   const index = parseSmartwebIndex(await text(indexUrl, fetchImpl));
   const pages = {};
-  for (const option of selectSmartwebOptions(index, map).selected) {
+  for (const option of selectSmartwebOptions(index, map).selected.flatMap(item => [item, ...(item.duplicates || [])])) {
     pages[`${option.variant}:${option.id}`] = await text(smartwebCategoryUrl(indexUrl, option.variant, option.id), fetchImpl);
   }
   return { indexUrl, index, pages };

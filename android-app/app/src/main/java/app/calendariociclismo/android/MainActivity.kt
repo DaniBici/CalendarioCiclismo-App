@@ -30,6 +30,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
 import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.ThemePreference
+import app.calendariociclismo.android.data.prefs.applyAsApplicationNightMode
 import app.calendariociclismo.android.data.repository.CalendarRepository
 import app.calendariociclismo.android.notifications.DeepLink
 import app.calendariociclismo.android.util.CyclocrossLogic
@@ -64,15 +65,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // installSplashScreen() ANTES de super.onCreate().
         // En API 31+ delega al Splash Screen nativo; en <31 la compat library
-        // genera la pantalla con fondo azul + icono.
+        // genera la pantalla con el fondo y el icono del tema de arranque.
         val splashScreen = installSplashScreen()
 
         super.onCreate(savedInstanceState)
         WindowCompat.enableEdgeToEdge(window)
-
-        // Elimina la animación de salida del splash nativo para que la
-        // transición al overlay Compose sea instantánea y sin parpadeo.
-        splashScreen.setOnExitAnimationListener { it.remove() }
 
         // Lectura síncrona de la preferencia de tema para evitar que el primer
         // frame pinte con el tema del sistema y luego haga flip al del usuario.
@@ -133,6 +130,19 @@ class MainActivity : ComponentActivity() {
         applyBarsAppearance(initialDark)
         window.decorView.post { applyBarsAppearance(initialDark) }
 
+        // Elimina la animación de salida del splash nativo para que la
+        // transición al overlay Compose sea instantánea y sin parpadeo.
+        // En API 31-34, core-splashscreen aplica antes de este listener los
+        // colores de barra y la apariencia del tema y setDecorFitsSystemWindows:
+        // la barra de estado quedaba con el colorPrimaryDark lavanda de
+        // Material 3 y el contenido dejaba de dibujarse detrás. Se restablecen
+        // el edge-to-edge y la apariencia de la preferencia.
+        splashScreen.setOnExitAnimationListener {
+            it.remove()
+            WindowCompat.enableEdgeToEdge(window)
+            applyBarsAppearance(initialDark)
+        }
+
         setContent {
             val themePref by app.preferences.themePreference
                 .collectAsState(initial = initialTheme)
@@ -142,6 +152,10 @@ class MainActivity : ComponentActivity() {
                 ThemePreference.LIGHT  -> false
                 ThemePreference.DARK   -> true
             }
+            // Modo noche de la app (API 31+): el próximo splash del sistema
+            // nace con el tema elegido. El cambio llega como configChanges
+            // uiMode (manifiesto), sin recrear la actividad ni repetir el splash.
+            LaunchedEffect(themePref) { themePref.applyAsApplicationNightMode(applicationContext) }
             CalendarioCiclismoTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
                 val pendingDeepLink = remember { mutableStateOf<DeepLink?>(null) }

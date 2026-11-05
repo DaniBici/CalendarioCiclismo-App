@@ -90,7 +90,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // seasonId road por año (espejo de uci-match-poc.mjs). MANTENIMIENTO ANUAL: añadir el
 // año nuevo aquí Y en el matcher/backfill/discover cuando la UCI abra la temporada.
-const ROAD_SEASON = { 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
+const ROAD_SEASON = { 2027: 477, 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
 
 const SUPA_URL = 'https://bcecwlkynpgovnzhbpah.supabase.co';
 const SUPA_KEY = 'sb_publishable_4j0S4lUm6dYphrb0DEUYkw_OGAUoCLL'; // publishable (pública)

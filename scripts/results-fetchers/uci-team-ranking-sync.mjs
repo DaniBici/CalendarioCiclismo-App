@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { fileURLToPath } from 'node:url';
+import { recordAutomationSourceRun } from '../automation-monitor.mjs';
 import { databaseUrl } from '../db/env.mjs';
 
 /**
@@ -98,11 +99,17 @@ async function fetchLatestMoment(config, season) {
  * reciente que las tenga. DataRide cerró 2025 el 19/10 con un ránking final
  * de esa fecha, y la temporada 2026 (desde el 20/10/2025) no tuvo fechas
  * hasta el 20/01/2026.
+ *
+ * Una temporada no cuenta hasta enero de su año: el ránking final de la
+ * cerrada se mantiene aunque la nueva publique fechas antes (2027 abrió el
+ * 27/10/2026 con 13 equipos masculinos y 5 femeninos).
  */
 export async function resolveSeason(seasons, latestMomentFor = fetchLatestMoment, now = Date.now()) {
-  const ordered = [...seasons].sort((a, b) =>
-    Number(isActiveSeason(b, now)) - Number(isActiveSeason(a, now)) ||
-    Number(b.Year) - Number(a.Year));
+  const ordered = seasons
+    .filter((season) => Date.UTC(Number(season.Year), 0, 1) <= now)
+    .sort((a, b) =>
+      Number(isActiveSeason(b, now)) - Number(isActiveSeason(a, now)) ||
+      Number(b.Year) - Number(a.Year));
   for (const season of ordered.slice(0, 3)) {
     const moments = await Promise.all(RANKINGS.map((config) => latestMomentFor(config, season)));
     if (moments.every(Boolean)) return { season, moments };
@@ -279,7 +286,7 @@ function matchScore(source, season) {
 
 export function resolveTeams(rows, seasons) {
   const usedByGender = new Map();
-  const resolved = rows.map((row) => {
+  return rows.map((row) => {
     if (!usedByGender.has(row.gender)) usedByGender.set(row.gender, new Set());
     const usedTeamIds = usedByGender.get(row.gender);
     const candidates = seasons
@@ -309,18 +316,40 @@ export function resolveTeams(rows, seasons) {
       matchIssue: null,
     };
   });
+}
 
-  const matchedIds = new Set(resolved.map((row) => row.teamId).filter(Boolean));
-  const missingTopDivision = seasons.filter(
+export function missingTopDivision(rows, seasons) {
+  const matchedIds = new Set(rows.map((row) => row.teamId).filter(Boolean));
+  return seasons.filter(
     (season) => TOP_DIVISIONS.has(season.category) && !matchedIds.has(season.teamId),
   );
+}
+
+/**
+ * Una temporada nueva sustituye a la anterior cuando su lista incluye todos los
+ * equipos de máxima división; hasta entonces se conserva la anterior. Con la
+ * temporada ya en la tabla, un equipo ausente vuelve a ser un error.
+ */
+export async function selectSnapshot(seasons, storedRows, loadRows, resolve = resolveSeason) {
+  const chosen = await resolve(seasons);
+  const candidate = { ...chosen, ...(await loadRows(chosen)) };
+  const inTable = storedRows.some(
+    (row) => Number(row.disciplineSeasonId) === Number(chosen.season.Id),
+  );
+  let selected = { ...candidate, pending: null };
+  if (candidate.missing.length && !inTable) {
+    const closed = await resolve(
+      seasons.filter((season) => Number(season.Year) < Number(chosen.season.Year)),
+    );
+    selected = { ...closed, ...(await loadRows(closed)), pending: candidate };
+  }
   invariant(
-    missingTopDivision.length === 0,
-    `Faltan equipos de máxima división: ${missingTopDivision
+    selected.missing.length === 0,
+    `Faltan equipos de máxima división: ${selected.missing
       .map((season) => `${season.category}:${season.seasonName || season.baseName}`)
       .join(', ')}`,
   );
-  return resolved;
+  return selected;
 }
 
 async function loadTeamSeasons(client, year) {
@@ -440,31 +469,36 @@ async function loadStoredRows(client) {
   const { rows } = await client.query(
     `select gender, rank, "previousRank", "uciTeamId", "teamId", "teamCategory",
             "sourceName", "displayName", "teamCode", "countryCode", points,
-            "rankingDate"::text as "rankingDate", "sourceUrl"
+            "rankingDate"::text as "rankingDate", "sourceUrl", "disciplineSeasonId"
      from public.uci_team_rankings`,
   );
   return rows;
 }
 
-async function main() {
-  const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
-  const { season, moments } = await resolveSeason(seasons);
+async function fetchRankings({ season, moments }) {
   invariant(season?.Id && season?.Year, 'No se pudo determinar la temporada de DataRide');
-
-  const rankingGroups = await Promise.all(
+  return Promise.all(
     RANKINGS.map((config, index) => fetchRanking(config, season, moments[index])),
   );
-  const rawRows = rankingGroups.flat();
+}
+
+function rankingSummary(rankingGroups) {
+  return rankingGroups.map((rows) => ({
+    gender: rows[0].gender,
+    date: rows[0].rankingDate,
+    rows: rows.length,
+  }));
+}
+
+async function main() {
+  const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
 
   if (fetchOnly) {
+    const chosen = await resolveSeason(seasons);
     console.log(JSON.stringify({
       ok: true,
-      season: Number(season.Year),
-      rankings: rankingGroups.map((rows) => ({
-        gender: rows[0].gender,
-        date: rows[0].rankingDate,
-        rows: rows.length,
-      })),
+      season: Number(chosen.season.Year),
+      rankings: rankingSummary(await fetchRankings(chosen)),
       applied: false,
     }));
     return;
@@ -480,8 +514,21 @@ async function main() {
   });
   await client.connect();
   try {
-    const teamSeasons = await loadTeamSeasons(client, Number(season.Year));
-    const rows = resolveTeams(rawRows, teamSeasons);
+    const storedRows = await loadStoredRows(client);
+    const { season, rankingGroups, rows, pending } = await selectSnapshot(
+      seasons,
+      storedRows,
+      async (chosen) => {
+        const groups = await fetchRankings(chosen);
+        const teamSeasons = await loadTeamSeasons(client, Number(chosen.season.Year));
+        const resolved = resolveTeams(groups.flat(), teamSeasons);
+        return {
+          rankingGroups: groups,
+          rows: resolved,
+          missing: missingTopDivision(resolved, teamSeasons),
+        };
+      },
+    );
     const unmatched = rows.filter((row) => !row.teamId);
     if (unmatched.length) {
       console.warn(
@@ -489,26 +536,43 @@ async function main() {
         unmatched.map((row) => `- ${row.gender} #${row.rank} ${row.sourceName} (${row.matchIssue})`).join('\n'),
       );
     }
-    const storedRows = shouldApply ? await loadStoredRows(client) : [];
     const storedNewer = shouldApply && storedIsNewer(rows, storedRows);
     const alreadyCurrent = shouldApply && !storedNewer &&
       snapshotIsCurrent(rows, storedSnapshot(storedRows));
     const applied = shouldApply && !storedNewer && !alreadyCurrent;
     if (applied) await replaceSnapshot(client, rows);
 
+    if (process.env.CC_AUTOMATION_RUN_ID) {
+      await recordAutomationSourceRun(client, {
+        runId: process.env.CC_AUTOMATION_RUN_ID,
+        source: 'uci_team_ranking',
+        status: pending ? 'warning' : 'success',
+        itemsFound: rows.length,
+        itemsMatched: rows.length - unmatched.length,
+        itemsChanged: applied ? rows.length : 0,
+        summary: pending ? {
+          note: `Temporada ${pending.season.Year} retenida: su lista no incluye ` +
+            `${pending.missing.length} equipos de máxima división. ` +
+            `Se mantiene ${season.Year}.`,
+        } : {},
+      });
+    }
+
     console.log(JSON.stringify({
       ok: true,
       season: Number(season.Year),
-      rankings: rankingGroups.map((group) => ({
-        gender: group[0].gender,
-        date: group[0].rankingDate,
-        rows: group.length,
-      })),
+      rankings: rankingSummary(rankingGroups),
       matched: rows.length - unmatched.length,
       unmatched: unmatched.length,
       applied,
       alreadyCurrent,
       storedNewer,
+      pendingSeason: pending && {
+        season: Number(pending.season.Year),
+        rankings: rankingSummary(pending.rankingGroups),
+        missingTopDivision: pending.missing.length,
+        unmatched: pending.rows.filter((row) => !row.teamId).map((row) => row.sourceName),
+      },
     }));
   } finally {
     await client.end();

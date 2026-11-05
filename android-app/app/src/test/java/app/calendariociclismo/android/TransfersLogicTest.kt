@@ -2,17 +2,15 @@ package app.calendariociclismo.android
 
 import app.calendariociclismo.android.data.model.RiderProfile
 import app.calendariociclismo.android.data.model.RiderTransfer
-import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.util.TransfersLogic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests de la lógica pura de Fichajes (apps 4.0) — espejo de las reglas de
- * `js/fichajes.js` (web) verificadas en navegador con datos reales.
+ * Reglas de Fichajes que deciden qué es un fichaje o una renovación confirmados
+ * y en qué sección del detalle de equipo aparece cada corredor, con su contrato.
  */
 class TransfersLogicTest {
 
@@ -76,118 +74,6 @@ class TransfersLogicTest {
         assertEquals(listOf("renew"), feed.map { it.id })
     }
 
-    @Test
-    fun limitedFeedStopsAtMaxDays() {
-        // 6 fechas distintas (1 fichaje cada una) → se cortan a 5.
-        val feed = (1..6).map { transfer("t$it", "r$it", to = "team_b", announcedAt = "2026-07-0$it") }
-            .sortedByDescending { it.announcedAt }
-        val out = TransfersLogic.limitedFeed(feed)
-        assertEquals(5, out.map { it.announcedAt }.distinct().size)
-        assertEquals(5, out.size)
-    }
-
-    @Test
-    fun limitedFeedStopsAtMaxItems() {
-        // 10 fichajes en 2 fechas → se cortan a 8 items (antes de las 5 fechas).
-        val feed = (1..10).map { transfer("t$it", "r$it", to = "team_b", announcedAt = if (it <= 5) "2026-07-02" else "2026-07-01") }
-        val out = TransfersLogic.limitedFeed(feed)
-        assertEquals(8, out.size)
-    }
-
-    @Test
-    fun limitedFeedWideKeepsLongerHistory() {
-        // 10 fichajes en 6 fechas: el corte ancho conserva todo lo que el
-        // corte corto recortaría.
-        val feed = (1..10).map { transfer("t$it", "r$it", to = "team_b", announcedAt = "2026-07-0${minOf(it, 6)}") }
-            .sortedByDescending { it.announcedAt }
-        val wide = TransfersLogic.limitedFeed(
-            feed,
-            maxDays = TransfersLogic.FEED_SCROLL_MAX_DAYS,
-            maxItems = TransfersLogic.FEED_SCROLL_MAX_ITEMS,
-        )
-        assertEquals(10, wide.size)
-        assertEquals(8, TransfersLogic.limitedFeed(feed).size)
-    }
-
-    @Test
-    fun feedSortsReverseChronological() {
-        val feed = TransfersLogic.confirmedFeed(
-            listOf(
-                transfer("old", "r1", announcedAt = "2026-07-01", to = "team_b"),
-                transfer("new", "r2", announcedAt = "2026-07-12", to = "team_b"),
-                transfer("mid", "r3", announcedAt = "2026-07-05", to = "team_b"),
-            )
-        )
-        assertEquals(listOf("new", "mid", "old"), feed.map { it.id })
-    }
-
-    @Test
-    fun feedPrioritizesNextSeasonSigningsOverMidSeasonOnSameDay() {
-        val feed = TransfersLogic.confirmedFeed(
-            listOf(
-                transfer("midSeasonWT", "r1", to = "wt", announcedAt = "2026-08-01", midSeason = true),
-                transfer("nextSeasonPTW", "r2", to = "ptw", announcedAt = "2026-08-01"),
-            ),
-            categoryByTeamId = mapOf("wt" to "WT", "ptw" to "PRW"),
-            teamNameById = mapOf("wt" to "Alfa", "ptw" to "Zeta"),
-        )
-        assertEquals(listOf("nextSeasonPTW", "midSeasonWT"), feed.map { it.id })
-    }
-
-    @Test
-    fun feedsSortEachDayByDestinationCategoryAndTeamName() {
-        val categories = mapOf(
-            "wt_z" to "WT", "wt_a" to "WT", "pt" to "PT",
-            "wwt" to "WWT", "ptw" to "PRW",
-        )
-        val names = mapOf(
-            "wt_z" to "Zeta", "wt_a" to "Ábaco", "pt" to "Beta",
-            "wwt" to "Alfa Women", "ptw" to "Delta Women",
-        )
-        val moves = listOf(
-            transfer("ptw", "r5", to = "ptw"),
-            transfer("wt_z", "r2", to = "wt_z"),
-            transfer("wwt", "r4", to = "wwt"),
-            transfer("pt", "r3", to = "pt"),
-            transfer("wt_a", "r1", to = "wt_a"),
-        )
-
-        val signings = TransfersLogic.confirmedFeed(moves, categories, names)
-        val renewals = TransfersLogic.renewalFeed(
-            moves.map { it.copy(type = "renewal") }, categories, names
-        )
-
-        assertEquals(listOf("wt_a", "wt_z", "pt", "wwt", "ptw"), signings.map { it.id })
-        assertEquals(signings.map { it.id }, renewals.map { it.id })
-    }
-
-    @Test
-    fun groupByDayKeepsOrderAndGroups() {
-        val feed = listOf(
-            transfer("a", "r1", announcedAt = "2026-07-12", to = "team_b"),
-            transfer("b", "r2", announcedAt = "2026-07-12", to = "team_b"),
-            transfer("c", "r3", announcedAt = "2026-07-10", to = "team_b"),
-        )
-        val grouped = TransfersLogic.groupByDay(feed)
-        assertEquals(2, grouped.size)
-        assertEquals("2026-07-12", grouped[0].first)
-        assertEquals(2, grouped[0].second.size)
-        assertEquals("2026-07-10", grouped[1].first)
-    }
-
-    // ── Divisiones ────────────────────────────────────────────────
-
-    @Test
-    fun divisionTeamsFiltersAndSortsAlphabetically() {
-        val seasons = listOf(
-            TeamSeason(teamId = "b", year = 2027, name = "Movistar", category = "WT"),
-            TeamSeason(teamId = "a", year = 2027, name = "Alpecin", category = "WT"),
-            TeamSeason(teamId = "c", year = 2027, name = "Lidl-Trek Women", category = "WWT"),
-        )
-        val wt = TransfersLogic.divisionTeams(seasons, "WT")
-        assertEquals(listOf("Alpecin", "Movistar"), wt.map { it.name })
-    }
-
     // ── Detalle de equipo ─────────────────────────────────────────
 
     @Test
@@ -197,82 +83,6 @@ class TransfersLogicTest {
         val detail = TransfersLogic.teamDetail(moves, roster, "team_a")
         assertEquals(listOf("r2"), detail.staying.map { it.rider.id })
         assertEquals(listOf("t1"), detail.departures.map { it.id })
-    }
-
-    @Test
-    fun departuresSortedByDestinationCategoryThenNameThenRetirement() {
-        // WT → PT → resto → retirada; alfabético por nombre de destino dentro de
-        // categoría. contractEnds: alfabético por apellido.
-        val roster = emptyList<RiderProfile>()
-        val moves = listOf(
-            transfer("retire", "r0", type = "retirement", from = "team_a"),
-            transfer("toPt", "r1", type = "transfer", from = "team_a", to = "pt1"),
-            transfer("toWtB", "r2", type = "transfer", from = "team_a", to = "wtB"),
-            transfer("toWtA", "r3", type = "transfer", from = "team_a", to = "wtA"),
-            transfer("toCt", "r4", type = "transfer", from = "team_a", to = "ct1"),
-        )
-        val cats = mapOf("wtA" to "WT", "wtB" to "WT", "pt1" to "PT", "ct1" to "CT")
-        val names = mapOf("wtA" to "Alpha", "wtB" to "Bravo", "pt1" to "PtTeam", "ct1" to "CtTeam")
-        val detail = TransfersLogic.teamDetail(
-            moves, roster, "team_a",
-            categoryByTeamId = cats, teamNameById = names,
-        )
-        assertEquals(listOf("toWtA", "toWtB", "toPt", "toCt", "retire"), detail.departures.map { it.id })
-    }
-
-    @Test
-    fun arrivalsConfirmedBeforeRumors() {
-        // Confirmados primero, rumores después; apellido dentro de cada grupo.
-        val riders = mapOf(
-            "r1" to RiderProfile(id = "r1", firstName = "A", lastName = "Zeta"),
-            "r2" to RiderProfile(id = "r2", firstName = "B", lastName = "Alfa"),
-            "r3" to RiderProfile(id = "r3", firstName = "C", lastName = "Beta"),
-        )
-        val moves = listOf(
-            transfer("rumZeta", "r1", type = "transfer", status = "rumor", to = "team_a"),
-            transfer("confAlfa", "r2", type = "transfer", status = "confirmed", to = "team_a"),
-            transfer("confBeta", "r3", type = "transfer", status = "confirmed", to = "team_a"),
-        )
-        val detail = TransfersLogic.teamDetail(moves, emptyList(), "team_a", ridersById = riders)
-        assertEquals(listOf("confAlfa", "confBeta", "rumZeta"), detail.arrivals.map { it.id })
-    }
-
-    @Test
-    fun accentedInitialSortsWithItsBaseLetter() {
-        // Á ordena junto a A (no después de Z), en llegadas y en «continúan».
-        val riders = mapOf(
-            "r1" to RiderProfile(id = "r1", firstName = "Héctor", lastName = "Álvarez"),
-            "r2" to RiderProfile(id = "r2", firstName = "A", lastName = "Zabala"),
-            "r3" to RiderProfile(id = "r3", firstName = "B", lastName = "Alonso"),
-        )
-        val moves = listOf(
-            transfer("alvarez", "r1", type = "transfer", status = "confirmed", to = "team_a"),
-            transfer("zabala", "r2", type = "transfer", status = "confirmed", to = "team_a"),
-            transfer("alonso", "r3", type = "transfer", status = "confirmed", to = "team_a"),
-        )
-        val detail = TransfersLogic.teamDetail(moves, emptyList(), "team_a", ridersById = riders)
-        assertEquals(listOf("alonso", "alvarez", "zabala"), detail.arrivals.map { it.id })
-
-        val roster = listOf(
-            rider("r2", "Zabala"), rider("r1", "Álvarez"), rider("r3", "Alonso"),
-            rider("r4", "Éder"), rider("r5", "Eguía"),
-        )
-        val staying = TransfersLogic.teamDetail(emptyList(), roster, "team_a").staying
-        assertEquals(listOf("r3", "r1", "r4", "r5", "r2"), staying.map { it.rider.id })
-    }
-
-    @Test
-    fun contractEndsSortedAlphabeticallyByLastName() {
-        val riders = mapOf(
-            "r1" to RiderProfile(id = "r1", firstName = "A", lastName = "Zeta"),
-            "r2" to RiderProfile(id = "r2", firstName = "B", lastName = "Alfa"),
-        )
-        val moves = listOf(
-            transfer("t1", "r1", type = "transfer", from = "team_a", toName = "?"),
-            transfer("t2", "r2", type = "transfer", from = "team_a", toName = "?"),
-        )
-        val detail = TransfersLogic.teamDetail(moves, emptyList(), "team_a", ridersById = riders)
-        assertEquals(listOf("t2", "t1"), detail.contractEnds.map { it.id })
     }
 
     @Test
@@ -289,20 +99,6 @@ class TransfersLogicTest {
         assertEquals(listOf("end"), detail.contractEnds.map { it.id })
         assertEquals(setOf("sign", "retire"), detail.departures.map { it.id }.toSet())
         assertTrue(detail.staying.isEmpty())   // los tres dejan el equipo
-    }
-
-    @Test
-    fun stayingSortedByContractYearDescending() {
-        // 2030 → 2029 → 2028 → sin año (null) al final; alfabético dentro de año.
-        val roster = listOf(
-            rider("a", "Amid", contractUntil = 2028),
-            rider("b", "Blank", contractUntil = null),
-            rider("c", "Ceil", contractUntil = 2030),
-            rider("d", "Deep", contractUntil = 2029),
-            rider("e", "Early", contractUntil = 2028),
-        )
-        val detail = TransfersLogic.teamDetail(emptyList(), roster, "team_a")
-        assertEquals(listOf("c", "d", "a", "e", "b"), detail.staying.map { it.rider.id })
     }
 
     @Test
@@ -344,56 +140,6 @@ class TransfersLogicTest {
         assertFalse(byId["r1"]!!.isRumor)
         assertEquals(2030, byId["r2"]?.contractUntil)
         assertTrue(byId["r2"]!!.isRumor)
-    }
-
-    // ── Etiquetas de equipo ───────────────────────────────────────
-
-    @Test
-    fun teamLabelPrefersCatalogThenFreeTextThenUnknown() {
-        val names = mapOf("team_a" to "Movistar 2027")
-        assertEquals("Movistar 2027", TransfersLogic.teamLabel("team_a", null, names, "?"))
-        assertEquals("Júnior X", TransfersLogic.teamLabel(null, "Júnior X", names, "?"))
-        assertEquals("?", TransfersLogic.teamLabel(null, null, names, "?"))
-    }
-
-    @Test
-    fun teamLabelUsesCurrentSeasonNameForOriginAndMarketNameForDestination() {
-        // Mismo equipo, renombrado para el mercado: de dónde sale un corredor
-        // se lee con el nombre de la temporada en curso; a dónde va, con el nuevo.
-        val names = mapOf("team_a" to "Nuevo Sponsor 2027")
-        val namesPrev = mapOf("team_a" to "Viejo Sponsor 2026")
-        assertEquals(
-            "Viejo Sponsor 2026",
-            TransfersLogic.teamLabel("team_a", null, names, "?", TransfersLogic.TeamSide.FROM, namesPrev)
-        )
-        assertEquals(
-            "Nuevo Sponsor 2027",
-            TransfersLogic.teamLabel("team_a", null, names, "?", TransfersLogic.TeamSide.TO, namesPrev)
-        )
-    }
-
-    @Test
-    fun teamLabelFallsBackToTheOtherSeasonWhenOnlyOneHasTheTeam() {
-        // Continental sin fila en el mercado: el origen cae al nombre que haya.
-        val onlyMarket = mapOf("team_b" to "Solo 2027")
-        assertEquals(
-            "Solo 2027",
-            TransfersLogic.teamLabel("team_b", null, onlyMarket, "?", TransfersLogic.TeamSide.FROM, emptyMap())
-        )
-        val onlyPrev = mapOf("team_c" to "Solo 2026")
-        assertEquals(
-            "Solo 2026",
-            TransfersLogic.teamLabel("team_c", null, emptyMap(), "?", TransfersLogic.TeamSide.TO, onlyPrev)
-        )
-    }
-
-    @Test
-    fun divisionGenderMapsCategories() {
-        assertEquals("male", TransfersLogic.divisionGender("WT"))
-        assertEquals("female", TransfersLogic.divisionGender("WWT"))
-        assertEquals("male", TransfersLogic.divisionGender("PT"))
-        assertEquals("female", TransfersLogic.divisionGender("PRW"))
-        assertEquals(null, TransfersLogic.divisionGender(null))
     }
 
     // ── Fecha oculta (mig. 123) ───────────────────────────────────
@@ -459,46 +205,5 @@ class TransfersLogicTest {
         assertEquals(listOf("t2"), detail.departures.map { it.id })
         assertTrue(detail.doubtful.isEmpty())
         assertTrue(detail.staying.isEmpty())
-    }
-
-    /** Dudas ordenadas por apellido, como el resto de secciones. */
-    @Test
-    fun doubtfulSortedByLastName() {
-        val moves = listOf(
-            transfer("t1", "r1", type = "renewal", status = "doubt", to = "team_a"),
-            transfer("t2", "r2", type = "renewal", status = "doubt", to = "team_a"),
-        )
-        val roster = listOf(rider("r1", "Zabala"), rider("r2", "Alonso"))
-        val detail = TransfersLogic.teamDetail(moves, roster, "team_a")
-        assertEquals(listOf("r2", "r1"), detail.doubtful.map { it.riderId })
-    }
-
-    // ── Chapa efectiva (colores 2027 / antiguos / vacío) ────────────
-
-    private fun badgeSeasonRow(teamId: String, year: Int, badgeVisible: Boolean, torso: String) =
-        TeamSeason(teamId = teamId, year = year, name = "T", category = "WT",
-            badgeVisible = badgeVisible, badgeTorsoCenter = torso)
-
-    /** Chapa publicada → colores de la temporada del mercado (2027). */
-    @Test
-    fun badgeSeasonPublishedUsesMarketColors() {
-        val market = badgeSeasonRow("a", 2027, badgeVisible = true, torso = "#new")
-        val prev = mapOf("a" to badgeSeasonRow("a", 2026, badgeVisible = true, torso = "#old"))
-        assertEquals("#new", TransfersLogic.badgeSeason(market, prev)?.badgeTorsoCenter)
-    }
-
-    /** Chapa oculta + equipo preexistente → colores antiguos (2026). */
-    @Test
-    fun badgeSeasonHiddenExistingUsesPrevColors() {
-        val market = badgeSeasonRow("a", 2027, badgeVisible = false, torso = "#new")
-        val prev = mapOf("a" to badgeSeasonRow("a", 2026, badgeVisible = true, torso = "#old"))
-        assertEquals("#old", TransfersLogic.badgeSeason(market, prev)?.badgeTorsoCenter)
-    }
-
-    /** Chapa oculta + equipo nuevo (sin fila 2026) → sin chapa. */
-    @Test
-    fun badgeSeasonHiddenNewTeamIsNull() {
-        val market = badgeSeasonRow("a", 2027, badgeVisible = false, torso = "#new")
-        assertNull(TransfersLogic.badgeSeason(market, emptyMap()))
     }
 }

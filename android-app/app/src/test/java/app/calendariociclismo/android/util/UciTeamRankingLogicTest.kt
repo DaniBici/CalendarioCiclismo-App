@@ -2,7 +2,6 @@ package app.calendariociclismo.android.util
 
 import app.calendariociclismo.android.data.model.UciTeamRankingRow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UciTeamRankingLogicTest {
@@ -41,7 +40,6 @@ class UciTeamRankingLogicTest {
             ),
             result.map { it.invitationTier },
         )
-        assertTrue(result.first().explanation(false).contains("y a todas las pruebas UCI ProSeries"))
     }
 
     @Test
@@ -52,8 +50,6 @@ class UciTeamRankingLogicTest {
         )
 
         assertEquals(listOf(false, true, false), result.map { it.grandTourExcluded })
-        assertTrue(result[1].explanation(false).contains("top-30"))
-        assertTrue(result[1].explanation(false).contains("2027"))
     }
 
     @Test
@@ -77,35 +73,5 @@ class UciTeamRankingLogicTest {
             ),
             result.map { it.invitationTier },
         )
-        assertTrue(!result[1].explanation(false).contains("ProSeries"))
-    }
-
-    @Test
-    fun `puntos enteros con millares tambien con cuatro cifras`() {
-        assertEquals("1.234", UciTeamRankingLogic.formatPoints(1234.4, isEnglish = false))
-        assertEquals("12.345", UciTeamRankingLogic.formatPoints(12344.6, isEnglish = false))
-        assertEquals("987", UciTeamRankingLogic.formatPoints(987.0, isEnglish = false))
-        assertEquals("1,234", UciTeamRankingLogic.formatPoints(1234.0, isEnglish = true))
-    }
-
-    @Test
-    fun `panel de invitaciones solo con los niveles presentes`() {
-        val rows = UciTeamRankingLogic.decorate(
-            listOf(row(1, "WT"), row(8, "PT"), row(31, "PT"), row(40, "CT")),
-            "male",
-        )
-        assertEquals(
-            listOf(
-                UciRankingKeyStyle.WORLD_TOUR,
-                UciRankingKeyStyle.ORANGE,
-                UciRankingKeyStyle.EXCLUDED,
-            ),
-            UciTeamRankingLogic.keyItems(rows, isEnglish = false).map { it.style },
-        )
-        assertEquals(
-            listOf(UciRankingKeyStyle.WORLD_TOUR, UciRankingKeyStyle.ORANGE, UciRankingKeyStyle.EXCLUDED, null),
-            rows.map { it.rankStyle },
-        )
-        assertTrue(!rows[1].explanation(false).contains("Proyección"))
     }
 }

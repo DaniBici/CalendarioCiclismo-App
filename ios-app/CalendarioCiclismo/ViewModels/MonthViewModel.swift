@@ -72,15 +72,12 @@ final class MonthViewModel {
                 return RaceLogic.matchesCategory(race, filter: activeFilter)
             }
         }
-        // En Mes, NINGUNA CN se muestra suelta, independientemente de la fecha:
-        // los Campeonatos se representan SOLO por la fila sintética "Campeonatos
-        // Nacionales" de la semana 22-28 jun (la inserta la vista en esos días).
-        // Paridad EXACTA con la web (`js/calendario-mes.js`: `if (cat === 'CN')
-        // return false` en `passesCategoryFilter`, sin condición de fecha). Antes
-        // iOS solo ocultaba las CN dentro del rango 22-28 → las CN de junio fuera
-        // de esas fechas se colaban como filas sueltas.
+        // Las CN de la pantalla de Campeonatos no se muestran sueltas: las representa
+        // la fila sintética "Campeonatos Nacionales" de la semana 22-28 jun (la
+        // inserta la vista en esos días). Las de fuera de la ventana de esa pantalla
+        // se listan por día. Paridad con `passesCategoryFilter` de `js/calendario-mes.js`.
         filtered = filtered.filter { rd in
-            rd.raceId.flatMap { map[$0]?.uciCategory } != "CN"
+            !ChampionshipsConfig.isOnChampionshipsScreen(rd.raceId.flatMap { map[$0] })
         }
         // Agrupar por fecha y ordenar cada grupo por categoría UCI (como mes.js)
         var grouped = Dictionary(grouping: filtered, by: \.dateKey)

@@ -7,6 +7,7 @@ import { supabase, countryFlag, categoryBadge } from '../shared.js';
 import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
+import { panelIconPaths } from './icons.js';
 import { attachInlineUpload, R2_PUBLIC_BASE, r2PutObject, r2PutTechnicalGuide } from './uploads.js';
 import { setupOperationsView } from './operations.js';
 import { applyRacesSubview } from './races-view.js';
@@ -17,6 +18,7 @@ import { setupRidersView } from './riders.js';
 import { setupNotificationsView } from './notifications.js';
 import { setupHighlightsView } from './highlights.js';
 import { setupFichajesView } from './fichajes.js';
+import { AGENDA_LABEL, isPanelTabEnabled, panelScopeReduced, REDUCED_RAIL_ORDER } from './scope.js';
 
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE CARRERAS
@@ -24,27 +26,48 @@ import { setupFichajesView } from './fichajes.js';
 
 // ── Navegación (rail lateral; antes pestañas) ─────────────────────
 export function initTabs() {
-  mountCxPanel({supabase,openDrawer,closeDrawer,showToast,attachInlineUpload,countryFlag,categoryBadge,navigate:switchTab,r2PutObject,r2PutTechnicalGuide,r2PublicBase:R2_PUBLIC_BASE});
+  // Alcance reducido: sin área de ciclocross ni entradas de vistas retiradas.
+  if (!panelScopeReduced) mountCxPanel({supabase,openDrawer,closeDrawer,showToast,attachInlineUpload,countryFlag,categoryBadge,navigate:switchTab,r2PutObject,r2PutTechnicalGuide,r2PublicBase:R2_PUBLIC_BASE});
   document.querySelectorAll('.rail-item[data-tab]').forEach(tab => {
+    tab.hidden = !isPanelTabEnabled(tab.dataset.tab);
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
+  const agendaItem = document.querySelector('.rail-item[data-tab="agenda"]');
+  agendaItem.title = AGENDA_LABEL;
+  agendaItem.querySelector('.rail-item__label').textContent = AGENDA_LABEL;
+  if (panelScopeReduced) {
+    agendaItem.querySelector('svg').innerHTML = panelIconPaths('trophy');
+    const rail = document.querySelector('.panel-rail__scroll');
+    for (const tab of REDUCED_RAIL_ORDER) rail.append(rail.querySelector(`.rail-item[data-tab="${tab}"]`));
+  }
 
-  // Logo → Agenda
+  // Logo → vista inicial
   const logoHome = document.getElementById('logoHome');
-  if (logoHome) logoHome.addEventListener('click', e => { e.preventDefault(); switchTab(areaAgenda()); });
+  if (logoHome) {
+    logoHome.title = document.querySelector(`.rail-item[data-tab="${homeTab()}"]`)?.title || AGENDA_LABEL;
+    logoHome.addEventListener('click', e => { e.preventDefault(); switchTab(homeTab()); });
+  }
 
   // Navegación con botones atrás/adelante del navegador
-  window.addEventListener('hashchange', () => switchTab(tabFromHash(), { updateHash: false }));
+  // Un hash de una vista no disponible se sustituye por el de la vista abierta.
+  window.addEventListener('hashchange', () => {
+    const tab = tabFromHash();
+    if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+    switchTab(tab, { updateHash: false });
+  });
 }
 
 const VALID_TABS = new Set(['agenda', 'startlists', 'riders', 'teams', 'analytics', 'operations', 'races', 'notifications', 'highlights', 'fichajes', 'cxAgenda', 'cxRaces', 'cxTournaments', 'cxStartlists', 'cxRiders', 'cxTeams']);
 
+const homeTab = () => (panelScopeReduced ? REDUCED_RAIL_ORDER[0] : areaAgenda());
+
 export function tabFromHash() {
   const hash = location.hash.slice(1);
-  return VALID_TABS.has(hash) ? hash : areaAgenda();
+  return VALID_TABS.has(hash) && isPanelTabEnabled(hash) ? hash : homeTab();
 }
 
 export function switchTab(tab, { updateHash = true } = {}) {
+  if (!isPanelTabEnabled(tab)) tab = homeTab();
   closeDrawer(1);
   showCxTab(tab);
   // Rail lateral (nav permanente): .rail-item[data-tab].

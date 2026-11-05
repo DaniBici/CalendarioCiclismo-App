@@ -76,7 +76,7 @@ class SupabaseService : CxRemote {
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
-        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder)," +
+        "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder,embeddable)," +
         "cx_videos(id,raceId,category,title,url,sortOrder)"
 
     @Serializable

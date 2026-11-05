@@ -171,9 +171,10 @@ object CyclocrossLogic {
         return CxTiming(state, category.resultsStatus, end)
     }
 
-    /** Duración acumulada: nunca se formatea como hora civil ni se recorta a 24 h. */
+    /** Duración acumulada: nunca se formatea como hora civil ni se recorta a 24 h; sin horas por debajo de una hora. */
     fun duration(seconds: Long?): String = seconds?.takeIf { it >= 0 }?.let {
-        String.format(Locale.ROOT, "%d:%02d:%02d", it / 3600, it / 60 % 60, it % 60)
+        if (it < 3600) String.format(Locale.ROOT, "%d:%02d", it / 60, it % 60)
+        else String.format(Locale.ROOT, "%d:%02d:%02d", it / 3600, it / 60 % 60, it % 60)
     } ?: "-"
 
     /** Fecha civil válida dentro de los meses de la temporada CX. */

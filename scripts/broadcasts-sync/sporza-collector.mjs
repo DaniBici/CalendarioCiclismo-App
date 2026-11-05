@@ -260,18 +260,59 @@ export async function collectSporza({ dateKey, fetcher = fetch, diagnostics = nu
   return observations;
 }
 
+// Las cabeceras de día dicen «17 oktober 2026» o, desde octubre de 2026,
+// «Za. 7 nov» sin año: el año es el que deja la fecha más cerca de la de
+// referencia.
 export function sporzaDateKeyFromLabel(label, todayKey) {
   const text = stripHtml(label);
   if (/^vandaag/i.test(text)) return todayKey;
-  const match = text.match(/\b(\d{1,2})\s+([a-z]+)\s+(20\d{2})\b/i);
-  const month = match && SPORZA_MONTHS.get(match[2].toLowerCase());
+  const match = text.match(/\b(\d{1,2})\s+([a-z]+)\.?(?:\s+(20\d{2}))?\b/i);
+  const month = match && sporzaMonth(match[2]);
   if (!month) return null;
-  const dateKey = `${match[3]}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}`;
-  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : null;
+  const day = Number(match[1]);
+  const build = (year) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  if (match[3]) return validDateKey(build(match[3]));
+  const todayYear = Number(todayKey.slice(0, 4));
+  const todayMs = Date.parse(`${todayKey}T00:00:00Z`);
+  const [dateKey] = [todayYear - 1, todayYear, todayYear + 1]
+    .map(build)
+    .sort((a, b) => Math.abs(Date.parse(`${a}T00:00:00Z`) - todayMs) - Math.abs(Date.parse(`${b}T00:00:00Z`) - todayMs));
+  return validDateKey(dateKey);
 }
 
-export function sporzaRowField(rowHtml, className) {
-  return stripHtml(rowHtml.match(new RegExp(`<[^>]+class="[^"]*\\b${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'i'))?.[1]);
+function sporzaMonth(value) {
+  const key = String(value || '').toLowerCase();
+  if (SPORZA_MONTHS.has(key)) return SPORZA_MONTHS.get(key);
+  if (key.length < 3) return null;
+  if (key === 'mrt') return 3;
+  const matches = [...SPORZA_MONTHS].filter(([name]) => name.startsWith(key));
+  return matches.length === 1 ? matches[0][1] : null;
+}
+
+// Cabecera de día: atributo `data-custom-row` del `<tr>` (marcado Tailwind) o
+// clase `_customRow_` (CSS modules). Las clases Tailwind de todas las filas
+// contienen el texto `[data-custom-row]`, así que se mira el atributo, no el texto.
+export function isSporzaDayRow(attrs) {
+  const text = String(attrs || '');
+  return /(?:^|\s)data-custom-row(?:\s*=|\s|$)/i.test(text) || /\bclass="[^"]*\b_customRow_/.test(text);
+}
+
+// Fila de livestream: dentro del enlace, los nodos de texto van en orden hora,
+// título, deporte y competición; «Ook op» abre la lista de canales adicionales.
+// No depende de los nombres de clase, que Sporza ha cambiado.
+export function sporzaLivestreamRow(rowHtml) {
+  const anchor = String(rowHtml || '').match(/<a\b([^>]*)>([\s\S]*?)<\/a>/i);
+  if (!anchor) return null;
+  const href = decodeHtml(anchor[1].match(/\bhref="([^"]+)"/i)?.[1] || '');
+  const texts = [...anchor[2].replace(/<(svg|script|style)\b[\s\S]*?<\/\1>/gi, '').matchAll(/>([^<]*)</g)]
+    .map((match) => stripHtml(match[1]))
+    .filter(Boolean);
+  const timeIndex = texts.findIndex((text) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(text));
+  if (timeIndex < 0) return null;
+  const rest = texts.slice(timeIndex + 1);
+  const channelsIndex = rest.findIndex((text) => /^ook op\b/i.test(text));
+  const [title = '', ...subtitles] = channelsIndex < 0 ? rest : rest.slice(0, channelsIndex);
+  return { href, time: texts[timeIndex], title, subtitles };
 }
 
 export function parseSporzaLivestreamSchedule(html, { sourceUrl = SPORZA_LIVESTREAM_URL, todayKey } = {}) {
@@ -282,19 +323,15 @@ export function parseSporzaLivestreamSchedule(html, { sourceUrl = SPORZA_LIVESTR
   const events = [];
   let currentDay = null;
   for (const [, attrs, rowHtml] of rows) {
-    if (/_customRow_/.test(attrs)) {
+    if (isSporzaDayRow(attrs)) {
       currentDay = sporzaDateKeyFromLabel(rowHtml, todayKey);
       continue;
     }
     if (!currentDay) continue;
-    const href = rowHtml.match(/<a\b[^>]*href="(https:\/\/sporza\.be\/[^"]+)"[^>]*>/i)?.[1];
-    const time = sporzaRowField(rowHtml, '_time_');
-    const title = sporzaRowField(rowHtml, '_title_');
-    const subtitles = [...rowHtml.matchAll(
-      new RegExp(`<[^>]+class="[^"]*\\b_subSubTitle_[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'gi'),
-    )].map((match) => stripHtml(match[1])).filter(Boolean);
-    if (!href || !title || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) continue;
-    if (subtitles[0] !== 'wielrennen') continue;
+    const row = sporzaLivestreamRow(rowHtml);
+    if (!row || !row.title || !/^https:\/\/sporza\.be\//i.test(row.href)) continue;
+    const { href, time, title, subtitles } = row;
+    if (fold(subtitles[0]) !== 'wielrennen') continue;
     if (SUMMARY_RE.test(`${title} ${subtitles.join(' ')}`)) continue;
     const competition = subtitles.slice(1).join(' ');
     const normalizedTitle = normalizeSporzaDutch(title);

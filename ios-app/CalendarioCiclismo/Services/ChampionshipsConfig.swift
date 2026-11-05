@@ -223,6 +223,18 @@ enum ChampionshipsConfig {
 
     static func isChampionship(_ race: Race?) -> Bool { race?.uciCategory == "CN" }
 
+    /// ¿Entra una CN en la pantalla de Campeonatos? Se compara la ventana de carga
+    /// sin el año: rige también en las temporadas sin pantalla, de modo que las CN
+    /// de fuera de la ventana (Australia en enero, Nueva Zelanda en febrero) se
+    /// listan en Temporada y las de dentro quedan para la fila sintética y la
+    /// pantalla. Espejo de `isOnChampionshipsPage` en `js/campeonatos-config.js`.
+    static func isOnChampionshipsScreen(_ race: Race?) -> Bool {
+        guard let race, isChampionship(race) else { return false }
+        guard let start = race.startDate else { return true }
+        let monthDay = start.dropFirst(5)
+        return monthDay >= queryStart.dropFirst(5) && monthDay <= queryEnd.dropFirst(5)
+    }
+
     /// Comparador parcial para dos CN: país → línea/CRI → categoría. Devuelve un
     /// número (≠0 ⇒ orden decidido; 0 ⇒ desempate al comparador genérico) o `nil`
     /// si alguna no es CN (no aplica este orden).

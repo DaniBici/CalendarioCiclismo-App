@@ -337,16 +337,6 @@ enum RaceLogic {
         (race?.isGrandTour ?? false) ? 0 : 1
     }
 
-    /// Tier de categoría UCI.
-    static func categoryTier(_ uci: String?) -> String? {
-        guard let uci else { return nil }
-        if Constants.categoryTiers["WC"]?.contains(uci) == true { return "wc" }
-        if Constants.categoryTiers["WT"]?.contains(uci) == true { return "wt" }
-        if Constants.categoryTiers["PRO"]?.contains(uci) == true { return "pro" }
-        if Constants.categoryTiers["MINOR"]?.contains(uci) == true { return "2" }
-        return uci.isEmpty ? nil : "1"
-    }
-
     /// Nombre legible de la categoría UCI para cabeceras: las siglas sin
     /// contexto (CC, WC, NC) se escriben completas y las clases numéricas se
     /// leen con el prefijo UCI («UCI 2.2»). Espejo de `uciCategoryName`

@@ -1,7 +1,16 @@
-import {countryFlag,findMatchingTeam} from '../shared.js';
+import {findMatchingTeam} from '../shared.js';
+import {flagIconUrl} from '../flag-url.js';
 import {teamStripes} from '../team-appearance.js';
 import {t} from '../i18n.js';
 import {cxEsc as esc,cxRankSort,cxStandingValueCells,cxStandingsBreakdown} from './presentation.js';
+
+// Bandera sin estilo en línea (tamaño y recorte en `.so-flag > img`,
+// css/app.css) y diferida: las categorías ocultas no la piden.
+function soFlag(code) {
+  if(!code)return '';
+  const c=code.toLowerCase();
+  return `<img src="${flagIconUrl(c)}" alt="${esc(c)}" loading="lazy">`;
+}
 
 // Tabla de una general CX, común a la ficha de carrera y a la página de torneo.
 // El equipo va en su propia columna desde 601 px y como subtítulo del corredor
@@ -22,7 +31,7 @@ export function cxStandingsTableHtml({rows,state,mode,lang='es',locale='es-ES',t
   const body=sorted.map(row=>{
     const team=findMatchingTeam(row.teamName,teamList),badge=team?teamStripes(team):'',value=values.get(row);
     const cells=breakdown?breakdown.cells(row).map(cell=>`<td class="so-td cx-td--round">${cell.dropped?`<s class="cx-round-dropped" title="${dropped}">${esc(cell.text)}</s>`:esc(cell.text)}</td>`).join(''):'';
-    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(row.rank)}</td><td class="so-td res-td--rider"><span class="so-flag">${countryFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${row.teamName?`<span class="res-rider-team">${badge}${esc(row.teamName)}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${row.teamName?`<span class="res-team-cell">${badge}${esc(row.teamName)}</span>`:''}</td>`:''}<td class="so-td res-td--result"><span class="${value.cls}">${esc(value.text)}</span></td>${cells}</tr>`;
+    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(row.rank)}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${row.teamName?`<span class="res-rider-team">${badge}${esc(row.teamName)}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${row.teamName?`<span class="res-team-cell">${badge}${esc(row.teamName)}</span>`:''}</td>`:''}<td class="so-td res-td--result"><span class="${value.cls}">${esc(value.text)}</span></td>${cells}</tr>`;
   }).join('');
   const table=`<table class="so-table res-table cx-standings-table${breakdown?' cx-standings-table--rounds':''}"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   if(!breakdown)return `<div class="res-table-wrap">${table}</div>`;

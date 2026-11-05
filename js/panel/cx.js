@@ -64,8 +64,7 @@ let commonTournaments=[];
 export const cxCommonTournamentName=id=>commonTournaments.find(t=>t.id===id)?.name;
 export async function loadCxCommonTournaments(client) {commonTournaments=await cxAllRows(client,'cx_tournaments','id,name,nameEn,slug,seasonKey,logoUrl,colorHex');commonTournaments.sort((a,b)=>(b.seasonKey||'').localeCompare(a.seasonKey||'')||a.name.localeCompare(b.name));return commonTournaments;}
 export async function fillCxTournamentSelect(client,node,selected='',{isCurrent=()=>true}={}) {const rows=await loadCxCommonTournaments(client);if(!isCurrent())return;node.innerHTML=option('','Seleccionar torneo CX',selected)+rows.map(t=>option(t.id,`${t.seasonKey||''} · ${t.name}`.trim(),selected)).join('');}
-/** @public Lo consultan las pruebas del módulo importado. */
-export const isCxTab=tab=>Object.hasOwn(TABS,tab);
+const isCxTab=tab=>Object.hasOwn(TABS,tab);
 function currentSeason() {return cxSeason();}
 let currentArea=/^#cx[A-Z]/.test(location.hash)?'cx':'road';
 export const panelArea=()=>currentArea;
@@ -74,8 +73,7 @@ const option=(value,label,selected)=>`<option value="${esc(value)}" ${value===se
 const options=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const select=(name,label,values,selected,required=false)=>`<label class="field cx-field">${esc(label)}<select name="${name}" ${required?'required':''}>${values.map(v=>Array.isArray(v)?option(v[0],v[1],selected):option(v,v,selected)).join('')}</select></label>`;
 const logoField=value=>{const id=`cx-logo-${crypto.randomUUID()}`;return `<div class="field cx-field cx-logo-field"><label for="${id}">URL del logo</label><div class="field-upload-wrap"><input id="${id}" name="logoUrl" type="url" value="${esc(value)}" placeholder="Pega la URL de una imagen (https://…)" autocomplete="off" spellcheck="false"></div><div class="cx-logo-preview"><span data-logo-image></span><small data-logo-state role="status"></small><button class="btn btn--ghost" data-logo-clear type="button">Quitar</button></div></div>`;};
-/** @public Lo consultan las pruebas del módulo importado. */
-export function wireLogoField(form) {
+function wireLogoField(form) {
   const input=form.querySelector('[name=logoUrl]'),preview=form.querySelector('[data-logo-image]'),state=form.querySelector('[data-logo-state]');
   ctx.attachInlineUpload?.(input,'logo');
   const refreshLogo=()=>{
@@ -342,23 +340,26 @@ function riderList(renderToken) {
   };
   search.oninput=()=>{++riderSearchVersion;clearTimeout(debounce);debounce=setTimeout(()=>void paint(),280);};
 }
-function cxOriginHtml(link,timingLink,lastDumpAt) {
-  if(!link&&!timingLink)return `<div class="ru-origin"><div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> — sin enlace no hay resultados in-house.</div>
+// timingLinks: el enlace de cronometraje de la carrera y, además, el de Golazo (fuente secundaria).
+function cxOriginHtml(link,timingLinks,lastDumpAt) {
+  if(!link&&!timingLinks.length)return `<div class="ru-origin"><div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> — sin enlace no hay resultados in-house.</div>
     <div class="u-row u-mt-045 u-wrap">
       <a class="btn btn--ghost btn--compact" href="https://dataride.uci.ch/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
       <button type="button" class="btn btn--primary cru-link-edit btn--compact">Enlazar fuente</button>
     </div></div>`;
-  const both=Boolean(link&&timingLink);
+  const both=Boolean(link&&timingLinks.length);
   const dataRide=link?`<div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
     ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}`:'';
-  const wiclax=timingLink?.provider==='wiclax',kbwb=timingLink?.provider==='kbwb',smartweb=timingLink?.provider==='smartweb';
-  const timingUrl=wiclax||smartweb?timingLink.sourceUrl:kbwb?'https://cycling.vlaanderen/competitie/uitslagen':timingLink&&cxAcnUrl(timingLink);
-  const timingKeys=()=>Object.entries(timingLink.categoryKeys||{}).map(([key,category])=>`${esc(key)} (${esc(category)})`).join(', ');
-  const timingDetail=wiclax?`${Object.keys(timingLink.categoryKeys||{}).length} recorridos`
-    :kbwb?`pruebas ${timingKeys()}`:smartweb?`clasificaciones ${timingKeys()}`:`evento ${esc(timingLink?.eventId)}`;
-  const acn=timingLink?`<div class="ru-origin__state">${both?'Cronometraje':'Origen'}: <a href="${esc(timingUrl)}" target="_blank" rel="noopener">${wiclax?'Wiclax':kbwb?'KBWB':smartweb?'smartweb':'ACN Timing'} ↗</a>
+  const acn=timingLinks.map(timingLink=>{
+    const wiclax=timingLink.provider==='wiclax',kbwb=timingLink.provider==='kbwb',smartweb=timingLink.provider==='smartweb',golazo=timingLink.provider==='golazo',zone4=timingLink.provider==='zone4';
+    const timingUrl=wiclax||smartweb||golazo?timingLink.sourceUrl:kbwb?'https://cycling.vlaanderen/competitie/uitslagen':zone4?cxZone4Url(timingLink):cxAcnUrl(timingLink);
+    const timingKeys=()=>Object.entries(timingLink.categoryKeys||{}).map(([key,category])=>`${esc(key)} (${esc(category)})`).join(', ');
+    const timingDetail=wiclax?`${Object.keys(timingLink.categoryKeys||{}).length} recorridos`
+      :kbwb?`pruebas ${timingKeys()}`:smartweb?`clasificaciones ${timingKeys()}`:golazo?`páginas ${timingKeys()}`:zone4?`grupos ${timingKeys()}`:`evento ${esc(timingLink.eventId)}`;
+    return `<div class="ru-origin__state">${golazo?'Organizador':both||timingLinks.length>1?'Cronometraje':'Origen'}: <a href="${esc(timingUrl)}" target="_blank" rel="noopener">${wiclax?'Wiclax':kbwb?'KBWB':smartweb?'smartweb':golazo?'Golazo':zone4?'Zone4':'ACN Timing'} ↗</a>
       <span class="u-c-dim"> · ${timingDetail} · ${timingLink.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
-    ${timingLink.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(timingLink.lastFetchError)}</div>`:''}`:'';
+    ${timingLink.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(timingLink.lastFetchError)}</div>`:''}`;
+  }).join('');
   return `<div class="ru-origin">
     ${dataRide}${acn}
     <div class="u-row u-mt-045 u-wrap">
@@ -370,6 +371,8 @@ function cxOriginHtml(link,timingLink,lastDumpAt) {
 }
 // ACN Timing (cronometraje del organizador): el enlace lo gestionan los agentes; el panel solo muestra su estado.
 const cxAcnUrl=link=>`https://www.acn-timing.com/?lng=EN#/events/${link.eventId}/ctx/${link.ctx}/cms`;
+// Zone4: clave «<fecha>/<formato>/<grupo>»; enlaza la página de resultados de la primera oleada.
+const cxZone4Url=link=>{const [date,format]=String(Object.keys(link.categoryKeys||{})[0]||'').split('/');return date&&format?`https://zone4.ca/race/${date}/${format}/results/`:'https://zone4.ca/';};
 // Las ventanas CX son minutos relativos al final estimado de cada manga, no horas absolutas.
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
@@ -388,10 +391,11 @@ async function resultsView(root,race,categories) {
   const [links,rows,timingLinks]=await Promise.all([cxQuery(ctx.supabase.from('cx_race_uci_links').select('*').eq('raceId',race.id)),cxAllRows(ctx.supabase,'cx_results','*',{raceId:race.id}),
     cxQuery(ctx.supabase.from('cx_race_timing_links').select('*').eq('raceId',race.id)).catch(()=>[])]);
   if(!root.isConnected)return;
-  const link=links[0],timingLink=timingLinks[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
+  const link=links[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
+  timingLinks.sort((a,b)=>(a.provider==='golazo')-(b.provider==='golazo'));
   const render=()=>resultsView(root,race,categories);
   const byCategory=new Map(categories.map(c=>[c.category,c]));
-  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,timingLink,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
+  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,timingLinks,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
     return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">Bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);

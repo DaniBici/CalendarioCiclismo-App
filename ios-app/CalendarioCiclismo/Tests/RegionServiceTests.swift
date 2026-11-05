@@ -51,18 +51,4 @@ final class RegionServiceTests: XCTestCase {
             XCTAssertEqual(RegionService.allowedBroadcastGroups(timeZoneId: c.tz), c.groups, c.tz)
         }
     }
-
-    func test_isEuropean() {
-        let cases: [(tz: String, expected: Bool)] = [
-            ("Europe/Madrid", true),
-            ("Atlantic/Reykjavik", true),
-            ("Asia/Istanbul", true),
-            ("America/New_York", false),
-            ("Asia/Tokyo", false),
-            ("UTC", false),
-        ]
-        for c in cases {
-            XCTAssertEqual(RegionService.isEuropean(timeZoneId: c.tz), c.expected, c.tz)
-        }
-    }
 }

@@ -108,7 +108,8 @@ y 2 (navegador) y el prerender (3–5), activado el 2026-10-22
   `applyPrerenderedHtml()` y cada hueco con `updateResultsHtml()`
   (`js/results/dom.js`), que conserva el contenido generado con la misma
   huella y, con `data-rows`, añade el resto de filas sin sustituir las
-  primeras.
+  primeras. Lo demás, y los refrescos, se pinta sobre lo que hay
+  (`patchHtml()` de `js/dom-patch.js`, filas con `data-key`).
 - La regla de marcado de las jornadas se aplica a `js/resultados-html.js` y
   sus dependencias. La hora de salida de los datos de la jornada depende de la
   zona del visitante y va en su propio hueco; el resto del HTML no depende de
@@ -160,6 +161,86 @@ perfiles, mapas y órdenes de salida» en
   el aviso. El aviso del prerender (`notice`) queda para una jornada que cambie
   entre el bloque OG y el volcado.
 
+## Fichajes con contenido generado en el build (2026-10-29)
+
+Páginas `/fichajes/` y `/en/transfers/` (fuentes manuales). Operación
+(interruptor `PRERENDER_FICHAJES`, datos, validación, paridad): «Prerender de
+fichajes» en `docs/runbooks/pages-build-selectivo.md`.
+
+- `js/fichajes-html.js` prepara el mercado (`buildMarket()`, fichas con
+  `attachRiders()`) y produce sin DOM la portada: `marketHomeHtml()` con el
+  titular, el feed de Fichajes y Renovaciones y los equipos de la división
+  inicial (WT). `js/fichajes.js` conserva las lecturas (`fetchMarket()`), la
+  vista de equipo y el historial; pinta con `applyPrerenderedHtml()` y delega
+  los clics de botones y tarjetas en sus contenedores.
+  `tools/site/prerender-fichajes.mjs` escribe ese HTML en ES y EN.
+- La regla de marcado de las jornadas se aplica a `js/fichajes-html.js` y sus
+  dependencias. Fechas del feed con `seoWeekdayDayMonth()`, sin horas: la
+  huella no depende de la zona. Bandera de las filas sin estilo en línea
+  (`.tr-row__flag > img`) y con `loading="lazy"`; también en la vista de
+  equipo.
+- El mercado cambia varias veces al día y ningún build lo sigue: el HTML es el
+  del último build y, si la huella no coincide, el navegador actualiza con los
+  datos vivos solo lo que difiere (`patchHtml()` de `js/dom-patch.js`, filas
+  con `data-key`; los movimientos nuevos entran con `slideIn()`; feed de altura
+  fija). Con portada generada, el navegador espera a la red en lugar de pintar
+  la copia local.
+- Bloque estático de las fuentes visible desde el 2026-10-29 (antes recortado
+  por CSS): solo queda en la página si el prerender no se ejecuta.
+
+## Fichas de carrera CX con contenido generado en el build (2026-10-29)
+
+`/ciclocross/<slug>/`, `…/inscritos/`, `…/resultados/` y sus EN. Operación
+(interruptor `PRERENDER_CX`, huecos, datos, validación, paridad): «Prerender
+de carreras CX» en `docs/runbooks/pages-build-selectivo.md`.
+
+- `js/cx-race-html.js` prepara la ficha (`cxRaceModel()`, sección y
+  categoría de la URL con `cxRaceSelection()`) y produce sin DOM sus huecos:
+  esqueleto (`cxRaceSkeletonHtml()`), sección (`cxRaceSectionHtml()`), panel
+  de categoría (`cxRacePanelHtml()`) y columna lateral
+  (`cxRaceContextHtml()`). `js/cx-race.js` conserva lecturas, SEO, historial y
+  manejadores; sin página generada pinta la ficha completa
+  (`cxRacePageHtml()`) y, con ella, cada hueco con `applyPrerenderedHtml()`.
+  El HTML ya lleva la sección, la categoría y las pestañas activas de la URL;
+  `selectSection()` los alterna al navegar.
+- La regla de marcado de las jornadas se aplica a `js/cx-race-html.js` y sus
+  dependencias. Lo que dependía del ancho o del DOM pasa al HTML: los
+  documentos son enlaces con `data-asset-viewer` (visor en escritorio por el
+  manejador delegado de `js/shared.js`) y el logo de la cabecera,
+  `cxLogoHtml()` (`js/components/cx-logo.js`) en `buildRaceHeader({ logoHtml })`,
+  con la fuente de respaldo del torneo en `onerror`. Fechas del programa con
+  `seoLongDate()`. Horas, TV por región y directo o Revive van en los huecos de
+  programa y columna lateral.
+- Banderas de las tablas de resultados, dorsales y generales (también en la
+  página de torneo) sin estilo en línea (`.so-flag > img`) y con
+  `loading="lazy"`.
+- Torneos (`/ciclocross/torneos/<slug>/`, `/en/cyclocross/series/<slug>/`):
+  `js/cx-agenda-html.js` escribe sin DOM las tarjetas de la agenda
+  (`cxAgendaCardHtml()`, también en la home de Ciclocross) y la página de
+  torneo (`cxTournamentSkeletonHtml()`, `cxTournamentListHtml()`). El logo de
+  la tarjeta va en el HTML (`cxLogoHtml()` con `onUnavailable`). Lo que depende
+  del momento y de la región (estado de las categorías con horario,
+  insignias, marca de hoy) queda fuera de la huella de la lista y lo pone
+  `refreshTiming()`. Días con `formatDateLabel()` y fecha del aviso con
+  `seoShortMonth()`, tablas fijas.
+
+## Competiciones con contenido generado en el build (2026-10-29)
+
+`/competicion/<slug>/` y `/en/race/<slugEn>/`. Operación (interruptor
+`PRERENDER_COMPETICION`, piezas del momento, validación, paridad): «Prerender
+de competiciones» en `docs/runbooks/pages-build-selectivo.md`.
+
+- `js/competicion-html.js` produce sin DOM la página (`competitionPageHtml()`)
+  y las tarjetas de jornada (`competitionCardHtml()`), también las del modo
+  challenge; `js/competicion.js` conserva lecturas, SEO y modales, pinta con
+  `applyPrerenderedHtml()` y delega clics y teclado en el contenedor. Lo que
+  depende del momento, de la zona o de la región queda fuera de la huella y lo
+  pone `paintCompetitionCard()`, que repinta una tarjeta cuando cambia el
+  estado de su jornada. El miniperfil no va en el HTML (banda reservada).
+- Fechas de la tarjeta con `seoShortDate()` y meses del rango de la cabecera
+  con `seoShortMonth()`, tablas fijas iguales que ICU. Jornadas y documentos
+  pedidos con desempate por `id` (`referencedTable`).
+
 ## Imagen OG única
 
 Todas las páginas (HTML estáticos, `js/competicion.js`, `js/jornada.js`, `js/inscritos.js`, `tools/site/gen_og_pages.py`) declaran `og:image` y `twitter:image` con una sola imagen: `https://assets.calendariociclismo.app/og/calendario-ciclismo.jpg` (1200 × 630, JPG de unos 80 KB, bajo el límite de ~300 KB de WhatsApp y Telegram). La constante vive en `DEFAULT_OG_IMAGE` de `gen_og_pages.py` y `gen_sitemap.py`; los tres scripts del navegador la repiten literal.
@@ -188,7 +269,7 @@ Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inlin
 - JSON-LD: `BreadcrumbList` (Inicio › Temporada N › [Competición] › Jornada).
 - IDs estables (`jsonld-main`, `jsonld-breadcrumbs`) para que la SPA sobrescriba sin duplicar.
 - Body HTML real con `<h1>`, fecha, descripción, distancia, recorrido y breadcrumbs navegables.
-- **Contenido SEO oculto visualmente** (`.static-prerender` con `position:absolute; clip:rect(0 0 0 0)`). `.prerender-loading` muestra puntos hasta que la SPA hidrata.
+- Bloque `.static-prerender` visible (`static-prerender--visible`), bajo la capa de carga hasta que la SPA lo sustituye; `.prerender-loading` muestra puntos hasta que hidrata. Desde el 2026-10-29 ninguna familia lo recorta por CSS (antes, las fichas CX). Portada, calendario y fichajes, fuentes manuales, igual: el texto se ve sin JS y `js/static-text.js` lo retira al pintar y conserva su `<h1>` como título `sr-only`.
 - Theme sincrónico vía `/js/theme.js`.
 - Scripts SPA al final del `<body>`.
 
@@ -233,10 +314,11 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 | `seoLongDateWeekday(dateKey, lang?)` | `lunes, 1 de junio de 2026` | `Monday, 1 June 2026` | `{weekday:'long',day,month:'long',year}` |
 | `seoLongDate(dateKey, lang?)` | `1 de junio de 2026` | `1 June 2026` | `{day,month:'long',year}` |
 | `seoDayMonth(dateKey, lang?)` | `1 de junio` | `1 June` | `{day,month:'long'}` |
+| `seoWeekdayDayMonth(dateKey, lang?)` | `lunes 1 de junio` | `Monday 1 June` | `{weekday:'long',day,month:'long'}` sin la coma del español |
 
 - `lang` por defecto sale de `getLang()` (`'en'`→inglés, resto español). Pasar `'es'` explícito donde la descripción es Spanish-only (competición, inscritos).
 - Salida **byte-idéntica** al ICU del sistema (verificado), así que en navegadores normales no cambia nada; solo arregla el render de Googlebot.
-- Consumidores: `jornada.js` (`fechaLarga` → `seoLongDateWeekday`), `competicion.js` (`fechaFin` → `seoLongDate`, `formatDayMonth` → `seoDayMonth`), `inscritos.js` (`buildFechaParentesis` → `seoLongDate`/`seoDayMonth`), `startlist/data.js` (cabecera de inscritos y PDF → `seoShortMonth`).
+- Consumidores: `jornada.js` (`fechaLarga` → `seoLongDateWeekday`), `competicion.js` (`fechaFin` → `seoLongDate`, `formatDayMonth` → `seoDayMonth`), `inscritos.js` (`buildFechaParentesis` → `seoLongDate`/`seoDayMonth`), `startlist/data.js` (cabecera de inscritos y PDF → `seoShortMonth`), `fichajes-html.js` (días del feed → `seoWeekdayDayMonth`), `formatDateLabel()` (días de la agenda y del torneo CX → `seoWeekdayDayMonth`), `cx-agenda-html.js` (fecha del aviso de la tarjeta → `seoShortMonth`) y `competicion-html.js` (tarjetas → `seoShortDate`; rango de la cabecera → `seoShortMonth`).
 - Para fechas que van al `<head>` y, desde la F0 de `docs/plans/fase-3-jornadas-estaticas.md` (2026-10-21), para el HTML de la jornada, que debe salir igual en el navegador, en el build y en el render de Google: la fecha de la cabecera de carrera (`buildRaceHero` → `formatDateKeyLong`, con mayúscula inicial) usa `seoLongDateWeekday`, y los decimales de `jornadaHtml()` y `js/stage/profile.js` (kilómetros, pendientes) usan `fixedDecimal` (`js/fixed-number.js`, equivalente a `toLocaleString('es-ES' | 'en-GB')`). El resto de fechas visibles del body (date-bar, chips de tarjeta) sigue con `toLocaleDateString`/`getLocale()`.
 - El generador Python `og-pages.yml` ya formatea con arrays fijos (`MESES`/`meses`/`dias`), así que el HTML estático y el hidratado coinciden en idioma.
 
@@ -300,8 +382,8 @@ Datos del 7-07 al 6-10-2026 (356 mil impresiones, CTR 3,6 %, posición media 8,5
 - **Inscritos:** `{nombre de búsqueda} {año}: dorsales y corredores inscritos` (`corredoras inscritas` en femenino; `lista provisional de inscritos` si `startlistProvisional`). El `<h1>` no cambia.
 - **Nombre de búsqueda:** `race_search_name()` (Python) y `raceSearchName()` (`js/shared.js`) sustituyen el nombre por el término de las consultas cuando difiere de la marca: `la-vuelta` → «Vuelta a España», `la-vuelta-femenina` → «Vuelta a España Femenina». Solo afecta a títulos de jornada e inscritos. Ampliar `NOMBRE_BUSQUEDA` en ambos lados.
 - **Artículo duplicado:** `con_articulo()`/`de_articulo()` (Python) y `conArticulo()`/`deArticulo()` (`js/shared.js`) no anteponen artículo a nombres que ya empiezan por «La/El/Las/Los» («de La Vuelta», no «de la La Vuelta»). Con nombre original entre paréntesis, la fecha de la descripción de jornada va entre comas, no entre paréntesis.
-- **Artículo del nombre (2026-10-09):** una sola heurística, `articulo_nombre()` (Python) y `articuloNombre()` (`js/shared.js`), para jornada, competición, inscritos, orden de salida, perfil, mapa y resultados; devuelve `el`, `la`, `los` o `las`. Femenino por defecto («la París-Tours», «la Milán-San Remo», «la Flecha Valona»: se concuerda con «clásica»). Masculino por primera palabra (`MASCULINOS_NOMBRE`), por patrón (`Tour` u `Omloop` en cualquier posición, `GP` o `Grand Prix` al final, `Grote Prijs`/`Velika Nagrada` al principio) o por excepción explícita (`chrono`, `omloop`, `kuurne-bruselas-kuurne`). Plural masculino: `Juegos …` y «N días» («los Juegos del Mediterráneo», «los Cuatro Días de Dunkerque»). `Il …` se trata como nombre con artículo propio («de Il Lombardia»). Antes, jornada, competición e inscritos usaban `articulo()` (masculino por defecto, con lista de femeninos) y `js/jornada.js` e `js/inscritos.js` copias propias, de modo que una misma carrera salía como «El París-Tours» en la jornada y «la París-Tours» en resultados. `js/__tests__/articulo-nombre.test.js` fija los casos. Añadir una excepción exige tocar ambos lados.
-- **Nombre original repetido (2026-10-09):** `nombre_original_distinto()` (Python) y `originalNameDistinto()` (`js/shared.js`) devuelven el `originalName` solo si aporta algo: se omite cuando, sin tildes, mayúsculas ni signos, es igual al nombre o está contenido en él («Il Lombardia (Il Lombardia)», «Paris-Chauny», «Chrono des Nations femenina (Chrono des Nations)»). Se conserva con otro idioma, con patrocinador o en otro alfabeto («Tour de Francia (Tour de France)», «Gooikse Pijl (Lotto Gooikse Pijl)»). Afecta a jornada, competición e inscritos y, al dejar `origName` vacío, la fecha de la descripción de jornada va entre paréntesis y no entre comas. De 522 carreras de 2025-2026 con `originalName`, 44 lo repetían. `js/__tests__/nombre-original.test.js` fija los casos.
+- **Artículo del nombre (2026-10-09):** una sola heurística, `articulo_nombre()` (Python) y `articuloNombre()` (`js/shared.js`), para jornada, competición, inscritos, orden de salida, perfil, mapa y resultados; devuelve `el`, `la`, `los` o `las`. Femenino por defecto («la París-Tours», «la Milán-San Remo», «la Flecha Valona»: se concuerda con «clásica»). Masculino por primera palabra (`MASCULINOS_NOMBRE`), por patrón (`Tour` u `Omloop` en cualquier posición, `GP` o `Grand Prix` al final, `Grote Prijs`/`Velika Nagrada` al principio) o por excepción explícita (`chrono`, `omloop`, `kuurne-bruselas-kuurne`). Plural masculino: `Juegos …` y «N días» («los Juegos del Mediterráneo», «los Cuatro Días de Dunkerque»). `Il …` se trata como nombre con artículo propio («de Il Lombardia»). Antes, jornada, competición e inscritos usaban `articulo()` (masculino por defecto, con lista de femeninos) y `js/jornada.js` e `js/inscritos.js` copias propias, de modo que una misma carrera salía como «El París-Tours» en la jornada y «la París-Tours» en resultados. Añadir una excepción exige tocar ambos lados.
+- **Nombre original repetido (2026-10-09):** `nombre_original_distinto()` (Python) y `originalNameDistinto()` (`js/shared.js`) devuelven el `originalName` solo si aporta algo: se omite cuando, sin tildes, mayúsculas ni signos, es igual al nombre o está contenido en él («Il Lombardia (Il Lombardia)», «Paris-Chauny», «Chrono des Nations femenina (Chrono des Nations)»). Se conserva con otro idioma, con patrocinador o en otro alfabeto («Tour de Francia (Tour de France)», «Gooikse Pijl (Lotto Gooikse Pijl)»). Afecta a jornada, competición e inscritos y, al dejar `origName` vacío, la fecha de la descripción de jornada va entre paréntesis y no entre comas. De 522 carreras de 2025-2026 con `originalName`, 44 lo repetían.
 - **Home:** `Calendario Ciclismo App: calendario ciclista con horarios, TV y recorridos` (también en `updateSeoDay` de `js/app.js`, que debe coincidir con `index.html`). Consultas de referencia: «calendario ciclismo» (posición 4,5) y «calendario ciclista» (4,2).
 - **Home, resultados (2026-10-09):** la descripción pasa a «…todas las carreras con horarios, recorrido, perfil, clasificaciones y cómo ver por TV y streaming…» (ES) y «…schedule, route, profile, standings and how to watch…» (EN); el bloque prerenderizado añade el enlace a `/resultados/` (`/en/results/`) y una frase sobre resultados. El título y el `<h1>` no incluyen «resultados». Cotejo de resultados de búsqueda del 2026-10-09 (ubicación España): «resultados ciclismo» y «clasificación ciclismo» las ocupan Flashscore, Marca, fuente externa, UCI, la web de cada carrera y los diarios, y una portada de calendario no compite en ellas; «calendario ciclismo resultados» sí es alcanzable (la portada EN aparece primera; Marca, Eurosport, AS y El País usan la fórmula «calendario y resultados»). Search Console (7-07 al 6-10-2026, 356 mil impresiones, 12,7 mil clics): las consultas con «resultado» suman 211 impresiones y 5 clics; con «clasificaci», 699 impresiones y 6 clics (casi todas de carrera concreta: «circuito de getxo 2026 clasificacion», «la indurain 2026 clasificacion»). La portada (`/` y `/en/`) recibe 653 clics y 2.940 impresiones, CTR 22,2 %, posición 5,7, todo con «calendario ciclismo», «calendario ciclista», «calendario ciclismo app»; ninguna con resultados. Las páginas `/resultados/` y `/en/results/` suman 981 clics y 23,8 mil impresiones (7,7 % de los clics), casi todos con consultas anonimizadas de carrera y etapa. Conclusión: la demanda de «resultados» o «clasificación» desde la portada es marginal; no tocar título ni `<h1>` por ese motivo. Consulta con margen en la portada: «ciclismo calendario» (513 impresiones, posición 6,4, CTR 0,6 %).
 - **Fichajes:** `Fichajes ciclismo 2027: mercado, rumores, altas y bajas`, a partir de las consultas «fichajes ciclismo 2027», «rumores fichajes ciclismo 2027» y «altas y bajas ciclismo 2027». Título fijo en `fichajes/index.html`.

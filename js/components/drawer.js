@@ -17,7 +17,6 @@
 //
 //   closeDrawer(level?) — cierra el nivel dado, o el más alto abierto si
 //                         se omite. Cerrar el nivel 1 cierra todo.
-//   isDrawerOpen()      — ¿hay algún nivel abierto?
 //
 // El host markup vive en panel/app.html (#ccDrawerRoot, #ccDrawer1/2).
 // ════════════════════════════════════════════════════════════════════
@@ -170,6 +169,3 @@ export function closeDrawer(level) {
   const target = returnFocus?.isConnected && !returnFocus.closest('[inert]') ? returnFocus : fallback;
   target?.focus({ preventScroll: true });
 }
-
-/** @public Lo consultan las pruebas del ciclo de vida del drawer. */
-export function isDrawerOpen() { return _anyOpen(); }

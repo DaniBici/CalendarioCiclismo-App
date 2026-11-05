@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 import { createCxDataRideClient, fetchCxCompetition } from './cx-dataride-results.mjs';
-import { acnVersionMs, buildAcnCxDocument, fetchAcnTables } from './acn-cx-fetch.mjs';
+import { acnCategories, acnVersionMs, buildAcnCxDocument, fetchAcnTable, fetchAcnTables, fetchAcnTree } from './acn-cx-fetch.mjs';
+import { chronoraceBonusMap, chronoraceContext, chronoraceReportKeys, chronoraceTableUrl, parseChronoraceBonuses } from './chronorace-cx-bonuses.mjs';
 import { fetchWiclaxXml, parseWiclaxCx } from './wiclax-cx-fetch.mjs';
 import { buildKbwbCxDocument, fetchKbwbRaces } from './kbwb-cx-fetch.mjs';
 import { buildSmartwebCxDocument, fetchSmartwebRace, resolveSmartwebIdentities } from './smartweb-cx-fetch.mjs';
+import { buildGolazoCxDocument, fetchGolazoPages, golazoFinality, golazoObserve } from './golazo-cx-fetch.mjs';
+import { fetchZone4Linked, fetchZone4Tree } from './zone4-cx-fetch.mjs';
+import { resolveCxResultIdentity } from '../../js/cx/result-identity.js';
 import { normalizeCxDocumentTeams } from './cx-team-names.mjs';
 import { processCxCategoryDocuments } from './cx-category-batches.mjs';
 import { applyCxResults, loadCxResultsContext, prepareCxResults } from './cx-results-upsert.mjs';
@@ -13,7 +17,7 @@ import { processStandingsQueue } from '../cx/cx-recompute-standings.mjs';
 import { finishAutomationRun, openAutomationClient, recordAutomationSourceRun, startAutomationRun } from '../automation-monitor.mjs';
 import { databaseUrl } from '../db/env.mjs';
 
-// Una sola lectura: enlaces DataRide y enlaces de cronometraje (`link.provider` acn, wiclax, kbwb o smartweb).
+// Una sola lectura: enlaces DataRide y enlaces de cronometraje (`link.provider` acn, wiclax, kbwb, smartweb, zone4 o golazo).
 const CX_CANDIDATE_CATEGORIES=`(SELECT coalesce(jsonb_agg(to_jsonb(c)||jsonb_build_object('resultsLastFetchAt',s."lastFetchAt") ORDER BY c."sortOrder",c.category),'[]')
       FROM public.cx_race_categories c LEFT JOIN private.cx_results_fetch_state s ON s."raceId"=c."raceId" AND s.category=c.category
       WHERE c."raceId"=r.id AND coalesce(c."dateKey",r."dateKey") BETWEEN r."dateKey" AND coalesce(r."endDateKey",r."dateKey")
@@ -34,8 +38,16 @@ export async function loadCxSyncCandidates(client) {
   ) q ORDER BY fetched NULLS FIRST,day,rid`);
   return rows;
 }
-const decisions=(context,options)=>context.categories.filter(c=>(!options.category||c.category===options.category)&&(!options.categories||options.categories.includes(c.category)))
-  .map(manga=>({category:manga.category,...cxSyncDecision(context.race,manga,context.link,options)}));
+// Golazo, fuente secundaria: solo sus páginas, sin resultados de otra fuente ni oficiales, y con la
+// cadencia de su enlace (no comparte la marca por categoría del cronometraje principal).
+const golazoEligible=(link,manga)=>Object.values(link.categoryKeys||{}).includes(manga.category)&&manga.resultsStatus!=='official'
+  &&(manga.resultsStatus==='pending'||manga.resultsProvider==='golazo');
+const decisions=(context,options)=>{
+  const golazo=context.link?.provider==='golazo';
+  return context.categories.filter(c=>(!options.category||c.category===options.category)&&(!options.categories||options.categories.includes(c.category))
+    &&(!golazo||golazoEligible(context.link,c)))
+    .map(manga=>({category:manga.category,...cxSyncDecision(context.race,golazo?{...manga,resultsLastFetchAt:context.link.lastFetchAt}:manga,context.link,options)}));
+};
 const sameLink=(left,right)=>left&&right&&['raceId','disciplineId','competitionId','seasonId','uciRaceId'].every(key=>left[key]===right[key]);
 
 async function recordLink(client,link,status,error=null) {
@@ -297,6 +309,77 @@ export async function collectCxKbwbRace(client,raceId,{now=new Date(),manual=fal
   }
 }
 
+const sameZone4=(left,right)=>left&&right&&left.provider==='zone4'&&right.provider==='zone4'
+  &&left.raceId===right.raceId&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
+async function recordZone4Link(client,link,status,error=null) {
+  await client.query(`UPDATE public.cx_race_timing_links SET "syncStatus"=$1,"lastFetchAt"=now(),"lastFetchError"=$2,"updatedAt"=now()
+    WHERE "raceId"=$3 AND provider='zone4' AND "categoryKeys"=$4::jsonb`,[status,error,link.raceId,JSON.stringify(link.categoryKeys)]);
+}
+async function recordZone4Attempts(client,link,categories) {
+  if(!categories.length)return;
+  await client.query(`INSERT INTO private.cx_results_fetch_state("raceId",category,"lastFetchAt")
+    SELECT c."raceId",c.category,now() FROM public.cx_race_categories c
+    WHERE c."raceId"=$1 AND c.category=ANY($2::text[])
+      AND EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider='zone4' AND l."categoryKeys"=$3::jsonb)
+    ON CONFLICT ("raceId",category) DO UPDATE SET "lastFetchAt"=excluded."lastFetchAt"`,[link.raceId,categories,JSON.stringify(link.categoryKeys)]);
+}
+
+/**
+ * Recogida desde las páginas de resultados de Zone4. `categoryKeys` asigna cada
+ * grupo «<fecha>/<formato>/<nombre>» a una categoría propia. Un grupo se importa
+ * cuando el cronometrador lo marca «Official» y siempre como `provisional`: la
+ * promoción a oficial llega al día civil siguiente y DataRide la sustituye. Nunca
+ * sustituye una categoría oficial ni una protegida.
+ */
+export async function collectCxZone4Race(client,raceId,{now=new Date(),manual=false,category=null,categories=null,fetchTree=fetchZone4Tree,context:preloaded=null}={}) {
+  let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
+  try {
+    const context=preloaded||await loadCxResultsContext(client,raceId);originalLink=context.timingLink;
+    if(originalLink?.provider!=='zone4')return {raceId,provider:'zone4',status:'skipped',decisions:[],rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(category&&!context.categories.some(c=>c.category===category))throw new Error('Categoría solicitada ausente en el calendario propio');
+    const evaluated=decisions({...context,link:{...originalLink,disciplineId:3}},{now,manual,category,categories});
+    attemptedCategories=evaluated.filter(item=>item.due).map(item=>item.category);
+    if(!attemptedCategories.length)return {raceId,provider:'zone4',status:'skipped',decisions:evaluated,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    const map=Object.fromEntries(Object.entries(originalLink.categoryKeys||{}).filter(([,value])=>attemptedCategories.includes(value)));
+    const reviews=attemptedCategories.filter(value=>!Object.values(map).includes(value)).map(value=>({category:value,reason:'Categoría sin grupo Zone4 asignado en categoryKeys'}));
+    const providerOfficial=[];
+    for(const [key,value] of Object.entries(map)){
+      if(context.categories.find(c=>c.category===value)?.resultsStatus!=='official')continue;
+      providerOfficial.push({category:value,reason:'Resultados ya oficiales; Zone4 no los sustituye'});delete map[key];
+    }
+    const document=Object.keys(map).length?await fetchZone4Linked({categoryKeys:map,raceId,seasonKey:context.race.seasonKey,fetchTree})
+      :{schemaVersion:1,source:'zone4',disciplineId:3,raceId,seasonKey:context.race.seasonKey,evidence:{},categories:[],skipped:[],warnings:[]};
+    const pending=(document.skipped||[]).filter(item=>item.category).map(item=>({category:item.category,reason:`${item.reason}; se reintenta en la siguiente pasada`}));
+    await normalizeCxDocumentTeams(client,document);
+    const fresh=await loadCxResultsContext(client,raceId);
+    const unchangedLink=sameZone4(originalLink,fresh.timingLink);
+    const stillDue=unchangedLink
+      ?decisions({...fresh,link:{...fresh.timingLink,disciplineId:3}},{now,manual,category,categories}).filter(item=>item.due).map(item=>item.category):[];
+    if(!unchangedLink)reviews.push({category:null,reason:'El enlace Zone4 cambió durante la consulta; se descarta la respuesta anterior'});
+    for(const manga of document.categories.filter(c=>!stillDue.includes(c.category)))reviews.push({category:manga.category,reason:'La manga dejó de estar disponible para la recogida durante la consulta'});
+    await recordZone4Attempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
+    const processed=await processCxCategoryDocuments({
+      document,
+      categories:document.categories.filter(value=>stillDue.includes(value.category)).map(value=>value.category),
+      prepareCategory:source=>prepareCxResults({...document,categories:[source]},fresh,{status:'provisional'}),
+      applyCategory:prepared=>applyCxResults(client,prepared),
+    });
+    reviews.push(...processed.reviews);
+    const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
+    const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
+    const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
+    await recordZone4Link(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
+    return {raceId,provider:'zone4',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,
+      imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged})),
+      reviews,pending,skipped:[...processed.skipped,...providerOfficial],warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length,
+      sourceWarnings:(document.warnings||[]).slice(0,10)};
+  }catch(error){
+    if(originalLink?.provider==='zone4'&&attemptedCategories.length&&!attemptsRecorded)await recordZone4Attempts(client,originalLink,attemptedCategories).catch(()=>{});
+    if(originalLink?.provider==='zone4')await recordZone4Link(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    return {raceId,provider:'zone4',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
+  }
+}
+
 const sameSmartweb=(left,right)=>left&&right&&left.provider==='smartweb'&&right.provider==='smartweb'
   &&left.raceId===right.raceId&&left.sourceUrl===right.sourceUrl&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
 // smartweb no marca la clasificación como terminada: se publica la tabla que se lee igual en dos pasadas seguidas.
@@ -421,11 +504,97 @@ export async function collectCxSmartwebRace(client,raceId,{now=new Date(),manual
   }
 }
 
-export async function collectCxRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,dataRideClient=createCxDataRideClient(),fetchCompetition=fetchCxCompetition,fetchTables=fetchAcnTables,fetchClax=fetchWiclaxXml,fetchRaces=fetchKbwbRaces,fetchRace=fetchSmartwebRace}={}) {
+const sameGolazo=(left,right)=>left&&right&&left.provider==='golazo'&&right.provider==='golazo'
+  &&left.raceId===right.raceId&&left.sourceUrl===right.sourceUrl&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
+// La marca del enlace (lastFetchAt) es la cadencia de Golazo; sourceState, su estado por categoría.
+async function recordGolazoLink(client,link,status,error=null,sourceState=null) {
+  await client.query(`UPDATE public.cx_race_timing_links SET "syncStatus"=$1,"lastFetchAt"=now(),"lastFetchError"=$2,
+      "sourceState"=coalesce($5::jsonb,"sourceState"),"updatedAt"=now()
+    WHERE "raceId"=$3 AND provider='golazo' AND "sourceUrl"=$4`,[status,error,link.raceId,link.sourceUrl,sourceState&&JSON.stringify(sourceState)]);
+}
+// Golazo no publica dorsal, nacimiento ni UCI ID: una fila se enlaza antes con los inscritos de su manga.
+async function resolveGolazoIdentities(client,document,context) {
+  if(!document.categories.length)return;
+  const {rows}=await client.query(`SELECT category,array_agg("globalRiderId") AS ids FROM public.cx_startlist_riders
+    WHERE "raceId"=$1 AND category=ANY($2::text[]) AND "globalRiderId" IS NOT NULL GROUP BY category`,[context.race.id,document.categories.map(c=>c.category)]);
+  for(const manga of document.categories){
+    const ids=new Set(rows.find(row=>row.category===manga.category)?.ids||[]);
+    const entered=(context.riders[manga.category.startsWith('M')?'men':'women']||[]).filter(rider=>ids.has(rider.id));
+    for(const row of manga.rows){
+      const resolved=resolveCxResultIdentity(row,entered);
+      if(resolved.reason==='verified_name')row.globalRiderId=resolved.id;
+    }
+  }
+}
+
+/**
+ * Recogida desde la web del organizador Golazo (X2O Trofee), fuente secundaria
+ * de la carrera: `categoryKeys` asigna cada página `uitslagen-…` a una
+ * categoría. La web publica la clasificación en directo: cada lectura actualiza
+ * `sourceState` y la tabla se importa cuando `golazoFinality` la acredita como
+ * definitiva (líder en su último paso por meta y tabla estable). Publica solo
+ * `provisional` y solo sobre categorías pendientes o ya cargadas desde Golazo:
+ * KBWB, DataRide u otro cronometraje la sustituyen y Golazo no los pisa. Nunca
+ * sobre una categoría oficial ni protegida.
+ */
+export async function collectCxGolazoRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,fetchPages=fetchGolazoPages,context:preloaded=null}={}) {
+  let originalLink;
+  try {
+    const context=preloaded||await loadCxResultsContext(client,raceId);originalLink=context.golazoLink;
+    if(originalLink?.provider!=='golazo')return {raceId,provider:'golazo',status:'skipped',noLink:true,decisions:[],rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(category&&!context.categories.some(c=>c.category===category))throw new Error('Categoría solicitada ausente en el calendario propio');
+    const evaluated=decisions({...context,link:{...originalLink,disciplineId:3}},{now,manual,category,categories});
+    const attemptedCategories=evaluated.filter(item=>item.due).map(item=>item.category);
+    if(!attemptedCategories.length)return {raceId,provider:'golazo',status:'skipped',decisions:evaluated,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    const map=Object.fromEntries(Object.entries(originalLink.categoryKeys).filter(([,value])=>attemptedCategories.includes(value)));
+    const document=buildGolazoCxDocument({pages:await fetchPages(originalLink.sourceUrl,map),raceId,seasonKey:context.race.seasonKey,
+      dateKey:context.race.dateKey,source:'golazo',siteUrl:originalLink.sourceUrl});
+    const pending=document.skipped.map(item=>({category:item.category,reason:`${item.reason}; se reintenta en la siguiente pasada`}));
+    const reviews=document.invalid.map(item=>({category:item.category,reason:`Clasificación Golazo ${item.url}: ${item.reason}`}));
+    const sourceState={...(originalLink.sourceState||{})};const finals=[];
+    for(const manga of document.categories){
+      sourceState[manga.category]=golazoObserve(sourceState[manga.category],manga,now);
+      const verdict=golazoFinality(sourceState[manga.category],{durationMinutes:context.categories.find(c=>c.category===manga.category)?.durationMinutes,
+        now,stamp:manga.sourceGeneratedAt});
+      if(verdict.final)finals.push(manga);else pending.push({category:manga.category,reason:verdict.reason});
+    }
+    await normalizeCxDocumentTeams(client,document);
+    const fresh=await loadCxResultsContext(client,raceId);
+    const unchangedLink=sameGolazo(originalLink,fresh.golazoLink);
+    const stillDue=unchangedLink
+      ?decisions({...fresh,link:{...fresh.golazoLink,disciplineId:3}},{now,manual,category,categories}).filter(item=>item.due).map(item=>item.category):[];
+    if(!unchangedLink)reviews.push({category:null,reason:'El enlace Golazo cambió durante la consulta; se descarta la respuesta anterior'});
+    for(const manga of finals.filter(c=>!stillDue.includes(c.category)))reviews.push({category:manga.category,reason:'La manga dejó de estar disponible para la recogida de Golazo durante la consulta'});
+    await resolveGolazoIdentities(client,document,fresh);
+    const processed=await processCxCategoryDocuments({
+      document,
+      categories:finals.filter(value=>stillDue.includes(value.category)).map(value=>value.category),
+      prepareCategory:source=>prepareCxResults({...document,categories:[source]},fresh,{status:'provisional'}),
+      applyCategory:prepared=>applyCxResults(client,prepared),
+    });
+    reviews.push(...processed.reviews);
+    const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
+    const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
+    const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
+    await recordGolazoLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null,
+      unchangedLink?sourceState:null);
+    return {raceId,provider:'golazo',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,
+      sources:document.categories.map(c=>({category:c.category,rows:c.rows.length,unclassified:c.evidence.unclassified.length,sourceGeneratedAt:c.sourceGeneratedAt,state:sourceState[c.category]})),
+      imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged,skipped:value.skipped||null})),
+      reviews,pending,skipped:processed.skipped,warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length};
+  }catch(error){
+    if(originalLink?.provider==='golazo')await recordGolazoLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    return {raceId,provider:'golazo',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
+  }
+}
+
+export async function collectCxRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,dataRideClient=createCxDataRideClient(),fetchCompetition=fetchCxCompetition,fetchTables=fetchAcnTables,fetchClax=fetchWiclaxXml,fetchRaces=fetchKbwbRaces,fetchRace=fetchSmartwebRace,fetchPages=fetchGolazoPages,fetchTree=fetchZone4Tree}={}) {
   let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
   try {
     const context=await loadCxResultsContext(client,raceId);originalLink=context.link;
-    // Carrera solo con enlace de cronometraje: la recogida pertenece a ese proveedor (ACN, Wiclax, KBWB o smartweb).
+    if(!originalLink&&!context.timingLink&&context.golazoLink)return await collectCxGolazoRace(client,raceId,{now,manual,category,categories,fetchPages,context});
+    // Carrera solo con enlace de cronometraje: la recogida pertenece a ese proveedor (ACN, Wiclax, KBWB, smartweb o Zone4).
+    if(!originalLink&&context.timingLink?.provider==='zone4')return await collectCxZone4Race(client,raceId,{now,manual,category,categories,fetchTree,context});
     if(!originalLink&&context.timingLink?.provider==='smartweb')return await collectCxSmartwebRace(client,raceId,{now,manual,category,categories,fetchRace,context});
     if(!originalLink&&context.timingLink?.provider==='kbwb')return await collectCxKbwbRace(client,raceId,{now,manual,category,categories,fetchRaces,context});
     if(!originalLink&&context.timingLink?.provider==='wiclax')return await collectCxWiclaxRace(client,raceId,{now,manual,category,categories,fetchClax,context});
@@ -473,6 +642,65 @@ export async function collectCxRace(client,raceId,{now=new Date(),manual=false,c
     return {raceId,status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
   }
 }
+// Bonos por ronda de los torneos cuyo reglamento declara `extras.bonusPublication.provider='chronorace'`.
+// Una reingesta de resultados los deja en NULL: la pasada los repone antes de calcular las generales.
+// Una categoría con algún bono sin cargar sigue siendo candidata sin límite de fecha: su general está detenida.
+const CX_BONUS_RECHECK_MINUTES=30;
+const CX_BONUS_OVERDUE_MS=6*3600000;
+export async function loadCxBonusCandidates(client,now) {
+  const {rows}=await client.query(`/* cx_bonus_candidates */ SELECT r.id AS "raceId",coalesce(c."dateKey",r."dateKey")::text AS "dateKey",c.category,c."bonusSourceUrl",c."resultsImportedAt",
+      t."pointsScheme"#>ARRAY['categories',c.category,'extras','bonusPublication'] AS publication,
+      (SELECT coalesce(jsonb_agg(jsonb_build_object('id',x.id::text,'rank',x.rank,'riderDisplay',x."riderDisplay",'bonusSeconds',x."bonusSeconds",
+        'uciLicenseId',coalesce(m."uciLicenseId",w."uciLicenseId"),'uciProfileId',coalesce(m."uciProfileId",w."uciProfileId")) ORDER BY x."sortOrder"),'[]')
+        FROM public.cx_results x LEFT JOIN public.cx_riders_men m ON m.id=x."globalRiderId" LEFT JOIN public.cx_riders_women w ON w.id=x."globalRiderId"
+        WHERE x."raceId"=c."raceId" AND x.category=c.category) AS rows
+    FROM public.cx_race_categories c JOIN public.cx_races r ON r.id=c."raceId" JOIN public.cx_tournaments t ON t.id=r."tournamentId"
+    WHERE t."pointsScheme"#>>ARRAY['categories',c.category,'extras','bonusPublication','provider']='chronorace'
+      AND r."editorialStatus"='published' AND NOT r."isCancelled" AND NOT c."isCancelled" AND c."resultsStatus"<>'pending'
+      AND (coalesce(c."dateKey",r."dateKey") BETWEEN $1::date-1 AND $1::date OR c."resultsImportedAt">=$2::timestamptz-interval '36 hours'
+        OR c."bonusSourceUrl" IS NULL OR EXISTS(SELECT 1 FROM public.cx_results x WHERE x."raceId"=c."raceId" AND x.category=c.category AND x."bonusSeconds" IS NULL))
+    ORDER BY r."dateKey",r.id,c."sortOrder"`,[cxMadridDate(now),new Date(now).toISOString()]);
+  return rows;
+}
+export async function collectCxRoundBonuses(client,{now=new Date(),fetchTree=fetchAcnTree,fetchTable=fetchAcnTable}={}) {
+  const candidates=await loadCxBonusCandidates(client,now);
+  const outcome={candidates:candidates.length,applied:[],unchanged:[],skipped:[],pending:[],reviews:[]};
+  const at=new Date(now).getTime(),recheck=new Date(now).getUTCMinutes()%CX_BONUS_RECHECK_MINUTES===0,trees=new Map();
+  for(const candidate of candidates){
+    const scope={raceId:candidate.raceId,category:candidate.category};
+    const loaded=candidate.bonusSourceUrl&&candidate.rows.every(row=>row.bonusSeconds!=null);
+    const overdue=!loaded&&at-Date.parse(candidate.resultsImportedAt)>CX_BONUS_OVERDUE_MS;
+    // Ya cargados: solo una comprobación periódica por si Chronorace corrige el informe.
+    if(loaded&&!recheck)continue;
+    // Pasado el plazo la consulta es periódica, pero la categoría sigue en revisión en cada pasada.
+    if(overdue&&!recheck){outcome.reviews.push({...scope,reason:'Bonos sin cargar; se consulta Chronorace cada 30 minutos'});continue;}
+    const wait=reason=>(overdue?outcome.reviews:outcome.pending).push({...scope,reason});
+    const ctx=chronoraceContext(candidate.dateKey,candidate.publication.contextSuffix);
+    let keys,results,bestLap;
+    try{
+      if(!trees.has(ctx))trees.set(ctx,await fetchTree(ctx));
+      keys=trees.get(ctx)&&chronoraceReportKeys(acnCategories(trees.get(ctx)).found,candidate.category);
+      if(keys)[results,bestLap]=[await fetchTable(ctx,keys.results),await fetchTable(ctx,keys.bestLap)];
+    }catch(error){wait(`Chronorace no responde: ${error.message}`);continue;}
+    if(!results||!bestLap){wait(`Informe de Chronorace ${ctx} sin publicar`);continue;}
+    // Como en ACN Timing, la tabla no marca la meta: se espera a que deje de cambiar.
+    if(at-Math.max(acnVersionMs(results.Version),acnVersionMs(bestLap.Version))<ACN_STABLE_MS){wait('Chronorace aún actualiza el informe');continue;}
+    try{
+      const parsed=parseChronoraceBonuses({results,bestLap});
+      if(!parsed.complete){wait(`Bonif de Chronorace incompleto: ${parsed.total} segundos`);continue;}
+      const resultsUrl=chronoraceTableUrl(ctx,keys.results);
+      const {rows:[{applied}]}=await client.query('SELECT public.cx_apply_round_bonuses($1,$2,$3::jsonb,$4::jsonb) AS applied',[candidate.raceId,candidate.category,
+        JSON.stringify(chronoraceBonusMap(parsed,candidate.rows)),
+        JSON.stringify({bonusSourceUrl:resultsUrl,bonusEvidence:{context:ctx,resultsTable:resultsUrl,bestLapTable:chronoraceTableUrl(ctx,keys.bestLap),
+          resultsVersion:String(results.Version),bestLapVersion:String(bestLap.Version),awards:parsed.awards}})]);
+      (applied.skipped?outcome.skipped:applied.unchanged?outcome.unchanged:outcome.applied).push({...scope,...(applied.skipped?{reason:'Bonos de otra fuente; se conservan'}:{})});
+    }catch(error){
+      if(error.code==='40001')outcome.pending.push({...scope,reason:'La clasificación cambió durante la lectura; se reintenta en la siguiente pasada'});
+      else outcome.reviews.push({...scope,reason:error.message.slice(0,500)});
+    }
+  }
+  return outcome;
+}
 export function cxMadridDate(now) {
   const parts=Object.fromEntries(new Intl.DateTimeFormat('en',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now)).map(p=>[p.type,p.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
@@ -492,7 +720,7 @@ export async function promoteCxProvisionalResults(client,{now=new Date()}={}) {
 }
 
 export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,standingsLimit=20,
-  collect=collectCxRace,collectAcn=collectCxAcnRace,collectWiclax=collectCxWiclaxRace,collectKbwb=collectCxKbwbRace,collectSmartweb=collectCxSmartwebRace,dataRideClient=createCxDataRideClient(),promote=promoteCxProvisionalResults,processQueue=processStandingsQueue,enqueuePushes=enqueueCxAutomaticPushes}={}) {
+  collect=collectCxRace,collectAcn=collectCxAcnRace,collectWiclax=collectCxWiclaxRace,collectKbwb=collectCxKbwbRace,collectSmartweb=collectCxSmartwebRace,collectZone4=collectCxZone4Race,collectGolazo=collectCxGolazoRace,collectBonuses=collectCxRoundBonuses,dataRideClient=createCxDataRideClient(),promote=promoteCxProvisionalResults,processQueue=processStandingsQueue,enqueuePushes=enqueueCxAutomaticPushes}={}) {
   if(!Number.isInteger(limit)||limit<1||limit>20||!Number.isInteger(standingsLimit)||standingsLimit<1||standingsLimit>100)throw new Error('Límites CX inválidos');
   const candidates=await loadCxSyncCandidates(client);
   if(dryRun)return {disciplineId:3,dryRun:true,candidates:candidates.map(context=>({raceId:context.race.id,decisions:decisions(context,{now})}))};
@@ -507,7 +735,12 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
       for(const raceId of targets){
         const globalContext=request.cx_race_id?null:candidates.find(c=>c.race.id===raceId);
         const todayCategories=globalContext?globalContext.categories.filter(c=>(c.dateKey||globalContext.race.dateKey)===cxMadridDate(now)).map(c=>c.category):null;
-        results.push(await collect(client,raceId,{now,manual:true,category:request.cx_category,categories:todayCategories,dataRideClient}));seen.add(raceId);
+        const value=await collect(client,raceId,{now,manual:true,category:request.cx_category,categories:todayCategories,dataRideClient});results.push(value);seen.add(raceId);
+        // Golazo después de la fuente principal: no pisa lo que esta acabe de cargar.
+        if(value.provider!=='golazo'){
+          const secondary=await collectGolazo(client,raceId,{now,manual:true,category:request.cx_category,categories:todayCategories});
+          if(!secondary.noLink)results.push(secondary);
+        }
       }
       const failed=results.some(value=>value.status==='error');
       await client.query('SELECT private.finish_results_manual_request($1,$2,$3,3,$4)',
@@ -521,9 +754,15 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
         :provider==='wiclax'?await collectWiclax(client,context.race.id,{now})
         :provider==='kbwb'?await collectKbwb(client,context.race.id,{now})
         :provider==='smartweb'?await collectSmartweb(client,context.race.id,{now})
+        :provider==='zone4'?await collectZone4(client,context.race.id,{now})
+        :provider==='golazo'?await collectGolazo(client,context.race.id,{now})
         :await collect(client,context.race.id,{now,dataRideClient}));seen.add(key);
       if(++scheduled>=limit)break;
     }
+    // Antes de las generales: una reingesta de esta pasada no deja la ronda sin bonos al calcular.
+    // Un fallo aquí no detiene las oficializaciones, las generales ni los avisos.
+    const bonuses=await collectBonuses(client,{now}).catch(error=>({candidates:0,applied:[],unchanged:[],skipped:[],pending:[],
+      reviews:[{raceId:null,category:null,reason:`Lectura de bonos: ${error.message}`.slice(0,500)}]}));
     // Antes de las generales y de los avisos: la oficialización encola el recálculo en esta misma pasada.
     const official=await promote(client,{now})||{promoted:0,categories:[]};
     const general=await processQueue(client,{limit:standingsLimit});
@@ -532,12 +771,14 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
     const decisionReviews=candidates.filter(c=>!seen.has(c.race.id)&&!seen.has(keyOf(c))).flatMap(context=>decisions(context,{now}).filter(d=>d.review).map(d=>({raceId:context.race.id,...d})));
     const sourceErrors=results.filter(value=>value.status==='error').length,generalErrors=general.filter(value=>value.error).length;
     const sourceReviews=results.filter(value=>value.status==='partial').length+decisionReviews.length,generalReviews=general.filter(value=>value.review||value.calculation?.status==='needs_review').length;
-    const dataRideResults=results.filter(value=>!['acn','wiclax','kbwb','smartweb'].includes(value.provider)),acnResults=results.filter(value=>value.provider==='acn'),wiclaxResults=results.filter(value=>value.provider==='wiclax'),kbwbResults=results.filter(value=>value.provider==='kbwb'),smartwebResults=results.filter(value=>value.provider==='smartweb');
+    const dataRideResults=results.filter(value=>!['acn','wiclax','kbwb','smartweb','zone4','golazo'].includes(value.provider)),zone4Results=results.filter(value=>value.provider==='zone4'),acnResults=results.filter(value=>value.provider==='acn'),wiclaxResults=results.filter(value=>value.provider==='wiclax'),kbwbResults=results.filter(value=>value.provider==='kbwb'),smartwebResults=results.filter(value=>value.provider==='smartweb'),golazoResults=results.filter(value=>value.provider==='golazo');
     const acnErrors=acnResults.filter(value=>value.status==='error').length,acnReviews=acnResults.filter(value=>value.status==='partial').length;
     const wiclaxErrors=wiclaxResults.filter(value=>value.status==='error').length,wiclaxReviews=wiclaxResults.filter(value=>value.status==='partial').length;
     const kbwbErrors=kbwbResults.filter(value=>value.status==='error').length,kbwbReviews=kbwbResults.filter(value=>value.status==='partial').length;
     const smartwebErrors=smartwebResults.filter(value=>value.status==='error').length,smartwebReviews=smartwebResults.filter(value=>value.status==='partial').length;
-    const dataRideErrors=sourceErrors-acnErrors-wiclaxErrors-kbwbErrors-smartwebErrors,dataRideReviews=sourceReviews-acnReviews-wiclaxReviews-kbwbReviews-smartwebReviews;
+    const golazoErrors=golazoResults.filter(value=>value.status==='error').length,golazoReviews=golazoResults.filter(value=>value.status==='partial').length;
+    const zone4Errors=zone4Results.filter(value=>value.status==='error').length,zone4Reviews=zone4Results.filter(value=>value.status==='partial').length;
+    const dataRideErrors=sourceErrors-acnErrors-wiclaxErrors-kbwbErrors-smartwebErrors-golazoErrors-zone4Errors,dataRideReviews=sourceReviews-acnReviews-wiclaxReviews-kbwbReviews-smartwebReviews-golazoReviews-zone4Reviews;
     await recordAutomationSourceRun(client,{runId,source:'dataride_cx',status:dataRideErrors?'error':dataRideReviews?'warning':dataRideResults.some(r=>r.status==='ok')?'success':'noop',
       itemsFound:dataRideResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:dataRideResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:dataRideResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:dataRideErrors,summary:{results:dataRideResults,decisions:decisionReviews.slice(0,50)}});
     if(acnResults.length)await recordAutomationSourceRun(client,{runId,source:'acn_cx',status:acnErrors?'error':acnReviews?'warning':acnResults.some(r=>r.status==='ok')?'success':'noop',
@@ -548,14 +789,20 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
       itemsFound:kbwbResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:kbwbResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:kbwbResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:kbwbErrors,summary:{results:kbwbResults}});
     if(smartwebResults.length)await recordAutomationSourceRun(client,{runId,source:'smartweb_cx',status:smartwebErrors?'error':smartwebReviews?'warning':smartwebResults.some(r=>r.status==='ok')?'success':'noop',
       itemsFound:smartwebResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:smartwebResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:smartwebResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:smartwebErrors,summary:{results:smartwebResults}});
+    if(zone4Results.length)await recordAutomationSourceRun(client,{runId,source:'zone4_cx',status:zone4Errors?'error':zone4Reviews?'warning':zone4Results.some(r=>r.status==='ok')?'success':'noop',
+      itemsFound:zone4Results.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:zone4Results.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:zone4Results.reduce((sum,value)=>sum+value.rowsChanged,0),errors:zone4Errors,summary:{results:zone4Results}});
+    if(golazoResults.length)await recordAutomationSourceRun(client,{runId,source:'golazo_cx',status:golazoErrors?'error':golazoReviews?'warning':golazoResults.some(r=>r.status==='ok')?'success':'noop',
+      itemsFound:golazoResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:golazoResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:golazoResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:golazoErrors,summary:{results:golazoResults}});
+    if(bonuses.candidates||bonuses.reviews.length)await recordAutomationSourceRun(client,{runId,source:'chronorace_cx',status:bonuses.reviews.length?'warning':bonuses.applied.length?'success':'noop',
+      itemsFound:bonuses.candidates,itemsMatched:bonuses.applied.length+bonuses.unchanged.length,itemsChanged:bonuses.applied.length,errors:0,summary:bonuses});
     await recordAutomationSourceRun(client,{runId,source:'cx_standings',status:generalErrors?'error':generalReviews?'warning':general.length?'success':'noop',
       itemsFound:general.length,itemsMatched:general.filter(value=>value.published).length,itemsChanged:general.reduce((sum,value)=>sum+(value.published?.rows||0),0),errors:generalErrors,
       summary:{categories:general.map(value=>({tournamentId:value.claimed.tournamentId,category:value.claimed.category,status:value.review?'manual':value.calculation?.status||'error',issues:value.calculation?.issues||[],reviewReason:value.reviewReason||null,error:value.error||null}))}});
     const pushChanges=pushes.scheduled+pushes.updated+pushes.cancelled;
     await recordAutomationSourceRun(client,{runId,source:'cx_push',status:pushChanges?'success':'noop',itemsFound:pushes.found,
       itemsMatched:pushes.scheduled+pushes.updated,itemsChanged:pushChanges,summary:{...pushes,delivery:'scheduled_queue'}});
-    const status=sourceErrors||generalErrors?'error':sourceReviews||generalReviews?'partial':results.length||official.promoted||general.length||pushChanges?'success':'noop';
-    const summary={disciplineId:3,manualRequestId:request?.request_id||null,candidates:candidates.length,results,promoted:official,standings:general.length,pushes,sourceErrors,generalErrors,sourceReviews,generalReviews};
+    const status=sourceErrors||generalErrors?'error':sourceReviews||generalReviews||bonuses.reviews.length?'partial':results.length||bonuses.applied.length||official.promoted||general.length||pushChanges?'success':'noop';
+    const summary={disciplineId:3,manualRequestId:request?.request_id||null,candidates:candidates.length,results,bonuses,promoted:official,standings:general.length,pushes,sourceErrors,generalErrors,sourceReviews,generalReviews};
     await finishAutomationRun(client,{runId,status,summary,error:status==='error'||status==='partial'?'Consultar las fuentes CX y sus revisiones pendientes':null});
     return {status,...summary};
   }catch(error){

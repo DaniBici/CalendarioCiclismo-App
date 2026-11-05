@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Logo del arranque (splash del sistema y SplashOverlay). Misma geometría que
+  ic_launcher_foreground, con el trazo en @color/splash_logo: azul en claro y
+  blanco en oscuro, como LaunchLogo de iOS (logo.svg / logo-dark.svg).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!--
+      Escala 0.8× alrededor del centro (50,50) para que el artwork quede
+      dentro de la safe zone del adaptive icon (72dp de los 108dp del canvas).
+    -->
+    <group
+        android:scaleX="0.8"
+        android:scaleY="0.8"
+        android:pivotX="50"
+        android:pivotY="50">
+
+        <!-- Calendario -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M18.5,38 L39.5,38 A3,3 0 0 1 42.5,41 L42.5,62 A3,3 0 0 1 39.5,65 L18.5,65 A3,3 0 0 1 15.5,62 L15.5,41 A3,3 0 0 1 18.5,38 Z"/>
+        <!-- Tab izquierdo -->
+        <path
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:strokeLineCap="round"
+            android:pathData="M23,35 L23,41"/>
+        <!-- Tab derecho -->
+        <path
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:strokeLineCap="round"
+            android:pathData="M35,35 L35,41"/>
+        <!-- Separador horizontal -->
+        <path
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:strokeLineCap="round"
+            android:pathData="M15.5,47 L42.5,47"/>
+
+        <!-- Bicicleta — rueda trasera -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:pathData="M61.25,58.25 m-5.25,0 a5.25,5.25 0 1,0 10.5,0 a5.25,5.25 0 1,0 -10.5,0"/>
+        <!-- Bicicleta — rueda delantera -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:pathData="M80.75,58.25 m-5.25,0 a5.25,5.25 0 1,0 10.5,0 a5.25,5.25 0 1,0 -10.5,0"/>
+        <!-- Bicicleta — cabeza del ciclista -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:pathData="M75.5,39.5 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0"/>
+        <!-- Bicicleta — cuadro -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/splash_logo"
+            android:strokeWidth="2.3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M71,58.25 L71,53 L66.5,48.5 L72.5,44 L75.5,48.5 L78.5,48.5"/>
+
+    </group>
+
+</vector>

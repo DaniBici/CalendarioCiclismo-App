@@ -236,6 +236,29 @@ function pointsRow(line) {
   return { rank: Number(rankText), rankText, bib, riderDisplay, teamName, isoCode2: countryCode(country?.[1]), resultValue: String(points), timeText: String(points), gapText: null, points, irm: null };
 }
 
+// Vuelta a Guatemala 2026: montaña y regularidad generales en dos columnas
+// (`1 71 UNGER Logan 34   14 31 TOC Fredy Orlando 7`), sin categoría ni `Pts`.
+// Una penalización resta puntos (`-2`).
+export function twoColumnPointsRows(block) {
+  const rows = String(block || '').split(/\r?\n/).flatMap((line) => [...clean(line).matchAll(/(?:^|\s)(\d+)\s+(\d+)\s+([^\d\s,][^\d,]*?)\s+(-?\d+)(?=\s|$)/g)]
+    .map(([, rankText, bib, riderDisplay, pointsText]) => {
+      const points = Number(pointsText);
+      return { rank: Number(rankText), rankText, bib, riderDisplay: clean(riderDisplay), resultValue: String(points), timeText: String(points), gapText: null, points, irm: null };
+    }));
+  return rows.sort((a, b) => a.rank - b.rank);
+}
+
+// Un fallo del formato en dos columnas descarta solo esa general: la etapa 7
+// de Guatemala 2026 repite el dorsal 51 en la regularidad.
+function twoColumnRowsOrSkip(block, label) {
+  const rows = twoColumnPointsRows(block);
+  if (!rows.length) return rows;
+  try { return validateRows(rows, null, label); } catch (error) {
+    log(`  ⚠ ${error.message}; se omite la clasificación`);
+    return [];
+  }
+}
+
 // La clasificación colombiana abrevia patrocinadores y provincias por la anchura
 // fija del PDF. Estas son las denominaciones completas de la startlist: conservarlas
 // aquí permite que el upsert las enlace de forma estable (y que la web no muestre dos
@@ -269,8 +292,10 @@ export function normalizeColombiaTeamName(value) {
   return colombiaTeamNames.get(name.toLocaleUpperCase('es')) ?? name;
 }
 
-function teamRow(line) {
-  const match = clean(line).match(/^(\d+)(?:\.-)?\s+(.+?)\s+(\d{1,2}:\d{2}:\d{2})(?:\s+(.*))?$/);
+// La general por equipos de la Vuelta a Guatemala 2026 (etapa 8) imprime el
+// puesto como `-1` y acumula más de 99 horas (`102:10:33`).
+export function teamRow(line) {
+  const match = clean(line).match(/^-?(\d+)(?:\.-)?\s+(.+?)\s+(\d{1,3}:\d{2}:\d{2})(?:\s+(.*))?$/);
   if (!match) return null;
   const [, rankText, teamName, absolute, tail = ''] = match;
   const normalizedTeamName = normalizeColombiaTeamName(teamName);
@@ -365,6 +390,16 @@ function asIrm(row, irm) {
   return { ...base, rank: null, rankText: irm, resultValue: null, timeText: null, gapText: null, points: null, irm };
 }
 
+// Vuelta a Guatemala 2026: lista tras `Corredores clasificados` con dorsal,
+// UCI ID, nombre, nación e IRM (`66 10127256102 HUINAC Henry Arnulfo GUA OTL 5:36:05`).
+function uciIdIrmRow(line) {
+  const match = clean(line).match(/^(\d+)\s+\d{11}\s+(.+?)\s+([A-Z]{3})\s+(DNS|DNF|OTL|DSQ)\b/);
+  if (!match) return null;
+  const [, bib, riderDisplay, nac, irm] = match;
+  return { rank: null, rankText: irm, bib, riderDisplay: clean(riderDisplay), teamName: null,
+    isoCode2: countryCode(nac), resultValue: null, timeText: null, gapText: null, points: null, irm };
+}
+
 function standaloneIrmRow(line) {
   const match = clean(line).match(/^(DNS|DNF|OTL|DSQ)\s*:\s*(\d+)\s*[–—-]\s*(?:\d{11}\s*[–—-]\s*)?(.+?)\s+([A-Z]{3})\s*[–—-]\s*(.+)$/i);
   if (!match) return null;
@@ -420,6 +455,7 @@ function stageRowsWithIrms(text, mainRows) {
     ...bulletinDnfBibs.map((bib) => asIrm({ bib }, 'DNF')),
     ...irmRowsFromSection(dsqBlock, 'DSQ'),
     ...parseRows(text, standaloneIrmRow),
+    ...parseRows(text, uciIdIrmRow),
     ...['DNS', 'DNF', 'OTL', 'DSQ'].flatMap((irm) => shortIrmBibs(irm).map((bib) => asIrm({ bib }, irm))),
   ];
   const seenBibs = new Set();
@@ -496,7 +532,11 @@ export function parseOneDayPdfText(code, text, sourcePdfUrl = null, expectedYear
   };
 }
 
-export function parsePdfText(code, stageNumber, text, totalStages = null, expectedYear = null, expectedDate = null) {
+export function parsePdfText(code, stageNumber, rawText, totalStages = null, expectedYear = null, expectedDate = null) {
+  // La Vuelta a Guatemala 2026 (etapa 9) antepone `|` a la cabecera de la general
+  // sub-23: sin retirarlo, ningún patrón de cierre la reconoce y la general
+  // absorbe esa tabla y reinicia los puestos.
+  const text = String(rawText ?? '').replace(/^([ \t]*)\|(?=[ \t]*CLASIFICACI)/gim, '$1');
   validateExpectedYear(text, expectedYear, `etapa ${stageNumber}`);
   const publishedDate = publishedDateKey(text);
   if (expectedDate && publishedDate !== expectedDate) {
@@ -524,17 +564,19 @@ export function parsePdfText(code, stageNumber, text, totalStages = null, expect
     const rows = parseRows(gcBlock, (line) => individualRow(line, true));
     if (rows.length) classifications.push(classification(code, stageNumber, 'gc', 'stage', 'General Classification', normalizeTimeRows(validateRows(rows, null, `general etapa ${stageNumber}`))));
   }
-  const pointsBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:POR\s+PUNTOS|DE\s+LA\s+REGULARIDAD)[^\n]*/i)
-    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:POR\s+PUNTOS|DE\s+LA\s+REGULARIDAD)(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
+  const pointsBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:POR\s+PUNTOS|DE\s+(?:LA\s+)?REGULARIDAD)[^\n]*/i)
+    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:POR\s+PUNTOS|DE\s+(?:LA\s+)?REGULARIDAD)(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (pointsBlock) {
-    const rows = parseRows(pointsBlock, pointsRow);
-    if (rows.length) classifications.push(classification(code, stageNumber, 'points', 'overall', 'Overall Points Classification', validateRows(rows, null, `puntos etapa ${stageNumber}`)));
+    const listed = parseRows(pointsBlock, pointsRow);
+    const rows = listed.length ? validateRows(listed, null, `puntos etapa ${stageNumber}`) : twoColumnRowsOrSkip(pointsBlock, `puntos etapa ${stageNumber}`);
+    if (rows.length) classifications.push(classification(code, stageNumber, 'points', 'overall', 'Overall Points Classification', rows));
   }
   const komBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:PREMIOS\s+DE\s+|DE\s+)?MONTA[ÑN]A[^\n]*/i)
     ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:PREMIOS\s+DE\s+|DE\s+)?MONTA[ÑN]A(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (komBlock) {
-    const rows = parseRows(komBlock, pointsRow);
-    if (rows.length) classifications.push(classification(code, stageNumber, 'kom', 'overall', 'Overall Mountains Classification', validateRows(rows, null, `montaña etapa ${stageNumber}`)));
+    const listed = parseRows(komBlock, pointsRow);
+    const rows = listed.length ? validateRows(listed, null, `montaña etapa ${stageNumber}`) : twoColumnRowsOrSkip(komBlock, `montaña etapa ${stageNumber}`);
+    if (rows.length) classifications.push(classification(code, stageNumber, 'kom', 'overall', 'Overall Mountains Classification', rows));
   }
   const youthBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:DE\s+)?(?:SUB\s?23|JOVENES)[^\n]*/i)
     ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:SUB\s?23|JOVENES)(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);

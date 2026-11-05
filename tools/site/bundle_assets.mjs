@@ -37,7 +37,7 @@ const EXCLUDED_SEGMENTS = ['vendor', 'panel', 'chunks', '__tests__'];
 const NOT_BUNDLED_FILES = new Set(['config.js', 'config.template.js']);
 
 /** Rutas de fichero absolutas de un especificador local, o null si no es local. */
-export function resolveLocal(specifier, fromDir, site) {
+function resolveLocal(specifier, fromDir, site) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(specifier) || specifier.startsWith('//')) return null;
   const clean = specifier.split(/[?#]/)[0];
   const target = clean.startsWith('/') ? join(site, clean) : resolve(fromDir, clean);
@@ -57,7 +57,7 @@ function bundlable(file, site) {
  * Entradas de un HTML: módulos (`src` de <script type="module">, imports de
  * módulos en línea) y scripts clásicos (`src` sin type="module").
  */
-export function scriptsOfHtml(html, htmlDir, site) {
+function scriptsOfHtml(html, htmlDir, site) {
   const modules = new Set();
   const classic = new Set();
   for (const [, attrs, body] of html.matchAll(SCRIPT_TAG)) {
@@ -235,7 +235,7 @@ async function bundleCss(site) {
 }
 
 /** Empaqueta `site`. Devuelve el resumen; lanza si falta algo o el panel se cuela. */
-export async function bundleSite(site) {
+async function bundleSite(site) {
   const { entries, classic } = discover(site);
   if (!entries.length) throw new Error('Sin puntos de entrada de módulos en el sitio');
   const metafile = await bundleModules(site, entries);

@@ -171,7 +171,7 @@ const CAT_RANK = { HC: 0, 1: 1, 2: 2, 3: 3, 4: 4 };
 // `finishKm` aparta el punto de meta. Cada grupo lleva la posición del primer
 // paso, el de categoría más dura (`top`; en sprints, el primero), los pasos en
 // orden y la altitud mayor.
-export function groupRepeatedPoints(items = [], locate, { keyOf = s => s.name, finishKm = null } = {}) {
+function groupRepeatedPoints(items = [], locate, { keyOf = s => s.name, finishKm = null } = {}) {
   const groups = [];
   items.forEach(s => {
     if (s.km == null) return;

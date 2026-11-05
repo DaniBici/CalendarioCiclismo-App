@@ -23,7 +23,7 @@ function wordCase(word, first) {
 }
 
 /** Grafía de presentación de un nombre en mayúsculas; un nombre con minúsculas se conserva. */
-export function cxTeamDisplayCase(name) {
+function cxTeamDisplayCase(name) {
   const text = String(name ?? '').replace(/\s+/g, ' ').trim();
   if (!text || text !== text.toUpperCase() || text === text.toLowerCase()) return text || null;
   let first = true; let end = 0;

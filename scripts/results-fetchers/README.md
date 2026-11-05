@@ -113,25 +113,18 @@ desde los inscritos. Se conserva el ID histórico de esa clasificación al corre
 su tipo. Los tiempos absolutos publicados tienen prioridad; si solo hay diferencias,
 se suman con centésimas antes de truncar el resultado a segundos enteros.
 
-El carril de startlists tiene sus propias piezas: `tissot-startlist-fetch.mjs`
-extrae `/startlist` (en CRI, `rank` = orden de salida y `value` = hora local) y
-`/teams` (selección con nombre, miembros y UCI ID) y emite un documento crudo sin
-tocar la BD; `tissot-startlists-sync.mjs` resuelve identidad y equipo contra
-Supabase y aplica vía la RPC `vps_import_tissot_startlist`. Retirado del runner
-del VPS el 2026-09-25: se conserva para ejecución manual, solo para carreras de un día. En una vuelta por etapas la
-startlist de Tissot es la de cada etapa, no la de inscritos, y no se procesa.
-El `uciRiderId` de Tissot es una licencia (`uciLicenseId`), no un perfil UCI
-corto (`uciProfileId`). El país del catálogo se lee de `nationality`. Si no hay
-licencia registrada, se puede resolver por dorsal y nombre o alias exacto de la
-lista existente, sin asignar identidades ambiguas. Las listas y órdenes ya
-importados como oficiales se omiten antes de consultar de nuevo la fuente.
+Las startlists de Tissot no tienen carril automático: el sync se retiró del
+runner del VPS el 2026-09-25 y sus scripts del repositorio el 2026-11-01. Se
+importan a mano con `cc-startlists-corredores`. El `uciRiderId` de Tissot es
+una licencia (`uciLicenseId`), no un perfil UCI corto (`uciProfileId`).
 
 Los Juegos servidos por Bornan (Juegos Asiáticos 2026, `source='bornan'`) tienen su
 propio carril de inscritos: `bornan-startlist-fetch.mjs` lee la API `entries` por
 NOC mientras la organización no publica dorsales, y el PDF «Start List» (C51R/C51T)
 cuando aparece; `bornan-startlists-sync.mjs` resuelve selección por `selectionCode`
-ISO-2 y ficha por nombre/nacimiento, y aplica con `prepare_startlist_import` +
-`apply_startlist_import`. La lista queda provisional (dorsal 0) hasta el PDF oficial.
+ISO-2 y ficha por nombre/nacimiento, y aplica con `vps_import_bornan_startlist`,
+que envuelve `prepare_startlist_import` + `apply_startlist_import` y solo admite
+carreras con `source='bornan'`. La lista queda provisional (dorsal 0) hasta el PDF oficial.
 La firma de origen se compara con `vps_startlist_state` para no reaplicar una lista
 idéntica en cada pasada, y las identidades ambiguas bloquean la importación hasta su
 revisión manual. Corre en el runner en la cadencia lenta.
@@ -194,11 +187,11 @@ llevar errata de un día; con `--date`, un desfase de hasta un día se avisa y s
 normaliza a la fecha de la jornada, y más de un día se rechaza. El cron lo activa con
 `race_uci_links.source='belgiancycling'` y `belgianCyclingCode=<código con año>`.
 
-`belgiancycling-startlist-fetch.mjs` y `belgiancycling-startlists-sync.mjs`
-constituyen el carril de inscritos de la misma federación, **retirado del VPS
-el 2026-09-18** por falta de fiabilidad: el PDF no aporta UCI ID ni país y cada
-lista generaba excepciones de identidad y de equipo que bloqueaban la
-aplicación. Los scripts permanecen como herramienta manual — el fetcher vuelca
+`belgiancycling-startlist-fetch.mjs` es el volcador manual de inscritos de la
+misma federación. El carril automático se **retiró del VPS el 2026-09-18** por
+falta de fiabilidad (el PDF no aporta UCI ID ni país y cada lista generaba
+excepciones de identidad y de equipo que bloqueaban la aplicación) y su
+sincronizador se eliminó del repositorio el 2026-11-01. El fetcher vuelca
 el documento sin tocar la BD y la aplicación corre con
 `prepare_startlist_import` + `apply_startlist_import` (con overrides de riders
 por dorsal y teams por índice) desde MCP, resolviendo las excepciones a mano.
@@ -228,7 +221,13 @@ retiros y fueras de control que solo publica el boletín del jurado de comisario
 (`RETIROS DORSAL 83`, `CORREDORES FUERA DEL LIMITE …: 65 – 84`) se emiten como
 DNF y OTL de la llegada. En una prueba de un día, la sección
 `CORREDORES RETIRADOS` sin sufijo `/DNF` (Gran Prix Chiriquí) lleva el IRM, DNS
-o DNF, al final de cada fila. Una etapa
+o DNF, al final de cada fila. La Vuelta a Guatemala 2026 publica tras
+`Corredores clasificados` una lista con dorsal, UCI ID, nombre, nación e IRM;
+la montaña y la regularidad generales, en dos columnas sin `Pts` (una general en
+ese formato que no supera la validación se omite sin bloquear la etapa), y la
+general por equipos con el puesto como `-1`. Una `|` ante una cabecera
+`CLASIFICACION` (general sub-23 de su etapa 9) se retira antes de leer las
+secciones. Una etapa
 cuyo encabezado anuncia C.R.I., contrarreloj o cronoescalada, o cuya tabla trae
 `T.Inter`, se emite con `raceType='ITT'`. Las diferencias se derivan del tiempo
 final cuando la fila lo publica; la columna de diferencia solo se usa sin tiempo.
@@ -288,6 +287,34 @@ usan perfiles propios: el mismo cronometrador publica el tiempo en meta con
 centésimas y, en la crono, una lista de progreso por parciales que impide volcar
 hasta que termina el último corredor en salir.
 
+Las pruebas griegas de racesystem.gr (evento 430510: Thessaloniki International
+Ladies Time Trial y Alexandria Ladies International Race 2026) publican en páginas
+propias (`tt`, `rr`) en lugar de `results`: el perfil por fecha fija `page`, la
+lista oficial y las columnas, con nombre y apellido separados y el IRM en una
+columna de estado. La página entra en el salt de los IDs sintéticos, porque ambas
+pruebas comparten el concurso 0. La crono solo se publica cuando cada dorsal con
+hora en la lista de salida tiene puesto o IRM (`startGate`).
+
+La plantilla de Punto de Control (`template: 'puntodecontrol'`, Vuelta Ciclista
+del Uruguay Femenina 2026) se resuelve en `raceresult-puntodecontrol.mjs`: una
+lista por jornada y su general, columnas por expresión, fecha y distancia oficial
+de cada jornada en el perfil y guardas frente a la simulación previa (media del
+ganador y salida programada) y frente a una CRI en curso. Una CRI posterior al
+prólogo puede publicarse sin número (`CRONO|Contrareloj`, `CRONO|GeneralCrono`);
+entonces espera a todas las dorsales de `CRONO|OrdenCrono`, y las carpetas
+posteriores conservan el número interno que no la cuenta: la jornada se localiza
+por el rótulo oficial de su llegada (`4ETAPA 2|Etapa2`, mostrada como «Etapa 3»)
+y su general y su general por equipos se toman de la misma carpeta. Los estados
+`FT` y `FC` son OTL. La general por equipos
+(`GenEquiposPrologo`, `GenEquiposEtapaN`) se cuelga de su jornada. Regularidad y
+Cima (`GENERALES|Gral…`, concurso 0, sin jornada en el cabecero) son el acumulado
+vigente: se emiten como `points` y `kom` de la última jornada validada, solo hasta
+el día de la siguiente y con dorsales de la lista de participantes. Sprinter
+(metas volantes) no es clasificación UCI y no se emite. Jóvenes (`youth/overall`)
+se deriva de la general de cada jornada con las dorsales `youthBibs` del perfil:
+el cronometrador no publica nacimientos y su categoría usa la edad de su temporada,
+no la de la UCI.
+
 `chronohr-results-fetch.mjs` consume los HTML públicos de CH:RO:NO. Parte del
 índice de la carrera, descubre la portada real de cada jornada y después los
 cuadros publicados, sin presuponer prefijos de archivo. Las etiquetas `1st-a` y
@@ -302,12 +329,8 @@ llegada, general, puntos, montaña, jóvenes, equipos e IRM; rechaza un PDF de o
 año, fecha o etapa. El cron lo activa con `race_uci_links.source='istanbul'` y usa
 el año y las jornadas de la propia carrera, sin código adicional por proveedor.
 
-`livetiming-results-fetch.mjs` incorpora el dossier oficial de Computerauswertung
-para Sauerlandrundfahrt 2026. Prefiere los PDF publicados y utiliza el live mientras
-no exista PDF, comprobando carrera, etapa y fecha. Conserva el enlace
-`source='livetiming'`, `livetimingCode='260903'` y los identificadores de la carga
-manual previa. La CRI conserva las diferencias publicadas antes de truncar las
-centésimas; los PDF requieren `pdftotext`, ya instalado en el VPS.
+En la CRI, `livetiming-results-fetch.mjs` conserva las diferencias publicadas
+antes de truncar las centésimas.
 
 `kyushu-results-fetch.mjs` lee el comunicado oficial de cada etapa del Tour de
 Kyushu, enlazado desde el aviso de resultados de las noticias del organizador o

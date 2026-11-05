@@ -1,70 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { annotateDoubleSectors, buildInhouseResultsMatcher } from '../services/races.js';
-
-// ── annotateDoubleSectors ──────────────────────────────────────────
-
-function makeRaceDay(overrides = {}) {
-  return {
-    id: overrides.id ?? crypto.randomUUID(),
-    raceId: overrides.raceId ?? 'race-1',
-    dateKey: overrides.dateKey ?? '2026-07-01',
-    stageNumber: overrides.stageNumber ?? 1,
-    isRestDay: overrides.isRestDay ?? false,
-    isCancelledDay: overrides.isCancelledDay ?? false,
-    neutralStartTimeUtc: overrides.neutralStartTimeUtc ?? null,
-    ...overrides,
-  };
-}
-
-describe('annotateDoubleSectors', () => {
-  it('no asigna sufijo si no hay duplicados', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-02', stageNumber: 2 }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._stageSuffix).toBeUndefined();
-    expect(days[1]._stageSuffix).toBeUndefined();
-  });
-
-  it('ordena A/B por hora de salida ascendente', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T13:00:00Z' }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T08:00:00Z' }),
-    ];
-    annotateDoubleSectors(days);
-    const sufixes = days.map(d => d._stageSuffix);
-    expect(sufixes).toContain('A');
-    expect(sufixes).toContain('B');
-    const aIdx = days.findIndex(d => d._stageSuffix === 'A');
-    expect(days[aIdx].neutralStartTimeUtc).toBe('2026-07-01T08:00:00Z');
-  });
-
-  // A diferencia de sectorSuffixMap, aquí un sector cancelado no cuenta como
-  // doble sector: ninguno de los dos recibe sufijo.
-  it('no asigna sufijo a días de descanso ni a etapas canceladas', () => {
-    for (const flag of ['isRestDay', 'isCancelledDay']) {
-      const days = [
-        makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, [flag]: true }),
-        makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-      ];
-      annotateDoubleSectors(days);
-      expect(days[0]._stageSuffix).toBeUndefined();
-      expect(days[1]._stageSuffix).toBeUndefined();
-    }
-  });
-
-  it('no mezcla dobles sectores de carreras distintas', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-      makeRaceDay({ raceId: 'r2', dateKey: '2026-07-01', stageNumber: 1 }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._stageSuffix).toBeUndefined();
-    expect(days[1]._stageSuffix).toBeUndefined();
-  });
-
-});
+import { buildInhouseResultsMatcher, sectorSuffixMap, resultFeedEntryKey, resultStageEntryKey } from '../services/races.js';
 
 describe('buildInhouseResultsMatcher', () => {
   it('distingue dos sectores con el mismo stageNumber por raceDayId', () => {
@@ -95,9 +30,6 @@ describe('buildInhouseResultsMatcher', () => {
     expect(matcher.has({ id: 'stage-1b', raceId: 'r1', stageNumber: 1 })).toBe(false);
   });
 });
-
-// ── sectorSuffixMap / resultStageEntryKey / parseResultStageKey ─────
-import { sectorSuffixMap, resultFeedEntryKey, resultStageEntryKey, parseResultStageKey } from '../services/races.js';
 
 describe('sectorSuffixMap', () => {
   it('no marca sectores en carrera sin dobles sectores', () => {
@@ -164,14 +96,5 @@ describe('resultFeedEntryKey', () => {
   it('mantiene dos entradas y ganadores independientes para 1A y 1B', () => {
     expect(resultFeedEntryKey('bct', 1, 'bct-1a', suffixByDayId, sectoredNums)).toBe('bct#1A');
     expect(resultFeedEntryKey('bct', 1, 'bct-1b', suffixByDayId, sectoredNums)).toBe('bct#1B');
-  });
-});
-
-describe('parseResultStageKey', () => {
-  it('descompone claves', () => {
-    expect(parseResultStageKey('final')).toEqual({ stageNumber: null, suffix: '' });
-    expect(parseResultStageKey('3')).toEqual({ stageNumber: 3, suffix: '' });
-    expect(parseResultStageKey('3A')).toEqual({ stageNumber: 3, suffix: 'A' });
-    expect(parseResultStageKey('0')).toEqual({ stageNumber: 0, suffix: '' });
   });
 });

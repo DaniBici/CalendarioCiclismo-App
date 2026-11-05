@@ -99,6 +99,7 @@ function startlistStageRows(uciStages) {
  * también el build. `teamRows`: startlist_teams con `team` (teams y, con año,
  * sus team_seasons) embebido. Devuelve null si no hay equipos inscritos.
  */
+/** @public tools/site/prerender-inscritos.mjs lo usa como miembro del módulo cargado con import(). */
 export function prepareStartlistData(race, { raceDays, teamRows, uciStages, riders: riderRows, outRows }) {
   if (!teamRows || teamRows.length === 0) return null;
 

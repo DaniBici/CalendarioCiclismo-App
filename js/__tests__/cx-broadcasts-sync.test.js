@@ -275,6 +275,27 @@ describe('Sporza: livestreams de veldrijden', () => {
     expect(events[0].startTimeUtc).toBe('2026-10-11T11:30:00.000Z');
   });
 
+  it('lee el marcado Tailwind de octubre de 2026 y deduce el año de las cabeceras', () => {
+    const { events, rowCount } = parseSporzaCxLivestreams(
+      fixture('sporza-cx-livestream-20261030.html'), { todayKey: '2026-10-30' },
+    );
+    expect(rowCount).toBe(17);
+    expect(events.map((event) => [event.dateKey, event.localTime, event.venueLabel, event.competition, event.category]))
+      .toEqual([
+        ['2026-11-01', '13:30', 'Koppenbergcross', 'X²O-trofee vrouwen', 'WE'],
+        ['2026-11-01', '14:45', 'Koppenbergcross', 'X²O-trofee mannen', 'ME'],
+        ['2026-11-07', '14:50', 'EK veldrijden in Zeddam', 'elite vrouwen', 'WE'],
+        ['2026-11-08', '14:50', 'EK veldrijden in Zeddam', 'elite mannen', 'ME'],
+      ]);
+    expect(events[0].startTimeUtc).toBe('2026-11-01T12:30:00.000Z');
+  });
+
+  it('asigna el año siguiente a una cabecera de enero leída en diciembre', () => {
+    const html = fixture('sporza-cx-livestream-20261030.html').replace('<span>Zo. 1 nov</span>', '<span>Za. 2 jan</span>');
+    const { events } = parseSporzaCxLivestreams(html, { todayKey: '2026-12-28' });
+    expect(events[0]).toMatchObject({ dateKey: '2027-01-02', venueLabel: 'Koppenbergcross' });
+  });
+
   it('une cada livestream con su partido y usa la ruta estable ~matchId', () => {
     const events = sporzaEvents();
     expect(events.map((event) => [event.dateKey, event.category, event.externalEventId, event.broadcastUrl])).toEqual([

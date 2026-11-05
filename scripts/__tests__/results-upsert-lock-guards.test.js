@@ -63,7 +63,7 @@ describe('filtro de etapa — general final del último volcado automático', ()
 //
 // Estos tests fijan el plan que emite buildPlan (orden, parámetros y banderas de
 // cada sentencia). El efecto de las guardas de lock sobre las filas depende del
-// SQL ejecutado en la base y se cubre en scripts/data-preflight/tests.
+// SQL ejecutado en la base y no se prueba aquí.
 
 const clasificacion = (overrides = {}) => ({
   eventId: -1359920101,

@@ -4,8 +4,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * Agrupación de carreras de un día (tabla `challenge_groups`), p. ej. la
- * Challenge Mallorca. Temporada la presenta en una sola fila, como la web
- * (`js/temporada.js`).
+ * Challenge Mallorca, o de las pruebas de un campeonato
+ * (`SeasonChallengeLogic.championshipGroups`). Temporada la presenta en una
+ * sola fila, como la web (`js/temporada.js`).
  */
 @Serializable
 data class ChallengeGroup(

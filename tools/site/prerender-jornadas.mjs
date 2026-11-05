@@ -57,14 +57,14 @@ const LANGS = {
   en: { dir: 'en/stage', timeZone: 'Etc/GMT', timeZoneLabel: 'GMT' },
 };
 
-export function parseScope(value) {
+function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
   if (!Object.hasOwn(SCOPES, scope)) throw new Error(`PRERENDER_JORNADAS no admitido: «${scope}» (off, 2027, es o all)`);
   return scope;
 }
 
 /** Si la jornada `day` ({ dateKey }) de la página en `lang` entra en el ámbito. */
-export function inScope(scope, lang, day) {
+function inScope(scope, lang, day) {
   const { langs, year } = SCOPES[scope];
   if (!langs.includes(lang)) return false;
   return !year || String(day?.dateKey || '').startsWith(`${year}-`);
@@ -109,7 +109,7 @@ async function apiRequest(url, key, offset, fetchImpl) {
 }
 
 /** Filas de `path` paginadas de 1.000 en 1.000 (una página corta es el final). */
-export async function apiRows(path, key, fetchImpl = fetch) {
+async function apiRows(path, key, fetchImpl = fetch) {
   const url = `${SUPABASE_URL}/rest/v1/${path}&order=id.asc`;
   const rows = [];
   for (let offset = 0; ; offset += API_PAGE) {
@@ -119,7 +119,7 @@ export async function apiRows(path, key, fetchImpl = fetch) {
   }
 }
 
-async function loadApiData(scope, key, fetchImpl = fetch) {
+export async function loadApiData(scope, key, fetchImpl = fetch) {
   if (!key) throw new Error('Falta SUPABASE_ANON_KEY para leer los datos de las jornadas');
   const entries = Object.entries(apiQueries(scope));
   const results = await Promise.all(entries.map(([, path]) => apiRows(path, key, fetchImpl)));
@@ -146,7 +146,7 @@ export function readSharedData(dir) {
     assets: read('assets'), guides: read('guides'), uci };
 }
 
-function sharedDataDir() {
+export function sharedDataDir() {
   const dir = process.env.PAGES_DATA;
   return dir && existsSync(join(dir, 'manifest.json')) ? dir : null;
 }
@@ -173,7 +173,7 @@ function pick(row, columns) {
  * STAGE_SIBLING_COLUMNS de todas las jornadas publicadas) falta en el volcado
  * local, cuyo `days` ya incluye todas las publicadas.
  */
-export function buildIndex(data) {
+function buildIndex(data) {
   const rows = name => data[name] || [];
   const columns = STAGE_SIBLING_COLUMNS.split(',');
   const published = (data.siblings || rows('days')).map(row => pick(row, columns));
@@ -205,7 +205,7 @@ export function buildIndex(data) {
 }
 
 /** Argumentos de jornadaHtml() para la jornada `dayId`, o null si faltan datos. */
-export function jornadaInputs(index, dayId) {
+function jornadaInputs(index, dayId) {
   const day = index.days.get(dayId);
   const race = day?.raceId ? index.races.get(day.raceId) : null;
   if (!day || !race) return null;
@@ -295,7 +295,7 @@ export function scheduleErrors(page, rd) {
  * Comprobaciones de una página de jornada generada; devuelve los errores.
  * `navHrefs`: enlaces de vistas que debe llevar la cabecera (js/header-html.js).
  */
-export function validatePage(page, { rd, navHrefs }) {
+function validatePage(page, { rd, navHrefs }) {
   return [...pageErrors(page, { navHrefs, maxBytes: MAX_PAGE_BYTES }), ...scheduleErrors(page, rd)];
 }
 
@@ -304,7 +304,7 @@ export function validatePage(page, { rd, navHrefs }) {
  * { status: 'fallback', reason } si queda como está; { status: 'ok', page,
  * errors } si se generó. `render(input)` devuelve { html, headerInner }.
  */
-export function prerenderPage(source, { lang, scope, index, render, navHrefs, fingerprint }) {
+function prerenderPage(source, { lang, scope, index, render, navHrefs, fingerprint }) {
   const dayId = pageDayId(source);
   if (!dayId || !SCOPES[scope].langs.includes(lang)) return { status: 'out' };
   // Sin la jornada entre las publicadas, su año se desconoce: cuenta como

@@ -201,10 +201,9 @@ Los roles que guardan startlists conservan sus permisos; el worker no recibe
 escritura directa en afiliaciones. El modelo inverso se recalcula explícitamente
 porque su trigger existente omite escrituras anidadas.
 
-La prueba reversible
-[`auto-club-rosters.sql`](../../scripts/data-preflight/tests/auto-club-rosters.sql)
-cubre ambos géneros, enlace tardío, cambios del equipo de inscripción,
-idempotencia, temporada futura, prioridad de afiliaciones curadas y selecciones.
+La prueba reversible `auto-club-rosters.sql` (retirada el 2026-11-01) cubría
+ambos géneros, enlace tardío, cambios del equipo de inscripción, idempotencia,
+temporada futura, prioridad de afiliaciones curadas y selecciones.
 
 ## Respaldo, comprobación y recuperación
 
@@ -213,11 +212,10 @@ manifiesto, dos fichas completas y dos afiliaciones completas. La migración
 comprueba ids, equipos, temporada, fechas y timestamps antes de borrar; aborta
 si aparece una afiliación de selección fuera del manifiesto.
 
-La prueba transaccional
-[`selection-rosters.sql`](../../scripts/data-preflight/tests/selection-rosters.sql)
-comprueba convocatorias de los dos corredores con club y selección, su posterior
-afiliación a un club, y rechazos de plantillas nacionales y regionales,
-actuales y futuras. Termina con `ROLLBACK`.
+La prueba transaccional `selection-rosters.sql` (retirada el 2026-11-01)
+comprobaba convocatorias de los dos corredores con club y selección, su
+posterior afiliación a un club, y rechazos de plantillas nacionales y
+regionales, actuales y futuras. Terminaba con `ROLLBACK`.
 
 La recuperación de datos debe ejecutarse mediante una nueva migración dirigida,
 previa revisión de cambios posteriores. Restaurar esas afiliaciones incorrectas

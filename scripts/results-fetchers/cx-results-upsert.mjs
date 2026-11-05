@@ -39,7 +39,7 @@ function birthDate(value) {
 
 /** Preparación sin efectos. context procede del catálogo CX, nunca de carretera. */
 export function prepareCxResults(document, context, { status = 'provisional', category = null, officialUciResults = false } = {}) {
-  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb'].includes(document.source)
+  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb', 'golazo', 'zone4'].includes(document.source)
     || !Array.isArray(document.categories) || !['pending', 'provisional', 'official'].includes(status)
     || category != null && !CATEGORIES.includes(category)
     || officialUciResults && (document.source !== 'dataride' || status !== 'official')) throw new Error('Contrato CX, categoría, fuente o estado inválidos');
@@ -70,6 +70,17 @@ export function prepareCxResults(document, context, { status = 'provisional', ca
     || document.categories.some(item => item.evidence?.smartweb?.sourceUrl !== timing.sourceUrl
       || timing.categoryKeys?.[item.evidence?.smartweb?.label] !== item.category))) {
     throw new Error('Correspondencia smartweb no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'zone4' && (!timing || timing.raceId !== race.id || timing.provider !== 'zone4'
+    || document.categories.some(item => timing.categoryKeys?.[item.evidence?.zone4?.key] !== item.category))) {
+    throw new Error('Correspondencia Zone4 no verificada en cx_race_timing_links');
+  }
+  // Golazo tiene su propio enlace, además del de cronometraje de la carrera.
+  const golazo = context.golazoLink;
+  if (document.source === 'golazo' && (!golazo || golazo.raceId !== race.id || golazo.provider !== 'golazo' || !golazo.sourceUrl
+    || document.categories.some(item => item.evidence?.golazo?.sourceUrl !== golazo.sourceUrl
+      || golazo.categoryKeys?.[item.evidence?.golazo?.page] !== item.category))) {
+    throw new Error('Correspondencia Golazo no verificada en cx_race_timing_links');
   }
   const prepared = { raceId: race.id, seasonKey: race.seasonKey, source: document.source, status, imports: [], skipped: [], warnings: [] };
   const seen = new Set();
@@ -178,7 +189,8 @@ export async function loadCxResultsContext(client, raceId) {
       FROM public.cx_race_categories c LEFT JOIN private.cx_results_fetch_state s ON s."raceId"=c."raceId" AND s.category=c.category
       WHERE c."raceId"=r.id),
     'link',(SELECT to_jsonb(l) FROM public.cx_race_uci_links l WHERE l."raceId"=r.id),
-    'timingLink',(SELECT to_jsonb(t) FROM public.cx_race_timing_links t WHERE t."raceId"=r.id),
+    'timingLink',(SELECT to_jsonb(t) FROM public.cx_race_timing_links t WHERE t."raceId"=r.id AND t.provider<>'golazo'),
+    'golazoLink',(SELECT to_jsonb(t) FROM public.cx_race_timing_links t WHERE t."raceId"=r.id AND t.provider='golazo'),
     'riders',jsonb_build_object('men',(SELECT coalesce(jsonb_agg(to_jsonb(m)),'[]') FROM
       (SELECT id,"firstName","lastName","otherNames",nationality,"birthDate","birthDatePrecision",verified,"uciProfileId" FROM public.cx_riders_men) m),
     'women',(SELECT coalesce(jsonb_agg(to_jsonb(w)),'[]') FROM

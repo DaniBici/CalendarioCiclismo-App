@@ -287,10 +287,9 @@ struct SeasonView: View {
 
     // MARK: - Month page
 
-    /// Un elemento de la lista de Temporada: una carrera real, un challenge
-    /// (sus pruebas en una fila, como la web) o la fila sintética de
-    /// Campeonatos Nacionales (que colapsa todas las CN, como en la vista de
-    /// Mes y la web).
+    /// Un elemento de la lista de Temporada: una carrera real, un challenge o un
+    /// campeonato (sus pruebas en una fila, como la web) o la fila sintética de
+    /// Campeonatos Nacionales (que colapsa las CN de su pantalla, como la web).
     private enum SeasonRow: Identifiable {
         case entry(SeasonEntry)
         case championships
@@ -302,12 +301,12 @@ struct SeasonView: View {
         }
     }
 
-    /// Agrupa los challenges e intercala la fila de Campeonatos (si procede)
+    /// Agrupa challenges y campeonatos e intercala la fila de Campeonatos (si procede)
     /// entre las carreras de un mes, ordenada por la fecha de inicio de la
     /// semana de Campeonatos. Solo se inserta en el mes que contiene esa semana
     /// (junio).
     private func rows(for races: [Race], month: Int) -> [SeasonRow] {
-        let entries = SeasonChallengeLogic.entries(races: races, groups: viewModel.challengeGroups)
+        let entries = SeasonChallengeLogic.entries(races: races, groups: viewModel.seasonGroups)
         var items = entries.map { SeasonRow.entry($0) }
         guard viewModel.hasChampionships, month == viewModel.championshipsMonth else {
             return items
@@ -459,11 +458,16 @@ struct SeasonView: View {
             if expanded {
                 ForEach(races) { race in
                     Divider().padding(.leading, 16)
-                    raceRowView(race: race)
+                    raceRowView(race: race, inGroup: true)
                         .padding(.leading, 16)
                 }
             }
         }
+        // Las pruebas aparecen en su sitio definitivo mientras las filas de
+        // debajo aún bajan: sin recorte se pintaban encima de ellas durante
+        // la animación. El grupo se recorta a su alto animado y las pruebas
+        // se descubren al ritmo del despliegue (y se ocultan al plegar).
+        .clipped()
     }
 
     private func challengeDisplayName(_ group: ChallengeGroup) -> String {
@@ -483,7 +487,7 @@ struct SeasonView: View {
     // MARK: - Race row
 
     @ViewBuilder
-    private func raceRowView(race: Race) -> some View {
+    private func raceRowView(race: Race, inGroup: Bool = false) -> some View {
         if race.isOneDay {
             Button {
                 Haptics.play(.navigation)
@@ -491,7 +495,7 @@ struct SeasonView: View {
             } label: {
                 SeasonRaceRow(
                     race: race,
-                    displayName: displayName(for: race),
+                    displayName: displayName(for: race, inGroup: inGroup),
                     showFemale: showFemaleIndicator(for: race)
                 )
             }
@@ -507,7 +511,7 @@ struct SeasonView: View {
             } label: {
                 SeasonRaceRow(
                     race: race,
-                    displayName: displayName(for: race),
+                    displayName: displayName(for: race, inGroup: inGroup),
                     showFemale: showFemaleIndicator(for: race)
                 )
             }
@@ -566,12 +570,13 @@ struct SeasonView: View {
 
     // MARK: - Display helpers
 
-    private func displayName(for race: Race) -> String {
+    private func displayName(for race: Race, inGroup: Bool = false) -> String {
+        let name = inGroup ? SeasonChallengeLogic.nameInGroup(race) : race.localizedName
         let filter = viewModel.activeFilter
         if (filter == .wwt || filter == .female), race.isFemale {
-            return RaceLogic.cleanFeminineDisplayName(race.localizedName)
+            return RaceLogic.cleanFeminineDisplayName(name)
         }
-        return race.localizedName
+        return name
     }
 
     private func showFemaleIndicator(for race: Race) -> Bool {
@@ -652,6 +657,8 @@ private struct SeasonChampionshipsRow: View {
 private struct SeasonRowLayout<Logo: View, Name: View, Trailing: View>: View {
     let countryCode: String?
     var showFlag = true
+    /// Los Campeonatos Nacionales no llevan logo: sin hueco.
+    var showLogo = true
     @ViewBuilder var logo: () -> Logo
     @ViewBuilder var name: () -> Name
     let dates: String
@@ -665,10 +672,12 @@ private struct SeasonRowLayout<Logo: View, Name: View, Trailing: View>: View {
             }
 
             // Hueco fijo del logo aunque la carrera no tenga: misma altura y
-            // mismo arranque del nombre en todas las filas.
-            Color.clear
-                .frame(width: 28, height: 28)
-                .overlay { logo() }
+            // mismo arranque del nombre en todas las filas, salvo las CN.
+            if showLogo {
+                Color.clear
+                    .frame(width: 28, height: 28)
+                    .overlay { logo() }
+            }
 
             // Una sola línea por fila: el nombre se recorta antes que partir la
             // fila en dos.
@@ -690,6 +699,7 @@ private struct SeasonRowLayout<Logo: View, Name: View, Trailing: View>: View {
 
             trailing()
         }
+        .frame(minHeight: 28)
         .padding(.vertical, 9)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -725,6 +735,7 @@ private struct SeasonRaceRow: View {
         SeasonRowLayout(
             countryCode: race.countryCode,
             showFlag: race.hideFlag != true,
+            showLogo: !ChampionshipsConfig.isChampionship(race),
             logo: { RaceLogo(race.logoUrl, size: 28) },
             name: { seasonRowName(displayName, showFemale: showFemale, cancelled: race.isCancelled) },
             dates: DateFormatting.formatDateRange(start: race.startDate, end: race.endDate),
@@ -756,6 +767,7 @@ private struct SeasonChallengeRow: View {
     var body: some View {
         SeasonRowLayout(
             countryCode: group.countryCode,
+            showLogo: group.uciCategory != "CN",
             logo: { RaceLogo(group.logoUrl, size: 28) },
             name: { seasonRowName(displayName, showFemale: showFemale) },
             dates: dateRange,

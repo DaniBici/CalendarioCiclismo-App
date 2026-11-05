@@ -8,7 +8,7 @@
 //  build (js/html-fingerprint.js).
 // ─────────────────────────────────────────────────────────────────
 
-import { esc, formatTimeUser, raceUrl, rdLocation, buildRaceHero, buildStageNav, buildActionButtons,
+import { esc, formatTimeUser, routeBlockDayHtml, raceUrl, rdLocation, buildRaceHero, buildStageNav, buildActionButtons,
          perfilUrl, enBase, startFinishLabels } from './shared.js';
 import { fixedDecimal } from './fixed-number.js';
 import { t, getLang } from './i18n.js';
@@ -56,8 +56,10 @@ function routeGridHtml(rd, race) {
     ? `<div class="route-block__type">${t(`types.${rd.primaryType}`)}</div>`
     : '';
 
-  const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+  const startTU  = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
+  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
+  const startDay  = routeBlockDayHtml(startTU);
+  const finishDay = routeBlockDayHtml(finishTU);
   const start  = startTU?.display  ?? null;
   const finish = finishTU?.display ?? null;
   const tzDiffers = !!(startTU?.tooltip || finishTU?.tooltip);
@@ -67,11 +69,11 @@ function routeGridHtml(rd, race) {
   const timeTag = (iso, text) => `<time datetime="${esc(iso)}">${text}</time>`;
   let horariosHtml;
   if (start && finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}</div>${ARROW_SVG}<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}</div>`;
+    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>${ARROW_SVG}<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>`;
   } else if (start) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}</div><div class="route-block__note">${startLabel}</div>`;
+    horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div><div class="route-block__note">${startLabel}</div>`;
   } else if (finish) {
-    horariosHtml = `<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}</div><div class="route-block__note">${finishLabel}</div>`;
+    horariosHtml = `<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div><div class="route-block__note">${finishLabel}</div>`;
   } else {
     horariosHtml = `<div class="route-block__note route-block__note--empty">${t('stage.noSchedule')}</div>`;
   }

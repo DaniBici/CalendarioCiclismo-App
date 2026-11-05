@@ -57,14 +57,14 @@ const API_IN_CHUNK = 100;
 // Por tipo: directorio de las páginas ES, contenedor y tamaño máximo sin
 // comprimir (2026-10-22: perfil, máximo de 26 KB; mapa, 22 KB; orden de
 // salida, 98 KB con 184 corredores).
-export const TYPES = {
+const TYPES = {
   perfil: { dir: 'perfil', container: 'perfilEtapaContent', maxBytes: 64 * 1024 },
   mapa: { dir: 'mapa', container: 'mapaEtapaContent', maxBytes: 64 * 1024 },
   orden: { dir: 'orden-salida', container: 'startOrderContent', maxBytes: 128 * 1024 },
 };
 
 /** Tipos del ámbito, en el orden de TYPES: [] con off. Como auxiliares_types() de site_data.py. */
-export function parseScope(value) {
+function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
   if (scope === 'off') return [];
   if (scope === 'es') return Object.keys(TYPES);
@@ -99,7 +99,7 @@ const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_
  * carreras por año (Map año → carreras, en orden de aparición). Como
  * orden_scope() de site_data.py.
  */
-export function ordenScope(days, races) {
+function ordenScope(days, races) {
   const years = new Map(races.map(race => [race.id, race.year ?? null]));
   const dayIds = [];
   const byYear = new Map();
@@ -168,7 +168,7 @@ function sharedDataDir() {
 const pick = (row, columns) => Object.fromEntries(columns.split(',').map(column => [column, row[column] ?? null]));
 
 /** Índices por jornada y carrera de los datos (volcado o API). */
-export function buildIndex(data) {
+function buildIndex(data) {
   const rows = name => data[name] || [];
   const guideByRace = new Map();
   for (const [raceId, guides] of groupBy(rows('guides'), row => row.race_days?.raceId)) {
@@ -193,7 +193,7 @@ export function buildIndex(data) {
  * aviso que pinta el navegador en ese caso (perfil no visible, jornada sin
  * mapa o sin filas de orden de salida).
  */
-export function pageInputs(type, index, dayId) {
+function pageInputs(type, index, dayId) {
   const row = index.days.get(dayId);
   if (!row) return { reason: 'sin datos' };
   const raceRow = row.raceId ? index.races.get(row.raceId) ?? null : null;
@@ -223,7 +223,7 @@ export function pageInputs(type, index, dayId) {
  * en perfil y mapa, contenedor del mapa y tantas filas como entradas tiene el
  * orden de salida (`rows`).
  */
-export function validatePage(page, { type, rd, rows, navHrefs, notice = false }) {
+function validatePage(page, { type, rd, rows, navHrefs, notice = false }) {
   const errors = pageErrors(page, { navHrefs, maxBytes: TYPES[type].maxBytes });
   if (notice) return errors;
   if (type !== 'orden') errors.push(...scheduleErrors(page, rd));
@@ -240,7 +240,7 @@ export function validatePage(page, { type, rd, rows, navHrefs, notice = false })
  * 'fallback', reason } si queda como está; { status: 'ok', page, errors } si
  * se generó. `render(type, input, header)` devuelve { html, headerInner, rows }.
  */
-export function prerenderPage(source, { type, index, render, navHrefs, fingerprint }) {
+function prerenderPage(source, { type, index, render, navHrefs, fingerprint }) {
   const dayId = pageDayId(source);
   if (!dayId) return { status: 'out' };
   const input = pageInputs(type, index, dayId);
@@ -257,7 +257,7 @@ export function prerenderPage(source, { type, index, render, navHrefs, fingerpri
 }
 
 /** Resumen por tipo; `ok` false si algún tipo no llega al 99 % o hay páginas inválidas. */
-export function summarize(results) {
+function summarize(results) {
   const failing = results.filter(result => (result.scope ? result.generated / result.scope : 1) < MIN_RATIO);
   return { failing, ok: !failing.length && !results.some(result => result.errors.length) };
 }

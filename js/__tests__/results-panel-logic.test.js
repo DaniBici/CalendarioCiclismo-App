@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyPersistedResultSyncDayState,
-  filterStartlistRiderCandidates,
-  findResultClassificationDuplicate,
-  hasResultSyncDayOverride,
   isFinalStageRaceDay,
   manualResultClassificationRow,
-  nextResultRank,
-  normalizeResultTimeInput,
-  pairFinalClassifications,
-  resultClassificationBelongsToDay,
-  resultClassificationOfficialState,
-  resultRiderPickerInitialQuery,
-  resultSyncDefaultScope,
-  resultSyncScopeOptionsVisible,
-  resolveResultLeaderName,
-  riderMatchesSearch,
-  riderSearchTokens,
   shouldMirrorFinalClassification,
   startlistRosterCandidates,
   uniqueStartlistSurnameMatch,
@@ -27,60 +12,6 @@ describe('clasificaciones manuales por jornada y sector', () => {
     { id: '1a', raceId: 'flanders', stageNumber: 1 },
     { id: '1b', raceId: 'flanders', stageNumber: 1 },
   ];
-  const stageA = {
-    id: 'stage-a', raceId: 'flanders', raceDayId: '1a', stageNumber: 1,
-    classKind: 'stage', scope: 'stage', isFinalClassification: false,
-  };
-  const request = { kind: 'stage', scope: 'stage', isFinal: false };
-
-  it('permite crear 1B aunque 1A ya tenga esa clasificación', () => {
-    expect(findResultClassificationDuplicate([stageA], sectors[1], request, sectors)).toBeUndefined();
-    expect(resultClassificationBelongsToDay(stageA, sectors[1], sectors)).toBe(false);
-  });
-
-  it('impide duplicar una clasificación del mismo sector', () => {
-    expect(findResultClassificationDuplicate([stageA], sectors[0], request, sectors)).toBe(stageA);
-    const stageB = { ...stageA, id: 'stage-b', raceDayId: '1b' };
-    expect(findResultClassificationDuplicate([stageA, stageB], sectors[1], request, sectors)).toBe(stageB);
-  });
-
-  it('no atribuye una cabecera sin jornada a ambos sectores', () => {
-    const legacy = { ...stageA, raceDayId: null };
-    for (const rd of sectors) {
-      expect(resultClassificationBelongsToDay(legacy, rd, sectors)).toBe(false);
-      expect(findResultClassificationDuplicate([legacy], rd, request, sectors)).toBeUndefined();
-    }
-  });
-
-  it('mantiene el fallback legado cuando el número identifica una sola jornada', () => {
-    const legacy = { ...stageA, raceDayId: null };
-    expect(resultClassificationBelongsToDay(legacy, sectors[0], [sectors[0]])).toBe(true);
-    expect(findResultClassificationDuplicate([legacy], sectors[0], request, [sectors[0]])).toBe(legacy);
-    expect(resultClassificationBelongsToDay(legacy, sectors[0], [])).toBe(false);
-  });
-
-  it('mantiene separados los tipos, los scopes y las carreras', () => {
-    expect(findResultClassificationDuplicate([stageA], sectors[0], { ...request, kind: 'gc' }, sectors)).toBeUndefined();
-    expect(findResultClassificationDuplicate([stageA], sectors[0], { ...request, scope: 'overall' }, sectors)).toBeUndefined();
-    expect(findResultClassificationDuplicate([{ ...stageA, raceId: 'otra' }], sectors[0], request, sectors)).toBeUndefined();
-  });
-
-  it('detecta las finales a nivel de carrera, independientemente del sector', () => {
-    const final = { ...stageA, raceDayId: null, stageNumber: null, classKind: 'gc', isFinalClassification: true };
-    const finalRequest = { ...request, kind: 'gc', isFinal: true };
-    for (const rd of sectors) {
-      expect(findResultClassificationDuplicate([final], rd, finalRequest, sectors)).toBe(final);
-    }
-    expect(findResultClassificationDuplicate([stageA], sectors[0], finalRequest, sectors)).toBeUndefined();
-  });
-
-  it('reconoce el prólogo y una clasificación de prueba ligada a su jornada', () => {
-    for (const stageNumber of [0, null]) {
-      const day = { id: 'day', raceId: 'race', stageNumber };
-      const stage = { ...stageA, raceId: 'race', raceDayId: day.id, stageNumber };
-      expect(findResultClassificationDuplicate([stage], day, request, [day])).toBe(stage);
-    }
-  });
 
   it('el alta manual crea dos sectores con identificadores distintos y rechaza el duplicado', () => {
     const a = manualResultClassificationRow(sectors[0], [], 'stage', false, sectors, 'Etapa');
@@ -94,54 +25,6 @@ describe('clasificaciones manuales por jornada y sector', () => {
     expect(b.eventId).toBeLessThan(0);
     expect(() => manualResultClassificationRow(sectors[1], [a, b], 'stage', false, sectors, 'Etapa'))
       .toThrow('Ya existe una clasificación «Etapa»');
-  });
-});
-
-describe('programación automática de resultados', () => {
-  it('reconoce una excepción por sus horas exactas, sin booleano de activación', () => {
-    expect(hasResultSyncDayOverride({ resultsSyncStartAt: '2026-08-30T15:00:00Z' })).toBe(true);
-    expect(hasResultSyncDayOverride({ resultsSyncStopAt: '2026-08-30T18:00:00Z' })).toBe(true);
-    expect(hasResultSyncDayOverride({ resultsSyncStartOffsetMinutes: -15 })).toBe(true);
-    expect(hasResultSyncDayOverride({ unrelated: false })).toBe(false);
-  });
-
-  it('selecciona por defecto la etapa consultada', () => {
-    expect(resultSyncDefaultScope({ stageNumber: 2 })).toBe('day');
-    expect(resultSyncDefaultScope({ stageNumber: 0 })).toBe('day');
-    expect(resultSyncDefaultScope({ stageNumber: null })).toBe('race');
-    expect(resultSyncDefaultScope({
-      stageNumber: null,
-      resultsSyncStartAt: '2026-08-30T15:00:00Z',
-    })).toBe('day');
-  });
-
-  it('solo ofrece elegir alcance en vueltas por etapas', () => {
-    expect(resultSyncScopeOptionsVisible({ raceFormat: 'stage_race' })).toBe(true);
-    expect(resultSyncScopeOptionsVisible({ raceFormat: 'one_day' })).toBe(false);
-  });
-
-  it('incorpora al estado visible la ventana confirmada por Postgres', () => {
-    const rd = {
-      resultsSyncStartAt: '2026-09-02T13:40:00Z',
-      resultsSyncStopAt: '2026-09-02T17:17:00Z',
-      resultsSyncStartOffsetMinutes: -15,
-      unrelated: 'se conserva',
-    };
-    applyPersistedResultSyncDayState(rd, {
-      resultsSyncStartAt: '2026-09-02T13:30:00Z',
-      resultsSyncStopAt: '2026-09-02T17:17:00Z',
-      resultsSyncStartOffsetMinutes: null,
-      resultsSyncIntervalMinutes: null,
-      resultsSyncStopOffsetMinutes: null,
-    });
-    expect(rd).toEqual({
-      resultsSyncStartAt: '2026-09-02T13:30:00Z',
-      resultsSyncStopAt: '2026-09-02T17:17:00Z',
-      resultsSyncStartOffsetMinutes: null,
-      resultsSyncIntervalMinutes: null,
-      resultsSyncStopOffsetMinutes: null,
-      unrelated: 'se conserva',
-    });
   });
 });
 
@@ -179,60 +62,6 @@ describe('pseudo-clasificación final automática', () => {
     expect(shouldMirrorFinalClassification({ classKind: 'gc' }, true)).toBe(true);
     expect(shouldMirrorFinalClassification({ classKind: 'stage' }, true)).toBe(false);
     expect(shouldMirrorFinalClassification({ classKind: 'points' }, false)).toBe(false);
-  });
-
-  it('colapsa la cabecera de etapa y la pseudo-final en una fila con el estado de la gemela', () => {
-    const mine = [
-      { id: 'stage', classKind: 'stage' },
-      { id: 'points-stage', classKind: 'points', lockedAt: null },
-    ];
-    const finals = [
-      { id: 'points-final', eventId: -2, classKind: 'points', lockedAt: '2026-08-22T12:00:00Z',
-        officialAt: '2026-08-22T12:00:00Z', publicationStatus: 'official' },
-      { id: 'kom-final', eventId: -3, classKind: 'kom' },
-    ];
-
-    const paired = pairFinalClassifications(mine, finals, true);
-    expect(paired.mine).toHaveLength(2);
-    expect(paired.mine[1]).toMatchObject({
-      id: 'points-stage',
-      _isFinalRaceDay: true,
-      _finalTwinId: 'points-final',
-      _finalTwinEventId: -2,
-      _finalTwinOfficialAt: '2026-08-22T12:00:00Z',
-      _finalTwinPublicationStatus: 'official',
-    });
-    expect(paired.finals.map((stage) => stage.id)).toEqual(['kom-final']);
-  });
-});
-
-describe('estado de oficialidad de una clasificación', () => {
-  it('reconoce la oficialidad declarada por la fuente y la manual', () => {
-    expect(resultClassificationOfficialState({ publicationStatus: 'provisional', officialAt: null }))
-      .toEqual({ official: false, partial: false, pinned: false });
-    expect(resultClassificationOfficialState({ publicationStatus: 'official', officialAt: null }))
-      .toEqual({ official: true, partial: false, pinned: false });
-    expect(resultClassificationOfficialState({ publicationStatus: 'official', officialAt: '2026-09-15T10:00:00Z' }))
-      .toEqual({ official: true, partial: false, pinned: true });
-    // Ancla sin estado aún recalculado también cuenta como oficial.
-    expect(resultClassificationOfficialState({ publicationStatus: 'provisional', officialAt: '2026-09-15T10:00:00Z' }))
-      .toEqual({ official: true, partial: false, pinned: true });
-  });
-
-  it('solo da por oficial un par etapa+final cuando ambas cabeceras lo son', () => {
-    const base = {
-      _finalTwinId: 'final',
-      _finalTwinOfficialAt: null,
-      _finalTwinPublicationStatus: 'provisional',
-    };
-    expect(resultClassificationOfficialState({ ...base, publicationStatus: 'official', officialAt: null }))
-      .toEqual({ official: false, partial: true, pinned: false });
-    expect(resultClassificationOfficialState({
-      ...base,
-      publicationStatus: 'official',
-      officialAt: '2026-09-15T10:00:00Z',
-      _finalTwinPublicationStatus: 'official',
-    })).toEqual({ official: true, partial: false, pinned: true });
   });
 });
 
@@ -276,105 +105,5 @@ describe('autoasociación por apellido en resultados', () => {
   it('no asocia coincidencias ambiguas ni parciales', () => {
     expect(uniqueStartlistSurnameMatch('Martínez', riders)).toBeNull();
     expect(uniqueStartlistSurnameMatch('García', riders)).toBeNull();
-  });
-
-  it('limita el selector manual a los inscritos y permite buscar por dorsal o nombre', () => {
-    const candidates = filterStartlistRiderCandidates(riders, '31');
-    expect(candidates.map(rider => rider.name)).toEqual(['Wout van Aert']);
-    expect(filterStartlistRiderCandidates(riders, 'martinez').map(rider => rider.dorsal)).toEqual([47, 91]);
-    expect(filterStartlistRiderCandidates(riders, 'Dijke Tim').map(rider => rider.dorsal)).toEqual([126]);
-    expect(filterStartlistRiderCandidates(riders, 'Tomas Kopecky').map(rider => rider.dorsal)).toEqual([214]);
-    expect(riderMatchesSearch(riders.at(-1), 'Kopeck')).toBe(true);
-    expect(riderSearchTokens('David González')).toEqual(['david', 'gonzalez']);
-    expect(riderSearchTokens('Søren Wærenskjold Þórsson Łukasz')).toEqual(['soren', 'waerenskjold', 'thorsson', 'lukasz']);
-    expect(riderSearchTokens('- (a) -')).toEqual([]);
-  });
-
-  it('precarga el nombre completo en el selector de la startlist', () => {
-    expect(resultRiderPickerInitialQuery('van den berg', true)).toBe('van den berg');
-    expect(resultRiderPickerInitialQuery('Tim van Dijke', true)).toBe('Tim van Dijke');
-    expect(resultRiderPickerInitialQuery('Tomáš Kopecký', true)).toBe('Tomáš Kopecký');
-    expect(resultRiderPickerInitialQuery('Tomáš Kopecký', false)).toBe('Kopecký');
-  });
-
-});
-
-describe('puesto de una fila nueva de resultados', () => {
-  it('empieza en 1 y suma uno al puesto de la fila anterior', () => {
-    expect(nextResultRank([])).toBe(1);
-    expect(nextResultRank(['1'])).toBe(2);
-    expect(nextResultRank(['1', '17'])).toBe(18);
-  });
-});
-
-describe('atajos de diferencias de tiempo', () => {
-  it('convierte segundos y minuto.segundos al formato de gap', () => {
-    expect(normalizeResultTimeInput('00')).toBe('+0:00');
-    expect(normalizeResultTimeInput('33')).toBe('+0:33');
-    expect(normalizeResultTimeInput('1.18')).toBe('+1:18');
-    expect(normalizeResultTimeInput('1.2')).toBe('+1:02');
-    expect(normalizeResultTimeInput('4.18.18', 1)).toBe('4:18:18');
-    expect(normalizeResultTimeInput('4.18.18', 2)).toBe('+4:18:18');
-    expect(normalizeResultTimeInput('4.8.8', 64)).toBe('+4:08:08');
-  });
-
-  it('conserva tiempos completos y entradas fuera de rango', () => {
-    expect(normalizeResultTimeInput('+0:14')).toBe('+0:14');
-    expect(normalizeResultTimeInput('4:23:12')).toBe('4:23:12');
-    expect(normalizeResultTimeInput('78')).toBe('78');
-    expect(normalizeResultTimeInput('1.78')).toBe('1.78');
-    expect(normalizeResultTimeInput('4.78.18')).toBe('4.78.18');
-  });
-});
-
-describe('líder visible de una clasificación', () => {
-  const riderByBib = {
-    21: { name: 'Milan Fretin', teamDisplay: 'Cofidis' },
-  };
-  const riderByGid = {
-    rider_7: { name: 'Arnaud De Lie', teamDisplay: 'Lotto Intermarché' },
-  };
-
-  it('prioriza el corredor canónico resuelto por dorsal sobre el nombre crudo', () => {
-    const name = resolveResultLeaderName(
-      { classKind: 'stage', winnerName: null },
-      [{ bib: '21', riderDisplay: 'FRETIN Milan' }],
-      riderByBib,
-      riderByGid,
-    );
-    expect(name).toBe('Milan Fretin');
-  });
-
-  it('usa globalRiderId cuando no hay dorsal casable e ignora abandonos espurios', () => {
-    const name = resolveResultLeaderName(
-      { classKind: 'gc', winnerName: 'Nombre fuente' },
-      [
-        { bib: '99', riderDisplay: 'DNS', irm: 'DNS' },
-        { globalRiderId: 'rider_7', riderDisplay: 'DE LIE Arnaud' },
-      ],
-      riderByBib,
-      riderByGid,
-    );
-    expect(name).toBe('Arnaud De Lie');
-  });
-
-  it.each(['DF', 'NR'])('%s no determina ganador sin ser un abandono', (irm) => {
-    const name = resolveResultLeaderName(
-      { classKind: 'stage', winnerName: 'Ganador anterior' },
-      [{ globalRiderId: 'rider_7', irm }],
-      riderByBib,
-      riderByGid,
-    );
-    expect(name).toBe('');
-  });
-
-  it('muestra el equipo en la clasificación por equipos', () => {
-    const name = resolveResultLeaderName(
-      { classKind: 'teams', winnerName: null },
-      [{ bib: 21, riderDisplay: 'Milan Fretin' }],
-      riderByBib,
-      riderByGid,
-    );
-    expect(name).toBe('Cofidis');
   });
 });

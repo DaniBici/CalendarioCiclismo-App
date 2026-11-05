@@ -443,9 +443,11 @@ export function manual_timingFetchArgs({ code, stage, date, competitionId, outDi
 
 // race|result conserva --stage en la última jornada (su lista LIVE no filtra por
 // etapa) y recibe --final para que el fetcher emita la pseudo-etapa Final
-// Classification sin esperar a EventOver (CRO Race 2026, E6).
+// Classification sin esperar a EventOver (CRO Race 2026, E6). La salida programada
+// permite a las plantillas con simulación previa (Punto de Control) validar la llegada.
 export function raceresultFetchArgs({
   event, competitionId, outDir, delay, gender, raceFormat, date, targetStage, final = false,
+  startUtc = null, neutralStartUtc = null,
 }) {
   if (!event) return null;
   return [
@@ -458,6 +460,8 @@ export function raceresultFetchArgs({
     ...(date ? ['--date', String(date)] : []),
     ...(targetStage != null ? ['--stage', String(targetStage)] : []),
     ...(final ? ['--final'] : []),
+    ...(startUtc ? ['--start-utc', String(startUtc)] : []),
+    ...(neutralStartUtc ? ['--neutral-start-utc', String(neutralStartUtc)] : []),
   ];
 }
 
@@ -885,6 +889,8 @@ async function main() {
         date: t.scheduledDate,
         targetStage,
         final: isFinalStage,
+        startUtc: t.scheduledTimes?.startUtc,
+        neutralStartUtc: t.scheduledTimes?.neutralStartUtc,
       }));
     } else if (kind === 'sts') {
       // 'sts' (109): STS/Wiclax; .clax XML público en /LIVE/<stsCode>.clax.
@@ -924,7 +930,6 @@ async function main() {
       // Sin --allow-provisional-generals → filtro activo por defecto.
       srcLabel = ` ← livetiming:${t.livetimingCode}`;
       fc = await run(LIVETIMING_FETCH, ['--vid', String(t.livetimingCode), '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY,
-        ...(t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
     } else if (kind === 'classificacoes') {
       // Classificações.net: el slug de la prueba descubre los ids variables de

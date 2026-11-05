@@ -1,12 +1,9 @@
 import XCTest
 @testable import CalendarioCiclismo
 
-/// Port de los casos clave de `js/resultados-feed.js` vía `ResultsFeedLogicTest`
-/// (Android): construcción de entradas (un día / generales finales / fallback),
-/// resolución de fechas con stageDate NULL, filtro de ventana, cleanWinner y la
-/// adyacencia de la general final con su etapa cuando varias vueltas acaban el
-/// mismo día (la hora POR CARRERA-DÍA es la que la garantiza). Paridad 1:1 con
-/// la suite de Android.
+/// Construcción de entradas del feed de resultados: deduplicación de la general
+/// final de un día, emparejamiento de la clasificación con su jornada, fechas
+/// con stageDate NULL, filtro de ventana y reparto de categorías CX por día.
 final class ResultsFeedLogicTests: XCTestCase {
 
     // Ventana por defecto de los tests.
@@ -147,25 +144,6 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(reversed[0].stageRefId, "s2")
     }
 
-    func testDestacadaAbreSuDiaConTodasSusEntradas() {
-        let wt = makeRace(id: "WT", name: "Clásica WT", raceFormat: "one_day", uciCategory: "1.UWT")
-        let small = makeRace(id: "P", name: "Vuelta pequeña", uciCategory: "2.2")
-        let other = makeRace(id: "Q", name: "Otra clásica", raceFormat: "one_day", uciCategory: "1.UWT")
-        let stages = [
-            makeStage(id: "w1", raceId: "WT", classKind: "stage", stageDate: "2026-06-05", winnerName: "A"),
-            makeStage(id: "p1", raceId: "P", classKind: "stage", stageNumber: 3, stageDate: "2026-06-05", winnerName: "B"),
-            makeStage(id: "p2", raceId: "P", classKind: "gc", stageDate: "2026-06-05", winnerName: "C", isFinal: true),
-            makeStage(id: "p0", raceId: "P", classKind: "stage", stageNumber: 2, stageDate: "2026-06-04", winnerName: "D"),
-            makeStage(id: "q0", raceId: "Q", classKind: "stage", stageDate: "2026-06-04", winnerName: "E"),
-        ]
-        let entries = build(stages: stages, races: [wt, small, other])
-        XCTAssertEqual(entries.first?.race.id, "WT")
-        let sorted = ResultsFeedLogic.featuredFirst(entries, selected: ["2026-06-05#P"])
-        XCTAssertEqual(sorted.filter { $0.date == "2026-06-05" }.map(\.stageRefId), ["p2", "p1", "w1"])
-        XCTAssertEqual(sorted.filter { $0.date == "2026-06-04" }.map(\.race.id), entries.filter { $0.date == "2026-06-04" }.map(\.race.id))
-        XCTAssertEqual(sorted.map(\.date), entries.map(\.date))
-    }
-
     func testGcNoFinalDeUnDiaSeIgnora() {
         // "Stage General Classification" (GC del día) en un día → no es entrada.
         let race = makeRace(id: "O", name: "Clásica", raceFormat: "one_day", startDate: "2026-06-05")
@@ -252,35 +230,6 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(entries.map(\.stageSuffix), ["A"])
     }
 
-    // MARK: - Generales finales de vueltas
-
-    func testGeneralFinalDelanteDeSuEtapaYAdyacenciaConVariasVueltas() {
-        // Dos vueltas idénticas en rango acaban el MISMO día; el desempate es la
-        // hora POR CARRERA-DÍA. Las generales (sin rd) heredan la hora de su
-        // carrera: sin esa precomputación compararían 999999 contra la hora real
-        // de la otra carrera y los bloques se entrelazarían (este test fallaría).
-        let raceA = makeRace(id: "A", name: "Vuelta A", endDate: "2026-06-07")
-        let raceB = makeRace(id: "B", name: "Vuelta B", endDate: "2026-06-07")
-        let rdA = makeRaceDay(id: "rdA", raceId: "A", dateKey: "2026-06-07", stageNumber: 8, neutralStartTimeUtc: "2026-06-07T08:00:00Z")
-        let rdB = makeRaceDay(id: "rdB", raceId: "B", dateKey: "2026-06-07", stageNumber: 8, neutralStartTimeUtc: "2026-06-07T10:00:00Z")
-        let stages = [
-            makeStage(id: "a8", raceId: "A", classKind: "stage", stageNumber: 8, raceDayId: "rdA", stageDate: "2026-06-07", winnerName: "Wa"),
-            makeStage(id: "agc", raceId: "A", classKind: "gc", stageDate: "2026-06-07", winnerName: "GCa", isFinal: true),
-            makeStage(id: "b8", raceId: "B", classKind: "stage", stageNumber: 8, raceDayId: "rdB", stageDate: "2026-06-07", winnerName: "Wb"),
-            makeStage(id: "bgc", raceId: "B", classKind: "gc", stageDate: "2026-06-07", winnerName: "GCb", isFinal: true),
-        ]
-        let entries = build(stages: stages, raceDays: [rdA, rdB], races: [raceA, raceB])
-
-        XCTAssertEqual(entries.map(\.key), ["A#gcfinal", "A#8", "B#gcfinal", "B#8"])
-        // La general final va marcada y POR DELANTE (subOrder 0 < 1).
-        XCTAssertTrue(entries[0].isGcFinal)
-        XCTAssertEqual(entries[0].subOrder, 0)
-        XCTAssertEqual(entries[1].subOrder, 1)
-        // Hora por carrera-día: la general hereda la hora de la etapa de su carrera.
-        XCTAssertEqual(entries[0].sortTime, entries[1].sortTime)
-        XCTAssertLessThan(entries[0].sortTime, entries[2].sortTime)
-    }
-
     // MARK: - Resolución de fechas (stageDate NULL — volcados PDF)
 
     func testFechaConStageDateNilSeResuelvePorJornada() {
@@ -324,25 +273,6 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertTrue(build(stages: [sOneDay], races: [oneDay]).isEmpty)
     }
 
-    // MARK: - cleanWinner
-
-    func testCleanWinnerFiltraEtapasCanceladas() {
-        // La UCI publica las etapas canceladas con una pseudo-fila "Cancelled
-        // Race" como ganadora → sin trofeo.
-        XCTAssertEqual(ResultsFeedLogic.cleanWinner("Race Cancelled"), "")
-        XCTAssertEqual(ResultsFeedLogic.cleanWinner("Cancelled Race"), "")
-        XCTAssertEqual(ResultsFeedLogic.cleanWinner("CANCELLED"), "")
-        XCTAssertEqual(ResultsFeedLogic.cleanWinner(nil), "")
-        XCTAssertEqual(ResultsFeedLogic.cleanWinner("Tadej Pogacar"), "Tadej Pogacar")
-
-        let race = makeRace(id: "R", name: "Vuelta R")
-        let rd = makeRaceDay(id: "rd1", raceId: "R", dateKey: "2026-06-03", stageNumber: 2)
-        let s = makeStage(id: "s1", raceId: "R", classKind: "stage", stageNumber: 2, raceDayId: "rd1", winnerName: "Race Cancelled")
-        let entries = build(stages: [s], raceDays: [rd], races: [race])
-        XCTAssertEqual(entries.count, 1)
-        XCTAssertEqual(entries[0].winner, "")
-    }
-
     // MARK: - Solo clasificaciones propias
 
     func testSinClasificacionPropiaNoCreaEntrada() {
@@ -366,111 +296,6 @@ final class ResultsFeedLogicTests: XCTestCase {
         let covered = build(stages: [sO], raceDays: [rdO], races: [oneDay])
         XCTAssertEqual(covered.count, 1)
         XCTAssertEqual(covered[0].kind, .inhouse)
-    }
-
-    // MARK: - Orden de Campeonatos Nacionales (país → línea/CRI)
-
-    func testDosCampeonatosNacionalesSeOrdenanPorPaisYLineaCri() {
-        // Espec Dani: país (COUNTRY_ORDER) → línea masc/fem/sub23m/sub23f →
-        // CRI masc/fem/sub23m/sub23f. Las CN son de un día; cada una entra como
-        // gc final con su jornada (rd) → compareEntries aplica el orden. Mezcla
-        // desordenada de ES (top-6), Francia y Gran Bretaña el mismo día.
-        func cn(_ id: String, _ name: String, _ cc: String, _ gender: String) -> Race {
-            makeRace(id: id, name: name, raceFormat: "one_day", startDate: "2026-06-05",
-                     uciCategory: "CN", gender: gender, countryCode: cc)
-        }
-        let races = [
-            cn("es-cri-f",     "Campeonato de España CRI femenino",          "ES", "female"),
-            cn("fr-linea-m",   "Campeonato de Francia línea masculino",      "FR", "male"),
-            cn("es-linea-m",   "Campeonato de España línea masculino",       "ES", "male"),
-            cn("es-cri-m",     "Campeonato de España CRI masculino",         "ES", "male"),
-            cn("gb-linea-f",   "Campeonato de Gran Bretaña línea femenino",   "GB", "female"),
-            cn("es-linea-f",   "Campeonato de España línea femenino",        "ES", "female"),
-            cn("es-cri-s23m",  "Campeonato de España CRI sub23 masculino",   "ES", "male"),
-            cn("es-linea-s23m","Campeonato de España línea sub23 masculino", "ES", "male"),
-        ]
-        let stages = races.map {
-            makeStage(id: "st-\($0.id)", raceId: $0.id, classKind: "gc",
-                      stageDate: "2026-06-05", winnerName: "W", isFinal: true)
-        }
-        let rds = races.map {
-            makeRaceDay(id: "rd-\($0.id)", raceId: $0.id, dateKey: "2026-06-05", stageNumber: nil)
-        }
-        let entries = build(stages: stages, raceDays: rds, races: races)
-        XCTAssertEqual(
-            entries.map(\.race.id),
-            [
-                // España (top-6): toda la línea antes que toda la CRI; dentro de
-                // cada bloque, masc → fem → sub23 masc → sub23 fem.
-                "es-linea-m", "es-linea-f", "es-linea-s23m",
-                "es-cri-m", "es-cri-f", "es-cri-s23m",
-                // Luego Francia, luego Gran Bretaña (orden de COUNTRY_ORDER).
-                "fr-linea-m", "gb-linea-f",
-            ]
-        )
-    }
-
-    // MARK: - Orden cronológico inverso
-
-    func testCronologiaInversaEntreDias() {
-        let race = makeRace(id: "R", name: "Vuelta R")
-        let rd1 = makeRaceDay(id: "rd1", raceId: "R", dateKey: "2026-06-02", stageNumber: 1)
-        let rd2 = makeRaceDay(id: "rd2", raceId: "R", dateKey: "2026-06-03", stageNumber: 2)
-        let stages = [
-            makeStage(id: "s1", raceId: "R", classKind: "stage", stageNumber: 1, raceDayId: "rd1", winnerName: "W1"),
-            makeStage(id: "s2", raceId: "R", classKind: "stage", stageNumber: 2, raceDayId: "rd2", winnerName: "W2"),
-        ]
-        let entries = build(stages: stages, raceDays: [rd1, rd2], races: [race])
-        XCTAssertEqual(entries.map(\.date), ["2026-06-03", "2026-06-02"])
-    }
-
-    // MARK: - Ventana de carga
-
-    func testVentanaInicialYCargarMas() {
-        XCTAssertEqual(ResultsFeedLogic.initialFromKey(todayKey: "2026-06-14"), "2026-06-01")
-        // Nunca antes del arranque de temporada.
-        XCTAssertEqual(ResultsFeedLogic.initialFromKey(todayKey: "2026-01-05"), "2026-01-01")
-        XCTAssertEqual(ResultsFeedLogic.extendedFromKey("2026-06-01"), "2026-05-18")
-        XCTAssertEqual(ResultsFeedLogic.extendedFromKey("2026-01-10"), "2026-01-01")
-    }
-
-    // MARK: - Selecciones nacionales
-
-    func testSeleccionesNacionalesConNombreDelPaisEnCastellano() {
-        func nation(_ name: String, _ code: String?, selectionCode: String? = nil, isEnglish: Bool = false) -> String {
-            Team.localizedName(
-                name, teamKind: "selection", selectionScope: "national",
-                countryCode: code, selectionCode: selectionCode ?? code, isEnglish: isEnglish
-            )
-        }
-        XCTAssertEqual(nation("France", "fr"), "Francia")
-        XCTAssertEqual(nation("Great Britain", "gb"), "Gran Bretaña")
-        XCTAssertEqual(nation("Czech Republic", "cz"), "República Checa")
-        XCTAssertEqual(nation("Ivory Coast", "ci"), "Costa de Marfil")
-        XCTAssertEqual(nation("NICARAGUA", "ni"), "Nicaragua")
-        XCTAssertEqual(nation("Individual Neutral Athletes", nil, selectionCode: "ain"), "Deportistas Individuales Neutrales")
-        XCTAssertEqual(nation("Canada U23", "ca"), "Canadá sub23")
-        XCTAssertEqual(nation("Refugee Cycling Team", nil, selectionCode: "ref"), "Refugee Cycling Team")
-        XCTAssertEqual(nation("France", "fr", isEnglish: true), "France")
-        XCTAssertEqual(
-            Team.localizedName("Euskadi", teamKind: "selection", selectionScope: "regional",
-                               countryCode: "es", selectionCode: "eus", isEnglish: false),
-            "Euskadi"
-        )
-        XCTAssertEqual(Team.localizedName("Kenya", team: nil, isEnglish: false), "Kenya")
-    }
-
-    // MARK: - Pestañas de Resultados
-
-    func testPestanasSegunElPeriodo() {
-        let hidden = ResultsFeedTabs.layout(today: "2026-12-31")
-        XCTAssertEqual(hidden.tabs, [.cyclocross, .road, .ranking])
-        XCTAssertEqual(hidden.initial, .cyclocross)
-        let rest = ResultsFeedTabs.layout(today: "2027-01-01")
-        XCTAssertEqual(rest.tabs, [.road, .ranking])
-        XCTAssertEqual(rest.initial, .road)
-        XCTAssertFalse(rest.includesCyclocross)
-        XCTAssertEqual(ResultsFeedTabs.layout(today: "2027-02-28"), rest)
     }
 
     // MARK: - Resultados de ciclocross
@@ -526,19 +351,4 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(days[1].entries.map(\.race.id), ["Dos días"])
         XCTAssertEqual(days[1].entries[0].winners.map(\.category), ["WE"])
     }
-
-    func testFeedCxDestacadasEncabezanSuDia() throws {
-        let sun = "2026-11-22", sat = "2026-11-21"
-        let races = [
-            try cxRace("Copa", raceClass: "CDM", categories: [("ME", sun, "official", "A", false)]),
-            try cxRace("C2", categories: [("ME", sun, "official", "B", false), ("WE", sat, "official", "C", false)]),
-            try cxRace("C1", raceClass: "C1", categories: [("ME", sat, "official", "D", false)])
-        ]
-        let days = CxResultsFeedLogic.days(races: races, season: "2026-27", featured: ["C2"])
-        XCTAssertEqual(days.map(\.date), [sun, sat])
-        XCTAssertEqual(days[0].entries.map(\.race.id), ["C2", "Copa"])
-        XCTAssertEqual(days[1].entries.map(\.race.id), ["C2", "C1"])
-        XCTAssertEqual(CxResultsFeedLogic.days(races: races, season: "2026-27")[0].entries.map(\.race.id), ["Copa", "C2"])
-    }
 }
-

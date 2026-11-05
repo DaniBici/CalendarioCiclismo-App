@@ -27,6 +27,7 @@ const _OPERATIONS_JOBS = [
 const _OPERATIONS_SOURCES = [
   { id: 'dataride_cx', label: 'DataRide CX', job: 'cx_results' },
   { id: 'acn_cx', label: 'ACN Timing CX', job: 'cx_results' },
+  { id: 'chronorace_cx', label: 'Bonos X2O', job: 'cx_results' },
   { id: 'cx_standings', label: 'Generales CX', job: 'cx_results' },
   { id: 'cx_push', label: 'Avisos CX', job: 'cx_results' },
   { id: 'hbo_max', label: 'HBO Max' },
@@ -38,6 +39,7 @@ const _OPERATIONS_SOURCES = [
   { id: 'lequipe', label: "L'Équipe" },
   { id: 'hbo_max_cx', label: 'HBO Max CX' },
   { id: 'sporza_cx', label: 'Sporza CX' },
+  { id: 'uci_team_ranking', label: 'Ranking UCI', job: 'uci_team_ranking' },
 ];
 
 const _OPERATIONS_ACTION_LABELS = {
@@ -70,8 +72,9 @@ function _operationsSafeUrl(value) {
 }
 
 function _operationsSourceIssues(item, sourceId) {
-  if(sourceId==='dataride_cx'||sourceId==='acn_cx'||sourceId==='cx_standings'){
-    const issues=sourceId==='dataride_cx'||sourceId==='acn_cx'?[
+  if(item?.summary?.note)return `<div class="operations-source__note">${esc(item.summary.note)}</div>`;
+  if(sourceId==='dataride_cx'||sourceId==='acn_cx'||sourceId==='chronorace_cx'||sourceId==='cx_standings'){
+    const issues=sourceId==='chronorace_cx'?(item?.summary?.reviews||[]).map(issue=>`${issue.category||''}: ${issue.reason}`):sourceId==='dataride_cx'||sourceId==='acn_cx'?[
       ...(item?.summary?.decisions||[]).map(issue=>`${issue.category}: ${issue.reason}`),
       ...(item?.summary?.results||[]).flatMap(result=>[
         ...[...(result.reviews||[]),...(result.skipped||[]),...(result.warnings||[])].map(issue=>`${issue.category||''}: ${issue.reason}`),
@@ -229,7 +232,7 @@ function _operationsRenderHistory(payload) {
   </table>`;
 }
 
-export async function refreshOperationsMonitor() {
+async function refreshOperationsMonitor() {
   const version = ++_operationsRefreshVersion;
   const refresh = document.getElementById('operationsRefreshBtn');
   refresh.disabled = true;
@@ -263,7 +266,7 @@ function _operationsUpdateForceButtons() {
   });
 }
 
-export async function _operationsForce(job, button) {
+async function _operationsForce(job, button) {
   if (button.disabled || _operationsForcing.has(job) || !_OPERATIONS_JOBS.some(item => item.id === job && item.force)) return;
   _operationsForcing.add(job);
   _operationsUpdateForceButtons();

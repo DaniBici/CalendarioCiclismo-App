@@ -109,11 +109,13 @@ enum AppTheme {
             base = BadgeColor(background: Color(hex: "bcb755").opacity(0.15), foreground: Color(light: "8a8420", dark: "d4cd6a"))
         case "medium_mountain":
             base = BadgeColor(background: Color(hex: "ffb750").opacity(0.15), foreground: Color(light: "b87400", dark: "ffb750"))
-        case "high_mountain", "summit_finish", "chrono_climb":
+        case "high_mountain", "summit_finish":
             base = BadgeColor(background: Color(hex: "ff7864").opacity(0.15), foreground: Color(hex: "ff7864"))
         case "uphill_finish":
             base = BadgeColor(background: Color(hex: "ffa030").opacity(0.15), foreground: Color(light: "b86000", dark: "ffa030"))
-        case "itt", "ttt":
+        // Cronoescalada con el azul de contrarreloj, como `badge--type-chrono`
+        // de la web.
+        case "itt", "ttt", "chrono_climb":
             base = BadgeColor(background: Color(hex: "64c8ff").opacity(0.15), foreground: Color(hex: "64c8ff"))
         case "cobbles":
             base = BadgeColor(background: Color(hex: "a8a8a8").opacity(0.15), foreground: Color(hex: "a8a8a8"))

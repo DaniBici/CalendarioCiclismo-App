@@ -24,7 +24,7 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 - **Calendario** — vistas mensual y de temporada, con filtros por categoría, género y país
 - **Competición y jornada** — recorrido, perfil interactivo y oficial, puertos y puntos clave, mapas, rutómetro, libro de ruta y canales de TV/streaming
 - **Resultados** — clasificaciones de etapa, general, puntos, montaña, jóvenes y equipos, importadas desde UCI DataRide y desde una treintena de fuentes de cronometraje; incluye el ránking UCI de equipos masculino y femenino
-- **Ciclocross** — calendario UCI de la temporada (agosto a febrero) por torneo y manga, con las seis categorías individuales (Elite, Sub-23 y Júnior, masculino y femenino), emisiones, inscritos, resultados oficiales y generales de torneo
+- **Ciclocross** — calendario UCI de la temporada (agosto a febrero) por torneo y manga, con las seis categorías individuales (Elite, Sub23 y Júnior, masculino y femenino), emisiones, inscritos, resultados oficiales y generales de torneo
 - **Mercado de fichajes** — confirmaciones, rumores, renovaciones, contratos y movimientos por equipo y temporada
 - **Dorsales y orden de salida** — listas curadas, abandonos y horarios de CRI/CRE
 - **Calendarios iCal** — feeds de temporada por categoría y género, además de eventos individuales

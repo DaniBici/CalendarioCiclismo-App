@@ -69,7 +69,7 @@ const FORCE = hasFlag('force');
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 
 // seasonId road por año (espejo de uci-match-poc.mjs; solo para el metadato del link).
-const ROAD_SEASON = { 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
+const ROAD_SEASON = { 2027: 477, 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
 
 // ── obtener el match-report (reutilizar o generar vía el matcher canónico) ───
 function loadReport() {

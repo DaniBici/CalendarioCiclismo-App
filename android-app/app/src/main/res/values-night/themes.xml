@@ -4,5 +4,10 @@
     <style name="Theme.CalendarioCiclismo" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <!-- Barras transparentes: Material 3 hereda de AppCompat
+             statusBarColor = colorPrimaryDark (lavanda #D0BCFF en oscuro,
+             #6750A4 en claro), que core-splashscreen aplica en API 31-34. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

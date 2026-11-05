@@ -23,6 +23,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +33,16 @@ import kotlinx.coroutines.launch
  * navegación de Hoy en carretera; la página de torneo lista todas sus pruebas.
  */
 private const val RECENT_DAYS = 14
+
+/** Antigüedad máxima del detalle de un día para pintarlo sin esperar a la red
+ *  (memoria o copia local). Un detalle más antiguo puede carecer de dorsales,
+ *  emisiones o documentos que la red sí trae, y las tarjetas cambiarían al
+ *  llegar la respuesta. */
+private const val DETAIL_MAX_AGE_MS = 5 * 60_000L
+
+/** Espera a la red antes de pintar un detalle más antiguo que
+ *  [DETAIL_MAX_AGE_MS] (red lenta). */
+private const val NETWORK_WAIT_MS = 3_000L
 
 class CyclocrossAgendaState(
     private val repo: CyclocrossRepository,
@@ -86,6 +97,13 @@ class CyclocrossAgendaState(
     /** Hoy puede pintarse: con datos o, sin ninguno, con el error de la carga.
      *  Barra de fechas, orden y lista aparecen a la vez. */
     val agendaReady: Boolean get() = loaded || (!busy && error != null)
+
+    /** Día mostrado con carreras y sin detalle vigente: la lista muestra la
+     *  carga hasta tenerlo, en lugar de tarjetas del índice ligero (sin
+     *  documentos, emisiones ni vídeos) que ganarían Dorsales, TV, Resumen y
+     *  el acceso a la ficha en una segunda pintura. */
+    private var awaitingDay by mutableStateOf<String?>(null)
+    val dayAwaiting: Boolean get() = awaitingDay == dateKey
 
     // Agenda general.
     var dateKey by mutableStateOf(todayKey())
@@ -161,6 +179,7 @@ class CyclocrossAgendaState(
         index = null
         dayDetails.clear()
         freshDay = null
+        awaitingDay = null
         if (dayMode) {
             openToday(generation, restoredDay, initialFilter)
             return
@@ -218,7 +237,8 @@ class CyclocrossAgendaState(
      * Apertura de Hoy. Primero la copia local (índice y día de apertura); la
      * red trae a la vez el índice, el día, las destacadas y las rondas y, si la
      * apertura recae en otro día, ese día. La primera pintura ([loaded]) lleva
-     * siempre el día de apertura con su detalle.
+     * siempre el día de apertura con su detalle, y desde la copia local solo
+     * si ese detalle es vigente ([DETAIL_MAX_AGE_MS]).
      */
     private suspend fun openToday(generation: Int, restoredDay: String?, initialFilter: CxAgendaFilter) {
         val selectedSeason = season
@@ -244,13 +264,26 @@ class CyclocrossAgendaState(
             repo.cachedDay(selectedSeason, dateKey)?.let {
                 if (generation != revision) return
                 dayDetails[dateKey] = it
+                if (isCurrent(it)) release(dateKey)
             }
-            // La caché se pinta solo completa: índice y detalle del día de
-            // apertura. Con el índice solo, las tarjetas saldrían sin
-            // documentos, emisiones ni dorsales y cambiarían al llegar el detalle.
-            if (index != null && dayDetails[dateKey] != null) loaded = true
+            // La caché se pinta solo completa y vigente: índice y detalle del
+            // día de apertura leído hace menos de [DETAIL_MAX_AGE_MS]. Con el
+            // índice solo, las tarjetas saldrían sin documentos, emisiones ni
+            // dorsales; con un detalle antiguo (el de la última visita a ese
+            // día), sin lo publicado después, y cambiarían al llegar la red.
+            if (index != null && isCurrent(dayDetails[dateKey])) loaded = true
             val requested = dateKey
-            val outcome = downloadToday(requested, includeIndex = true, forceRounds = false)
+            val outcome = coroutineScope {
+                // Con red lenta, la copia antigua se pinta pasado NETWORK_WAIT_MS.
+                val fallback = launch {
+                    delay(NETWORK_WAIT_MS)
+                    if (generation == revision && !loaded && index != null && dayDetails[dateKey] != null) {
+                        release(dateKey)
+                        loaded = true
+                    }
+                }
+                try { downloadToday(requested, includeIndex = true, forceRounds = false) } finally { fallback.cancel() }
+            }
             if (generation != revision) return
             applyToday(outcome, requested)
             if (index == null && dayDetails.isEmpty() && outcome.failure != null) error = outcome.failure.message
@@ -306,9 +339,9 @@ class CyclocrossAgendaState(
     private fun applyToday(download: TodayDownload, day: String) {
         download.index?.let { fresh ->
             index = fresh
-            // Más reciente que el detalle de los demás días: se vuelven a pedir
-            // al visitarlos.
-            dayDetails.keys.filter { it != day }.forEach { dayDetails.remove(it) }
+            // Más reciente que el detalle de los demás días: los no vigentes se
+            // descartan y se vuelven a pedir al visitarlos.
+            dayDetails.keys.filter { it != day && !isCurrent(dayDetails[it]) }.forEach { dayDetails.remove(it) }
         }
         download.day?.let {
             dayDetails[day] = it
@@ -317,35 +350,89 @@ class CyclocrossAgendaState(
         featured = download.featured
         rounds = download.rounds.ifEmpty { localRounds() }
         roundsReady = true
+        release(day)
     }
 
-    /** Detalle de un día: primero la copia local y después la red, sin
-     *  indicadores. Un fallo conserva lo mostrado. */
-    private suspend fun loadDay(target: String, generation: Int) {
-        if (dayDetails[target] == null) {
-            repo.cachedDay(season, target)?.let { if (generation == revision) dayDetails[target] = it }
+    /** Detalle leído de la red hace menos de [DETAIL_MAX_AGE_MS]. */
+    private fun isCurrent(detail: CxCached<*>?): Boolean =
+        detail != null && System.currentTimeMillis() - detail.cachedAt <= DETAIL_MAX_AGE_MS
+
+    /** Termina la espera de [day]: se pinta con lo que haya. */
+    private fun release(day: String) {
+        if (awaitingDay == day) awaitingDay = null
+    }
+
+    /** Cambia el día mostrado. Con carreras y sin detalle vigente, la lista
+     *  espera a la carga del día ([dayAwaiting]). */
+    private fun show(day: String) {
+        if (day == dateKey) return
+        dateKey = day
+        awaitingDay = day.takeIf { CyclocrossLogic.racesOn(races, it).isNotEmpty() && !isCurrent(dayDetails[it]) }
+    }
+
+    /** Detalle de un día. Con detalle vigente en memoria o en la copia local,
+     *  el día se pinta ya y la red lo renueva; si no, espera a la red
+     *  ([dayAwaiting]) y, con red lenta, pasado [NETWORK_WAIT_MS], se pinta la
+     *  copia antigua. Sin red se pinta la copia local y, sin ella, el índice. */
+    private suspend fun loadDay(target: String, generation: Int): Unit = coroutineScope {
+        if (!isCurrent(dayDetails[target])) {
+            repo.cachedDay(season, target)?.let { cached ->
+                if (generation != revision) return@coroutineScope
+                if (cached.cachedAt > (dayDetails[target]?.cachedAt ?: Long.MIN_VALUE)) dayDetails[target] = cached
+                if (isCurrent(cached)) release(target)
+            }
+        }
+        val fallback = launch {
+            delay(NETWORK_WAIT_MS)
+            if (generation == revision && dayDetails[target] != null) release(target)
         }
         try {
             val fresh = repo.day(season, target)
-            if (generation != revision) return
+            if (generation != revision) return@coroutineScope
             dayDetails[target] = fresh
             if (!fresh.offline) freshDay = target
         } catch (failure: Exception) {
             if (failure is CancellationException) throw failure
-        }
+        } finally { fallback.cancel() }
+        if (generation == revision) release(target)
     }
 
     /** Carga el día mostrado tras navegar (flechas, gesto, filtro, medianoche);
-     *  la pantalla lo invoca al cambiar [dateKey]. */
+     *  la pantalla lo invoca al cambiar [dateKey]. Un día ya descargado se
+     *  vuelve a pedir solo si espera su detalle. */
     suspend fun showDay() {
-        if (!dayMode || !loaded || freshDay == dateKey) return
+        if (!dayMode || !loaded || (freshDay == dateKey && awaitingDay != dateKey)) return
         loadDay(dateKey, revision)
+    }
+
+    /** Precarga el detalle del día con carreras anterior y del siguiente al
+     *  mostrado, destinos de las flechas y del gesto, como Hoy de carretera
+     *  con sus días contiguos: al navegar, las tarjetas salen completas sin
+     *  esperar a la red. La pantalla la invoca tras cargar el día mostrado. */
+    suspend fun prefetchNeighbors() {
+        if (!dayMode || !loaded) return
+        val generation = revision
+        val selectedSeason = season
+        val days = raceDays
+        val targets = listOfNotNull(CyclocrossLogic.previousRaceDay(days, dateKey), CyclocrossLogic.nextRaceDay(days, dateKey))
+            .filterNot { isCurrent(dayDetails[it]) }
+        coroutineScope {
+            for (target in targets) launch {
+                val fresh = try { repo.day(selectedSeason, target) } catch (failure: Exception) {
+                    if (failure is CancellationException) throw failure
+                    return@launch
+                }
+                if (generation != revision || fresh.offline) return@launch
+                dayDetails[target] = fresh
+                release(target)
+            }
+        }
     }
 
     /** Día de apertura: el restaurado o hoy y, si hoy no tiene carreras del
      *  filtro activo, el siguiente día que las tenga (skipEmptyDay de Hoy). */
     private fun showOpening(restored: String?) {
-        dateKey = restored ?: CyclocrossLogic.openingDay(raceDays, todayKey())
+        show(restored ?: CyclocrossLogic.openingDay(raceDays, todayKey()))
     }
 
     /** Caché local de los siete meses: la lista aparece sin esperar a la red. */
@@ -510,7 +597,7 @@ class CyclocrossAgendaState(
 
     /** Muestra [target], acotado a la temporada. */
     fun navigateTo(target: String) {
-        dateKey = target.coerceIn(firstDay, lastDay)
+        show(target.coerceIn(firstDay, lastDay))
         navigated = true
         autoNavigate()
     }
@@ -556,7 +643,7 @@ class CyclocrossAgendaState(
         lastTodayKey = nowKey
         val nowSeason = CyclocrossLogic.season(LocalDate.parse(nowKey))
         if (nowSeason != season) open(nowSeason, initialFilter = filter)
-        else { dateKey = nowKey; autoNavigate() }
+        else { show(nowKey); autoNavigate() }
     }
 
     /** Día sin carreras visibles con el filtro Todas: avanza al siguiente día
@@ -565,6 +652,6 @@ class CyclocrossAgendaState(
         if (filter != CxAgendaFilter.ALL) return
         val visible = races
         if (CyclocrossLogic.racesOn(visible, dateKey).isNotEmpty()) return
-        CyclocrossLogic.nextRaceDay(CyclocrossLogic.raceDays(visible), dateKey)?.let { dateKey = it }
+        CyclocrossLogic.nextRaceDay(CyclocrossLogic.raceDays(visible), dateKey)?.let(::show)
     }
 }

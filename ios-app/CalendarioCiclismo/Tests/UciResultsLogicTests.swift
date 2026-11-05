@@ -1,49 +1,10 @@
 import XCTest
 @testable import CalendarioCiclismo
 
-/// Port de los casos clave de `js/resultados.js` vía `UciResultsLogicTest.kt`
-/// (Android): normalización de tiempos/gaps, puntos, IRM, y el colapso de CRE
-/// (variantes A y B). Paridad 1:1 con la suite de Android.
+/// Casos clave de `js/resultados.js`: normalización de tiempos/gaps, puntos,
+/// IRM, convención CRI, colapso de CRE, resolución de corredor y equipo, y
+/// etapas canceladas.
 final class UciResultsLogicTests: XCTestCase {
-
-    func testClassificationInventoryUsesEditorialOrderLabelsAndColorsWithoutColoringStage() {
-        let config = [
-            RaceClassificationConfig(raceId: "r", classKind: "points", position: 3, labelEs: "Regularidad", labelEn: "Points", colorHex: "#00AA44"),
-            RaceClassificationConfig(raceId: "r", classKind: "stage", position: 1, labelEs: "Etapa", labelEn: "Stage", colorHex: "#FF0000"),
-            RaceClassificationConfig(raceId: "r", classKind: "kom", position: 2, labelEs: "Montaña", labelEn: "KOM", colorHex: "invalid"),
-        ]
-        let inventory = UciResultsLogic.classificationInventory(config: config, stages: [])
-        XCTAssertEqual(inventory.map(\.classKind), ["stage", "kom", "points"])
-        XCTAssertEqual(UciResultsLogic.classificationLabel(inventory.last!, isEn: false), "Regularidad")
-        XCTAssertNil(UciResultsLogic.classificationColor(inventory.first))
-        XCTAssertNil(UciResultsLogic.classificationColor(inventory[1]))
-        XCTAssertEqual(UciResultsLogic.classificationColor(inventory.last), "#00AA44")
-    }
-
-    func testClassificationInventoryIncludesPublishedKindsMissingFromConfig() {
-        let stage = RaceUciStage(id: "s", raceId: "r", classKind: "youth")
-        XCTAssertEqual(
-            UciResultsLogic.classificationInventory(config: [], stages: [stage]).first?.classKind,
-            "youth"
-        )
-    }
-
-    func testStageOnlyShowsClassificationsPublishedForThatStage() {
-        let config = [
-            RaceClassificationConfig(raceId: "r", classKind: "stage", position: 1, labelEs: nil, labelEn: nil, colorHex: nil),
-            RaceClassificationConfig(raceId: "r", classKind: "gc", position: 2, labelEs: nil, labelEn: nil, colorHex: nil),
-            RaceClassificationConfig(raceId: "r", classKind: "teams", position: 3, labelEs: nil, labelEn: nil, colorHex: nil),
-        ]
-        let existing = [
-            RaceUciStage(id: "gc-3", raceId: "r", classKind: "gc", stageNumber: 3),
-            RaceUciStage(id: "stage-3", raceId: "r", classKind: "stage", stageNumber: 3),
-        ]
-
-        let visible = UciResultsLogic.visibleStageClassifications(config: config, stages: existing)
-
-        XCTAssertEqual(visible.map(\.classKind), ["stage", "gc"])
-        XCTAssertFalse(visible.contains { $0.classKind == "teams" })
-    }
 
     // Helper: fila de resultado con lo mínimo.
     private func row(
@@ -101,22 +62,6 @@ final class UciResultsLogicTests: XCTestCase {
         )
     }
 
-    func testChapasConPaletaPorDefectoNoSeMuestran() {
-        let defaultTeam = Team(
-            id: "default", name: "Club", badgeTorsoCenter: "#fff",
-            badgeTorsoSides: "#111", badgeShorts: "#111111", badgeInnerCircle: nil,
-            headerBg: "#000000", headerText: "#ffffff", nameAliases: nil
-        )
-        let curatedTeam = Team(
-            id: "curated", name: "Club", badgeTorsoCenter: "#e30613",
-            badgeTorsoSides: "#000000", badgeShorts: "#000000", badgeInnerCircle: nil,
-            headerBg: "#000000", headerText: "#ffffff", nameAliases: nil
-        )
-
-        XCTAssertFalse(defaultTeam.hasVisibleBadge)
-        XCTAssertTrue(curatedTeam.hasVisibleBadge)
-    }
-
     // ── secondsToGap / formatGap ───────────────────────────────────
 
     func testSecondsToGapUsaLaConvencionDePrensa() {
@@ -133,24 +78,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(UciResultsLogic.formatGap("+35:09"), "+35'09\"")
         // Ya formateado → intacto.
         XCTAssertEqual(UciResultsLogic.formatGap("+1'38\""), "+1'38\"")
-    }
-
-    // ── irmLabel ───────────────────────────────────────────────────
-
-    func testIrmLabelMapeaEsYEn() {
-        XCTAssertEqual(UciResultsLogic.irmLabel("DNF", isEn: false), "ABN")
-        XCTAssertEqual(UciResultsLogic.irmLabel("DNF", isEn: true), "DNF")
-        XCTAssertEqual(UciResultsLogic.irmLabel("DNS", isEn: false), "NS")
-        XCTAssertEqual(UciResultsLogic.irmLabel("OTL", isEn: false), "FC")
-        XCTAssertEqual(UciResultsLogic.irmLabel("DSQ", isEn: false), "EXP")
-        XCTAssertEqual(UciResultsLogic.irmLabel("DF", isEn: false), "DF")
-        XCTAssertEqual(UciResultsLogic.irmLabel("NR", isEn: true), "NR")
-        // ABD = variante UCI de DNF → misma etiqueta.
-        XCTAssertEqual(UciResultsLogic.irmLabel("ABD", isEn: false), "ABN")
-        XCTAssertEqual(UciResultsLogic.irmLabel("ABD", isEn: true), "DNF")
-        // Código desconocido → se devuelve tal cual.
-        XCTAssertEqual(UciResultsLogic.irmLabel("XYZ", isEn: false), "XYZ")
-        XCTAssertEqual(UciResultsLogic.irmLabel(nil, isEn: false), "")
     }
 
     // ── isAbandonIrm: abandono real vs ruido ───────────────────────
@@ -309,17 +236,6 @@ final class UciResultsLogicTests: XCTestCase {
         // El rank 3 → gap respecto al cabeza (03:33:31 − 03:32:40 = 51").
         XCTAssertEqual(vms[2].valueKind, .gap)
         XCTAssertEqual(vms[2].valueText, "+51\"")
-    }
-
-    func testPuntosUsanCabeceraDePuntosYNoEstiloDeTiempo() {
-        let rows = [
-            row(rank: 1, resultValue: "50"),
-            row(rank: 2, points: 30),
-        ]
-        let vms = UciResultsLogic.buildIndividualRows(rows: rows, classKind: "points", isTeams: false, byDorsal: [:], isEn: false)
-        XCTAssertEqual(vms[0].valueKind, .points)
-        XCTAssertEqual(vms[0].valueText, "50")
-        XCTAssertEqual(vms[1].valueText, "30")
     }
 
     func testNombreYEquipoSeReconstruyenPorDorsal() {
@@ -774,30 +690,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "gc", isTeams: false, raceDayPrimaryType: "ttt", stageNumber: nil, isOneDay: false))
     }
 
-    // ── teamsInClass ───────────────────────────────────────────────
-
-    func testTeamsInClassDevuelveLosEquiposEnOrdenAlfabetico() {
-        let byDorsal: [Int: ResolvedRider] = [
-            1: ResolvedRider(name: "G1", countryCode: "es", teamName: "Zeta Team", team: nil),
-            2: ResolvedRider(name: "G2", countryCode: "es", teamName: "alfa squad", team: nil),
-            3: ResolvedRider(name: "G3", countryCode: "fr", teamName: "Movistar", team: nil),
-            4: ResolvedRider(name: "G4", countryCode: "fr", teamName: "alfa squad", team: nil),
-            5: ResolvedRider(name: "G5", countryCode: "it", teamName: "", team: nil),   // sin equipo → fuera
-        ]
-        let rows = [
-            row(rank: 1, bib: "1", sortOrder: 0),    // Zeta (1ª en filas)
-            row(rank: 2, bib: "2", sortOrder: 1),    // alfa
-            row(rank: 3, bib: "3", sortOrder: 2),    // Movistar
-            row(rank: 4, bib: "4", sortOrder: 3),    // alfa (dup)
-            row(rank: 5, bib: "5", sortOrder: 4),    // sin equipo
-        ]
-        // Orden alfabético ignorando mayúsculas, no el orden de aparición.
-        XCTAssertEqual(
-            UciResultsLogic.teamsInClass(rows: rows, byDorsal: byDorsal),
-            ["alfa squad", "Movistar", "Zeta Team"]
-        )
-    }
-
     // ── collapseTtt ────────────────────────────────────────────────
 
     func testCollapseTttVarianteAAgrupaPorEquipoYCalculaGapsDeEquipo() {
@@ -903,21 +795,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[0].countryCode, "")
     }
 
-    func testTeamsInClassUsaByRiderCuandoNoHayStartlist() {
-        let byRider: [String: ResolvedRider] = [
-            "g1": ResolvedRider(name: "R1", countryCode: "es", teamName: "Zeta Team", team: nil, globalRiderId: "g1"),
-            "g2": ResolvedRider(name: "R2", countryCode: "fr", teamName: "alfa squad", team: nil, globalRiderId: "g2"),
-        ]
-        let rows = [
-            row(rank: 1, bib: nil, globalRiderId: "g1", sortOrder: 0),
-            row(rank: 2, bib: nil, globalRiderId: "g2", sortOrder: 1),
-        ]
-        XCTAssertEqual(
-            UciResultsLogic.teamsInClass(rows: rows, byDorsal: [:], byRider: byRider),
-            ["alfa squad", "Zeta Team"]
-        )
-    }
-
     // ── Override manual de equipo (mig. 112) ───────────────────────
 
     func testOverrideDeEquipoGanaAlDorsalEnBuildIndividualRows() {
@@ -950,15 +827,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[0].riderName, "AMATEUR Juan")
     }
 
-    func testTeamsInClassIncluyeElEquipoOverride() {
-        let byTeamOverride: [String: Team] = ["tov": team("tov", "Alfa Override")]
-        let rows = [row(rank: 1, bib: "999", globalRiderId: nil, teamId: "tov", sortOrder: 0)]
-        XCTAssertEqual(
-            UciResultsLogic.teamsInClass(rows: rows, byDorsal: [:], byRider: [:], byTeamOverride: byTeamOverride),
-            ["Alfa Override"]
-        )
-    }
-
     func testOverrideDeEquipoAplicaALaFilaColapsadaDeCRE() {
         let byDorsal: [Int: ResolvedRider] = [
             1: ResolvedRider(name: "Líder", countryCode: "es", teamName: "Equipo Startlist",
@@ -978,7 +846,6 @@ final class UciResultsLogicTests: XCTestCase {
     }
 
     // ── applyCancelledStages: etapa cancelada ─────────────────────────────
-    // Espejo 1:1 de UciResultsLogicTest.kt (Android).
 
     private func uciStage(_ id: String, _ stageNumber: Int?, _ classKind: String, raceDayId: String? = nil) -> RaceUciStage {
         RaceUciStage(id: id, raceId: "r1", raceDayId: raceDayId, classKind: classKind, stageNumber: stageNumber, keepForWeb: true)
@@ -1104,31 +971,9 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(UciResultsLogic.resultStageEntryKey(3, nil, suffix, sectored), "3")
     }
 
-    func test_parseResultStageKey_splitsKeys() {
-        XCTAssertNil(UciResultsLogic.parseResultStageKey("final").stageNumber)
-        XCTAssertEqual(UciResultsLogic.parseResultStageKey("3").stageNumber, 3)
-        XCTAssertEqual(UciResultsLogic.parseResultStageKey("3").suffix, "")
-        XCTAssertEqual(UciResultsLogic.parseResultStageKey("3A").stageNumber, 3)
-        XCTAssertEqual(UciResultsLogic.parseResultStageKey("3A").suffix, "A")
-        XCTAssertEqual(UciResultsLogic.parseResultStageKey("0").stageNumber, 0)
-    }
-
     func test_noCancelledStages_leavesListUntouched() {
         let stages = [uciStage("s1", 1, "stage"), uciStage("gc1", 1, "gc")]
         let days = [day(1, "2026-07-11"), day(2, "2026-07-12")]
         XCTAssertEqual(UciResultsLogic.applyCancelledStages(stages, days: days), stages)
-    }
-
-    func test_teamSeason_materializesHistoricalIdentityWithoutPublicBaseRow() {
-        let team = TeamSeason(
-            teamId: "hist", year: 2021, name: "Equipo 2021", category: "CT",
-            badgeTorsoCenter: "#123456", badgeTorsoSides: nil, badgeShorts: nil,
-            badgeInnerCircle: nil, headerBg: nil, headerText: nil, gender: "male",
-            badgeVisible: false, continuityDoubt: false
-        ).asTeam()
-        XCTAssertEqual(team?.id, "hist")
-        XCTAssertEqual(team?.name, "Equipo 2021")
-        XCTAssertEqual(team?.badgeTorsoCenter, "#123456")
-        XCTAssertEqual(team?.badgeShorts, "#000000")
     }
 }

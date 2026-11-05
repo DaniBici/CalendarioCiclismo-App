@@ -1,6 +1,6 @@
 import {cxDateInSeason} from './season.js';
 
-export function validateCxCalendarPreview(manifest,seasonKey) {
+function validateCxCalendarPreview(manifest,seasonKey) {
   if(!manifest||manifest.source!=='uci_web_calendar'||manifest.seasonKey!==seasonKey||!Array.isArray(manifest.races)||!manifest.races.length)
     throw new Error('Manifiesto incompatible con la temporada seleccionada.');
   if(!manifest.summary||!['races','categories','excludedCompetitions'].every(key=>Number.isSafeInteger(manifest.summary[key])&&manifest.summary[key]>=0)

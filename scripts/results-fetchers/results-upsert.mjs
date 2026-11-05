@@ -272,7 +272,7 @@ export function shouldIncludeStage(
 // "Final Classification". En ese caso no existe una clasificación de etapa que
 // pueda confirmar la llegada dentro del mismo payload: el ganador de la final es
 // la confirmación disponible y debe poder sustituir un resultado sintético.
-export function shouldPublishFinalClassification(hasStageWinnerInPayload, hasIncludedNonFinalStage) {
+function shouldPublishFinalClassification(hasStageWinnerInPayload, hasIncludedNonFinalStage) {
   return hasStageWinnerInPayload || !hasIncludedNonFinalStage;
 }
 // Como n() pero REDONDEA a entero: para columnas INTEGER. La UCI a veces manda

@@ -292,12 +292,11 @@ Ver [Corredores](#corredores) para la BD de corredores y su matching en el edito
 2. Coincidencia exacta normalizada contra `name` o cualquier alias.
 3. Fallback: contención bidireccional (≥ 4 caracteres).
 
-### Chapa — `buildTeamBadgeSvg(team, { size, className })` en `js/shared.js`
+### Colores — `teamStripes(team)` en `js/team-appearance.js`
 
-- Polígono de 22 lados gris (`#8a8d91`) como borde exterior.
-- Círculo interior con `clipPath`:
-  - Semicírculo superior: fondo `badgeTorsoSides` + franja central `badgeTorsoCenter` + círculo `badgeInnerCircle` (opcional).
-  - Semicírculo inferior: `badgeShorts` plano.
+- Un `<span class="team-stripes">` vacío con `badgeTorsoSides`, `badgeTorsoCenter` y `badgeShorts` como variables `--a`, `--b` y `--c`; las tres franjas son un degradado de `.team-stripes` (`css/app.css`, `css/panel.css`).
+- Sin colores curados (`hasCustomTeamBadgeColors` de `js/team-badge.js`) devuelve una cadena vacía.
+- Es la única representación de los colores de equipo en web y panel; la chapa SVG (`buildTeamBadgeSvg`) está retirada.
 
 ### Panel — sección "Equipos"
 
@@ -337,7 +336,7 @@ equipo (= dorsal del primer corredor mostrado). Equipos sin ningún dorsal (0/nu
 conservando `sortOrder` entre ellos → una startlist entera sin dorsales queda en el orden del panel.
 - Web: `js/inscritos.js` (sort in-place del array `teams` tras agrupar corredores; el PDF
   `js/inscritos-pdf.js` comparte ese array → hereda el orden).
-- Android: `util/StartlistLogic.teamsByFirstDorsal` (+ `StartlistLogicTest`), cableado en
+- Android: `util/StartlistLogic.teamsByFirstDorsal`, cableado en
   `CalendarRepository.loadStartlistData`.
 - iOS: sort al final de `StartlistViewModel.fetchTeams` (espejo del de Android — cambios en paralelo).
 No hay nada que tocar en el panel ni en BD; los corredores dentro del equipo ya se ordenaban por dorsal.
@@ -345,7 +344,6 @@ No hay nada que tocar en el panel ni en BD; los corredores dentro del equipo ya 
 ### CSS (`css/app.css`)
 
 - `.startlist-team__header` ahora es `display:flex; align-items:center; gap:0.55rem` para acomodar la chapa.
-- `.startlist-team__badge`, `.team-badge` — wrappers neutros (el SVG lleva width/height propias).
 
 ### Inscritos (startlists)
 
@@ -415,10 +413,7 @@ El CLI `scripts/data-preflight/startlist-import.mjs` genera los SELECT para la v
 no conecta directamente a la base. La skill pasa su stdout directamente
 al MCP o a `scripts/db/sql.mjs`, sin transcribir de nuevo el documento.
 
-La prueba reversible `scripts/data-preflight/tests/startlist-import.sql` comprueba
-altas completas, distinción club/selección, persistencia de pendientes, reintentos,
-conservación de ids, edición concurrente y denegación a usuarios no administradores.
-Termina con ROLLBACK. Los tests del contrato y CLI comprueban conservación de datos,
+Los tests del contrato y CLI comprueban conservación de datos,
 recuperación tras una respuesta perdida y bloqueo del SQL cuando falla la validación.
 
 ### Autocompletado entre equipos matriz y de desarrollo
@@ -483,10 +478,6 @@ Migraciones:
 
 - `20260904063403_startlist_development_team_rosters.sql`.
 - `20260904063625_startlist_roster_special_edition_affiliations.sql`.
-
-La comprobación transaccional está en
-`scripts/data-preflight/tests/startlist-development-rosters.sql`. Se ejecuta por
-Supabase MCP y termina con `ROLLBACK` de todos sus datos de ejemplo.
 
 El mismo día se trasladaron las diez afiliaciones de Canyon//SRAM Generation
 desde el maillot antiguo de zondacrypto al equipo regular, por petición expresa.
@@ -572,12 +563,6 @@ materializar plantillas del mercado. Nunca usar el fin de una prueba como fin
 de contrato.
 
 #### Verificación
-
-`scripts/data-preflight/tests/trainee-rosters.sql` usa fixtures y termina en
-`ROLLBACK`: fechas, independencia del anfitrión, maillot, género, fuentes,
-permisos, idempotencia, coexistencia con afiliación habitual y reclasificación.
-Las comprobaciones previas de clubes y de plantillas relacionadas siguen siendo
-aplicables por separado.
 
 Carga de 2026, copia privada, artefactos locales y ensayo de reversión: [informe](../informes/stagiaires-2026-20260904.md).
 
@@ -849,9 +834,10 @@ isEstimated }` ordenada por km. Lógica:
    `isEstimated`. **En CRI/CRE NO se interpola** (cada corredor pasa en un
    momento distinto): solo se muestran las horas manuales.
 
-Tests con **vectores compartidos** (mismos km/horas/resultados):
-`js/__tests__/simplified-guide.test.js`, `SimplifiedGuideTests.swift`,
-`SimplifiedGuideTest.kt`. Cambiar la heurística obliga a actualizar las tres.
+`js/__tests__/simplified-guide.test.js` cubre la interpolación por km, las
+horas manuales de cima y pie y la ausencia de interpolación en CRI/CRE. La
+heurística está implementada también en iOS y Android: cambiarla obliga a
+actualizar las tres implementaciones.
 
 ### Render + interacción
 
@@ -1002,5 +988,7 @@ presentan el mercado el panel y la web.
 ### Publicación web
 
 No ejecutar `admin_trigger_web_pages_workflow()` para altas o correcciones de
-fichajes. La pantalla consulta `rider_transfers` en vivo y no depende de una
-regeneración de páginas estáticas.
+fichajes. La pantalla consulta `rider_transfers` en vivo en cada carga y no
+depende de una regeneración de páginas estáticas: el HTML generado en el build
+(«Prerender de fichajes», `docs/runbooks/pages-build-selectivo.md`) es la
+primera pintada y el navegador la sustituye si los datos cambiaron.

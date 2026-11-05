@@ -20,9 +20,12 @@ function commandArgs() {
   return process.argv.slice(separator + 1);
 }
 
-function runCommand(command, args) {
+function runCommand(command, args, runId) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: 'inherit', env: process.env });
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      env: { ...process.env, CC_AUTOMATION_RUN_ID: String(runId) },
+    });
     child.once('error', (error) => {
       console.error(`No se pudo iniciar ${command}: ${error.message}`);
       resolve(1);
@@ -42,7 +45,7 @@ async function main() {
   let runId = null;
   try {
     runId = await startAutomationRun(client, { job, triggerKind });
-    const code = await runCommand(command, args);
+    const code = await runCommand(command, args, runId);
     await finishAutomationRun(client, {
       runId,
       status: code === 0 ? 'success' : 'error',

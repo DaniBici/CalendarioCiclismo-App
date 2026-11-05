@@ -23,7 +23,7 @@ import { fetchAllRows, fetchByIds } from './services/paged-query.js';
 import { staleWhileRevalidate } from './services/local-cache.js';
 import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js';
+import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
 
 // ── Estado ────────────────────────────────────────────────────────
 const today = new Date();
@@ -135,8 +135,12 @@ function passesCategoryFilter(rd) {
   const gender = rd._race?.gender || '';
   const name   = rd._race?.name || '';
   const isMixedRelay = (cat === 'WC' || cat === 'CC') && /relevo mixto|mixed relay/i.test(name);
-  // CN nunca como fila suelta (los Campeonatos van en su fila sintética).
-  if (cat === 'CN') return false;
+  // CN de la página de Campeonatos: van en su fila sintética. Las de fuera de su
+  // ventana se listan sueltas, con las reglas de filtro de las CN.
+  if (cat === 'CN') {
+    if (isOnChampionshipsPage(rd._race)) return false;
+    return activeCat === 'all' || championshipMatchesCategoryFilter(rd._race, activeCat);
+  }
   if ((cat === 'WC' || cat === 'CC') && activeCat !== 'all') {
     if (!/europa|mundo/i.test(name)) return false;
   }
@@ -205,9 +209,11 @@ function raceRowHtml(rd, refId) {
     l2 = `<div class="cal-race__l2">${cat}${typeBadge}${stageStr ? `<span class="cal-race__stage">${stageStr}</span>` : ''}${route ? `<span class="cal-race__route">${route}</span>` : ''}</div>`;
   }
 
-  const logo = race.logoUrl
-    ? `<img class="cal-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-    : '<span class="cal-race__logo cal-race__logo--empty"></span>';
+  // Los Campeonatos Nacionales no llevan logo: sin hueco.
+  const logo = race.uciCategory === 'CN' ? ''
+    : race.logoUrl
+      ? `<img class="cal-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+      : '<span class="cal-race__logo cal-race__logo--empty"></span>';
 
   const nameStyle = cancelled ? ' style="text-decoration:line-through;opacity:0.5"' : '';
   const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${isFemale ? femaleMark({ cls: 'cal-race__female' }) : ''}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
@@ -241,7 +247,6 @@ function raceRowHtml(rd, refId) {
 
 function champRowHtml() {
   return `<a class="cal-race cal-race--champ" href="${campUrl(getLang())}" style="--rc:${CAMP.ACCENT}">
-    <span class="cal-race__logo cal-race__logo--empty"></span>
     <div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__name">${campTitle(getLang())}</span></div>
     <div class="cal-race__l2">${categoryBadge('CN')}</div></div><span class="cal-race__chev">›</span></a>`;
 }

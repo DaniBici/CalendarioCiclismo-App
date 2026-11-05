@@ -4,7 +4,7 @@ import {
   colsByWidth, mapRows, flattenData, completedLapFromTimingPoint,
   liveCompletionState, eventProfile, idBaseFor, validateDatedResult,
   validateProfileColumns, progressCompletionState, liveStageResultRows, listHeaderDates,
-  selectorForStage, liveOverallRows, shouldEmitFinalClassification,
+  selectorForStage, liveOverallRows, shouldEmitFinalClassification, startGateState,
 }
   from '../results-fetchers/raceresult-results-fetch.mjs';
 
@@ -503,6 +503,9 @@ describe('idBaseFor — IDs sintéticos', () => {
     // se duplican los IDs ya volcados desde esta fuente.
     expect(-idBaseFor('402988')).toBe(-17212);
     expect(idBaseFor('406938', '1', true)).not.toBe(idBaseFor('406938', '2', true));
+    // Pruebas del mismo concurso separadas por página propia (430510: tt y rr).
+    expect(idBaseFor('430510', '0', true, 'tt')).not.toBe(idBaseFor('430510', '0', true, 'rr'));
+    expect(idBaseFor('406938', '1', true, null)).toBe(idBaseFor('406938', '1', true));
   });
 });
 
@@ -720,5 +723,45 @@ describe('shouldEmitFinalClassification — general final con --stage N', () => 
     expect(shouldEmitFinalClassification({ onlyStage: null, eventOver: true })).toBe(true);
     expect(shouldEmitFinalClassification({ onlyStage: null, finalFlag: true })).toBe(true);
     expect(shouldEmitFinalClassification({ onlyStage: null })).toBe(false);
+  });
+});
+
+describe('racesystem.gr (430510) — nombre en dos columnas, estado propio y lista de salida', () => {
+  const cols = { rank: 2, bib: 0, firstName: 5, lastName: 6, team: 7, value: 9, gap: 10, status: 11 };
+  const fields = ['BIB', 'ID', 'if([TT_OverallRank]>0;[TT_OverallRank]&".";"")', '[UCIID]', 'NATION.UCINAME',
+    'Firstname', 'Lastname', 'CLUB', '[RaceCategory]', 'if([TT_OfficialTime.DECIMAL]>0;format(...))',
+    'if([TT_OverallRank]>0;GapTimeTop(6;1;"-";"+H:mm:ss.kk");"")', '[TT_EffectiveStatus]'];
+  const row = (bib, rank, first, last, time, gap, status) =>
+    [bib, bib, rank, '10000000000', 'GRE', first, last, 'HELLAS NATIONAL Team', 'WE', time, gap, status];
+
+  it('valida Firstname/Lastname y la columna de estado', () => {
+    expect(() => validateProfileColumns({ DataFields: fields }, { cols })).not.toThrow();
+    const swapped = [...fields];
+    swapped[11] = 'CLUB';
+    expect(() => validateProfileColumns({ DataFields: swapped }, { cols })).toThrow('estado');
+  });
+
+  it('omite la hora a cero, compacta la diferencia y salta a quien no ha terminado', () => {
+    const rows = mapRows([
+      row('11', '1.', 'Argiro', 'Milaki', '0:16:23.45', '-', 'OK'),
+      row('1', '2.', 'Antri', 'Christoforou', '0:16:35.10', '+0:00:11.65', 'OK'),
+      row('12', '', 'Athina', 'Tzoulaki', '', '', 'DNF'),
+      row('13', '', 'Georgia', 'Rompotou', '', '', ''),
+    ], { cols }, 'race', true);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toMatchObject({ bib: '11', rank: 1, riderDisplay: 'MILAKI Argiro', timeText: '16:23' });
+    expect(rows[1]).toMatchObject({ bib: '1', rank: 2, gapText: '+11' });
+    expect(rows[2]).toMatchObject({ bib: '12', rank: null, irm: 'DNF' });
+    expect(normGap('+0:01:15')).toBe('+1:15');
+    expect(normGap('+1:02:03')).toBe('+1:02:03');
+    expect(normAbsTime('2:21:40')).toBe('2:21:40');
+  });
+
+  it('la crono espera a que cada dorsal con hora tenga puesto o IRM', () => {
+    const start = { data: [['1', '1', '15:30:00'], ['2', '2', '15:31:00'], ['3', '3', '']] };
+    const gate = { bib: 0, start: 2 };
+    expect(startGateState(start, [{ bib: '1', rank: 1 }], gate)).toMatchObject({ ready: false, pending: ['2'] });
+    expect(startGateState(start, [{ bib: '1', rank: 1 }, { bib: '2', irm: 'DNS' }], gate)).toMatchObject({ ready: true, expected: 2 });
+    expect(startGateState({ data: [['1', '1', '']] }, [{ bib: '1', rank: 1 }], gate).ready).toBe(false);
   });
 });

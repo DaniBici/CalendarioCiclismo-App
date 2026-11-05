@@ -69,10 +69,13 @@ export function startOrderBadgeHtml(href) {
 export function scheduleHtml(metaState, startTU, finishTU) {
   if (metaState.kind === 'waiting') return waitingResultsHtml(getLang());
   if (metaState.kind !== 'schedule') return '';
-  const tip = (metaState.time === 'finish' ? finishTU : startTU)?.tooltip;
+  const tu = metaState.time === 'finish' ? finishTU : startTU;
+  const tip = tu?.tooltip;
   const finishClass = metaState.time === 'finish' ? ' race-card__schedule--finish' : '';
   const title = tip ? ` title="${getLang() === 'en' ? 'Madrid time' : 'Hora Madrid'} · ${esc(tip)}"` : '';
-  return `<div class="race-card__schedule${finishClass}"${title}><span>${metaState.label}</span><strong>${metaState.value}</strong></div>`;
+  // Hora en otra fecha que la jornada: el día, debajo de la hora.
+  const day = tu?.day ? `<span class="race-card__schedule-day">(${esc(tu.day)})</span>` : '';
+  return `<div class="race-card__schedule${finishClass}"${title}><span>${metaState.label}</span><strong>${metaState.value}</strong>${day}</div>`;
 }
 
 // Miniperfil como banda inferior. Sigue el avance de la carrera salvo en

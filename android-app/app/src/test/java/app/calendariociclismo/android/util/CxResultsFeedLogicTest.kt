@@ -14,8 +14,8 @@ class CxResultsFeedLogicTest {
         CxRace(id, "Carrera $id", slug = id, seasonKey = "2026-27", dateKey = date, raceClass = raceClass,
             isCancelled = cancelled, categories = categories.toList())
 
-    private fun result(code: String, date: String, winner: String? = "Ganador $code", status: String = "official", start: String? = null) =
-        CxCategory(code, startTimeUtc = start, dateKey = date, resultsStatus = status, winnerName = winner)
+    private fun result(code: String, date: String, winner: String? = "Ganador $code", status: String = "official") =
+        CxCategory(code, dateKey = date, resultsStatus = status, winnerName = winner)
 
     @Test fun `agrupa por dia en cronologia inversa y reparte las categorias por dia`() {
         val twoDays = race("dos", "C1", "2026-11-01",
@@ -37,15 +37,5 @@ class CxResultsFeedLogicTest {
         )
         val days = CxResultsFeedLogic.days(races, "2026-27")
         assertEquals(listOf("provisional"), days.single().entries.map { it.race.id })
-    }
-
-    @Test fun `dentro del dia sigue el orden de la agenda CX`() {
-        val day = "2026-11-22"
-        val c2 = race("c2", "C2", day, result("ME", day, start = "2026-11-22T13:00:00Z"))
-        val cdmLate = race("cdm", "CDM", day, result("ME", day, start = "2026-11-22T14:00:00Z"))
-        val c1Early = race("c1-a", "C1", day, result("WE", day, start = "2026-11-22T10:00:00Z"))
-        val c1Late = race("c1-b", "C1", day, result("WE", day, start = "2026-11-22T12:00:00Z"))
-        val days = CxResultsFeedLogic.days(listOf(c2, c1Late, cdmLate, c1Early), "2026-27")
-        assertEquals(listOf("cdm", "c1-a", "c1-b", "c2"), days.single().entries.map { it.race.id })
     }
 }

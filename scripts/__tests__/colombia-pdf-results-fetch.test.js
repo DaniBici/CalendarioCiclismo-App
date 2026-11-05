@@ -170,6 +170,50 @@ Corredores clasificados : 6`;
     expect(rows[5]).toMatchObject({ bib: '48', resultValue: '+15:39', timeText: null, gapText: '+15:39' });
   });
 
+  it('lee la lista de IRM con UCI ID, las generales en dos columnas y los equipos con puesto negativo de la Vuelta a Guatemala', () => {
+    const text = `CLASIFICACION ETAPA 7 / STAGE 7 CLASSIFICATION
+Fecha : 29/10/26
+Cls Dor UCI-ID Apellido,Nombre Categ Nac Equipo Tiempos Diferen.
+ 1 16 10101230089 CHONAY,Ottoniel Will ELITE GUA HINO-ONE-LA RED-SUZUKI 03:51:53
+ 2 2 10101230090 CHAVES,Jhonatan Stev ELITE COL NU COLOMBIA 03:52:10 17
+Corredores clasificados : 2
+
+ 66   10127256102   HUINAC      Henry Arnulfo     GUA   OTL 5:36:05
+175   10104998743   ARREAGA     Rodrigo Rafael    GUA   DNF
+                       CLASIFICACION GENERAL DE REGULARIDAD / OVERALL POINTS CLASSIFICATION
+ 1    2 CHAVES      Jhonatan Steven    88                    3 106 AZAÑON      Diego Neftaly      -4
+ 2 16 CHONAY        Ottoniel Willson   66
+                         CLASIFICACION GENERAL DE MONTAÑA / OVERALL MOUNTAIN CLASSIFICATION
+ 1 71 UNGER        Logan              34                      3 71 UNGER       Logan              5
+ 2 32 TOC          Gerson Victorino   30
+                          CLASIFICACION GENERAL POR EQUIPOS / OVERALL TEAM CLASSIFICATION
+ -1 NU COLOMBIA                            89:00:54
+ -2 HINO-ONE-LA RED-SUZUKI                 89:05:33 a   0:04:39
+ -3 MASTER XELA                           102:10:33 a 13:09:39`;
+    const classes = Object.fromEntries(parsePdfText('la-vuelta-guatemala-2026', 7, text).stage.classifications.map((item) => [item.classKind, item]));
+    expect(classes.stage.rows.map(({ bib, irm }) => [bib, irm])).toEqual([['16', null], ['2', null], ['66', 'OTL'], ['175', 'DNF']]);
+    expect(classes.points.rows.map(({ bib, points }) => [bib, points])).toEqual([['2', 88], ['16', 66], ['106', -4]]);
+    expect(classes.kom).toBeUndefined();   // dorsal repetido: se omite solo esa general
+    expect(classes.teams.rows.map(({ rank, gapText }) => [rank, gapText])).toEqual([[1, null], [2, '+4:39'], [3, '+13:09:39']]);
+  });
+
+  it('cierra la general ante una cabecera precedida de `|` en la Vuelta a Guatemala', () => {
+    const text = `CLASIFICACION ETAPA 9 / STAGE 9 CLASSIFICATION
+Fecha : 31/10/26
+Cls Dor UCI-ID Apellido,Nombre Categ Nac Equipo Tiempos Diferen.
+ 1 41 10096093840 MUÑIZ,José Ramón ELITE MEX CANEL´S JAVA 02:56:48
+ 2 4 10114103811 RUBIO,Johan Steven SUB23 COL NU COLOMBIA 02:58:05 1:17
+Corredores clasificados : 2
+                               CLASIFICACION GENERAL / STAGE GENERAL CLASSIFICATION
+   1.-    2 10035460352 CHAVES,Jhonatan Steven ELITE COL NU COLOMBIA 32:37:24
+   2.-    4 10114103811 RUBIO,Johan Steven SUB23 COL NU COLOMBIA 32:51:20 a 13:56
+                            |CLASIFICACION GENERAL SUB23 / STAGE GENERAL YOUTH CLASSIFICATION
+   1.-    4 10114103811 RUBIO,Johan Steven SUB23 COL NU COLOMBIA 32:51:20`;
+    const classes = Object.fromEntries(parsePdfText('la-vuelta-guatemala-2026', 9, text).stage.classifications.map((item) => [item.classKind, item]));
+    expect(classes.gc.rows.map(({ bib }) => bib)).toEqual(['2', '4']);
+    expect(classes.youth.rows.map(({ bib }) => bib)).toEqual(['4']);
+  });
+
   it('procesa una carrera de un día y traslada OTL, DNF y DNS al final, en ese orden', () => {
     const { stage } = parseOneDayPdfText('gran-prix-chitre-2026', oneDayLayout, 'https://example.test/chitre.pdf');
     const classification = stage.classifications[0];

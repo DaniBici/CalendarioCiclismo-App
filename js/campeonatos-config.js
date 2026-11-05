@@ -163,12 +163,12 @@ export function championshipSlot(race, rd) {
 // Pro/Masc/Fem (igual que las 1.2U/2.2U). Masc/Fem además respetan el género.
 
 // ¿Es una CN de categoría sub23? (línea o CRI; masc o fem)
-export const isU23Championship = (race) =>
+const isU23Championship = (race) =>
   isChampionshipRace(race) && /\bsub-?23\b|\bu-?23\b/i.test(race?.name || '');
 
 // Género de una CN: 'female' si el nombre dice femenino o gender==='female'
 // (sin que el nombre diga masculino); 'male' en otro caso.
-export const isFemaleChampionship = (race) =>
+const isFemaleChampionship = (race) =>
   /\bfemenin/i.test(race?.name || '') ||
   (race?.gender === 'female' && !/\bmasculin/i.test(race?.name || ''));
 
@@ -182,6 +182,16 @@ export function championshipMatchesCategoryFilter(race, cat) {
   return false;
 }
 
+// ¿Entra una CN en la página de Campeonatos? Se compara la ventana de carga sin
+// el año: rige también en las temporadas sin página, de modo que las CN de fuera
+// de la ventana (Australia en enero, Nueva Zelanda en febrero) se listan en
+// Temporada y las de dentro quedan para la fila sintética y la página.
+export function isOnChampionshipsPage(race) {
+  if (!isChampionshipRace(race)) return false;
+  const monthDay = (race.startDate || '').slice(5);
+  return !monthDay || (monthDay >= CAMP.QUERY_START.slice(5) && monthDay <= CAMP.QUERY_END.slice(5));
+}
+
 // ── Orden interno de la categoría CN en Hoy/Mes ───────────────────
 // Cuando dos jornadas son Campeonatos Nacionales (uciCategory === 'CN')
 // se ordenan entre sí por: (1) país según COUNTRY_ORDER, (2) LÍNEA antes
@@ -192,7 +202,7 @@ export function championshipMatchesCategoryFilter(race, cat) {
 // Índice de país: posición en COUNTRY_ORDER; los ausentes van al final
 // ordenados por código (mismo criterio que la rejilla de la página).
 const _COUNTRY_INDEX = new Map(CAMP.COUNTRY_ORDER.map((cc, i) => [cc, i]));
-export function championshipCountryIndex(countryCode) {
+function championshipCountryIndex(countryCode) {
   const cc = (countryCode || '').toUpperCase();
   const i = _COUNTRY_INDEX.get(cc);
   return i != null ? i : CAMP.COUNTRY_ORDER.length;

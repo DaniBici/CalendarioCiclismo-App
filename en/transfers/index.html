@@ -11,10 +11,6 @@
   <script src="/js/theme.js"></script>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/fichajes.css">
-  <style>
-    .static-prerender{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
-    .static-prerender h1,.static-prerender h2,.static-prerender p,.static-prerender ul,.static-prerender li,.static-prerender a{all:revert}
-  </style>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -61,7 +57,7 @@
 <script type="module" src="/js/header.js"></script>
 
   <main class="tr-main" id="fichajesMain">
-    <div class="static-prerender static-prerender--visible">
+    <div class="static-prerender">
       <h1>2027 Pro Cycling Transfer Market</h1>
       <p>Live tracking of the pro cycling transfer market for the 2027 season: every confirmed transfer and contract renewal in reverse chronological order, with each rider's previous team and destination.</p>
       <p>Plus the state of every roster across the four divisions (men's and women's UCI WorldTour, WT and WWT, and men's and women's UCI ProTeam, PT and PRW), split into three blocks: riders staying with their contract end date, arrivals and departures.</p>
@@ -75,6 +71,12 @@
     <div class="loading" id="trStaticLoading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">Loading transfer market</p><div class="loading__dots"><span></span><span></span><span></span></div></div>
     <div id="transfersContent" hidden></div>
   </main>
+  <script>
+    // Portada generada en el build (tools/site/prerender-fichajes.mjs) y enlace
+    // a un equipo: la vista de equipo sustituye a la portada, que espera oculta
+    // bajo la capa de carga (js/page-loading.js) en lugar de verse unos instantes.
+    !function(){var c=document.getElementById('transfersContent'),m;if(c.hasAttribute('data-prerendered')&&/[?&](team|equipo)=/.test(location.search)){c.hidden=true;m=document.createElement('div');m.className='loading';m.id='trStaticLoading';c.before(m)}}()
+  </script>
 
   <script src="/js/config.js"></script>
   <script src="/js/cookie-consent.js"></script>

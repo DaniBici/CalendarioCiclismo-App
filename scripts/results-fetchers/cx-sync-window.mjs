@@ -25,8 +25,8 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     &&cxDateInSeason(race.seasonKey,manga.dateKey||race.dateKey);}catch{}
   if(!validSeason||race.editorialStatus!=='published'||race.isCancelled||manga.isCancelled||!CATEGORIES.has(manga.category)
     ||manga.raceId!==race.id||(manga.dateKey||race.dateKey)<race.dateKey||(manga.dateKey||race.dateKey)>(race.endDateKey||race.dateKey))return skip('Carrera/manga fuera de alcance');
-  const acnLink=link?.provider==='acn',wiclaxLink=link?.provider==='wiclax',kbwbLink=link?.provider==='kbwb',smartwebLink=link?.provider==='smartweb';
-  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':wiclaxLink?'Enlace Wiclax CX inválido':kbwbLink?'Enlace KBWB CX inválido':smartwebLink?'Enlace smartweb CX inválido':'Enlace DataRide CX inválido',true);
+  const acnLink=link?.provider==='acn',wiclaxLink=link?.provider==='wiclax',kbwbLink=link?.provider==='kbwb',smartwebLink=link?.provider==='smartweb',golazoLink=link?.provider==='golazo',zone4Link=link?.provider==='zone4';
+  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':wiclaxLink?'Enlace Wiclax CX inválido':kbwbLink?'Enlace KBWB CX inválido':smartwebLink?'Enlace smartweb CX inválido':golazoLink?'Enlace Golazo CX inválido':zone4Link?'Enlace Zone4 CX inválido':'Enlace DataRide CX inválido',true);
   if(acnLink){
     if(!/^[1-9]\d{5,19}$/.test(String(link.eventId??''))||!link.ctx)return skip('Enlace ACN CX inválido',true);
   }else if(wiclaxLink){
@@ -38,6 +38,12 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     let indexUrl=null;try{indexUrl=smartwebIndexUrl(link.sourceUrl);}catch{}
     const keys=Object.keys(link.categoryKeys||{});
     if(indexUrl!==link.sourceUrl||!keys.length||keys.some(key=>key!==smartwebLabel(key)))return skip('Enlace smartweb CX inválido',true);
+  }else if(golazoLink){
+    const keys=Object.keys(link.categoryKeys||{});
+    if(!/^https:\/\/[a-z0-9.-]+\/$/.test(String(link.sourceUrl??''))||!keys.length||keys.some(key=>!/^uitslagen-[a-z0-9-]+$/.test(key)))return skip('Enlace Golazo CX inválido',true);
+  }else if(zone4Link){
+    const keys=Object.keys(link.categoryKeys||{});
+    if(!keys.length||keys.some(key=>!/^\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}\/\S.*$/.test(key)))return skip('Enlace Zone4 CX inválido',true);
   }else if(link.disciplineId!==3||!Number.isSafeInteger(link.competitionId)||link.competitionId<=0
     ||!Number.isSafeInteger(link.seasonId)||link.seasonId<=0)return skip('Enlace DataRide CX inválido',true);
   if(manga.resultsLockedAt)return skip('Resultados protegidos por revisión administrativa');
@@ -58,6 +64,11 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     return {due:true,reason:'Ventana de recogida activa',...window};
   }
 
+  // Golazo deduce la meta del paso del líder y de la duración: sin final estimado no se consulta.
+  if(golazoLink){
+    const dateKey=manga.dateKey||race.dateKey,current=madridDate(now);
+    return skip('Golazo requiere salida y formato de la manga',current>=dateKey&&current<=nextCivilDate(dateKey)&&manga.resultsStatus==='pending');
+  }
   // DataRide crea la competición antes de incorporar cada Race/categoría. Si el
   // programa propio no acredita una duración, se consulta por fecha civil para
   // descubrir las clasificaciones que vayan apareciendo, sin inventar una meta.

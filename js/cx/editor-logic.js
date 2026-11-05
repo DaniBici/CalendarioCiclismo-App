@@ -3,8 +3,7 @@ export const CX_CATEGORIES=['ME','WE','MU','WU','MJ','WJ'];
 export const CX_CLASSES=['CM','CDM','CC','C1','C2','CN','NAC'];
 export const CX_COUNTRY_GROUPS=['ALL','ES','EUROPA','PT','FR','BE','NL','IT','DE_AT_CH','UK_IE','SCANDI','EE','LATAM','NORTEAM','ASIAPAC','AFRICA','MENA'];
 // Sub-23 que corren dentro de la manga Elite del mismo sexo (formato WITH_ELITE).
-/** @public Lo consultan las pruebas del módulo importado. */
-export const CX_ELITE_PARENT={MU:'ME',WU:'WE'};
+const CX_ELITE_PARENT={MU:'ME',WU:'WE'};
 // Cada opción nombra qué ocurre en la carrera y la duración reglamentaria que fija (UCI 5.1.048).
 export function cxDurationFormatOptions(category) {
   const minutes=format=>{const value=cxRegulationMinutes(category,format);return value===null?'':` · ${value} min`;};
@@ -30,7 +29,7 @@ export const cxSlugWithoutDiscipline=slug=>{
   const clean=`-${slug}-`.replace(/-(?:(?:de|del|of)-)?(?:ciclo-?cros(?:s|se)?|cyclo-?cross|cx)(?=-)/g,'').replace(/^-(?:de|del)(?=-)/,'').replace(/^-|-$/g,'');
   return /[a-z]/.test(clean)?clean:slug;
 };
-export const cxVenueCity=venue=>{
+const cxVenueCity=venue=>{
   const text=String(venue??'').replace(/ł/g,'l').replace(/Ł/g,'L').replace(/\([^)]*\)/g,'').trim();
   if(!text) return '';
   const head=text.split(',')[0].trim();
@@ -105,7 +104,10 @@ export function cxSeconds(value) {
 }
 export function cxDuration(seconds) {
   if(seconds===null || seconds===undefined || String(seconds).trim()==='') return '-';
-  try {const n=BigInt(cxSeconds(seconds));return `${n/3600n}:${String(n%3600n/60n).padStart(2,'0')}:${String(n%60n).padStart(2,'0')}`;}catch{return '-';}
+  try {
+    const n=BigInt(cxSeconds(seconds)),mins=n%3600n/60n,secs=String(n%60n).padStart(2,'0');
+    return n<3600n?`${mins}:${secs}`:`${n/3600n}:${String(mins).padStart(2,'0')}:${secs}`;
+  }catch{return '-';}
 }
 export function cxPointValue(value) {
   if(typeof value==='number'&&(!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER))throw new Error('Puntos no representables sin pérdida.');
@@ -232,14 +234,4 @@ export function parseCxRows(text,kind='results') {
     row[kind==='results'?'isoCode2':'countryCode']=country||null;
     return row;
   });
-}
-
-export function validateCxScheme(scheme) {
-  if(!scheme || typeof scheme!=='object' || Array.isArray(scheme) || !scheme.categories || typeof scheme.categories!=='object' || Array.isArray(scheme.categories)) throw new Error('El reglamento debe definir categorías.');
-  for(const [category,rule] of Object.entries(scheme.categories)) {
-    if(!CX_CATEGORIES.includes(category) || !rule || !['points','time'].includes(rule.mode)) throw new Error(`Modalidad/categoría inválida: ${category}`);
-    if(rule.mode==='points') {if(!Array.isArray(rule.perRank)||!rule.perRank.length)throw new Error(`Faltan puntos por puesto: ${category}`);for(const value of rule.perRank)if(cxPointValue(value).startsWith('-'))throw new Error(`Escala de puntos negativa: ${category}`);}
-    if(rule.mode==='time' && rule.perRank!==undefined) throw new Error(`Una general por tiempo no admite puntos por puesto: ${category}`);
-  }
-  return scheme;
 }

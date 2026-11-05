@@ -7,7 +7,7 @@ function scrollBehavior() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 }
 
-export function hasScrollRailOverflow(contentExtent, viewportExtent, leadingControlExtent = 0, trailingControlExtent = 0) {
+function hasScrollRailOverflow(contentExtent, viewportExtent, leadingControlExtent = 0, trailingControlExtent = 0) {
   return contentExtent > viewportExtent + leadingControlExtent + trailingControlExtent + 2;
 }
 

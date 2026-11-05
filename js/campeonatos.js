@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, rdLocation, filterBroadcastsByRegion,
-         formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
+         formatTimeUser, timeWithDay, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded } from './race-data-modal.js';
@@ -280,9 +280,9 @@ function eventCell(race, rd, label) {
     // siempre muestra un horario (noFullStage=true), para que cada celda tenga una
     // hora visible tenga la carrera TV o no.
     const tv = tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, liveTextUrl, rd.id, rd._tvBlocked, true);
-    const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+    const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
     const finishBadge = finishTU?.display
-      ? `<span class="badge badge--time${finishTU.tooltip ? ' badge--time-user' : ''}"${finishTU.tooltip ? ` data-tztip="Hora Madrid · ${finishTU.tooltip}"` : ''}>${_finishFlagSvg} ${finishTU.display}</span>`
+      ? `<span class="badge badge--time${finishTU.tooltip ? ' badge--time-user' : ''}"${finishTU.tooltip ? ` data-tztip="Hora Madrid · ${finishTU.tooltip}"` : ''}>${_finishFlagSvg} ${timeWithDay(finishTU)}</span>`
       : '';
     // El badge de TV tiene hora propia salvo que ninguna emisión la traiga (badge
     // "TV" pelado). Para garantizar un horario en cada celda, si la TV no la lleva,

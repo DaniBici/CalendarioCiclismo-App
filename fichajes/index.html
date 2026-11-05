@@ -11,10 +11,6 @@
   <script src="/js/theme.js"></script>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/fichajes.css">
-  <style>
-    .static-prerender{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
-    .static-prerender h1,.static-prerender h2,.static-prerender p,.static-prerender ul,.static-prerender li,.static-prerender a{all:revert}
-  </style>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -61,7 +57,7 @@
 <script type="module" src="/js/header.js"></script>
 
   <main class="tr-main" id="fichajesMain">
-    <div class="static-prerender static-prerender--visible">
+    <div class="static-prerender">
       <h1>Mercado de Fichajes del ciclismo 2027</h1>
       <p>Seguimiento del mercado de fichajes del ciclismo profesional para la temporada 2027: todos los traspasos y renovaciones confirmados, en orden cronológico, con el equipo de origen y el de destino de cada corredor y corredora.</p>
       <p>Además, el estado de la plantilla de cada equipo de las cuatro divisiones (UCI WorldTour masculino WT y femenino WWT, UCI ProTeam masculino PT y femenino PRW), dividido en tres bloques: los ciclistas que continúan con su fecha de fin de contrato, los que llegan y los que se marchan.</p>
@@ -75,6 +71,12 @@
     <div class="loading" id="trStaticLoading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">Cargando mercado de fichajes</p><div class="loading__dots"><span></span><span></span><span></span></div></div>
     <div id="transfersContent" hidden></div>
   </main>
+  <script>
+    // Portada generada en el build (tools/site/prerender-fichajes.mjs) y enlace
+    // a un equipo: la vista de equipo sustituye a la portada, que espera oculta
+    // bajo la capa de carga (js/page-loading.js) en lugar de verse unos instantes.
+    !function(){var c=document.getElementById('transfersContent'),m;if(c.hasAttribute('data-prerendered')&&/[?&](team|equipo)=/.test(location.search)){c.hidden=true;m=document.createElement('div');m.className='loading';m.id='trStaticLoading';c.before(m)}}()
+  </script>
 
   <script src="/js/config.js"></script>
   <script src="/js/cookie-consent.js"></script>

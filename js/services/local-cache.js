@@ -20,7 +20,7 @@ const fullKey = key => `${PREFIX}v${CACHE_VERSION}:${key}`;
  * más reciente que `maxAgeMs`; una copia caducada solo se descarta pasado
  * `staleLimitMs` (por defecto, 7 días).
  */
-export function readCache(key, { maxAgeMs, staleLimitMs = 7 * 86_400_000, now = Date.now(), storage = defaultStorage() } = {}) {
+function readCache(key, { maxAgeMs, staleLimitMs = 7 * 86_400_000, now = Date.now(), storage = defaultStorage() } = {}) {
   if (!storage) return null;
   try {
     const raw = storage.getItem(fullKey(key));

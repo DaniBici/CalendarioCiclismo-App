@@ -586,8 +586,7 @@
     <string name="cx_unfollow">Unfollow CX race</string>
     <string name="cx_not_found">Race unavailable</string>
     <string name="cx_no_general">No published standings</string>
-    <string name="cx_calendar">Calendar</string>
-    <string name="cx_overall_standings">Overall standings</string>
+    <string name="cx_races">Races</string>
     <string name="cx_more_rounds">More rounds</string>
     <string name="cx_dropped_result">Dropped result</string>
     <string name="cx_points">Points</string>

@@ -21,6 +21,7 @@
 
 import { getLang } from './i18n.js';
 import { readCalendarView, readCalendarMonth, writeCalendarParams } from './calendario-query.js';
+import { retireStaticText } from './static-text.js';
 
 const SUBVIEW_KEY = 'cc-cal-subview';
 const VALID = new Set(['mes', 'temporada']);
@@ -105,8 +106,10 @@ function removeStaticLoading() {
   // (page-loading.js MARKER_SEL) y aquí es hijo permanente de #calMain:
   // hay que retirarlo o el overlay nunca cierra por observer. El .loading
   // de la subvista ya está inyectado, así que no queda hueco sin marcador.
+  // Su <h1> queda en su lugar como título de la página (js/static-text.js).
   document.getElementById('calStaticLoading')?.remove();
-  document.querySelector('#calMain .static-prerender')?.remove();
+  const block = document.querySelector('#calMain .static-prerender');
+  retireStaticText(block, title => block.before(title));
 }
 
 // Toggle (botón en cada barra de filtros, como el action del TopAppBar en apps)

@@ -1599,7 +1599,12 @@ private fun TimeSection(rd: RaceDay, race: Race?) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (startStr != null) {
-                    TimeBlock(time = startStr, label = startLabel, modifier = Modifier.weight(1f))
+                    TimeBlock(
+                        time = startStr,
+                        day = rd.neutralStartTimeUtc?.let { DateFormatting.otherDayLabel(it, rd.dateKey) },
+                        label = startLabel,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 if (startStr != null && finishStr != null) {
                     Icon(
@@ -1610,21 +1615,34 @@ private fun TimeSection(rd: RaceDay, race: Race?) {
                     )
                 }
                 if (finishStr != null) {
-                    TimeBlock(time = finishStr, label = finishLabel, modifier = Modifier.weight(1f))
+                    TimeBlock(
+                        time = finishStr,
+                        day = rd.estimatedFinishTimeUtc?.let { DateFormatting.otherDayLabel(it, rd.dateKey) },
+                        label = finishLabel,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
     }
 }
 
+/** Hora, el día "(sáb.)" cuando cae en otra fecha que la jornada, y rótulo. */
 @Composable
-private fun TimeBlock(time: String, label: String, modifier: Modifier = Modifier) {
+private fun TimeBlock(time: String, day: String?, label: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = time,
             style = CCText.S16.copy(fontFeatureSettings = "tnum"),
             fontWeight = FontWeight.SemiBold,
         )
+        if (day != null) {
+            Text(
+                text = "($day)",
+                style = CCText.S13,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Text(
             text = label,
             style = CCText.S13,

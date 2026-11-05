@@ -224,7 +224,7 @@ function isIndicatorKind(kind) {
  * coincidencia triple se representa como cima + meta y waypoint independiente.
  * No se aplica tolerancia ni redondeo.
  */
-export function mergeCoincidentProfileAnnotations(summits = [], waypoints = [], finishKm = null) {
+function mergeCoincidentProfileAnnotations(summits = [], waypoints = [], finishKm = null) {
   const remaining = [...waypoints];
   const annotations = [];
   let finishAvailable = Number.isFinite(finishKm);
@@ -337,7 +337,7 @@ export function buildElevationSparkline(profile, progressFraction, rdId, fillCol
 // Ajusta los colores que pierden contraste sobre las tarjetas de cada tema.
 // La variable CSS permite cambiar de tema sin reconstruir el SVG y se resuelve
 // también al exportar a PNG. No altera opacidades ni grosores.
-export function profileThemeColor(color) {
+function profileThemeColor(color) {
   if (!color) return 'var(--accent)';
   const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
   if (!match) return color;

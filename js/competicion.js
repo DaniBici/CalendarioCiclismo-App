@@ -1,144 +1,90 @@
-import { todayRaceState, waitingResultsHtml as renderWaitingResults } from './services/race-presentation.js';
-import { arrowHtml } from './scroll-rail.js';
+import { todayRaceState } from './services/race-presentation.js';
 // ─────────────────────────────────────────────────────────────────
 //  COMPETICIÓN — competicion.html?id=RACE_ID
+//  Página y tarjetas en js/competicion-html.js, común con el build
+//  (tools/site/prerender-competicion.mjs), que escribe la página.
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, stageLabel, countryFlag, formatTimeUser,
-         resolveTypeBadges, setMeta, setMetaProperty, initPhTooltip,
+import { supabase, stageLabel, countryFlag,
+         setMeta, setMetaProperty, initPhTooltip,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
-         startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
+         seoLongDate, seoDayMonth,
          articuloNombre, conArticulo, originalNameDistinto, raceSearchName, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair,
          embeddedId, orEqFilter, pickByPreference }
          from './shared.js';
-import { t, getLang, getLocale, initI18n } from './i18n.js';
+import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
-import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
-import { createRaceCard, raceCardHtml } from './components/race-card.js';
-import { noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
-         startOrderBadgeHtml, scheduleHtml, appendProfile, appendResultsActions, activateStageCard } from './components/stage-card.js';
-import { agendaMetaState } from './services/today-agenda-layout.js';
+import { openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { competitionCardHtml, competitionPageHtml, paintCompetitionCard, sortCompetitionDays } from './competicion-html.js';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
-import { tvBadge } from './race-assets.js';
+import './race-assets.js';
 
-function formatDateShort(dk) {
-  if (!dk) return '';
-  const [y, m, d] = dk.split('-').map(Number);
-  const str = new Date(y, m-1, d).toLocaleDateString(getLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-function formatDateRange(startDk, endDk) {
-  if (!startDk) return '';
-  const [sy, sm, sd] = startDk.split('-').map(Number);
-  const [ey, em, ed] = (endDk || startDk).split('-').map(Number);
-  const startD = new Date(sy, sm - 1, sd);
-  const endD   = new Date(ey, em - 1, ed);
-  const fmtDay = d => d.getDate();
-  const fmtMon = d => d.toLocaleDateString(getLocale(), { month: 'short' });
-  if (sm === em && sy === ey) {
-    // Mismo mes: "6–27 jul"
-    return `${fmtDay(startD)}–${fmtDay(endD)} ${fmtMon(endD)}`;
-  }
-  if (sy === ey) {
-    // Mismo año, distinto mes: "30 ago – 21 sep"
-    return `${fmtDay(startD)} ${fmtMon(startD)} – ${fmtDay(endD)} ${fmtMon(endD)}`;
-  }
-  // Distinto año (rarísimo): "31 dic – 2 ene"
-  return `${fmtDay(startD)} ${fmtMon(startD)} – ${fmtDay(endD)} ${fmtMon(endD)}`;
-}
-// Tarjeta de jornada: estructura común de components/race-card.js sin logo
-// (la cabecera ya identifica la carrera). El nombre es «Etapa · fecha»; en un
-// challenge, la etapa o la carrera de cada jornada.
-function buildCompetitionCard(rd, { race, title, flag, tooltipName }) {
-  const date = formatDateShort(rd.dateKey);
-  const name = `<span>${title ? `${title} <span class="race-card__sep">·</span> ${date}` : date}</span>`;
-
-  if (rd.isRestDay) {
-    const card = createRaceCard(race.colorHex, 'race-card--rest-day');
-    const city = rd.startLocation ? `<span class="race-card__sep">·</span><span class="race-card__route">${rdLocation(rd, 'startLocation')}</span>` : '';
-    card.innerHTML = raceCardHtml({ name: `<span>${date}</span>`, sub: `<span class="race-card__stage">${t('stage.restDay')}</span>${city}` });
-    return card;
-  }
-
-  const { km, elev } = formatStageMetrics(rd);
-  const startTU = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-  const state = todayRaceState(rd);
-  const showResults = state === 'results';
-  const waiting = state === 'waiting';
-  const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-  const metaState = agendaMetaState(state, { start: startTU?.display, finish: finishTU?.display, lang: getLang(), isTimeTrial });
-  // Fila de badges bajo el nombre (paridad iOS): Cancelada → Tipo → TV →
-  // Orden de salida. Una jornada cancelada no tiene tipo ni emisión.
-  const tvHtml = (showResults || waiting || rd.isCancelledDay) ? ''
-    : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
-  const startOrderHtml = isTimeTrial && rd._assets?.some(a => a.url && a.type === 'startOrder') && !rd.isCancelledDay && !showResults && !waiting
-    ? startOrderBadgeHtml(startOrderUrl(rd)) : '';
-
-  const card = createRaceCard(race.colorHex);
-  card.dataset.dayId = rd.id;
-  card.innerHTML = raceCardHtml({
-    name,
-    sub: stageSubHtml({ route: stageRouteText(rd, rdLocation), km, elev }),
-    badges: `${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.stageCancelledBadge')}</span>` : ''}${tvHtml}${startOrderHtml}`,
-    meta: showResults || rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU),
+// Clics y teclado de las tarjetas de jornada, delegados en el contenedor
+// (persiste entre repintados y sirve igual sobre la página generada): página de
+// la jornada, modal de datos, Resultados y Revive embebible. Las insignias con
+// su propio enlace detienen la propagación.
+function wireCompetitionCards(content, rdMap, raceFor) {
+  const activate = (card, event) => {
+    const rd = rdMap[card.dataset.dayId];
+    if (!rd) return;
+    if (card.dataset.href) {
+      sessionStorage.removeItem('cc_nav');
+      window.location.href = card.dataset.href;
+      return;
+    }
+    if (!('cardModal' in card.dataset) || event?.target?.closest?.('a.badge, .race-card__overview-btn')) return;
+    openRaceDataModal(rd, raceFor(rd));
+  };
+  content.addEventListener('click', e => {
+    const card = e.target.closest('.race-card[data-day-id]');
+    const rd = card && rdMap[card.dataset.dayId];
+    if (!rd) return;
+    if (e.target.closest('[data-card-results]')) { e.stopPropagation(); openResultsModal(rd, raceFor(rd)); return; }
+    const revive = e.target.closest('.badge--revive');
+    if (revive) {
+      e.stopPropagation();
+      if (revive.dataset.cardReviveYt) { e.preventDefault(); openYoutubeTvModal(rd, raceFor(rd), revive.dataset.cardReviveYt); }
+      return;
+    }
+    activate(card, e);
   });
-  // Sin miniperfil, el tipo de etapa comunica el terreno; con él, solo CRI/CRE.
-  const hasProfile = appendProfile(card, rd);
-  if (!rd.isCancelledDay && rd.primaryType && (!hasProfile || isTimeTrial)) {
-    card.querySelector('.race-card__badges').insertAdjacentHTML('afterbegin',
-      `<span class="race-card__types--inline">${resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode)}</span>`);
-  }
-  if (showResults) {
-    appendResultsActions(card, rd, {
-      onResults: () => openResultsModal(rd, race),
-      onYoutube: ytId => openYoutubeTvModal(rd, race, ytId),
-    });
-  }
-  // La jornada cancelada SÍ abre su modal: conserva recorrido, distancia,
-  // tipo y descripción de la etapa que estaba trazada.
-  const tooltipSub = title ? `${title} · ${date}` : date;
-  activateStageCard(card, rd, {
-    clickable: stageIsClickable(rd, race.isNoClickable),
-    label: [tooltipName, title, date].filter(Boolean).join(' · '),
-    seoText: [tooltipName, title].filter(Boolean).join(' · '),
-    onModal: hasModalData(rd) ? () => openRaceDataModal(rd, race) : null,
-    tooltip: {
-      message: rd.isCancelledDay ? t('stage.stageCancelledTooltip') : noExtraInfoMessage(rd.dateKey),
-      name: tooltipName, flag, sub: tooltipSub,
-    },
+  content.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    const card = e.target.closest('.race-card[data-day-id][role]');
+    // Enter/Espacio dentro de un badge o enlace anidado es cosa suya.
+    if (!card || (e.target !== card && e.target.closest('a, button'))) return;
+    e.preventDefault();
+    activate(card, e);
   });
-  return card;
 }
 
-// Las tarjetas se construyen como DOM (con sus listeners) y se insertan en el
-// hueco que deja el HTML de la página.
-function mountCompetitionCards(content, cards) {
-  content.querySelector('[data-stage-list]')?.append(...cards);
-}
-
-// Una jornada que pasa a «Esperando resultados» sin recargar la página pierde
-// el horario y la emisión.
-function watchCompetitionWaiting(content, days) {
-  content._waitingCleanup?.();
-  const byId = new Map(days.map(day => [day.id,day]));
-  const update = () => {
-    if (document.hidden) return;
-    content.querySelectorAll('[data-day-id]').forEach(card => {
-      const day = byId.get(card.dataset.dayId), meta = card.querySelector('.race-card__meta-top');
-      if (day && todayRaceState(day)==='waiting' && meta && !meta.querySelector('.badge--results,.race-card__schedule--waiting')) {
-        meta.innerHTML=renderWaitingResults(getLang());
-        card.querySelectorAll('.race-card__badges :is(.badge--tv,.badge--livetext,.badge--notv,.badge--notv-es,.badge--pend,.badge--startorder)').forEach(node => node.remove());
-      }
+// Horario, insignias, resultados y miniperfil de cada tarjeta, según el estado
+// de su jornada: se pintan al montar y se repintan cuando el estado cambia
+// (salida, meta, espera de resultados) sin recargar la página.
+function watchCompetitionCards(content, rdMap, raceFor) {
+  content._cardsCleanup?.();
+  const states = new WeakMap();
+  const paint = (force = false) => {
+    if (document.hidden && !force) return;
+    content.querySelectorAll('.race-card[data-day-id]').forEach(card => {
+      const rd = rdMap[card.dataset.dayId];
+      if (!rd) return;
+      const state = todayRaceState(rd);
+      if (!force && states.get(card) === state) return;
+      states.set(card, state);
+      paintCompetitionCard(card, rd, { race: raceFor(rd) });
     });
   };
-  const timer=setInterval(update,60000);
-  document.addEventListener('visibilitychange',update);
-  const cleanup=()=> { clearInterval(timer);document.removeEventListener('visibilitychange',update);window.removeEventListener('pagehide',cleanup); };
-  content._waitingCleanup=cleanup;
-  window.addEventListener('pagehide',cleanup,{once:true});
+  paint(true);
+  const update = () => paint();
+  const timer = setInterval(update, 60000);
+  document.addEventListener('visibilitychange', update);
+  const cleanup = () => { clearInterval(timer); document.removeEventListener('visibilitychange', update); window.removeEventListener('pagehide', cleanup); };
+  content._cardsCleanup = cleanup;
+  window.addEventListener('pagehide', cleanup, { once: true });
 }
 
 // El badge de TV de race-assets.js abre el reproductor integrado por delegación.
@@ -250,12 +196,14 @@ async function init() {
     let row = null;
     if (id) {
       const { data } = await supabase.from('races').select(RACE_WITH_DAYS)
-        .eq('id', id).eq('race_days.editorialStatus', 'published').maybeSingle();
+        .eq('id', id).eq('race_days.editorialStatus', 'published')
+        .order('id', { referencedTable: 'race_days' }).order('id', { referencedTable: 'race_days.assets' }).maybeSingle();
       row = data;
     } else {
       const columns = _initIsEn ? ['slugEn', 'slug'] : ['slug'];
       const { data } = await supabase.from('races').select(RACE_WITH_DAYS)
-        .or(orEqFilter(columns, slug)).eq('race_days.editorialStatus', 'published').limit(4);
+        .or(orEqFilter(columns, slug)).eq('race_days.editorialStatus', 'published')
+        .order('id', { referencedTable: 'race_days' }).order('id', { referencedTable: 'race_days.assets' }).limit(4);
       row = pickByPreference(data, columns, slug);
       if (!row) { await i18nReady; content.innerHTML = errorHTML('Competición no especificada'); return; }
       id = row.id;
@@ -274,16 +222,7 @@ async function init() {
     }
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 
-    let days = daysData || [];
-    days.sort((a, b) => {
-      if ((a.stageNumber !== null && a.stageNumber !== undefined) && (b.stageNumber !== null && b.stageNumber !== undefined)) {
-        if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
-        const tA = a.neutralStartTimeUtc ? new Date(a.neutralStartTimeUtc).getTime() : Infinity;
-        const tB = b.neutralStartTimeUtc ? new Date(b.neutralStartTimeUtc).getTime() : Infinity;
-        return tA - tB;
-      }
-      return (a.dateKey||'').localeCompare(b.dateKey||'');
-    });
+    const days = sortCompetitionDays(daysData || []);
 
     const bResult = { data: allDayBroadcasts };
     const aResult = { data: allDayAssets };
@@ -293,75 +232,18 @@ async function init() {
     days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); });
     annotateDoubleSectors(days);
 
-    const flag        = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
-    const isStageRace = race.raceFormat !== 'one_day';
-
-    // Calcular rango de fechas usando los race_days (excluir descansos)
-    const raceDaysOnly = days.filter(d => !d.isRestDay && d.dateKey);
-    const firstDateKey = raceDaysOnly.length ? raceDaysOnly[0].dateKey : null;
-    const lastDateKey  = raceDaysOnly.length ? raceDaysOnly[raceDaysOnly.length - 1].dateKey : null;
-    const dateRange    = firstDateKey ? formatDateRange(firstDateKey, lastDateKey) : '';
-
-    // Hero (cabecera unificada). Detalle = rango de fechas · categoría · nº etapas.
-    const nDaysC  = raceDaysOnly.length;
-    const countKey = isStageRace
-      ? (nDaysC !== 1 ? 'stage.stagesCount_other' : 'stage.stagesCount_one')
-      : (nDaysC !== 1 ? 'stage.racesCount_other'  : 'stage.racesCount_one');
-    const detailC = [
-      dateRange ? `${dateRange} ${race.year}` : race.year,
-      race.uciCategory,
-      t(countKey).replace('{n}', nDaysC),
-    ].filter(Boolean).join(' · ');
-    let html = buildRaceHeader({ race, nameHref: '', detail: detailC });
-
-    // Lista de etapas
-    html += `<div style="padding:1rem 0 3rem">`;
-
-    // Web oficial + Libro de Ruta + Inscritos. La guía se guarda una vez en
-    // assets de cualquier etapa y se resuelve aquí a nivel de competición.
-    const hasStartlistC = !!race.startlistImportedAt;
-    let websiteBtnHtmlC = '';
-    if (race.websiteUrl) {
-      websiteBtnHtmlC = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
-    }
-    const technicalGuideC = days.flatMap(day => day._assets || [])
-      .find(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
-    let technicalGuideBtnHtmlC = '';
-    if (technicalGuideC) {
-      const guideUrl = technicalGuideC.url || technicalGuideC.filePath;
-      const safeGuideUrl = guideUrl.replace(/'/g, "\\'");
-      const guideLabel = t('assets.technicalGuide');
-      const safeGuideLabel = guideLabel.replace(/'/g, "\\'");
-      technicalGuideBtnHtmlC = `<button class="asset-btn" type="button" onclick="openAssetModal('${safeGuideUrl}','${safeGuideLabel}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg><span class="asset-btn__label">${guideLabel}</span></button>`;
-    }
-    let startlistBtnHtmlC = '';
-    if (hasStartlistC) {
-      const inscritosHrefC = race.slug
-        ? `${CONFIG.basePath}/inscritos/${encodeURIComponent(race.slug)}/`
-        : `${CONFIG.basePath}/inscritos.html?race=${race.id}`;
-      const startlistLabelC = race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'));
-      startlistBtnHtmlC = `<a class="asset-btn" href="${inscritosHrefC}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg><span class="asset-btn__label">${startlistLabelC}</span></a>`;
-    }
-    if (websiteBtnHtmlC || technicalGuideBtnHtmlC || startlistBtnHtmlC) {
-      html += `<div class="asset-links-wrap" style="margin-bottom:0.85rem"><div class="asset-links" data-scroll-rail>${websiteBtnHtmlC}${technicalGuideBtnHtmlC}${startlistBtnHtmlC}</div>${arrowHtml('prev',getLang()==='en'?'Previous actions':'Acciones anteriores','hidden')}${arrowHtml('next',getLang()==='en'?'More actions':'Más acciones','hidden')}</div>`;
-      html += `<hr style="border:none;border-top:1px solid var(--border);margin:0 0 0.85rem">`;
-    }
-
-    if (days.length === 0) {
-      html += `<div class="empty-state" style="padding:3rem 0">
-        <div class="empty-state__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>
-        <div class="empty-state__text">${t('stage.noStages')}</div></div>`;
-    } else {
-      html += `<div class="stage-list" data-stage-list></div>`;
-    }
-    html += `</div>`;
+    const flag = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
     const rdMap = {};
     days.forEach(d => { rdMap[d.id] = d; });
-
-    content.innerHTML = html;
+    // Página generada en el build con la misma huella: se conserva. La huella
+    // es la de la página sin las piezas de cada tarjeta que dependen del
+    // momento, la zona o la región, que watchCompetitionCards pinta a continuación.
     const cardOptions = { race, flag, tooltipName: getRaceName(race) };
-    mountCompetitionCards(content, days.map(rd => buildCompetitionCard(rd, { ...cardOptions, title: stageLabel(rd.stageNumber, rd._stageSuffix) })));
-    watchCompetitionWaiting(content, days);
+    const html = competitionPageHtml(race, days, rd => ({ ...cardOptions, title: stageLabel(rd.stageNumber, rd._stageSuffix) }), { dynamic: false });
+    if (content.dataset.prerendered != null) applyPrerenderedHtml(content, html);
+    else content.innerHTML = html;
+    wireCompetitionCards(content, rdMap, () => race);
+    watchCompetitionCards(content, rdMap, () => race);
     wireTvEmbeds(content, rdMap, () => race);
 
     updateSeoCompeticion(race, days);
@@ -675,18 +557,6 @@ async function loadChallenge(slug, content, params, i18nReady = Promise.resolve(
 
     html += `<div style="padding:1rem 0 3rem">`;
 
-    if (!allDays.length) {
-      html += `<div class="empty-state" style="padding:3rem 0">
-        <div class="empty-state__text">${t('stage.noRaces')}</div></div>`;
-    } else {
-      html += `<div class="stage-list" data-stage-list></div>`;
-    }
-
-    html += '</div>';
-    content.innerHTML = html;
-
-    const rdMap2 = {};
-    allDays.forEach(d => { rdMap2[d.id] = d; });
     // Cada fila lleva su propia carrera → raceObj derivado del rd (incl. slug
     // para la URL in-house de resultados).
     const _raceObjOf = (rd2) => ({
@@ -695,11 +565,23 @@ async function loadChallenge(slug, content, params, i18nReady = Promise.resolve(
       slug: rd2._raceSlug, slugEn: rd2._raceSlugEn,
       colorHex: rd2._colorHex, isNoClickable: rd2._raceIsNoClickable,
     });
-    mountCompetitionCards(content, allDays.map(rd => buildCompetitionCard(rd, {
-      race: _raceObjOf(rd), flag, tooltipName: rd._raceName || '',
-      title: stageLabel(rd.stageNumber, rd._stageSuffix) || rd._raceName || '',
-    })));
-    watchCompetitionWaiting(content, allDays);
+    if (!allDays.length) {
+      html += `<div class="empty-state" style="padding:3rem 0">
+        <div class="empty-state__text">${t('stage.noRaces')}</div></div>`;
+    } else {
+      html += `<div class="stage-list" data-stage-list>${allDays.map(rd => competitionCardHtml(rd, {
+        race: _raceObjOf(rd), flag, tooltipName: rd._raceName || '',
+        title: stageLabel(rd.stageNumber, rd._stageSuffix) || rd._raceName || '',
+      }, { dynamic: false })).join('')}</div>`;
+    }
+
+    html += '</div>';
+    content.innerHTML = html;
+
+    const rdMap2 = {};
+    allDays.forEach(d => { rdMap2[d.id] = d; });
+    wireCompetitionCards(content, rdMap2, _raceObjOf);
+    watchCompetitionCards(content, rdMap2, _raceObjOf);
     wireTvEmbeds(content, rdMap2, _raceObjOf);
 
   } catch (err) {

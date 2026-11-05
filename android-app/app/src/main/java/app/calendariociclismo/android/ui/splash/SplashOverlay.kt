@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,8 +40,14 @@ import app.calendariociclismo.android.ui.components.AnimatedRouteProfile
 import kotlinx.coroutines.delay
 
 /**
- * Overlay de splash que replica el diseño de iOS:
- * fondo azul (#1A73E8), icono centrado, nombre + eslogan debajo.
+ * Overlay de splash que replica el diseño de iOS (`SplashView`): fondo
+ * `#EEF1F5` / `#0B0C0F`, logo azul o blanco centrado, nombre + eslogan debajo
+ * y perfil en el azul de acento.
+ *
+ * Sigue el modo noche de la configuración, como el splash del sistema que
+ * prolonga: en API 31+ es el de la app (`UiModeManager.setApplicationNightMode`);
+ * por debajo, el del sistema, y la app aplica la preferencia al cerrarse (iOS
+ * hace lo mismo con `launchColorScheme`).
  *
  * Animaciones:
  *   - El texto aparece con fade-in (0.25 s, easeOut).
@@ -61,6 +69,8 @@ fun SplashOverlay(
             1f,
         ) == 0f
     }
+
+    val dark = isSystemInDarkTheme()
 
     // ── Texto: fade-in al aparecer ──
     var textVisible by remember { mutableStateOf(reduceMotion) }
@@ -110,7 +120,7 @@ fun SplashOverlay(
             .fillMaxSize()
             .scale(scale)
             .alpha(alpha)
-            .background(BrandBlue),
+            .background(colorResource(R.color.splash_background)),
         contentAlignment = Alignment.Center,
     ) {
         // El perfil arranca tras el primer frame nativo: conserva el logo del
@@ -120,14 +130,15 @@ fun SplashOverlay(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(230.dp),
-            lineColor = Color.White,
-            fillColor = Color.White.copy(alpha = 0.15f),
-            riderColor = Color.White,
+            lineColor = BrandBlue,
+            fillColor = BrandBlue.copy(alpha = 0.18f),
+            riderColor = BrandBlue,
         )
 
-        // Icono centrado (mismo foreground que el adaptive icon).
+        // Icono centrado: misma geometría que el adaptive icon y el mismo
+        // recurso que el splash del sistema.
         Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
+            painter = painterResource(R.drawable.ic_splash_logo),
             contentDescription = null,
             modifier = Modifier.size(120.dp),
         )
@@ -144,13 +155,13 @@ fun SplashOverlay(
                 text = stringResource(R.string.splash_app_name),
                 style = CCText.S20,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = if (dark) Color(0xFFF2F3F5) else Color(0xFF1F2937),
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(R.string.splash_tagline),
                 style = CCText.S16,
-                color = Color.White.copy(alpha = 0.8f),
+                color = if (dark) Color(0xFFA9ADB5) else Color(0xFF536174),
             )
         }
     }

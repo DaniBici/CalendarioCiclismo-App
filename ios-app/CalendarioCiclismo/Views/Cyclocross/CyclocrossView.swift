@@ -9,12 +9,12 @@ struct CxDestination: Hashable {
 
 /// Secciones de la página de torneo, con el selector de la ficha de carrera.
 enum CxTournamentSection: String, CaseIterable, Identifiable {
-    case calendar, general
+    case races, general
     var id: String { rawValue }
     @MainActor var title: String {
         switch self {
-        case .calendar: CyclocrossPresentation.t("Calendario", "Calendar")
-        case .general: CyclocrossPresentation.t("Clasificación general", "Overall standings")
+        case .races: CyclocrossPresentation.t("Carreras", "Races")
+        case .general: CyclocrossPresentation.t("General", "Standings")
         }
     }
 }
@@ -62,10 +62,10 @@ struct CyclocrossView: View {
     /// Torneo formado solo por carreras ocultas en el idioma activo.
     @State private var tournamentHidden = false
     /// Generales publicadas del torneo: sin ellas la página no muestra
-    /// secciones y queda en el calendario.
+    /// secciones y queda en la lista de carreras.
     @State private var standings: CxTournamentStandings?
     @State private var standingsMatcher = UciResultsLogic.TeamMatcher(teams: [])
-    @State private var section = CxTournamentSection.calendar
+    @State private var section = CxTournamentSection.races
     @State private var generalCategory = ""
 
     var body: some View {
@@ -98,7 +98,7 @@ struct CyclocrossView: View {
         standingsMatcher = UciResultsLogic.TeamMatcher(teams: value.teams.map(\.roadTeam))
         standings = value
         let codes = generalCategories
-        if codes.isEmpty { section = .calendar }
+        if codes.isEmpty { section = .races }
         if !codes.contains(generalCategory) { generalCategory = codes.contains("ME") ? "ME" : codes.first ?? "" }
     }
 
@@ -337,7 +337,9 @@ struct CyclocrossView: View {
     /// Lista del día con el gesto y la animación de cambio de día de Hoy.
     private var dayContent: some View {
         Group {
-            if !model.isAgendaReady {
+            // Un día sin detalle vigente espera a tenerlo: sus tarjetas salen
+            // con todos los botones en la misma pintura.
+            if !model.isAgendaReady || model.isAwaitingDay {
                 LoadingView(branded: true, showProfile: false, title: CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
             } else {
                 ScrollView { dayScrollContent }
@@ -812,7 +814,7 @@ struct CxRaceCard: View {
     /// Badge de resumen: hay un vídeo aplicable al día; solo en tarjetas que
     /// abren la ficha.
     private var hasSummary: Bool {
-        open && CyclocrossPresentation.agendaVideo(race: race, date: date) != nil
+        open && CyclocrossPresentation.agendaVideo(race: race, date: date, allowedGroups: region.allowedBroadcastGroups) != nil
     }
     /// Badge de dorsales: solo en tarjetas que abren la ficha.
     private var startlistCategory: CxCategory? {

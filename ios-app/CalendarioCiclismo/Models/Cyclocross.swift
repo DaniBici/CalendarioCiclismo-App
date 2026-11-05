@@ -291,9 +291,11 @@ struct CxBroadcast: Codable, Sendable, Identifiable {
     let sortOrder: Int
     let showInRevive: Bool
     let isSporza: Bool
+    /// Inserción permitida según oEmbed; nil sin verificar.
+    let embeddable: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, raceId, category, channel, startTimeUtc, url, note, country, sortOrder, showInRevive, isSporza
+        case id, raceId, category, channel, startTimeUtc, url, note, country, sortOrder, showInRevive, isSporza, embeddable
     }
 
     // Los indicadores de emisión toleran su ausencia (paridad con los valores
@@ -312,6 +314,7 @@ struct CxBroadcast: Codable, Sendable, Identifiable {
         sortOrder = try values.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         showInRevive = try values.decodeIfPresent(Bool.self, forKey: .showInRevive) ?? false
         isSporza = try values.decodeIfPresent(Bool.self, forKey: .isSporza) ?? false
+        embeddable = try values.decodeIfPresent(Bool.self, forKey: .embeddable)
     }
 }
 

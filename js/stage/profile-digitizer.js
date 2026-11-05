@@ -90,7 +90,7 @@ function computeGainLoss(points, threshold = ELEVATION_THRESHOLD_M) {
  * Repite un tramo de la línea de control y encaja el resultado entre los
  * extremos originales. `lapCount` incluye la pasada ya dibujada.
  */
-export function repeatControlPointRegion({
+function repeatControlPointRegion({
   controlPoints,
   startPointId,
   endPointId,
@@ -160,7 +160,7 @@ export function repeatControlPointRegion({
  * Convierte puntos normalizados sobre una imagen en el elevationProfile nativo.
  * El primer/último punto son km 0/meta. Dos puntos de la curva calibran la Y.
  */
-export function buildDigitizedElevationProfile({
+function buildDigitizedElevationProfile({
   controlPoints,
   distanceKm,
   lowReference,

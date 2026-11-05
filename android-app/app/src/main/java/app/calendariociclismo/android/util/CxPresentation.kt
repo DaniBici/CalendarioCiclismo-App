@@ -60,8 +60,8 @@ enum class CxAgendaSort(@param:StringRes val labelRes: Int) {
     FINISH_TIME(R.string.today_sort_finish_time),
 }
 
-/** Secciones de la página de torneo: calendario y clasificación general. */
-enum class CxTournamentSection { CALENDAR, GENERAL }
+/** Secciones de la página de torneo: carreras y general. */
+enum class CxTournamentSection { RACES, GENERAL }
 
 /** Celda de ronda del desglose de una general: puntos, o "-" sin puntuación;
  *  `dropped` marca el resultado descartado (se tacha). */
@@ -157,11 +157,41 @@ object CxPresentation {
         }
         return id?.takeIf { Regex("^[A-Za-z0-9_-]{11}$").matches(it) }
     }
-    fun videos(detail: CxDetail): List<CxVideo> {
+    /** Vídeos de la ficha: los de la prueba y, tras ellos, las emisiones de
+     *  YouTube que ya son vídeo ([replayVideoRows]), sin repetir un vídeo. */
+    fun videos(detail: CxDetail, allowedGroups: Set<String> = RegionDetector.allowedBroadcastGroups()): List<CxVideo> {
         val categories = actualCategories(detail).toSet()
-        return detail.videos.filter { it.category.isNullOrEmpty() || it.category in categories }
+        val own = detail.videos.filter { it.category.isNullOrEmpty() || it.category in categories }
             .sortedBy { it.sortOrder }.distinctBy { youtubeVideoId(it.url) ?: it.id }
             .filter { youtubeVideoId(it.url) != null }
+        val seen = own.mapNotNull { youtubeVideoId(it.url) }.toMutableSet()
+        return own + replayVideoRows(detail.broadcasts, mediaUnits(detail, Instant.now()), allowedGroups)
+            .filter { (_, id) -> seen.add(id) }.map { (row, id) -> fullRaceVideo(row, id) }
+    }
+    /** Emisiones que la ficha muestra en Vídeos y no en Revive, espejo de
+     *  `cxRaceMedia` (web): de la región del usuario, de YouTube con vídeo fijo
+     *  e insertable, y con resultados en todas sus categorías no canceladas
+     *  (al menos una). */
+    private fun replayVideoRows(broadcasts: List<CxBroadcast>, units: List<CxMediaUnit>, allowedGroups: Set<String>): List<Pair<CxBroadcast, String>> =
+        broadcasts.sortedWith(compareBy({ it.sortOrder }, { it.id })).mapNotNull { row ->
+            val id = youtubeVideoId(row.url)?.takeIf { row.embeddable != false && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups) }
+                ?: return@mapNotNull null
+            val own = units.filter { row.category.isNullOrEmpty() || row.category == it.code }
+            if (own.any { it.hasResults } && own.all { it.finished }) row to id else null
+        }
+    private val FULL_RACE_CATEGORIES = mapOf(
+        "ME" to ("Elite masculina" to "Men Elite"), "WE" to ("Elite femenina" to "Women Elite"),
+        "MU" to ("Sub23 masculina" to "Men Under 23"), "WU" to ("Sub23 femenina" to "Women Under 23"),
+        "MJ" to ("Júnior masculina" to "Men Junior"), "WJ" to ("Júnior femenina" to "Women Junior"),
+    )
+    /** «Carrera completa <categoría>» o, si la emisión es global,
+     *  «Retransmisión completa», con su rótulo inglés. */
+    private fun fullRaceVideo(row: CxBroadcast, videoId: String): CxVideo {
+        val code = row.category?.takeIf { it.isNotEmpty() }
+        val (title, titleEn) = code?.let { FULL_RACE_CATEGORIES[it] ?: (it to it) }
+            ?.let { (es, en) -> "Carrera completa $es" to "$en full race" }
+            ?: ("Retransmisión completa" to "Full broadcast")
+        return CxVideo(row.id, row.raceId, code, title, titleEn, "https://www.youtube.com/watch?v=$videoId", row.sortOrder)
     }
     /** Manga n/total de una prueba en su torneo; sin ella o con total ≤ 1, nada. */
     fun roundLabel(round: CxRound?): String? = round?.takeIf { it.total > 1 }?.let { "${it.n}/${it.total}" }
@@ -170,30 +200,6 @@ object CxPresentation {
         races.asSequence().filter { it.tournamentId == tournamentId }
             .mapNotNull { rounds[it.id]?.total }.maxOrNull() ?: 0
     fun logo(race: CxRace): String? = link(race.logoUrl) ?: link(race.tournament?.logoUrl)
-    fun color(race: CxRace): String? {
-        fun valid(hex: String?): String? = hex?.takeIf { Regex("^#[0-9a-fA-F]{6}$").matches(it) }
-        race.tournament?.let { tournament ->
-            valid(tournament.colorHex)?.let { return it }
-            val identity = java.text.Normalizer.normalize(tournament.slug + " " + tournament.name, java.text.Normalizer.Form.NFD)
-                .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
-            when {
-                "superprestige" in identity -> return "#FFC600"
-                "x2o" in identity -> return "#00A8C7"
-                "worldcup" in identity || "copadelmundo" in identity -> return "#8B173D"
-                "copadeespana" in identity || "copaespana" in identity -> return "#D71920"
-                "exactcross" in identity || "hgcross" in identity -> return "#E6342A"
-                "coupedefrance" in identity || "copadefrancia" in identity -> return "#0055A4"
-                "swisscyclocrosscup" in identity || "swisscxcup" in identity -> return "#D52B1E"
-                "toitoi" in identity || "hsfsystem" in identity -> return "#E87524"
-                "nationaltrophy" in identity -> return "#6B3FA0"
-                "uscx" in identity -> return "#233C78"
-                "girodelleregioni" in identity || "giroregioni" in identity || "giroditalia" in identity -> return "#E94B8A"
-                "tacadeportugal" in identity || "tacaportugal" in identity -> return "#008657"
-                else -> Unit
-            }
-        }
-        return valid(race.colorHex)
-    }
     fun raceClass(code: String, english: Boolean): String = if (code == "NAC") if (english) "Nat" else "Nac" else code
     /** Nombre completo de la clase para la cabecera de la ficha: las siglas sin
      *  contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
@@ -317,7 +323,6 @@ object CxPresentation {
         (row?.timeSeconds?.toDouble() ?: dataRideSubhourSeconds(row?.timeText) ?: UciResultsLogic.tttToSeconds(row?.timeText))
             ?.takeIf { it.isFinite() && it > 0 }
 
-    fun resultValue(row: CxResult, locale: Locale): String = resultRow(row, locale).valueText
     fun resultRows(rows: List<CxResult>, locale: Locale, teams: List<Team> = emptyList()): List<UciResultsLogic.ResultRowVM> =
         resultRows(rows, locale, UciResultsLogic.TeamMatcher(teams))
     fun resultRows(rows: List<CxResult>, locale: Locale, matcher: UciResultsLogic.TeamMatcher): List<UciResultsLogic.ResultRowVM> {
@@ -381,8 +386,6 @@ object CxPresentation {
             }
         }
     }
-    fun standingRow(row: CxStanding, mode: String?, locale: Locale, teams: List<Team> = emptyList()): UciResultsLogic.ResultRowVM =
-        standingRow(row, mode, locale, UciResultsLogic.TeamMatcher(teams))
     fun standingRow(row: CxStanding, mode: String?, locale: Locale, matcher: UciResultsLogic.TeamMatcher): UciResultsLogic.ResultRowVM = classificationRow(
         row.rank, null, row.riderDisplay, row.isoCode2, row.teamName, matcher, null,
         if (mode == "points") UciResultsLogic.ValueKind.POINTS else if (row.rank == 1) UciResultsLogic.ValueKind.WINNER_TIME else UciResultsLogic.ValueKind.RAW,
@@ -520,13 +523,24 @@ object CxPresentation {
 
     /** Badge de resumen de la tarjeta de la agenda: primer vídeo de YouTube de la
      *  prueba aplicable a las categorías del día (sin categoría o de una de
-     *  ellas); una prueba cancelada no lo muestra. Espejo de `cxAgendaVideo`. */
-    fun agendaVideo(race: CxRace, dateKey: String): CxVideo? {
+     *  ellas); sin ninguno, la primera emisión de la región que la ficha ya
+     *  muestra como vídeo. Una prueba cancelada no lo muestra. Espejo de
+     *  `cxAgendaVideo`. */
+    fun agendaVideo(race: CxRace, dateKey: String, allowedGroups: Set<String>): CxVideo? {
         val codes = CyclocrossLogic.categoriesOn(race, dateKey).map { it.category }.toSet()
         if (race.isCancelled || codes.isEmpty()) return null
-        return race.videos.sortedWith(compareBy({ it.sortOrder }, { it.id })).firstOrNull {
-            (it.category.isNullOrEmpty() || it.category in codes) && youtubeVideoId(it.url) != null
+        fun appliesToDay(code: String?) = code.isNullOrEmpty() || code in codes
+        race.videos.sortedWith(compareBy({ it.sortOrder }, { it.id })).firstOrNull {
+            appliesToDay(it.category) && youtubeVideoId(it.url) != null
+        }?.let { return it }
+        // Estado de todas las categorías de la prueba: una emisión global
+        // espera a la última, aunque sea de otro día.
+        val actual = actualCategories(CxDetail(race)).toSet()
+        val units = race.categories.filter { it.category in actual }.map {
+            CxMediaUnit(it.category, race.isCancelled || it.isCancelled, it.resultsStatus in listOf("official", "provisional"), concluded = true)
         }
+        return replayVideoRows(race.broadcasts, units, allowedGroups).firstOrNull { (row) -> appliesToDay(row.category) }
+            ?.let { (row, id) -> fullRaceVideo(row, id) }
     }
 
     /** Badge de dorsales de la tarjeta de la agenda: primera categoría del día
@@ -566,8 +580,10 @@ object CxPresentation {
         val liveIds = liveRows.map { it.first.id }.toSet()
         fun replay(row: CxBroadcast, unit: CxMediaUnit) = if (unit.cancelled) row.showInRevive
             else RaceLogic.isReviveBroadcast(row.channel, row.url, row.showInRevive) || row.isSporza
+        // Las emisiones que ya figuran en Vídeos no se repiten en Revive.
+        val videoIds = replayVideoRows(rows.map { it.first }, units, allowedGroups).map { it.first.id }.toSet()
         val revive = rows.filter { (row) ->
-            row.id !in liveIds && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups) &&
+            row.id !in liveIds && row.id !in videoIds && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups) &&
                 units.any { it.finished && applies(row, it) && replay(row, it) }
         }.distinctBy { it.second }.map { (row, url) -> CxReplayLink(row.channel ?: "TV", url, row.sortOrder, row.category?.takeIf { it.isNotEmpty() }) }
         // Como la TV: primero las filas comunes y después las de cada categoría

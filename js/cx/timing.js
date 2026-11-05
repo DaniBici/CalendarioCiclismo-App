@@ -25,13 +25,3 @@ export function cxCategoryTiming(race,category,at=new Date()) {
   const displayState=cancelled?'cancelled':['provisional','official'].includes(resultsStatus)?resultsStatus:temporalState;
   return {temporalState,displayState,resultsStatus,durationMinutes:minutes,estimatedEndTimeUtc:end===null?null:new Date(end).toISOString()};
 }
-
-export function cxRaceTiming(race,at=new Date()) {
-  if(race.isCancelled)return 'cancelled';
-  const states=(race.cx_race_categories||[]).map(c=>cxCategoryTiming(race,c,at).temporalState).filter(s=>s!=='cancelled');
-  if(!states.length)return (race.cx_race_categories||[]).length?'cancelled':'unknown';
-  if(states.includes('live'))return 'live';
-  if(states.includes('unknown'))return 'unknown';
-  if(states.every(s=>s==='estimated_finished'))return 'estimated_finished';
-  return 'scheduled';
-}

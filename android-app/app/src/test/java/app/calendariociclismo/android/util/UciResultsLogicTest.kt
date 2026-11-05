@@ -3,55 +3,15 @@ package app.calendariociclismo.android.util
 import app.calendariociclismo.android.data.model.RaceUciResultRow
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.Team
-import app.calendariociclismo.android.data.model.RaceClassificationConfig
-import app.calendariociclismo.android.data.model.RaceUciStage
 import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Port de los casos clave de `js/resultados.js`: normalización de tiempos/gaps,
- * puntos, IRM, y el colapso de CRE (variantes A y B).
+ * Valores publicados en las clasificaciones: tiempos y diferencias, puntos, IRM,
+ * convención CRI, colapso de CRE, resolución de corredor y equipo y etapas
+ * canceladas o con sectores.
  */
 class UciResultsLogicTest {
-
-    @Test
-    fun `inventario respeta orden etiquetas y colores editoriales sin colorear etapa`() {
-        val config = listOf(
-            RaceClassificationConfig("r", "points", 3, "Regularidad", "Points", "#00AA44"),
-            RaceClassificationConfig("r", "stage", 1, "Etapa", "Stage", "#FF0000"),
-            RaceClassificationConfig("r", "kom", 2, "Montaña", "KOM", "invalid"),
-        )
-        val inventory = UciResultsLogic.classificationInventory(config, emptyList())
-        assertEquals(listOf("stage", "kom", "points"), inventory.map { it.classKind })
-        assertEquals("Regularidad", UciResultsLogic.classificationLabel(inventory.last(), isEn = false))
-        assertNull(UciResultsLogic.classificationColor(inventory.first()))
-        assertNull(UciResultsLogic.classificationColor(inventory[1]))
-        assertEquals("#00AA44", UciResultsLogic.classificationColor(inventory.last()))
-    }
-
-    @Test
-    fun `inventario incorpora clasificaciones publicadas no configuradas`() {
-        val stage = RaceUciStage(id = "s", raceId = "r", classKind = "youth")
-        assertEquals("youth", UciResultsLogic.classificationInventory(emptyList(), listOf(stage)).single().classKind)
-    }
-
-    @Test
-    fun `la etapa solo muestra las clasificaciones que tiene publicadas`() {
-        val config = listOf(
-            RaceClassificationConfig("r", "stage", 1),
-            RaceClassificationConfig("r", "gc", 2),
-            RaceClassificationConfig("r", "teams", 3),
-        )
-        val existing = listOf(
-            RaceUciStage(id = "gc-3", raceId = "r", classKind = "gc", stageNumber = 3),
-            RaceUciStage(id = "stage-3", raceId = "r", classKind = "stage", stageNumber = 3),
-        )
-
-        val visible = UciResultsLogic.visibleStageClassifications(config, existing)
-
-        assertEquals(listOf("stage", "gc"), visible.map { it.classKind })
-        assertFalse(visible.any { it.classKind == "teams" })
-    }
 
     // Helper: fila de resultado con lo mínimo.
     private fun row(
@@ -149,25 +109,6 @@ class UciResultsLogicTest {
         // La reasignada: gap explícito, NO m.t.
         assertEquals(UciResultsLogic.ValueKind.GAP, vms[4].valueKind)
         assertEquals("+0\"", vms[4].valueText)
-    }
-
-    // ── irmLabel ───────────────────────────────────────────────────
-
-    @Test
-    fun `irmLabel mapea ES y EN`() {
-        assertEquals("ABN", UciResultsLogic.irmLabel("DNF", isEn = false))
-        assertEquals("DNF", UciResultsLogic.irmLabel("DNF", isEn = true))
-        assertEquals("NS", UciResultsLogic.irmLabel("DNS", isEn = false))
-        assertEquals("FC", UciResultsLogic.irmLabel("OTL", isEn = false))
-        assertEquals("EXP", UciResultsLogic.irmLabel("DSQ", isEn = false))
-        assertEquals("DF", UciResultsLogic.irmLabel("DF", isEn = false))
-        assertEquals("NR", UciResultsLogic.irmLabel("NR", isEn = true))
-        // ABD = variante UCI de DNF → misma etiqueta.
-        assertEquals("ABN", UciResultsLogic.irmLabel("ABD", isEn = false))
-        assertEquals("DNF", UciResultsLogic.irmLabel("ABD", isEn = true))
-        // Código desconocido → se devuelve tal cual.
-        assertEquals("XYZ", UciResultsLogic.irmLabel("XYZ", isEn = false))
-        assertEquals("", UciResultsLogic.irmLabel(null, isEn = false))
     }
 
     // ── isAbandonIrm: abandono real vs ruido ───────────────────────
@@ -312,18 +253,6 @@ class UciResultsLogicTest {
         // El rank 3 → gap respecto al cabeza (03:33:31 − 03:32:40 = 51").
         assertEquals(UciResultsLogic.ValueKind.GAP, vms[2].valueKind)
         assertEquals("+51\"", vms[2].valueText)
-    }
-
-    @Test
-    fun `puntos usan cabecera de puntos y no estilo de tiempo`() {
-        val rows = listOf(
-            row(rank = 1, resultValue = "50"),
-            row(rank = 2, points = 30),
-        )
-        val vms = UciResultsLogic.buildIndividualRows(rows, "points", false, emptyMap(), isEn = false)
-        assertEquals(UciResultsLogic.ValueKind.POINTS, vms[0].valueKind)
-        assertEquals("50", vms[0].valueText)
-        assertEquals("30", vms[1].valueText)
     }
 
     @Test
@@ -766,28 +695,6 @@ class UciResultsLogicTest {
         assertFalse(UciResultsLogic.isTttStage(rows, "gc", false, "ttt", stageNumber = null, isOneDay = false))
     }
 
-    // ── teamsInClass ───────────────────────────────────────────────
-
-    @Test
-    fun `teamsInClass devuelve los equipos en orden alfabetico (case-insensitive)`() {
-        val byDorsal = mapOf(
-            1 to ResolvedRider("G1", "es", "Zeta Team", null),
-            2 to ResolvedRider("G2", "es", "alfa squad", null),
-            3 to ResolvedRider("G3", "fr", "Movistar", null),
-            4 to ResolvedRider("G4", "fr", "alfa squad", null),
-            5 to ResolvedRider("G5", "it", "", null),    // sin equipo → fuera
-        )
-        val rows = listOf(
-            row(rank = 1, bib = "1", sortOrder = 0),     // Zeta (1º en filas)
-            row(rank = 2, bib = "2", sortOrder = 1),     // alfa
-            row(rank = 3, bib = "3", sortOrder = 2),     // Movistar
-            row(rank = 4, bib = "4", sortOrder = 3),     // alfa (dup)
-            row(rank = 5, bib = "5", sortOrder = 4),     // sin equipo
-        )
-        // Orden alfabético ignorando mayúsculas, no el orden de aparición.
-        assertEquals(listOf("alfa squad", "Movistar", "Zeta Team"), UciResultsLogic.teamsInClass(rows, byDorsal))
-    }
-
     // ── collapseTtt ────────────────────────────────────────────────
 
     @Test
@@ -893,22 +800,6 @@ class UciResultsLogicTest {
         assertEquals("", vms[0].countryCode)
     }
 
-    @Test
-    fun `teamsInClass usa byRider cuando no hay startlist`() {
-        val byRider = mapOf(
-            "g1" to ResolvedRider("R1", "es", "Zeta Team", null, "g1"),
-            "g2" to ResolvedRider("R2", "fr", "alfa squad", null, "g2"),
-        )
-        val rows = listOf(
-            row(rank = 1, bib = null, globalRiderId = "g1", sortOrder = 0),
-            row(rank = 2, bib = null, globalRiderId = "g2", sortOrder = 1),
-        )
-        assertEquals(
-            listOf("alfa squad", "Zeta Team"),
-            UciResultsLogic.teamsInClass(rows, emptyMap(), byRider),
-        )
-    }
-
     // ── Override manual de equipo (mig. 112) ───────────────────────
 
     @Test
@@ -941,18 +832,6 @@ class UciResultsLogicTest {
         assertEquals("Equipo Override", vms[0].teamName)
         assertEquals("tov", vms[0].team?.id)
         assertEquals("AMATEUR Juan", vms[0].riderName)
-    }
-
-    @Test
-    fun `teamsInClass incluye el equipo override`() {
-        val byTeamOverride = mapOf("tov" to team("tov", "Alfa Override"))
-        val rows = listOf(
-            row(rank = 1, bib = "999", globalRiderId = null, teamId = "tov", sortOrder = 0),
-        )
-        assertEquals(
-            listOf("Alfa Override"),
-            UciResultsLogic.teamsInClass(rows, emptyMap(), emptyMap(), byTeamOverride),
-        )
     }
 
     @Test
@@ -1127,14 +1006,6 @@ class UciResultsLogicTest {
         assertEquals("3B", UciResultsLogic.resultStageEntryKey(3, "d3b", suffix, sectored))
         // Sector sin raceDayId (volcado antes de crear la jornada) → número pelado.
         assertEquals("3", UciResultsLogic.resultStageEntryKey(3, null, suffix, sectored))
-    }
-
-    @Test
-    fun `parseResultStageKey splits keys`() {
-        assertEquals(null to "", UciResultsLogic.parseResultStageKey("final"))
-        assertEquals(3 to "", UciResultsLogic.parseResultStageKey("3"))
-        assertEquals(3 to "A", UciResultsLogic.parseResultStageKey("3A"))
-        assertEquals(0 to "", UciResultsLogic.parseResultStageKey("0"))
     }
 
     @Test

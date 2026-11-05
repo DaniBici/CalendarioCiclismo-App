@@ -76,6 +76,9 @@
   width: 1.4em;
   text-align: center;
 }
+/* Bandera sin estilo en línea (flagHtml de js/fichajes-html.js): el mismo
+   tamaño y recorte que countryFlag(). */
+.tr-row__flag > img { display: inline-block; width: 1.2em; height: 0.9em; object-fit: cover; border-radius: 2px; vertical-align: -0.05em; }
 
 /* Corredor + equipo trunca con "…" a una línea (misma fórmula que las cards de
    la vista Hoy): sin doble altura, y los badges (contrato/rumor), que son

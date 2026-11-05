@@ -129,6 +129,9 @@
  *                     (p. ej. --remap-bib 54:57 en Eslovenia: Wenzel va 54 en el feed
  *                     y 57 en la UCI). Sobrevive a cada re-volcado del cron.
  *   --suggest-id      imprime el competitionId sintético sugerido y sale.
+ *   --start-utc / --neutral-start-utc
+ *                     salida programada de la jornada (la pasa el cron). Solo la usan
+ *                     las plantillas que validan la llegada contra el horario.
  */
 'use strict';
 
@@ -136,6 +139,11 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
+import {
+  stageFolder, stageListNames, locateColumns, mapListRows, winnerSeconds, assessStage, ittComplete, bibsInRace,
+  teamListName, POINTS_LISTS, locatePointsColumns, locateTeamColumns, mapPointsRows, mapTeamRows,
+  unknownBibs, pointsBelongToStage, deriveYouthRows,
+} from './raceresult-puntodecontrol.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -150,6 +158,8 @@ const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : nul
 const FINAL_FLAG = hasFlag('final');
 const GENDER = getArg('gender');
 const DATE_ARG = getArg('date');
+const START_UTC = getArg('start-utc');
+const NEUTRAL_START_UTC = getArg('neutral-start-utc');
 
 // Excepciones editoriales verificadas por edición. Philadelphia comparte un eventId
 // entre dos pruebas de un día y publica Stage Results vuelta a vuelta. Cada concurso
@@ -207,6 +217,46 @@ export const RACERESULT_EVENT_PROFILES = {
     listPattern: /Overall Results with Category/i,
     cols: { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 },
   },
+  // Vuelta Ciclista del Uruguay Femenina 2026 (Punto de Control): una lista por
+  // jornada y su general, sin selector ni pestaña live, con una simulación de la
+  // startlist real antes de cada jornada (raceresult-puntodecontrol.mjs). Fecha y
+  // distancia oficiales de cada jornada validan la llegada; la salida programada
+  // llega del cron (--start-utc / --neutral-start-utc).
+  '432634': {
+    template: 'puntodecontrol',
+    timeZone: 'America/Montevideo',
+    contests: { female: { contest: '1' } },
+    stages: {
+      0: { dateKey: '2026-10-29', distanceKm: 1.2, itt: true },
+      1: { dateKey: '2026-10-30', distanceKm: 85.1 },
+      2: { dateKey: '2026-10-31', distanceKm: 7.4, itt: true },
+      3: { dateKey: '2026-11-01', distanceKm: 97.7 },
+    },
+    // Jóvenes de la UCI: nacidas de 2005 a 2008 (edad de la temporada UCI 2027,
+    // la de DataRide), según las fichas de la startlist. Incluye tres juniors del
+    // organizador (4, 5, 43). Contrastado con DataRide 79554 tras el prólogo.
+    youthBibs: ['4', '5', '12', '13', '32', '33', '41', '42', '43', '64', '74', '82'],
+  },
+  // Thessaloniki International Ladies Time Trial y Alexandria Ladies International
+  // Race 2026 (racesystem.gr). Un evento con dos páginas propias ("tt" y "rr") en vez
+  // de "results"; todas las listas cuelgan del concurso 0. Plantilla verificada el
+  // 31-10-2026 (12 col): [0]BIB [1]ID [2]rank [3]UCIID [4]nación [5]Firstname
+  // [6]Lastname [7]CLUB [8]categoría [9]tiempo oficial [10]diferencia ("-" el líder)
+  // [11]estado (IRM). La crono solo se publica cuando todas las corredoras con hora
+  // en la lista de salida tienen puesto o IRM.
+  '430510': {
+    oneDay: true,
+    dates: {
+      '2026-10-31': {
+        contest: '0',
+        page: 'tt',
+        listPattern: /03 TT OFFICIAL RESULTS/i,
+        startGate: { listPattern: /01 TT START LIST/i, bib: 0, start: 2 },
+      },
+      '2026-11-01': { contest: '0', page: 'rr', listPattern: /08 RR OFFICIAL RESULTS/i },
+    },
+    cols: { rank: 2, bib: 0, firstName: 5, lastName: 6, team: 7, value: 9, gap: 10, status: 11 },
+  },
 };
 
 // `profiles` solo se sustituye en pruebas (perfiles sintéticos).
@@ -232,6 +282,8 @@ const PROFILE = eventProfile(EVENT, GENDER, EXPLICIT_CONTEST, DATE_ARG);
 const CONTEST = String(EXPLICIT_CONTEST || PROFILE?.contest || '1');
 const ONE_DAY = hasFlag('one-day') || !!PROFILE?.oneDay;
 const REQUIRED_LAPS = Number.parseInt(getArg('required-laps', PROFILE?.requiredLaps ?? '0'), 10) || 0;
+// Página de race|result con las listas oficiales: "results" salvo perfil propio.
+const PAGE = PROFILE?.page || 'results';
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el JSON en una ruta distinta de la que imprime, y una lectura posterior
 // se quedaba con un fichero viejo (cazado en el TdF E12, relegación de Van Mechelen).
@@ -272,15 +324,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ── IDs sintéticos (negativos, deterministas; salt "raceresult:") ───────────
 // Los eventos multiconcurso incorporan el contest al salt para que las fichas
 // masculina y femenina no compartan competitionId/eventId. Los eventos históricos
-// sin perfil conservan exactamente el salt anterior.
-export function idBaseFor(event, contest = '1', contestScoped = false) {
+// sin perfil conservan exactamente el salt anterior. Las pruebas que comparten
+// concurso y se separan por página propia (430510) añaden la página al salt.
+export function idBaseFor(event, contest = '1', contestScoped = false, page = null) {
   if (!event || !/^\d+$/.test(String(event))) return NaN;
   const salt = contestScoped
-    ? `raceresult:${event}:contest:${contest}`
+    ? `raceresult:${event}:contest:${contest}${page ? `:page:${page}` : ''}`
     : `raceresult:${event}`;
   return fnv1a(salt) % 200000;
 }
-const ID_BASE = idBaseFor(EVENT, CONTEST, !!(PROFILE_BASE || EXPLICIT_CONTEST));
+const ID_BASE = idBaseFor(EVENT, CONTEST, !!(PROFILE_BASE || EXPLICIT_CONTEST), PROFILE?.page || null);
 
 // Validación de args: DENTRO de main(), no a nivel de módulo — un process.exit() al
 // importar mataría el runner de tests.
@@ -342,8 +395,9 @@ export function parseRankCell(v) {
 // tiempo absoluto race|result "2h53'29''" / "15h32'22''" / "53'29''" → "H:MM:SS" / "MM:SS".
 // También admite el formato con centésimas "M:Ss.kk"/"H:MM:Ss.kk" (racetiming.ca): las
 // centésimas se truncan sin redondear (regla de presentación de tiempos).
+// La hora a cero ("0:16:23", plantilla "H:mm:ss" de racesystem.gr) se omite: "16:23".
 export function normAbsTime(v) {
-  const t = clean(v);
+  const t = clean(v).replace(/^0:(\d{2}):(\d{2})(\.\d+)?$/, (_, mm, ss, frac) => `${parseInt(mm, 10)}:${ss}${frac || ''}`);
   if (!t || t.startsWith('+')) return null;
   const noFrac = t.replace(/\.\d+$/, '');
   if (noFrac !== t && /^\d+(:\d{2}){1,2}$/.test(noFrac)) return noFrac;
@@ -370,8 +424,11 @@ export function normGap(v) {
   // Formato "M:Ss.kk" / "H:MM:Ss.kk" sin signo, SIEMPRE con centésimas en este
   // cronometrador. Se exige la fracción decimal para no confundir un tiempo absoluto
   // ("5:00:20") con una diferencia.
-  if (fractional && /^\d+(:\d{2}){0,2}$/.test(noFrac)) {
+  // Con signo admite también "+H:mm:ss" de racesystem.gr. Las unidades iniciales a
+  // cero se omiten: "+0:00:12" → "+12", "+0:01:15" → "+1:15".
+  if ((fractional || (signed && noFrac.includes(':'))) && /^\d+(:\d{2}){0,2}$/.test(noFrac)) {
     const parts = noFrac.split(':').map((n) => parseInt(n, 10));
+    while (parts.length > 1 && parts[0] === 0) parts.shift();
     const pad = (n) => String(n).padStart(2, '0');
     if (parts.length === 1) return `+${parts[0]}`;
     if (parts.length === 2) return `+${parts[0]}:${pad(parts[1])}`;
@@ -464,7 +521,17 @@ export function mapRows(rows, spec, kind, isTimed) {
                             // Se actualiza en cada corte → los m.t. heredan el gap de SU grupo, no el del líder.
 
   for (const r of rows) {
-    const { rank, irm } = parseRankCell(r[C.rank]);
+    const parsed = parseRankCell(r[C.rank]);
+    const rank = parsed.rank;
+    let irm = parsed.irm;
+    // Plantillas con el estado en columna propia (430510): el puesto queda vacío para
+    // los IRM y para quien aún no ha terminado. Solo un código IRM conocido cuenta; una
+    // fila sin puesto ni IRM no está clasificada todavía y no se emite.
+    if (C.status != null && rank == null && !irm) {
+      const status = clean(r[C.status]).toUpperCase();
+      irm = IRM_MAP[status] || null;
+      if (!irm) continue;
+    }
     if (C.teamRow) {
       const teamName = cellText(r[C.name]) || (r[C.bib] != null ? `Team ${clean(r[C.bib])}` : null);
       if (irm) { out.push({ rank: null, rankText: irm, bib: null, riderDisplay: teamName, teamName, resultValue: null, timeText: null, gapText: null, points: null, irm }); continue; }
@@ -479,7 +546,9 @@ export function mapRows(rows, spec, kind, isTimed) {
 
     let bib = cellText(r[C.bib]) && /^\d+$/.test(cellText(r[C.bib])) ? cellText(r[C.bib]) : null;
     if (bib != null && REMAP.has(bib)) bib = REMAP.get(bib);   // dorsal feed → startlist (ver --remap-bib)
-    const name = reorderName(r[C.name]);
+    const name = C.firstName != null
+      ? clean(`${cellText(r[C.lastName]).toUpperCase()} ${cellText(r[C.firstName])}`) || null
+      : reorderName(r[C.name]);
     const team = cellText(r[C.team]) || null;
     if (irm) { out.push({ rank: null, rankText: irm, bib, riderDisplay: name, teamName: team, resultValue: null, timeText: null, gapText: null, points: null, irm }); continue; }
 
@@ -679,13 +748,14 @@ function buildClassification(slot, spec, rows) {
   };
 }
 
-async function fetchList(server, listName, selector, page = 'results') {
+async function fetchList(server, listName, selector, page = PAGE, contest = CONTEST) {
   // ⚠ El selector de etapa es &selectorResult=<ResultID> (NO &s=, que se IGNORA y
   // devuelve siempre la etapa por defecto — verificado contra Norway 2025: con &s=
   // las 4 etapas daban la misma clasificación). El valor sale de list.SelectorResults[].
-  // `page` = 'results' (listas definitivas) o 'live' (fallback en vivo, sin selector).
+  // `page` = PAGE (listas definitivas: 'results' o la página del perfil) o 'live'
+  // (fallback en vivo, sin selector).
   const url = `https://${server}/${EVENT}/${page}/list?key=${KEY}` +
-    `&listname=${encodeURIComponent(listName)}&page=${page}&contest=${encodeURIComponent(CONTEST)}` +
+    `&listname=${encodeURIComponent(listName)}&page=${page}&contest=${encodeURIComponent(contest)}` +
     `&r=all&l=0&fav=&openedGroups=%7B%7D&term=` +
     (selector != null ? `&selectorResult=${selector}` : '');
   return getJson(url);
@@ -766,9 +836,27 @@ export function validateProfileColumns(payload, profile) {
   if (!/PrintedBib|DisplayBib|^BIB$/i.test(at(profile.cols.bib))) {
     throw new Error(`La columna de dorsal (${profile.cols.bib}) no es un dorsal: "${at(profile.cols.bib)}"`);
   }
-  if (!/DisplayName/i.test(at(profile.cols.name))) {
+  if (profile.cols.firstName != null) {
+    if (!/Firstname/i.test(at(profile.cols.firstName)) || !/Lastname/i.test(at(profile.cols.lastName))) {
+      throw new Error(`Las columnas de nombre (${profile.cols.firstName}, ${profile.cols.lastName}) no son Firstname/Lastname`);
+    }
+  } else if (!/DisplayName/i.test(at(profile.cols.name))) {
     throw new Error(`La columna de nombre (${profile.cols.name}) no es un nombre: "${at(profile.cols.name)}"`);
   }
+  if (profile.cols.status != null && !/Status/i.test(at(profile.cols.status))) {
+    throw new Error(`La columna de estado (${profile.cols.status}) no es un estado: "${at(profile.cols.status)}"`);
+  }
+}
+
+// Crono con lista de salida (430510): lista para publicar cuando cada dorsal con hora
+// de salida tiene puesto o IRM en la clasificación. Sin horas publicadas no lo está.
+export function startGateState(startPayload, rows, gate) {
+  const expected = flattenData(startPayload?.data)
+    .filter((row) => cellText(row[gate.start]) && /^\d+$/.test(cellText(row[gate.bib])))
+    .map((row) => cellText(row[gate.bib]));
+  const done = new Set(rows.filter((row) => row.rank != null || row.irm).map((row) => row.bib));
+  const pending = expected.filter((bib) => !done.has(bib));
+  return { ready: expected.length > 0 && pending.length === 0, expected: expected.length, pending };
 }
 
 function writeOutput(stages) {
@@ -804,6 +892,180 @@ export function shouldEmitFinalClassification({
     && Number(stageNumber) === Number(lastStageNumber);
 }
 
+// ── plantilla Punto de Control (perfil template='puntodecontrol') ─────────────
+// Plazo tras la salida programada para publicar una CRI aunque falte el estado de
+// alguna corredora (un DNS sin marcar no puede bloquear la clasificación).
+const ITT_DEADLINE_MS = 2 * 60 * 60 * 1000;
+
+async function participantBibs(server) {
+  await sleep(DELAY);
+  const cfg = await getJson(`${CONFIG_HOST}/${EVENT}/participants/config?lang=en`);
+  const name = listDefsForContest(cfg, CONTEST).map((item) => item.Name)[0];
+  if (!name) throw new Error('race|result no publica la lista de participantes');
+  await sleep(DELAY);
+  return listBibs(await fetchList(server, name, null, 'participants'), name);
+}
+
+// Dorsales de una lista (participantes u orden de salida).
+function listBibs(payload, name) {
+  const bibIndex = (payload?.DataFields || []).findIndex((field) => /^BIB$/i.test(String(field)));
+  if (bibIndex < 0) throw new Error(`La lista ${name} no tiene dorsal`);
+  return new Set(flattenData(payload?.data).map((row) => cellText(row[bibIndex])).filter((bib) => /^\d+$/.test(bib)));
+}
+
+// Nombres de la pseudo-etapa final por tipo, como en la plantilla estándar.
+const PDC_FINAL_NAMES = {
+  gc: 'General Classification', points: 'Points Classification', kom: 'Mountain Classification',
+  youth: 'Youth Classification', teams: 'Teams Classification',
+};
+const PDC_SPECS = {
+  teams: LIST_MAP[5],
+  points: LIST_MAP[2],
+  kom: LIST_MAP[3],
+  youth: LIST_MAP[4],
+};
+
+async function runPuntoDeControl(server, listDefs, eventOver, pointsLists) {
+  const lists = listDefs.map((item) => item.Name);
+  const numbers = Object.keys(PROFILE.stages).map(Number).sort((a, b) => a - b);
+  const lastStage = numbers[numbers.length - 1];
+  if (ONLY_STAGE != null) {
+    const conf = PROFILE.stages[ONLY_STAGE];
+    if (!conf) throw new Error(`La etapa ${ONLY_STAGE} no está configurada para el evento ${EVENT}`);
+    if (DATE_ARG && conf.dateKey !== DATE_ARG) throw new Error(`La etapa ${ONLY_STAGE} es del ${conf.dateKey}, no del ${DATE_ARG}`);
+  }
+  const readPayload = async (name, contest = CONTEST) => {
+    await sleep(DELAY);
+    const payload = await fetchList(server, name, null, 'results', contest);
+    if (!payload) throw new Error(`race|result no devuelve la lista ${name}`);
+    return payload;
+  };
+  const readList = async (name, kind) => {
+    const payload = await readPayload(name);
+    return mapListRows(flattenData(payload.data), locateColumns(payload.DataFields, kind));
+  };
+  // Las clasificaciones anexas no bloquean la llegada ni la general.
+  const secondary = async (label, read) => {
+    try { return await read(); } catch (error) { log(`  ⚠ ${label} omitida: ${error.message}`); return []; }
+  };
+
+  const emitted = [];
+  for (const n of ONLY_STAGE != null ? [ONLY_STAGE] : numbers) {
+    const conf = PROFILE.stages[n];
+    // La carpeta del rótulo oficial prevalece sobre el número interno del nombre.
+    const folder = stageFolder(listDefs, n);
+    const names = stageListNames(lists, n, { itt: !!conf.itt, folder });
+    if (!names.stage) { log(`  E${n} sin lista publicada — omitida`); continue; }
+    const stageRows = await readList(names.stage, 'stage');
+    if (!stageRows.some((row) => row.rank === 1)) { log(`  E${n} sin ganador — omitida`); continue; }
+
+    const start = n === ONLY_STAGE ? { startUtc: START_UTC, neutralStartUtc: NEUTRAL_START_UTC } : {};
+    const verdict = assessStage({
+      winnerSecs: winnerSeconds(stageRows), distanceKm: conf.distanceKm,
+      dateKey: conf.dateKey, timeZone: PROFILE.timeZone, ...start,
+    });
+    if (verdict.status !== 'ok') { log(`  E${n} no se publica (${verdict.status}): ${verdict.reason}`); continue; }
+
+    if (conf.itt) {
+      // Esperadas: participantes en el prólogo; después, el orden de salida de la
+      // crono o, sin él, quienes siguen en carrera en la general anterior.
+      const expected = n === 0
+        ? await participantBibs(server)
+        : names.startOrder
+          ? listBibs(await readPayload(names.startOrder), names.startOrder)
+          : bibsInRace(await readList(stageListNames(lists, n - 1, { folder: stageFolder(listDefs, n - 1) }).gc, 'gc'));
+      const scheduled = [start.startUtc, start.neutralStartUtc].map((value) => Date.parse(value)).filter(Number.isFinite);
+      const deadlinePassed = scheduled.length > 0 && Date.now() > Math.min(...scheduled) + ITT_DEADLINE_MS;
+      const { ready, missing } = ittComplete(stageRows, expected);
+      if (!ready && !deadlinePassed) {
+        log(`  E${n} CRI en curso: faltan ${missing.length} de ${expected.size} corredoras — no se publica`);
+        continue;
+      }
+      if (!ready) log(`  E${n} ⚠ CRI publicada tras el plazo sin estado de: ${missing.join(', ')}`);
+    }
+
+    log(`    E${String(n).padEnd(2)} stage/stage    ${String(stageRows.length).padStart(3)} filas  (${verdict.reason})`);
+    // La general del prólogo es su propia llegada.
+    const gcRows = n === 0 ? stageRows : names.gc ? await readList(names.gc, 'gc') : [];
+    const teamName = teamListName(lists, n, folder);
+    const teamRows = teamName ? await secondary(`E${n} equipos`, async () => {
+      const payload = await readPayload(teamName);
+      return mapTeamRows(flattenData(payload.data), locateTeamColumns(payload.DataFields));
+    }) : [];
+    const youthRows = await secondary(`E${n} jóvenes`, async () => deriveYouthRows(gcRows, PROFILE.youthBibs));
+    emitted.push({ n, conf, stageRows, overalls: [
+      ...(gcRows.some((row) => row.rank === 1) ? [{ spec: LIST_MAP[1], rows: gcRows }] : []),
+      ...(youthRows.length ? [{ spec: PDC_SPECS.youth, rows: youthRows }] : []),
+      ...(teamRows.length ? [{ spec: PDC_SPECS.teams, rows: teamRows }] : []),
+    ] });
+  }
+
+  // Puntos y montaña son el acumulado vigente: solo pertenecen a
+  // la última jornada publicada mientras no haya llegado el día de otra posterior
+  // (una jornada sin validar todavía puede haber sumado ya sus puntos).
+  const latest = emitted[emitted.length - 1];
+  if (latest && pointsBelongToStage(PROFILE.stages, latest.n, PROFILE.timeZone)) {
+    const participants = pointsLists.length ? await participantBibs(server) : new Set();
+    for (const def of POINTS_LISTS) {
+      const listDef = pointsLists.find((item) => def.list.test(item.Name));
+      if (!listDef) continue;
+      const rows = await secondary(`E${latest.n} ${def.classKind}`, async () => {
+        const payload = await readPayload(listDef.Name, listDef.Contest);
+        const mapped = mapPointsRows(flattenData(payload.data), locatePointsColumns(payload.DataFields, def.value));
+        const unknown = unknownBibs(mapped, participants);
+        if (unknown.length) throw new Error(`dorsales fuera de la carrera: ${unknown.join(', ')}`);
+        return mapped;
+      });
+      if (rows.length) latest.overalls.push({ spec: PDC_SPECS[def.classKind], rows });
+    }
+  } else if (latest) {
+    log(`  E${latest.n} sin puntos ni montaña: ya es el día de una jornada posterior`);
+  }
+
+  const stages = [];
+  for (const { n, conf, stageRows, overalls } of emitted) {
+    const classifications = [buildClassification(n, LIST_MAP[0], stageRows)];
+    // Carrera terminada: las generales solo van a la pseudo-etapa final.
+    if (!eventOver) {
+      for (const { spec, rows } of overalls) {
+        classifications.push(buildClassification(n, spec, rows));
+        log(`    E${String(n).padEnd(2)} ${(spec.scope + '/' + spec.classKind).padEnd(14)} ${String(rows.length).padStart(3)} filas`);
+      }
+    }
+    stages.push({
+      uciRaceId: synthRaceId(n),
+      stageNumber: n,
+      stageName: n === 0 ? 'Prologue' : `Stage ${n}`,
+      isFinalClassification: false,
+      dateKey: conf.dateKey,
+      raceType: conf.itt ? 'ITT' : null,
+      startLocation: null,
+      classificationCount: classifications.length,
+      classifications,
+    });
+
+    const hasGc = overalls.some(({ spec }) => spec.classKind === 'gc');
+    if (n === lastStage && (FINAL_FLAG || eventOver) && hasGc) {
+      const finals = overalls.map(({ spec, rows }) => buildClassification(
+        FINAL_SLOT, { ...spec, scope: 'stage', eventName: PDC_FINAL_NAMES[spec.classKind] || spec.eventName }, rows,
+      ));
+      stages.push({
+        uciRaceId: synthRaceId(FINAL_SLOT),
+        stageNumber: null,
+        stageName: 'Final Classification',
+        isFinalClassification: true,
+        dateKey: null,
+        raceType: null,
+        startLocation: null,
+        classificationCount: finals.length,
+        classifications: finals,
+      });
+      log(`    FINAL: ${finals.length} clasificaciones de la E${n}`);
+    }
+  }
+  writeOutput(stages);
+}
+
 // ── pipeline ────────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
@@ -811,15 +1073,23 @@ async function main() {
   log(`Fetcher race|result — event=${EVENT} · contest=${CONTEST} (puente sintético ${COMPETITION_ID}) · idBase=${ID_BASE}`);
 
   // 1) config → key, server, listas, EventOver.
-  const cfg = await getJson(`${CONFIG_HOST}/${EVENT}/results/config?lang=en`);
+  const cfg = await getJson(`${CONFIG_HOST}/${EVENT}/${PAGE}/config?lang=en`);
   if (!cfg || !cfg.key) { log(`FATAL: race|result no devuelve config para event ${EVENT} (¿eventId correcto?)`); process.exit(1); }
   KEY = cfg.key;
   const server = cfg.server || 'my.raceresult.com';
   const eventOver = !!cfg.EventOver;
   const contestName = cfg.contests?.[CONTEST] || `contest ${CONTEST}`;
-  const lists = listDefsForContest(cfg, CONTEST).map((item) => item.Name);
+  const listDefs = listDefsForContest(cfg, CONTEST);
+  const lists = listDefs.map((item) => item.Name);
   log(`  ${cfg.eventname || EVENT} · ${contestName} · server=${server} · EventOver=${eventOver}`);
   log(`  listas: ${lists.length}`);
+
+  if (PROFILE?.template === 'puntodecontrol') {
+    // Las generales de toda la vuelta están en el concurso 0, fuera del filtro.
+    const pointsLists = (cfg?.Tab?.Config?.Lists || []).filter((item) => item?.Name && String(item.Contest) === '0');
+    await runPuntoDeControl(server, listDefs, eventOver, pointsLists);
+    return;
+  }
 
   // localizar el nombre real de cada lista que nos interesa
   const findList = (re) => lists.find((n) => re.test(n)) || null;
@@ -899,6 +1169,21 @@ async function main() {
       log('  Stage Results sin ganador válido; no se publica ninguna clasificación');
       writeOutput([]);
       return;
+    }
+    if (PROFILE?.startGate) {
+      const startListName = findList(PROFILE.startGate.listPattern);
+      if (!startListName) {
+        log(`FATAL: no se encuentra la lista de salida ${PROFILE.startGate.listPattern} en el evento ${EVENT}`);
+        process.exit(1);
+      }
+      await sleep(DELAY);
+      const gate = startGateState(await fetchList(server, startListName, null), rows, PROFILE.startGate);
+      if (!gate.ready) {
+        log(`  pendiente: ${gate.pending.length} de ${gate.expected} dorsales con hora de salida sin puesto ni IRM; no se publica ninguna clasificación`);
+        writeOutput([]);
+        return;
+      }
+      log(`  lista de salida completa: ${gate.expected} dorsales con puesto o IRM`);
     }
 
     const spec = {

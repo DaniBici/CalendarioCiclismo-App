@@ -9,10 +9,12 @@ export function htmlFingerprint(html) {
 
 // Pinta `html` en `el` salvo que el contenido generado en el build tenga su
 // misma huella: entonces conserva el DOM (sin repintar ni mover el LCP). La
-// marca se retira en ambos casos. Devuelve true si se conservó.
-export function applyPrerenderedHtml(el, html) {
+// marca se retira en ambos casos. Devuelve true si se conservó. `paint` pinta
+// cuando la huella no coincide: por defecto sustituye el contenido; con
+// `patchHtml` (js/dom-patch.js) solo cambia lo que difiere.
+export function applyPrerenderedHtml(el, html, paint = (target, markup) => { target.innerHTML = markup; }) {
   const keep = el.dataset.prerendered === htmlFingerprint(html);
   delete el.dataset.prerendered;
-  if (!keep) el.innerHTML = html;
+  if (!keep) paint(el, html);
   return keep;
 }

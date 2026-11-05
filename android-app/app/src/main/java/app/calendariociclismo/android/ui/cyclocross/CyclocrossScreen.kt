@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -217,11 +218,11 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     // manual, la apertura recalcula hoy o el siguiente día con carreras.
     var savedDay by rememberSaveable { mutableStateOf<String?>(null) }
     // Clasificación general del torneo: la sección solo existe con generales
-    // publicadas; sin ellas la página queda como calendario sin selector.
+    // publicadas; sin ellas la página queda como lista de carreras sin selector.
     val generalSeason = selectedSeason ?: season
     var general by remember(tournamentId, generalSeason) { mutableStateOf<CxTournamentGeneral?>(null) }
     var generalRefreshing by remember(tournamentId) { mutableStateOf(false) }
-    var tournamentSection by rememberSaveable(tournamentId) { mutableStateOf(CxTournamentSection.CALENDAR) }
+    var tournamentSection by rememberSaveable(tournamentId) { mutableStateOf(CxTournamentSection.RACES) }
     var generalCategory by rememberSaveable(tournamentId) { mutableStateOf<String?>(null) }
     suspend fun loadGeneral() {
         val id = tournamentId ?: return
@@ -230,7 +231,7 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     }
     LaunchedEffect(tournamentId, generalSeason) { loadGeneral() }
     val generalCategories = general?.let { CxPresentation.tournamentGeneralCategories(it.standings, it.states) }.orEmpty()
-    val activeSection = if (generalCategories.isEmpty()) CxTournamentSection.CALENDAR else tournamentSection
+    val activeSection = if (generalCategories.isEmpty()) CxTournamentSection.RACES else tournamentSection
     val activeGeneralCategory = generalCategory?.takeIf { it in generalCategories } ?: "ME".takeIf { it in generalCategories } ?: generalCategories.firstOrNull()
     val generalSwipe = rememberClassificationSwipeState()
     val locale = LocalConfiguration.current.locales[0]
@@ -267,8 +268,15 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     LaunchedEffect(season) { state.loadRounds() }
     LaunchedEffect(state.dateKey) { if (state.navigated) savedDay = state.dateKey }
     // Hoy carga el día mostrado, como Hoy de carretera: al cambiar de día se
-    // piden sus documentos y emisiones sin pantalla de carga.
-    LaunchedEffect(state.dateKey, state.loaded) { if (tournamentId == null) state.showDay() }
+    // piden sus documentos y emisiones y, después, los del día con carreras
+    // anterior y el siguiente. Sin detalle vigente, la lista muestra la carga
+    // hasta tenerlo.
+    LaunchedEffect(state.dateKey, state.loaded) {
+        if (tournamentId == null) {
+            state.showDay()
+            state.prefetchNeighbors()
+        }
+    }
     // Latido de Hoy (cada minuto y al volver a primer plano): auto-avance de
     // medianoche y, si se muestra hoy con mangas sin resultados ni
     // cancelación, nueva descarga silenciosa de la temporada.
@@ -401,8 +409,8 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                 LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(CxTournamentSection.entries) { part ->
                         ResultsClassificationTab(label = stringResource(when (part) {
-                            CxTournamentSection.CALENDAR -> R.string.cx_calendar
-                            CxTournamentSection.GENERAL -> R.string.cx_overall_standings
+                            CxTournamentSection.RACES -> R.string.cx_races
+                            CxTournamentSection.GENERAL -> R.string.cx_general
                         }), selected = activeSection == part, onClick = { tournamentSection = part })
                     }
                 }
@@ -661,7 +669,9 @@ private fun CxDayAgenda(
             modifier = Modifier.fillMaxSize(),
         ) {
             when {
-                !state.agendaReady -> RouteLoadingView(
+                // Un día sin detalle vigente espera a tenerlo: sus tarjetas
+                // salen con todos los botones en la misma pintura.
+                !state.agendaReady || state.dayAwaiting -> RouteLoadingView(
                     message = stringResource(R.string.loading),
                     showProfile = false,
                     title = LocaleHolder.t("Ciclocross", "Cyclocross"),
@@ -924,7 +934,7 @@ internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instan
 @Composable
 private fun CxCardBadges(race: CxRace, date: String, clock: Instant, english: Boolean, onSummary: (() -> Unit)?, onStartlist: ((String) -> Unit)?) {
     val tv = CxPresentation.agendaBroadcast(race, date, CxPresentation.regionBroadcasts(race.broadcasts, RegionDetector.allowedBroadcastGroups()), clock)
-    val hasSummary = onSummary != null && CxPresentation.agendaVideo(race, date) != null
+    val hasSummary = onSummary != null && CxPresentation.agendaVideo(race, date, RegionDetector.allowedBroadcastGroups()) != null
     val startlist = onStartlist?.let { CxPresentation.agendaStartlistCategory(race, date, clock) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
@@ -971,6 +981,10 @@ private val CxCategoryBoxHeight = 24.dp
  *  de modo que hora, copa, espera y aspa no cambian la altura de la tarjeta. */
 private val CxStatusRowHeight = 24.dp
 
+/** Cuerpo mínimo de la hora bajo la caja: 70 % de los 16 sp de salida/meta
+ *  (`minimumScaleFactor(0.7)` de iOS). */
+private val CxScheduleMinFontSize = 11.sp
+
 /** Hora, copa, espera o cancelación bajo la caja de categoría, fuera de ella. */
 @Composable
 private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory) {
@@ -982,8 +996,13 @@ private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory)
             tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         CxCategoryCardState.AWAITING -> WaitingResultsIndicator()
         CxCategoryCardState.CANCELLED -> CxCancelledCross()
+        // Una línea en la fila de estado: en columnas estrechas (seis
+        // categorías, tableta a dos columnas) la hora reduce el cuerpo hasta
+        // el 70 % en lugar de partirse, como en iOS.
         CxCategoryCardState.TIME -> Text(category.startTimeUtc?.let(DateFormatting::formatTimeLocal) ?: "-",
-            style = CCText.S16, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            style = CCText.S16.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1, softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = CxScheduleMinFontSize, maxFontSize = CCText.S16.fontSize, stepSize = 0.5.sp))
     }
     }
 }

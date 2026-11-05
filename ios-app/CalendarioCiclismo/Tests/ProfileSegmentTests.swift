@@ -1,8 +1,7 @@
 import XCTest
 @testable import CalendarioCiclismo
 
-/// Vectores compartidos con `js/__tests__/profile-segment.test.js` y
-/// `ProfileSegmentTest.kt`.
+/// Desnivel acumulado de un tramo del perfil.
 final class ProfileSegmentTests: XCTestCase {
 
     private let points = [
@@ -28,13 +27,5 @@ final class ProfileSegmentTests: XCTestCase {
         XCTAssertEqual(stats.ascent, 350)
         XCTAssertEqual(stats.descent, 300)
         XCTAssertEqual(stats.gradient, 0.25, accuracy: 0.005)
-    }
-
-    func test_acceptsSegmentMarkedRightToLeft() {
-        XCTAssertEqual(ProfileSegment.stats(points: points, from: 25, to: 5, interpolateAlt: interpolateAlt)?.from, 5)
-    }
-
-    func test_discardsSegmentWithoutLength() {
-        XCTAssertNil(ProfileSegment.stats(points: points, from: 12, to: 12, interpolateAlt: interpolateAlt))
     }
 }

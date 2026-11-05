@@ -370,53 +370,57 @@ struct RaceCardView: View {
         HStack(alignment: .top, spacing: 12) {
             identityColumn
 
-            VStack(alignment: .leading, spacing: 0) {
-                // Nombre y cifras a la izquierda; hora o accesos de jornada
-                // terminada arriba a la derecha, alineados con la primera
-                // línea del nombre.
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        nameRow
-                        if let metrics = metricsText {
-                            metrics
-                                .ccFont(.s13)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+            // Nombre y cifras a la izquierda; hora o accesos de jornada
+            // terminada arriba a la derecha, alineados con la primera línea
+            // del nombre; etiquetas a 6 pt de las cifras.
+            RaceCardHeaderLayout {
+                VStack(alignment: .leading, spacing: 2) {
+                    nameRow
+                    if let metrics = metricsText {
+                        metrics
+                            .ccFont(.s13)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    trailingColumn
                 }
+                .layoutValue(key: RaceCardHeaderLayout.RoleKey.self, value: .main)
 
-                badgesRow
-                    .padding(.top, 6)
+                trailingColumn
+                    .layoutValue(key: RaceCardHeaderLayout.RoleKey.self, value: .trailing)
+
+                badges
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    /// Etiquetas a todo el ancho bajo las cifras, en el orden de la web:
-    /// Categoría → Cancelada → Tipo → TV → Dorsales → Orden de salida.
+    /// Etiquetas a todo el ancho (disposición vertical de Dynamic Type grande).
     private var badgesRow: some View {
         FlowLayout(spacing: 6) {
-            CategoryBadge(category: race?.uciCategory)
-            if rd.isCancelledDay {
-                cancelledDayBadge
-            } else if showsStageType {
-                StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
+            badges
+        }
+    }
+
+    /// Etiquetas en el orden de la web: Categoría → Cancelada → Tipo → TV →
+    /// Dorsales → Orden de salida.
+    @ViewBuilder
+    private var badges: some View {
+        CategoryBadge(category: race?.uciCategory)
+        if rd.isCancelledDay {
+            cancelledDayBadge
+        } else if showsStageType {
+            StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
+        }
+        if showsLinkBadges {
+            // Una jornada cancelada no se emite: ni TV ni Live texto
+            // (no hay nada que seguir). Paridad con la web y Android.
+            if !rd.isCancelledDay {
+                TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
             }
-            if showsLinkBadges {
-                // Una jornada cancelada no se emite: ni TV ni Live texto
-                // (no hay nada que seguir). Paridad con la web y Android.
-                if !rd.isCancelledDay {
-                    TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
-                }
-                if showsStartlistBadge {
-                    startlistBadge
-                }
-                startOrderBadge
+            if showsStartlistBadge {
+                startlistBadge
             }
+            startOrderBadge
         }
     }
 
@@ -443,13 +447,13 @@ struct RaceCardView: View {
             if showsFinishTimeOnly,
                let finishTime = rd.estimatedFinishTimeUtc,
                let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                scheduleStack(label: finishLabel, value: "~\(finishStr)")
+                scheduleStack(label: finishLabel, value: "~\(finishStr)", day: otherDay(finishTime))
             } else if let startTime = rd.neutralStartTimeUtc,
                       let startStr = DateFormatting.formatTimeLocal(startTime) {
-                scheduleStack(label: startLabel, value: startStr)
+                scheduleStack(label: startLabel, value: startStr, day: otherDay(startTime))
             } else if let finishTime = rd.estimatedFinishTimeUtc,
                       let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                scheduleStack(label: finishLabel, value: "~\(finishStr)")
+                scheduleStack(label: finishLabel, value: "~\(finishStr)", day: otherDay(finishTime))
             }
         }
     }
@@ -462,7 +466,12 @@ struct RaceCardView: View {
         isTimeTrial ? LocaleService.t("Final", "End") : LocaleService.t("Meta", "Finish")
     }
 
-    private func scheduleStack(label: String, value: String) -> some View {
+    /// Día de la hora cuando cae en otra fecha que la jornada ("sáb.").
+    private func otherDay(_ isoString: String) -> String? {
+        DateFormatting.otherDayLabel(isoString, dateKey: rd.dateKey)
+    }
+
+    private func scheduleStack(label: String, value: String, day: String?) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
             Text(label)
                 .ccFont(.s12)
@@ -471,6 +480,11 @@ struct RaceCardView: View {
                 .ccFont(isPhone ? .s14 : .s16, weight: .semibold)
                 .monospacedDigit()
                 .foregroundStyle(.primary)
+            if let day {
+                Text("(\(day))")
+                    .ccFont(.s12)
+                    .foregroundStyle(.secondary)
+            }
         }
         .fixedSize()
     }
@@ -576,5 +590,96 @@ struct RaceCompetitionIdentity: View {
             }
             Spacer()
         }.accessibilityElement(children: .combine)
+    }
+}
+
+/// Cabecera de la tarjeta de Hoy: nombre y cifras (`.main`) a la izquierda,
+/// horario o accesos (`.trailing`) arriba a la derecha y las etiquetas en
+/// flujo a 6 pt de las cifras. Cuando el horario es más alto que las cifras
+/// («(sáb.)» bajo la hora), las etiquetas no esperan a su final: la línea que
+/// empieza a su altura termina antes de la columna y las siguientes usan todo
+/// el ancho. Mismo reparto que `RaceCardHeader` en Android.
+private struct RaceCardHeaderLayout: Layout {
+    enum Role { case main, trailing, badge }
+
+    struct RoleKey: LayoutValueKey {
+        static let defaultValue = Role.badge
+    }
+
+    var columnSpacing: CGFloat = 12
+    var badgesTop: CGFloat = 6
+    var badgeSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (index, frame) in result.frames.enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(frame.size)
+            )
+        }
+    }
+
+    private func arrange(width: CGFloat?, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        var frames = Array(repeating: CGRect.zero, count: subviews.count)
+        let mainIndex = subviews.firstIndex { $0[RoleKey.self] == .main }
+        let trailingIndex = subviews.firstIndex { $0[RoleKey.self] == .trailing }
+        let trailingSize = trailingIndex.map { subviews[$0].sizeThatFits(.unspecified) } ?? .zero
+        let reserved = trailingSize.width > 0 ? trailingSize.width + columnSpacing : 0
+        let totalWidth: CGFloat
+        if let width, width.isFinite {
+            totalWidth = width
+        } else {
+            totalWidth = (mainIndex.map { subviews[$0].sizeThatFits(.unspecified).width } ?? 0) + reserved
+        }
+        let mainWidth = max(0, totalWidth - reserved)
+
+        var mainHeight: CGFloat = 0
+        if let mainIndex {
+            mainHeight = subviews[mainIndex].sizeThatFits(ProposedViewSize(width: mainWidth, height: nil)).height
+            frames[mainIndex] = CGRect(x: 0, y: 0, width: mainWidth, height: mainHeight)
+        }
+        if let trailingIndex {
+            frames[trailingIndex] = CGRect(origin: CGPoint(x: totalWidth - trailingSize.width, y: 0), size: trailingSize)
+        }
+
+        // Etiquetas en flujo, centradas en vertical dentro de cada línea como
+        // en `FlowLayout`. Una línea que empieza a la altura del horario
+        // dispone solo del ancho de las cifras.
+        var x: CGFloat = 0
+        var y = mainHeight + badgesTop
+        var rowHeight: CGFloat = 0
+        var row: [Int] = []
+        func available() -> CGFloat { y < trailingSize.height ? mainWidth : totalWidth }
+        func closeRow() {
+            for i in row { frames[i].origin.y = y + (rowHeight - frames[i].height) / 2 }
+        }
+        for index in subviews.indices where subviews[index][RoleKey.self] == .badge {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            guard size.width > 0 || size.height > 0 else { continue }
+            if x > 0 && x + size.width > available() {
+                closeRow()
+                x = 0
+                y += rowHeight + badgeSpacing
+                rowHeight = 0
+                row = []
+            }
+            // Etiqueta que no cabe junto al horario: la línea empieza bajo él.
+            if x == 0 && size.width > available() && y < trailingSize.height {
+                y = trailingSize.height + badgeSpacing
+            }
+            frames[index] = CGRect(origin: CGPoint(x: x, y: y), size: size)
+            row.append(index)
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + badgeSpacing
+        }
+        closeRow()
+
+        let height = max(trailingSize.height, mainHeight, y + rowHeight)
+        return (CGSize(width: totalWidth, height: height), frames)
     }
 }

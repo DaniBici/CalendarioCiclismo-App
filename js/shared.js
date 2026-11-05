@@ -9,7 +9,6 @@ import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
-import { hasCustomTeamBadgeColors } from './team-badge.js';
 import { firstTechnicalGuide } from './services/races.js';
 export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
@@ -92,10 +91,12 @@ export function toDateKey(date) {
   return date.toLocaleDateString('sv-SE');
 }
 
+// «Miércoles, 8 de abril» / «Wednesday 8 April»: igual que toLocaleDateString
+// con { weekday: 'long', day: 'numeric', month: 'long' }, con tablas fijas (la
+// lista del torneo CX se genera en el build y el render de Google degrada ICU).
 export function formatDateLabel(dateKey) {
-  const [y, m, d] = dateKey.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  const label = date.toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
+  const lang = _seoLang();
+  const label = lang === 'en' ? seoWeekdayDayMonth(dateKey, 'en') : seoWeekdayDayMonth(dateKey, 'es').replace(' ', ', ');
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
@@ -159,6 +160,14 @@ export function seoDayMonth(dateKey, lang = _seoLang()) {
   return lang === 'en' ? `${d} ${mo}` : `${d} de ${mo}`;
 }
 
+// "miércoles 24 de junio" / "Wednesday 24 June"  (weekday + día + mes, sin coma
+// ni año): igual que toLocaleDateString('es-ES' | 'en-GB', { weekday: 'long',
+// day: 'numeric', month: 'long' }) sin la coma del español.
+export function seoWeekdayDayMonth(dateKey, lang = _seoLang()) {
+  const { dow } = _seoParts(dateKey);
+  return `${_SEO_WEEKDAYS[lang][dow]} ${seoDayMonth(dateKey, lang)}`;
+}
+
 // Mes abreviado: igual que toLocaleDateString('es-ES' | 'en-GB', { month: 'short' }).
 const _SEO_SHORT_MONTHS = {
   es: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'],
@@ -166,6 +175,18 @@ const _SEO_SHORT_MONTHS = {
 };
 export function seoShortMonth(monthIndex, lang = _seoLang()) {
   return _SEO_SHORT_MONTHS[lang][monthIndex];
+}
+
+// "mié, 7 ene" / "Wed 7 Jan": igual que toLocaleDateString('es-ES' | 'en-GB',
+// { weekday: 'short', day: 'numeric', month: 'short' }).
+const _SEO_SHORT_WEEKDAYS = {
+  es: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+};
+export function seoShortDate(dateKey, lang = _seoLang()) {
+  const { mIdx, d, dow } = _seoParts(dateKey);
+  const wd = _SEO_SHORT_WEEKDAYS[lang][dow], mo = _SEO_SHORT_MONTHS[lang][mIdx];
+  return lang === 'en' ? `${wd} ${d} ${mo}` : `${wd}, ${d} ${mo}`;
 }
 
 // Artículo para el nombre de una carrera: «el Tour…», «la Vuelta…», «los Juegos…».
@@ -259,13 +280,31 @@ function _timeFormatter(kind, timeZone) {
   if (!formatter) {
     formatter = kind === 'time'
       ? new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', timeZone })
-      : new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', timeZone });
+      : kind === 'date'
+        ? new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone })
+        : new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', timeZone });
     _timeFormatters.set(key, formatter);
   }
   return formatter;
 }
 
-export function formatTimeUser(ts) {
+// Fecha AAAA-MM-DD de un instante en una zona.
+function _dateKeyIn(d, timeZone) {
+  const p = Object.fromEntries(_timeFormatter('date', timeZone).formatToParts(d).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// Abreviatura del día de la semana («sáb.», «Sat») de una fecha AAAA-MM-DD.
+function _weekdayAbbr(dateKey) {
+  return t('days.abbr')[new Date(`${dateKey}T12:00:00Z`).getUTCDay()];
+}
+
+// Hora de la zona del visitante; si difiere de Madrid, `tooltip` lleva la de
+// Madrid. Con `dateKey` (fecha en que aparece la jornada), `day` es la
+// abreviatura del día cuando la hora, en la zona del visitante, cae en otra
+// fecha (salida de Asia u Oceanía la víspera en Europa, llegada pasada la
+// medianoche).
+export function formatTimeUser(ts, dateKey = null) {
   if (!ts) return null;
   const d = typeof ts === 'string' ? new Date(ts) : (ts.toDate ? ts.toDate() : new Date(ts));
   const invalid = Number.isNaN(d.getTime());
@@ -273,9 +312,29 @@ export function formatTimeUser(ts) {
   // Fecha inválida: Intl.DateTimeFormat#format lanza; toLocale* devuelve «Invalid Date».
   const time = timeZone => (invalid ? d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone }) : _timeFormatter('time', timeZone).format(d));
   const wall = timeZone => new Date(invalid ? d.toLocaleString('en-US', { timeZone }) : _timeFormatter('wall', timeZone).format(d)).getTime();
+  // Día solo en la zona del visitante, frente a la fecha en que aparece la jornada.
+  const withDay = () => {
+    if (!dateKey) return {};
+    if (invalid) return { day: null };
+    const key = _dateKeyIn(d, userTZ);
+    return { day: key === dateKey ? null : _weekdayAbbr(key) };
+  };
   const madridStr = time('Europe/Madrid');
-  if (Math.round((wall(userTZ) - wall('Europe/Madrid')) / 60000) === 0) return { display: madridStr, tooltip: null };
-  return { display: time(userTZ), tooltip: madridStr };
+  if (Math.round((wall(userTZ) - wall('Europe/Madrid')) / 60000) === 0) return { display: madridStr, tooltip: null, ...withDay() };
+  return { display: time(userTZ), tooltip: madridStr, ...withDay() };
+}
+
+// Línea «(sáb.)» bajo una hora de los bloques de horario, dentro de
+// .route-block__place para que comparta su tooltip.
+export function routeBlockDayHtml(tu) {
+  return tu?.day ? `<div class="route-block__day">(${esc(tu.day)})</div>` : '';
+}
+
+// Hora de formatTimeUser con el día entre paréntesis cuando es otra fecha, en
+// una sola línea («22:45 (sáb.)»).
+export function timeWithDay(tu) {
+  if (!tu?.display) return null;
+  return tu.day ? `${tu.display} (${tu.day})` : tu.display;
 }
 
 // Etiquetas de salida/meta de una jornada: en CRI/CRE ("salida neutralizada"/
@@ -633,8 +692,7 @@ export function setMetaProperty(property, content) {
 // Temporadas 2020-2025 archivadas: noindex en todas las páginas de carrera.
 // Espejo de tools/site/archived_seasons.py (páginas pre-renderizadas).
 const ROBOTS_INDEX = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
-/** @public Lo consultan las pruebas del módulo importado. */
-export function isArchivedSeason(year) {
+function isArchivedSeason(year) {
   const y = Number(year);
   return Number.isInteger(y) && y >= 2020 && y <= 2025;
 }
@@ -1024,6 +1082,19 @@ export function normalizeTeamName(s) {
   return tokens.join(' ').trim();
 }
 
+// Nombres normalizados de un equipo (nombre y alias), por su texto: las tablas
+// largas buscan el equipo de cada fila entre ~1.200 equipos.
+const _teamMatchNames = new Map();
+function teamMatchNames(t) {
+  const key = `${t.name ?? ''}\u0000${t.nameAliases ?? ''}`;
+  let names = _teamMatchNames.get(key);
+  if (!names) {
+    names = [t.name, ...((t.nameAliases || '').split('\n'))].map(n => normalizeTeamName(n)).filter(Boolean);
+    _teamMatchNames.set(key, names);
+  }
+  return names;
+}
+
 /** Busca un equipo en `teams` que corresponda al nombre `teamName`.
  *  Estrategia: coincidencia exacta normalizada (name + aliases) → subcadena. */
 export function findMatchingTeam(teamName, teams) {
@@ -1031,15 +1102,12 @@ export function findMatchingTeam(teamName, teams) {
   const target = normalizeTeamName(teamName);
   if (!target) return null;
   for (const t of teams) {
-    const names = [t.name, ...((t.nameAliases || '').split('\n'))]
-      .map(n => normalizeTeamName(n)).filter(Boolean);
-    if (names.includes(target)) return t;
+    if (teamMatchNames(t).includes(target)) return t;
   }
   // Fallback: contención (al menos 4 caracteres para evitar ruido).
   if (target.length >= 4) {
     for (const t of teams) {
-      const names = [t.name, ...((t.nameAliases || '').split('\n'))]
-        .map(n => normalizeTeamName(n)).filter(n => n && n.length >= 4);
+      const names = teamMatchNames(t).filter(n => n.length >= 4);
       if (names.some(n => n === target || n.includes(target) || target.includes(n))) return t;
     }
   }
@@ -1485,6 +1553,7 @@ export function buildRaceHeader({
   stats = '',
   action = '',
   extraHtml = '',
+  logoHtml: logoOverride = null,
 } = {}) {
   const r = race || {};
   const name = raceName(r) || '';
@@ -1493,9 +1562,10 @@ export function buildRaceHeader({
     : '';
   const flag = countryFlag(countryCode != null ? countryCode : r.countryCode || '');
   const showFlag = !hideFlag;
-  const logoHtml = r.logoUrl
+  // `logoHtml`: un logo propio (ficha CX, con fuente de respaldo) en lugar del de la carrera.
+  const logoHtml = logoOverride ?? (r.logoUrl
     ? `<img class="race-header__logo" src="${r.logoUrl}" alt="${esc(name)}" loading="lazy" onerror="this.style.display='none'">`
-    : '';
+    : '');
 
   // Resolución del enlace del nombre: explícito → o competición (no one_day) → o sin enlace
   const href = nameHref !== undefined
@@ -1539,48 +1609,6 @@ export function buildRaceHeader({
     </div>
     ${extraHtml || ''}
   </div>`;
-}
-
-/** Genera el SVG de la chapa de un equipo con colores de equipación curados.
- *  Devuelve una cadena vacía para la paleta por defecto.
- *  - Polígono exterior gris (22 lados) simulando la chapa ciclista.
- *  - Interior con torso (sides + stripe central + círculo opcional) y culotte plano. */
-export function buildTeamBadgeSvg(team, { size = 24, className = 'team-badge' } = {}) {
-  if (!hasCustomTeamBadgeColors(team)) return '';
-  const s = size;
-  const cx = s / 2, cy = s / 2;
-  const rOuter = s * 0.48;
-  const rInner = s * 0.38;
-  // Franja central = 70% del diámetro interior → cada manga lateral = 15%
-  const stripeW = rInner * 1.4;
-  const sides = 22;
-  const pts = [];
-  for (let i = 0; i < sides; i++) {
-    const a = (Math.PI * 2 * i) / sides - Math.PI / 2;
-    pts.push(`${(cx + rOuter * Math.cos(a)).toFixed(2)},${(cy + rOuter * Math.sin(a)).toFixed(2)}`);
-  }
-  const torsoCenter = team.badgeTorsoCenter || '#ffffff';
-  const torsoSides  = team.badgeTorsoSides  || '#111111';
-  const shorts      = team.badgeShorts      || '#111111';
-  const inner       = team.badgeInnerCircle || null;
-  // Divisoria torso/culotte al 70% de la altura del círculo (desde arriba).
-  const divideY = cy + rInner * 0.4;
-  // Círculo interior centrado en la zona de torso (midpoint del semicírculo superior).
-  const innerCy = cy - rInner * 0.35;
-  const innerR  = rInner * 0.22;
-  const clipId = `teamBadgeClip_${Math.random().toString(36).slice(2, 9)}`;
-  return `<svg class="${className}" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-    <polygon points="${pts.join(' ')}" fill="#8a8d91" stroke="#5f6266" stroke-width="${(s * 0.02).toFixed(2)}"/>
-    <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${rInner}"/></clipPath></defs>
-    <g clip-path="url(#${clipId})">
-      <rect x="0" y="${divideY.toFixed(2)}" width="${s}" height="${(s - divideY + 1).toFixed(2)}" fill="${shorts}"/>
-      <rect x="0" y="0" width="${s}" height="${divideY.toFixed(2)}" fill="${torsoSides}"/>
-      <rect x="${(cx - stripeW / 2).toFixed(2)}" y="0" width="${stripeW.toFixed(2)}" height="${divideY.toFixed(2)}" fill="${torsoCenter}"/>
-      ${inner ? `<circle cx="${cx}" cy="${innerCy.toFixed(2)}" r="${innerR.toFixed(2)}" fill="${inner}"/>` : ''}
-      <line x1="0" y1="${divideY.toFixed(2)}" x2="${s}" y2="${divideY.toFixed(2)}" stroke="rgba(0,0,0,0.22)" stroke-width="${(s * 0.025).toFixed(2)}"/>
-    </g>
-    <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="${(s * 0.018).toFixed(2)}"/>
-  </svg>`;
 }
 
 // ── Visor de documentos (escritorio) ─────────────────────────────

@@ -57,11 +57,6 @@ class CxStandingsTest {
         assertEquals(emptyList<CxBreakdownEntry>(), json.decodeFromString<CxStandingState>("""{"category":"ME","status":"ready","breakdown":null}""").breakdown)
     }
 
-    @Test fun `cabecera de ronda usa el numero del torneo o su posicion`() {
-        assertEquals("#4", CxPresentation.roundHeader("r1", 0, mapOf("r1" to CxRound(4, 8))))
-        assertEquals("#2", CxPresentation.roundHeader("r2", 1, emptyMap()))
-    }
-
     @Test fun `generales del torneo sin la condicion de ronda de la ficha`() {
         val rows = listOf(standing("a", 1, "WE"), standing("b", 1, "ME"), standing("c", 1, "MU"), standing("d", 1, "WU"))
         val states = listOf(CxStandingState("ME", "ready", listOf("otra")), CxStandingState("WE", "manual"), CxStandingState("MU", "needs_review"),

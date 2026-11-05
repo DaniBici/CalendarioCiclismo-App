@@ -7,6 +7,7 @@
 //  carretera (`?date=`) abren siempre Hoy.
 // ─────────────────────────────────────────────────────────────────
 import { cyclocrossLanding } from './services/today-season.js';
+import { retireStaticText } from './static-text.js';
 
 const now = new Date();
 const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -32,11 +33,11 @@ async function mountCyclocross() {
   const main = document.createElement('main');
   main.id = 'cxAgendaContent';
   main.dataset.cxHome = '';
-  // El texto estático de la home se conserva fuera del contenedor que se repinta.
-  const prerender = list.querySelector('.static-prerender');
+  // El texto estático de la home (visible sin JS) se retira; su <h1> queda
+  // delante de la agenda como título de la página (js/static-text.js).
+  retireStaticText(list.querySelector('.static-prerender'), title => list.before(title));
   main.append(...list.querySelectorAll('.loading'));
   list.replaceWith(main);
-  if (prerender) main.after(prerender);
   await import('./ciclocross.js');
 }
 

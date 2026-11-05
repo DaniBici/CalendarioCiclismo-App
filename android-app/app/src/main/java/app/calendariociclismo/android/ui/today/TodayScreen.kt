@@ -10,10 +10,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -69,6 +70,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.MultiContentMeasurePolicy
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -85,6 +93,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
@@ -435,7 +447,7 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                             // misma columna. Una tarjeta suelta conserva media anchura.
                             val rows = AdaptiveLayoutPolicy.rows(data.raceDays, columns)
                             val isPhone = adaptiveInfo.widthClass == AdaptiveWidthClass.Compact
-                            val renderDay: @Composable (EnrichedRaceDay) -> Unit = { day ->
+                            val renderDay: @Composable (EnrichedRaceDay, Modifier) -> Unit = { day, cardModifier ->
                                 // In-house: si la jornada tiene clasificación propia, el
                                 // acceso va a la pantalla nativa.
                                 val inhouseStage = inhouseByDay[day.id]
@@ -458,6 +470,7 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                 RaceCard(
                                     day = day,
                                     activeFilter = state.category,
+                                    modifier = cardModifier,
                                     isFinalStage = isFinalStage,
                                     showsFinishTimeOnly = showsFinishTime,
                                     isWaitingForResults = isWaiting,
@@ -504,18 +517,20 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                     if (columns > 1 && data.raceDays.size == 1) {
                                         // Jornada única en pantalla ancha: media anchura, centrada.
                                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                            Box(Modifier.width((this@BoxWithConstraints.maxWidth - 24.dp - 8.dp) / 2)) { renderDay(row.items.first()) }
+                                            Box(Modifier.width((this@BoxWithConstraints.maxWidth - 24.dp - 8.dp) / 2)) { renderDay(row.items.first(), Modifier) }
                                         }
                                     } else if (columns == 1 || row.spansAllColumns) {
-                                        renderDay(row.items.first())
+                                        renderDay(row.items.first(), Modifier)
                                     } else {
+                                        // Misma altura para las tarjetas de la fila: la fila
+                                        // toma el alto de la más alta (rejilla de la web).
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.Top,
                                         ) {
                                             row.items.forEach { day ->
-                                                Box(Modifier.weight(1f)) { renderDay(day) }
+                                                Box(Modifier.weight(1f).fillMaxHeight()) { renderDay(day, Modifier.fillMaxHeight()) }
                                             }
                                             repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
                                         }
@@ -714,12 +729,12 @@ internal fun <T> SortMenu(
  * jornada en directo (perfil recorrido o, sin perfil, relleno del 8 % hasta el
  * porcentaje de avance). Las destacadas no tienen diseño propio.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RaceCard(
     day: EnrichedRaceDay,
     activeFilter: Constants.CategoryFilter,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onShowResults: (() -> Unit)? = null,
     onRevive: (() -> Unit)? = null,
     onShowStartlist: (() -> Unit)? = null,
@@ -775,10 +790,11 @@ private fun RaceCard(
     val horizontalPadding = if (isPhone) 16.dp else 20.dp
     val verticalPadding = if (isPhone) 14.dp else 16.dp
 
-    CCCard(modifier = Modifier.fillMaxWidth()) {
+    CCCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .drawBehind {
                     liveFill?.let { progress ->
                         drawRect(liveFillColor, size = Size(size.width * progress, size.height))
@@ -804,13 +820,13 @@ private fun RaceCard(
                         rd.countryCode ?: race?.countryCode
                     } else null,
                 )
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.Top,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
+                // Nombre y cifras a la izquierda; accesos de jornada terminada,
+                // espera de resultados u horario arriba a la derecha, alineados con
+                // la primera línea del nombre; etiquetas a 6 dp de las cifras.
+                RaceCardHeader(
+                    modifier = Modifier.weight(1f),
+                    main = {
                         Column(
-                            modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             RaceNameRow(
@@ -849,9 +865,8 @@ private fun RaceCard(
                                 }
                             }
                         }
-                        // Esquina superior derecha: accesos de jornada terminada,
-                        // espera de resultados u horario, alineados con la
-                        // primera línea del nombre.
+                    },
+                    trailing = {
                         if (!rd.isRestDay && !rd.isCancelledDay) {
                             when {
                                 isFinishedMode -> FinishedActions(onShowResults, onRevive, isPhone)
@@ -863,14 +878,10 @@ private fun RaceCard(
                                 else -> ScheduleColumn(rd, showsFinishTimeOnly, isTimeTrial, isPhone)
                             }
                         }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    // Etiquetas a todo el ancho, en el orden de la web:
+                    },
+                    // Etiquetas en el orden de la web:
                     // Categoría → Cancelada → Tipo → TV → Dorsales → Orden de salida.
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
+                    badges = {
                         CategoryBadge(category = race?.uciCategory)
                         if (!rd.isRestDay) {
                             if (rd.isCancelledDay) {
@@ -909,11 +920,14 @@ private fun RaceCard(
                                 }
                             }
                         }
-                    }
-                }
+                    },
+                )
             }
 
             if (showsMiniProfile) {
+                // Tarjeta estirada por su pareja de fila: el perfil queda
+                // anclado al pie, como en la web.
+                Spacer(Modifier.weight(1f))
                 rd.elevationProfile?.let { profile ->
                     MiniElevationProfile(
                         profile = profile,
@@ -927,6 +941,123 @@ private fun RaceCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * Cabecera de la tarjeta de Hoy: [main] (nombre y cifras) a la izquierda,
+ * [trailing] (horario o accesos) arriba a la derecha y [badges] en flujo a
+ * 6 dp de las cifras. Cuando el horario es más alto que las cifras («(sáb.)»
+ * bajo la hora), las etiquetas no esperan a su final: la línea que empieza a
+ * su altura termina antes de la columna y las siguientes usan todo el ancho.
+ * Mismo reparto que `RaceCardHeaderLayout` en iOS.
+ */
+@Composable
+private fun RaceCardHeader(
+    main: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+    badges: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(main, trailing, badges), modifier = modifier, measurePolicy = RaceCardHeaderPolicy)
+}
+
+/** Medidas de [RaceCardHeader]. Las intrínsecas siguen el mismo reparto para
+ *  que la fila de dos tarjetas (`IntrinsicSize.Min`) tome el alto real. */
+private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
+    private val ColumnGap = 12.dp
+    private val BadgesTop = 6.dp
+    private val BadgeGap = 6.dp
+
+    private class Slots(val height: Int, val badges: List<IntOffset>)
+
+    override fun MeasureScope.measure(measurables: List<List<Measurable>>, constraints: Constraints): MeasureResult {
+        val (mainItems, trailingItems, badgeItems) = measurables
+        val trailing = trailingItems.map { it.measure(Constraints(maxWidth = constraints.maxWidth)) }
+        val trailingSize = IntSize(trailing.maxOfOrNull { it.width } ?: 0, trailing.maxOfOrNull { it.height } ?: 0)
+        val width = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            (mainItems.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0) + reserved(trailingSize.width)
+        }
+        val mainWidth = (width - reserved(trailingSize.width)).coerceAtLeast(0)
+        val main = mainItems.map { it.measure(Constraints.fixedWidth(mainWidth)) }
+        val badges = badgeItems.map { it.measure(Constraints(maxWidth = width)) }
+        val slots = slots(width, trailingSize, main.maxOfOrNull { it.height } ?: 0, badges.map { IntSize(it.width, it.height) })
+        return layout(width, slots.height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            main.forEach { it.placeRelative(0, 0) }
+            trailing.forEach { it.placeRelative(width - it.width, 0) }
+            badges.forEachIndexed { index, placeable -> placeable.placeRelative(slots.badges[index]) }
+        }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<List<IntrinsicMeasurable>>, width: Int): Int =
+        intrinsicHeight(measurables, width, max = false)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<List<IntrinsicMeasurable>>, width: Int): Int =
+        intrinsicHeight(measurables, width, max = true)
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<List<IntrinsicMeasurable>>, height: Int): Int {
+        val (mainItems, trailingItems, badgeItems) = measurables
+        val trailingWidth = trailingItems.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val mainWidth = mainItems.maxOfOrNull { it.minIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val badgeWidth = badgeItems.maxOfOrNull { it.minIntrinsicWidth(Constraints.Infinity) } ?: 0
+        return maxOf(mainWidth + reserved(trailingWidth), badgeWidth)
+    }
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<List<IntrinsicMeasurable>>, height: Int): Int {
+        val (mainItems, trailingItems, badgeItems) = measurables
+        val trailingWidth = trailingItems.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val mainWidth = mainItems.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val badgesWidth = badgeItems.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } +
+            BadgeGap.roundToPx() * (badgeItems.size - 1).coerceAtLeast(0)
+        return maxOf(mainWidth + reserved(trailingWidth), badgesWidth)
+    }
+
+    private fun IntrinsicMeasureScope.intrinsicHeight(
+        measurables: List<List<IntrinsicMeasurable>>,
+        width: Int,
+        max: Boolean,
+    ): Int {
+        val (mainItems, trailingItems, badgeItems) = measurables
+        fun IntrinsicMeasurable.height(w: Int) = if (max) maxIntrinsicHeight(w) else minIntrinsicHeight(w)
+        val trailingWidth = trailingItems.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val trailingSize = IntSize(trailingWidth, trailingItems.maxOfOrNull { it.height(trailingWidth) } ?: 0)
+        val mainWidth = (width - reserved(trailingWidth)).coerceAtLeast(0)
+        val badges = badgeItems.map {
+            val w = it.maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(width)
+            IntSize(w, it.height(w))
+        }
+        return slots(width, trailingSize, mainItems.maxOfOrNull { it.height(mainWidth) } ?: 0, badges).height
+    }
+
+    private fun Density.reserved(trailingWidth: Int): Int =
+        if (trailingWidth > 0) trailingWidth + ColumnGap.roundToPx() else 0
+
+    /** Etiquetas en flujo, alineadas arriba en cada línea como `FlowRow`. Una
+     *  línea que empieza a la altura del horario dispone solo del ancho de las
+     *  cifras. */
+    private fun Density.slots(width: Int, trailing: IntSize, mainHeight: Int, badges: List<IntSize>): Slots {
+        val gap = BadgeGap.roundToPx()
+        val narrow = (width - reserved(trailing.width)).coerceAtLeast(0)
+        val positions = ArrayList<IntOffset>(badges.size)
+        var x = 0
+        var y = mainHeight + BadgesTop.roundToPx()
+        var lineHeight = 0
+        fun available() = if (y < trailing.height) narrow else width
+        badges.forEach { size ->
+            if (x > 0 && x + size.width > available()) {
+                x = 0
+                y += lineHeight + gap
+                lineHeight = 0
+            }
+            // Etiqueta que no cabe junto al horario: la línea empieza bajo él.
+            if (x == 0 && size.width > available() && y < trailing.height) y = trailing.height + gap
+            positions += IntOffset(x, y)
+            lineHeight = maxOf(lineHeight, size.height)
+            x += size.width + gap
+        }
+        return Slots(maxOf(trailing.height, mainHeight, y + lineHeight), positions)
     }
 }
 
@@ -1014,12 +1145,17 @@ private fun ScheduleColumn(rd: RaceDay, showsFinishTimeOnly: Boolean, isTimeTria
     val finishStr = rd.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
     val startLabel = if (isTimeTrial) LocaleHolder.t("Inicio", "Start") else LocaleHolder.t("Salida", "Start")
     val finishLabel = if (isTimeTrial) LocaleHolder.t("Final", "End") else LocaleHolder.t("Meta", "Finish")
-    val (label, value) = when {
-        showsFinishTimeOnly && finishStr != null -> finishLabel to "~$finishStr"
-        startStr != null -> startLabel to startStr
-        finishStr != null -> finishLabel to "~$finishStr"
+    val showsFinish = when {
+        showsFinishTimeOnly && finishStr != null -> true
+        startStr != null -> false
+        finishStr != null -> true
         else -> return
     }
+    val label = if (showsFinish) finishLabel else startLabel
+    val value = if (showsFinish) "~$finishStr" else startStr.orEmpty()
+    // Día de la hora cuando cae en otra fecha que la jornada: "(sáb.)" bajo la hora.
+    val day = (if (showsFinish) rd.estimatedFinishTimeUtc else rd.neutralStartTimeUtc)
+        ?.let { DateFormatting.otherDayLabel(it, rd.dateKey) }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
         Text(
             text = label,
@@ -1034,6 +1170,14 @@ private fun ScheduleColumn(rd: RaceDay, showsFinishTimeOnly: Boolean, isTimeTria
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
+        if (day != null) {
+            Text(
+                text = "($day)",
+                style = CCText.S12,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
     }
 }
 

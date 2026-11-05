@@ -1,4 +1,3 @@
-import { teamStripes } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 //  FICHAJES — /fichajes/ (+ EN /en/transfers/)
 //  Mercado de fichajes de la temporada 2027 (tabla rider_transfers, mig. 122).
@@ -23,6 +22,10 @@ import { teamStripes } from './team-appearance.js';
 //      renovación en duda (status='doubt', solo en renewal) lo saca también
 //      de "continúan" y lo lleva a su propia sección.
 //
+//  Feed y lista de equipos (1 y 2) salen de js/fichajes-html.js, común con el
+//  build: tools/site/prerender-fichajes.mjs escribe la portada en el HTML y
+//  aquí se conserva si su huella coincide (js/html-fingerprint.js).
+//
 //  Estado compartible por URL: ?div=WT|WWT|PT|PRW y ?team=<slug> (bilingüe
 //  ES/EN; ?equipo= antiguo se sigue leyendo por retrocompatibilidad), sin
 //  recarga. Abrir un equipo apila una entrada de historial (pushState) → el
@@ -31,121 +34,41 @@ import { teamStripes } from './team-appearance.js';
 //  Cambiar de división es replaceState (no apila).
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag } from './shared.js';
+import { supabase } from './shared.js';
 import { fetchAllRows, fetchAllRowsParallel, fetchByIds } from './services/paged-query.js';
-import { staleWhileRevalidate } from './services/local-cache.js';
-import { t, getLang, initI18n } from './i18n.js';
+import { staleWhileRevalidate, writeCache } from './services/local-cache.js';
+import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { patchHtml, slideIn } from './dom-patch.js';
+import { t, initI18n } from './i18n.js';
+import {
+  SEASON, PREV_SEASON, DIVISIONS, DIVISION_GENDER, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS, UNKNOWN_DEST,
+  esc, riderName, marketRiderIds, marketExtraTeamIds, attachRiders, buildMarket, teamLabel, hasTeamView, teamHref,
+  flagHtml, rumorChip, doubtChip, contractBit, marketStripesHtml, feedColumnsHtml, feedButtonsHtml, divButtonsHtml,
+  teamGridHtml, marketHomeHtml,
+} from './fichajes-html.js';
 
-const SEASON = 2027;
-const PREV_SEASON = SEASON - 1;
-const DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
-// Feed "Últimas confirmaciones": lista de altura fija con desplazamiento.
-const FEED_MAX_DAYS = 30;
-const FEED_MAX_ITEMS = 60;
-// Orden editorial diario del equipo de destino. La categoría femenina se
-// guarda como PRW en la base de datos; PTW se admite como alias del rótulo
-// solicitado para Women's ProTeams.
-const FEED_CATEGORY_RANK = { WT: 0, PT: 1, WWT: 2, PRW: 3, PTW: 3 };
+const CACHE_KEY = `fichajes:${SEASON}`;
 
-// Género de la tabla riders_* por división (para la plantilla "continúan").
-const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
-
-let _seasonsByTeamId = new Map();   // teamId → fila team_seasons 2027
-// El nombre de un equipo depende del LADO del movimiento: de dónde sale un
-// corredor es el equipo de la temporada en curso (2026, la que se está
-// corriendo); a dónde va es el de la temporada del mercado (2027). Un mapa
-// por año; `teams` NO sirve de archivo histórico (su trigger sync_team_to_season
-// pisa siempre el año en curso).
-let _teamNamePrev = new Map();      // teamId → nombre 2026 (origen)
-let _teamNameById = new Map();      // teamId → nombre 2027 (destino)
-// Colores de la temporada EN CURSO (2026) por equipo: los "antiguos", que se
-// muestran mientras la chapa 2027 está oculta. Un equipo NUEVO (nacido en 2027)
-// no tiene fila 2026 → sin entrada aquí → la chapa queda vacía (mig. 129).
-let _prevColorsByTeamId = new Map();
-let _transfers = [];                // rider_transfers 2027 + .rider hidratado
+let _market = null;                 // buildMarket() de las lecturas (js/fichajes-html.js)
 let _activeDiv = 'WT';
 let _activeFeed = 'signings';
 let _rosterCache = new Map();       // teamId → [{ ...ficha }]
-let _slugToTeamId = new Map();      // slug del nombre 2027 → teamId (URL)
-let _teamIdToSlug = new Map();      // teamId → slug
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-// Slug legible para la URL: minúsculas, sin acentos, separadores → guiones.
-function teamSlug(name) {
-  return String(name || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'equipo';
-}
-
-function riderName(r) {
-  if (!r) return '';
-  return `${r.firstName || ''} ${r.lastName || ''}`.trim();
-}
-
-// `side`: 'from' → nombre de la temporada en curso (el equipo que el corredor
-// deja); 'to' → nombre de la temporada del mercado (con el que va a correr).
-function teamLabel(teamId, freeText, side = 'to') {
-  if (!teamId) return freeText || t('transfers.unknownTeam');
-  const primary = side === 'from' ? _teamNamePrev : _teamNameById;
-  const fallback = side === 'from' ? _teamNameById : _teamNamePrev;
-  return primary.get(teamId) || fallback.get(teamId) || teamId;
-}
-
-// Solo los equipos de las cuatro divisiones del mercado tienen vista propia; un
-// equipo de otra categoría con fila team_seasons (filial, continental) no enlaza.
-function hasTeamView(teamId) {
-  return DIVISIONS.includes(_seasonsByTeamId.get(teamId)?.category);
-}
-
-function rumorChip() {
-  return `<span class="tr-chip tr-chip--rumor">${esc(t('transfers.rumor'))}</span>`;
-}
-
-function doubtChip() {
-  return `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.doubt'))}</span>`;
-}
-
-// Año centinela para contrato VITALICIO (dateTo 9999-12-31): se pinta ∞.
-const LIFETIME_YEAR = 9999;
-function contractBit(year) {
-  if (!year) return '';
-  const label = year === LIFETIME_YEAR ? '∞' : t('transfers.until', { year });
-  return `<span class="tr-contract"${year === LIFETIME_YEAR ? ' title="Vitalicio"' : ''}>${esc(label)}</span>`;
-}
-
-function midSeasonBit(isMidSeason) {
-  return isMidSeason ? `<span class="tr-contract tr-contract--midseason">${esc(t('transfers.midSeason'))}</span>` : '';
-}
-
-// Fecha del feed: día de la semana + día + mes, SIN año (ES: "martes 24 de
-// junio"; EN: "Tuesday 24 June"). Primera letra en mayúscula.
-function dayHeading(dateKey) {
-  if (!dateKey) return '';
-  const d = new Date(dateKey + 'T00:00:00');
-  const locale = getLang() === 'en' ? 'en-GB' : 'es-ES';
-  // Sin coma tras el día de la semana, para casar con el formato de las apps
-  // ("Miércoles 24 de junio").
-  const s = d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '');
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 // ── Carga inicial ─────────────────────────────────────────────────
 // Lectura del mercado: temporadas 2027 y 2026, movimientos con su ficha y
 // nombres de equipos fuera de ambas temporadas. Temporadas y movimientos se
 // paginan con orden estable: la respuesta de PostgREST tiene un tope de filas.
-// El resultado se guarda en la copia local (stale-while-revalidate).
+// El resultado se guarda en la copia local (stale-while-revalidate). El build
+// hace las mismas lecturas (tools/site/prerender-fichajes.mjs).
 async function fetchMarket() {
   const [seasons, prevSeasons, transfers] = await Promise.all([
     fetchAllRows(() => supabase.from('team_seasons')
-      .select('teamId, name, category, gender, badgeVisible, continuityDoubt, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
+      .select(SEASON_COLUMNS)
       .eq('year', SEASON).order('teamId'), 1000),
     fetchAllRowsParallel(() => supabase.from('team_seasons')
-      .select('teamId, name, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
+      .select(PREV_SEASON_COLUMNS)
       .eq('year', PREV_SEASON).order('teamId')),
     fetchAllRows(() => supabase.from('rider_transfers')
       .select('*')
@@ -156,236 +79,44 @@ async function fetchMarket() {
   ]);
 
   // Fichas (nombre + bandera) en bulk por género, en trozos paralelos.
-  const cols = 'id, firstName, lastName, nationality, contractUntil';
-  const menIds   = [...new Set(transfers.filter(x => x.riderGender === 'male').map(x => x.riderId))];
-  const womenIds = [...new Set(transfers.filter(x => x.riderGender === 'female').map(x => x.riderId))];
-  // Último recurso para equipos sin fila en NINGUNA de las dos temporadas
-  // (destinos fuera de las 4 divisiones sembradas, altas sin catalogar…).
-  const knownIds = new Set([...seasons, ...prevSeasons].map(s => s.teamId));
-  const refIds = [...new Set(transfers.flatMap(x => [x.fromTeamId, x.toTeamId]).filter(id => id && !knownIds.has(id)))];
+  const menIds   = marketRiderIds(transfers, 'male');
+  const womenIds = marketRiderIds(transfers, 'female');
+  const refIds = marketExtraTeamIds(seasons, prevSeasons, transfers);
   const [men, women, extraTeams] = await Promise.all([
-    menIds.length ? fetchByIds(supabase, 'riders_men', cols, 'id', menIds) : [],
-    womenIds.length ? fetchByIds(supabase, 'riders_women', cols, 'id', womenIds) : [],
+    menIds.length ? fetchByIds(supabase, 'riders_men', RIDER_COLUMNS, 'id', menIds) : [],
+    womenIds.length ? fetchByIds(supabase, 'riders_women', RIDER_COLUMNS, 'id', womenIds) : [],
     refIds.length ? fetchByIds(supabase, 'teams', 'id, name', 'id', refIds) : [],
   ]);
-  const byKey = new Map();
-  men.forEach(r => byKey.set(`male:${r.id}`, r));
-  women.forEach(r => byKey.set(`female:${r.id}`, r));
-  transfers.forEach(x => { x.rider = byKey.get(`${x.riderGender}:${x.riderId}`) || null; });
+  attachRiders(transfers, men, women);
   return { seasons, prevSeasons, transfers, extraTeams };
 }
 
-function applyMarket({ seasons: seasonRows, prevSeasons, transfers, extraTeams }) {
-  const seasonsRes = { data: seasonRows };
-  const prevSeasonsRes = { data: prevSeasons };
-  _seasonsByTeamId = new Map((seasonsRes.data || []).map(s => [s.teamId, s]));
-  // Slug legible del nombre 2027 para la URL (?equipo=visma-lease-a-bike).
-  // Varias marcas tienen equipo masculino Y femenino con el MISMO nombre
-  // (Cofidis, Lidl-Trek, Movistar…): su slug base colisiona. En ese caso se
-  // desambigua por GÉNERO con el sufijo -me (men's elite) / -we (women's
-  // elite), una convención neutra, así el slug es idéntico
-  // en la web ES y en la EN (/en/transfers/ comparte este módulo y el slug se
-  // arrastra tal cual al cambiar de idioma). Estable, a diferencia del sufijo
-  // -2 posicional anterior que dependía del orden de la query. Los equipos sin
-  // colisión conservan el slug corto. Un remanente de colisión (mismo nombre +
-  // mismo género, improbable) cae al sufijo -N.
-  _slugToTeamId = new Map();
-  _teamIdToSlug = new Map();
-  const seasons = seasonsRes.data || [];
-  const baseCount = new Map();
-  for (const s of seasons) {
-    const base = teamSlug(s.name || s.teamId);
-    baseCount.set(base, (baseCount.get(base) || 0) + 1);
-  }
-  const GENDER_SUFFIX = { male: 'me', female: 'we' };
-  for (const s of seasons) {
-    const base = teamSlug(s.name || s.teamId);
-    let slug = base;
-    if (baseCount.get(base) > 1) {
-      const gender = s.gender || DIVISION_GENDER[s.category] || null;
-      slug = GENDER_SUFFIX[gender] ? `${base}-${GENDER_SUFFIX[gender]}` : base;
-    }
-    let candidate = slug, n = 1;
-    while (_slugToTeamId.has(candidate)) { n++; candidate = `${slug}-${n}`; }
-    _slugToTeamId.set(candidate, s.teamId);
-    _teamIdToSlug.set(s.teamId, candidate);
-  }
-  _teamNameById = new Map((seasonsRes.data || []).map(s => [s.teamId, s.name]));
-  _teamNamePrev = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s.name]));
-  _prevColorsByTeamId = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s]));
-  _transfers = transfers;
-  (extraTeams || []).forEach(tm => {
-    if (!_teamNameById.has(tm.id)) _teamNameById.set(tm.id, tm.name);
-    if (!_teamNamePrev.has(tm.id)) _teamNamePrev.set(tm.id, tm.name);
-  });
+function applyMarket(market) {
+  _market = buildMarket(market);
 }
 
-// ── Feed de confirmaciones ────────────────────────────────────────
-// Solo confirmaciones con fecha visible. `dateVisible=false` (mig. 123) es un
-// flag de publicación en el feed, no una fecha ausente: el movimiento sigue
-// contando en la vista de equipo (llegan/se marchan/continúan) — es como se
-// puebla el mercado sin llenar el feed de anuncios viejos.
-// Solo FICHAJES REALES: un corredor que cambia de equipo (type='transfer' con
-// destino conocido). Fuera del feed las renovaciones, las retiradas y los fines
-// de contrato sin destino (transfer con toTeamName='?'). Decisión Dani 2026-07-20.
-const UNKNOWN_DEST = '?';
-function isRealSigning(x) {
-  return x.type === 'transfer' && (x.toTeamId || (x.toTeamName && x.toTeamName !== UNKNOWN_DEST));
-}
-
-function compareFeedMoves(a, b) {
-  const dateA = a.announcedAt || '';
-  const dateB = b.announcedAt || '';
-  if (dateA !== dateB) return dateB.localeCompare(dateA);
-
-  // Los movimientos para próximas temporadas forman el primer bloque del día;
-  // los efectivos durante la temporada en curso quedan siempre al final.
-  if (Boolean(a.midSeason) !== Boolean(b.midSeason)) return a.midSeason ? 1 : -1;
-
-  const categoryA = _seasonsByTeamId.get(a.toTeamId)?.category;
-  const categoryB = _seasonsByTeamId.get(b.toTeamId)?.category;
-  const rankA = FEED_CATEGORY_RANK[categoryA] ?? 90;
-  const rankB = FEED_CATEGORY_RANK[categoryB] ?? 90;
-  if (rankA !== rankB) return rankA - rankB;
-
-  const teamA = teamLabel(a.toTeamId, a.toTeamName);
-  const teamB = teamLabel(b.toTeamId, b.toTeamName);
-  const byTeam = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
-  if (byTeam !== 0) return byTeam;
-
-  const byCreation = (b.createdAt || '').localeCompare(a.createdAt || '');
-  return byCreation || String(a.id || '').localeCompare(String(b.id || ''));
-}
-
-function confirmedFeed() {
-  return _transfers
-    .filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x))
-    .sort(compareFeedMoves);
-}
-
-function renewalFeed() {
-  return _transfers
-    .filter(x => x.status === 'confirmed' && x.dateVisible !== false && x.type === 'renewal')
-    .sort(compareFeedMoves);
-}
-
-function feedRowHtml(x) {
-  const flag = x.rider?.nationality ? countryFlag(x.rider.nationality) : '';
-  const name = `<strong>${esc(riderName(x.rider) || x.riderId)}</strong>`;
-  let move;
-  if (x.type === 'renewal') {
-    // Punto central en lugar de «renueva con»: la fila se lee igual en todos los anchos.
-    move = `<span class="tr-arrow">·</span>
-      ${esc(teamLabel(x.toTeamId, x.toTeamName))}`;
-  } else if (x.type === 'retirement') {
-    move = `${esc(t('transfers.retires'))} <span class="tr-dim">(${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))})</span>`;
-  } else {
-    // Por falta de espacio en el feed móvil solo se muestra el equipo de
-    // DESTINO (a dónde va), no el de origen. El corredor ya va aparte en
-    // .tr-name → la flecha + destino basta. El destino NO va en negrita: el
-    // nombre del corredor ya lo está. Decisión Dani 2026-07-20.
-    move = `<span class="tr-arrow">→</span>
-      ${esc(teamLabel(x.toTeamId, x.toTeamName))}`;
-  }
-  const inner = `
-    <span class="tr-row__flag">${flag}</span>
-    <span class="tr-row__body"><span class="tr-name">${name}</span> <span class="tr-move">${move}</span></span>
-    ${x.midSeason ? midSeasonBit(true) : contractBit(x.contractUntil)}`;
-  // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
-  // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
-  // la fila conserva el aspecto no enlazado.
-  if (x.toTeamId && hasTeamView(x.toTeamId)) {
-    const href = `?team=${esc(_teamIdToSlug.get(x.toTeamId) || x.toTeamId)}`;
-    return `<a class="tr-row tr-row--link" href="${href}" data-team="${esc(x.toTeamId)}">${inner}</a>`;
-  }
-  return `<div class="tr-row">${inner}</div>`;
-}
-
-function feedHtml(feed) {
-  if (feed.length === 0) {
-    return `<div class="tr-empty">${esc(t('transfers.feedEmpty'))}</div>`;
-  }
-  // Corte del feed: hasta FEED_MAX_DAYS fechas distintas O FEED_MAX_ITEMS
-  // fichajes, lo que se alcance antes (el feed viene en orden cronológico
-  // inverso). La lista tiene altura fija con desplazamiento en todos los
-  // anchos. No hay "cargar más": el mercado completo se ve por equipo.
-  let html = '';
-  let lastDay = null;
-  let daysShown = 0;
-  let itemsShown = 0;
-  for (const x of feed) {
-    const newDay = x.announcedAt !== lastDay;
-    if (newDay && daysShown >= FEED_MAX_DAYS) break;
-    if (itemsShown >= FEED_MAX_ITEMS) break;
-    if (newDay) {
-      lastDay = x.announcedAt;
-      daysShown++;
-      html += `<div class="tr-feed-day">${esc(dayHeading(x.announcedAt))}</div>`;
-    }
-    html += feedRowHtml(x);
-    itemsShown++;
-  }
-  return `<div class="tr-feed-list">${html}</div>`;
-}
+// Feed, botones y equipos se actualizan sobre lo pintado (js/dom-patch.js):
+// con datos nuevos solo cambian las filas afectadas y los movimientos nuevos
+// entran deslizándose; el botón pulsado conserva el foco.
+const patchMarket = (el, html) => patchHtml(el, html, { enter: slideIn });
 
 function renderFeed() {
   const box = $('trFeed');
-  if (!box) return;
-  box.innerHTML = [
-    ['signings', t('transfers.feedSignings'), confirmedFeed()],
-    ['renewals', t('transfers.feedRenewals'), renewalFeed()],
-  ].map(([kind, title, feed]) => `<section class="tr-feed-column${kind === _activeFeed ? ' tr-feed-column--active' : ''}"><h3 class="tr-feed-title">${esc(title)}</h3>${feedHtml(feed)}</section>`).join('');
+  if (box) patchMarket(box, feedColumnsHtml(_market, _activeFeed));
+}
+
+function renderFeedButtons() {
+  const box = $('trFeedBtns');
+  if (box) patchHtml(box, feedButtonsHtml(_activeFeed));
 }
 
 // ── Divisiones + lista de equipos ─────────────────────────────────
-function divisionTeams(div) {
-  return [..._seasonsByTeamId.values()]
-    .filter(s => s.category === div)
-    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
-}
-
-// Franjas de maillot de Resultados; sin colores publicados de la temporada,
-// los de la anterior.
-function marketStripesHtml(season) {
-  const source = season?.badgeVisible === true ? season : _prevColorsByTeamId.get(season?.teamId);
-  return source ? teamStripes(source) : '';
-}
-
 function renderTeams() {
   const btns = $('trDivBtns');
   const grid = $('trTeamGrid');
   if (!btns || !grid) return;
-
-  btns.innerHTML = DIVISIONS.map(d =>
-    `<button class="tr-div-btn${d === _activeDiv ? ' tr-div-btn--active' : ''}" data-div="${d}">${d}</button>`
-  ).join('');
-  btns.querySelectorAll('[data-div]').forEach(b =>
-    b.addEventListener('click', () => {
-      _activeDiv = b.dataset.div;
-      const qs = new URLSearchParams(location.search);
-      qs.set('div', _activeDiv);
-      qs.delete('team');
-      qs.delete('equipo');   // barre también el param ES antiguo
-      history.replaceState(null, '', `${location.pathname}?${qs}`);
-      renderTeams();
-    })
-  );
-
-  const teams = divisionTeams(_activeDiv);
-  if (teams.length === 0) {
-    grid.innerHTML = `<div class="tr-empty">${esc(t('transfers.teamsEmpty'))}</div>`;
-    return;
-  }
-  grid.innerHTML = teams.map(s => `
-    <button class="tr-team-card" data-team="${esc(s.teamId)}">
-      <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
-        <span class="tr-team-card__name">${marketStripesHtml(s)}${esc(s.name)}</span>
-        ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
-      </span><span class="tr-team-chevron" aria-hidden="true">›</span>
-    </button>`).join('');
-  grid.querySelectorAll('[data-team]').forEach(el =>
-    el.addEventListener('click', () => openTeam(el.dataset.team))
-  );
+  patchHtml(btns, divButtonsHtml(_activeDiv));
+  patchHtml(grid, teamGridHtml(_market, _activeDiv));
 }
 
 // ── Vista de equipo ───────────────────────────────────────────────
@@ -397,7 +128,7 @@ function renderTeams() {
 // El año de contrato efectivo viene de la afiliación, no de riders_*.
 async function loadRoster(teamId) {
   if (_rosterCache.has(teamId)) return _rosterCache.get(teamId);
-  const season = _seasonsByTeamId.get(teamId);
+  const season = _market.seasonsByTeamId.get(teamId);
   const gender = season?.gender || DIVISION_GENDER[season?.category] || null;
 
   const { data: affs, error: affErr } = await supabase.from('rider_team_affiliations')
@@ -440,15 +171,14 @@ function personRowHtml({ flagCode, name, detail = '', contract = null, isRumor =
   // El año de contrato y el estado (rumor/duda) van como BADGES al final de la
   // fila, no en el texto.
   const inner = `
-    <span class="tr-row__flag">${flagCode ? countryFlag(flagCode) : ''}</span>
+    <span class="tr-row__flag">${flagHtml(flagCode)}</span>
     <span class="tr-row__body"><strong>${esc(name)}</strong>${detail ? ` ${detail}` : ''}</span>
     ${contractBit(contract)}
     ${isDoubt ? doubtChip() : isRumor ? rumorChip() : ''}`;
-  if (linkTeamId && hasTeamView(linkTeamId)) {
+  if (linkTeamId && hasTeamView(_market, linkTeamId)) {
     // href con el param bilingüe `?team=<slug>` (el mismo que escribe openTeam);
     // el clic normal se intercepta y navega in-page.
-    const href = `?team=${esc(_teamIdToSlug.get(linkTeamId) || linkTeamId)}`;
-    return `<a class="tr-row tr-row--team tr-row--link" href="${href}" data-team="${esc(linkTeamId)}">${inner}</a>`;
+    return `<a class="tr-row tr-row--team tr-row--link" href="${teamHref(_market, linkTeamId)}" data-team="${esc(linkTeamId)}">${inner}</a>`;
   }
   return `<div class="tr-row tr-row--team">${inner}</div>`;
 }
@@ -489,14 +219,14 @@ function refreshSplitSectionTitles() {
 window.addEventListener('resize', refreshSplitSectionTitles);
 
 async function openTeam(teamId, { push = true } = {}) {
-  const season = _seasonsByTeamId.get(teamId);
+  const season = _market.seasonsByTeamId.get(teamId);
   if (!season) return;
 
   if (push) {
     const qs = new URLSearchParams(location.search);
     qs.set('div', _activeDiv);
     qs.delete('equipo');   // limpia el param ES antiguo si venía en la URL
-    qs.set('team', _teamIdToSlug.get(teamId) || teamId);   // slug legible, bilingüe
+    qs.set('team', _market.teamIdToSlug.get(teamId) || teamId);   // slug legible, bilingüe
     // pushState (no replaceState): abrir un equipo apila una entrada de
     // historial → el botón atrás del navegador vuelve a la home de mercado (o al
     // equipo anterior si se saltó de equipo a equipo), no a la home global. La
@@ -520,7 +250,7 @@ async function openTeam(teamId, { push = true } = {}) {
   view.innerHTML = `
     <div class="tr-team-header">
       <div class="tr-team-header__text">
-        <h2 class="tr-team-header__name">${marketStripesHtml(season)}${esc(season.name)}</h2>
+        <h2 class="tr-team-header__name">${marketStripesHtml(_market, season)}${esc(season.name)}</h2>
         <span class="tr-team-header__cat">${esc(season.category || '')} · ${SEASON}</span>
       </div>
     </div>
@@ -565,7 +295,7 @@ async function openTeam(teamId, { push = true } = {}) {
   // Un fichaje efectivo a mitad de temporada se muestra en el feed, pero no
   // como llegada/salida del mercado siguiente. Su afiliación contractual sí
   // puede aparecer en la situación de plantilla ("continúan").
-  const marketTransfers = _transfers.filter(x => !x.midSeason);
+  const marketTransfers = _market.transfers.filter(x => !x.midSeason);
   const arrivals = marketTransfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId)
     .sort((a, b) => {
       const ra = a.status === 'rumor' ? 1 : 0, rb = b.status === 'rumor' ? 1 : 0;
@@ -588,8 +318,8 @@ async function openTeam(teamId, { push = true } = {}) {
   const CAT_RANK = { WT: 0, WWT: 1, PT: 2, PRW: 3 };
   const depSortKey = (x) => {
     if (x.type === 'retirement') return { retire: 1, cat: 99, team: '' };
-    const cat = _seasonsByTeamId.get(x.toTeamId)?.category;
-    return { retire: 0, cat: (cat in CAT_RANK ? CAT_RANK[cat] : 90), team: teamLabel(x.toTeamId, x.toTeamName) };
+    const cat = _market.seasonsByTeamId.get(x.toTeamId)?.category;
+    return { retire: 0, cat: (cat in CAT_RANK ? CAT_RANK[cat] : 90), team: teamLabel(_market, x.toTeamId, x.toTeamName) };
   };
   const departures = allDepartures.filter(x => !isContractEnd(x))
     .sort((a, b) => {
@@ -621,7 +351,7 @@ async function openTeam(teamId, { push = true } = {}) {
     $('trArrivals').innerHTML = arrivals.map(x => personRowHtml({
       flagCode: x.rider?.nationality,
       name: riderName(x.rider) || x.riderId,
-      detail: `<span class="tr-dim">· ${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))}</span>`,
+      detail: `<span class="tr-dim">· ${esc(teamLabel(_market, x.fromTeamId, x.fromTeamName, 'from'))}</span>`,
       contract: x.contractUntil,
       isRumor: x.status === 'rumor',
       linkTeamId: x.fromTeamId,   // llega → enlaza al equipo del que VENÍA
@@ -646,7 +376,7 @@ async function openTeam(teamId, { push = true } = {}) {
       name: riderName(x.rider) || x.riderId,
       detail: x.type === 'retirement'
         ? `<span class="tr-dim">· ${esc(t('transfers.retired'))}</span>`
-        : `<span class="tr-dim">· ${esc(teamLabel(x.toTeamId, x.toTeamName))}</span>`,
+        : `<span class="tr-dim">· ${esc(teamLabel(_market, x.toTeamId, x.toTeamName))}</span>`,
       isRumor: x.status === 'rumor',
       // Se marcha → enlaza al equipo AL QUE VA (una retirada no tiene destino).
       linkTeamId: x.type === 'retirement' ? null : x.toTeamId,
@@ -740,8 +470,8 @@ function closeTeam() {
 // retrocompatible, el teamId antiguo team_...). Devuelve null si no casa.
 function resolveTeamParam(value) {
   if (!value) return null;
-  const teamId = _slugToTeamId.get(value) || value;
-  return hasTeamView(teamId) ? teamId : null;
+  const teamId = _market.slugToTeamId.get(value) || value;
+  return hasTeamView(_market, teamId) ? teamId : null;
 }
 
 // ── Sincronización con el botón atrás/adelante del navegador ───────
@@ -751,14 +481,15 @@ function resolveTeamParam(value) {
 // esto, atrás desde un equipo va a la home de mercado (o al equipo anterior si se
 // saltó de equipo a equipo), no a la home global, y adelante rehace el camino.
 window.addEventListener('popstate', (e) => {
-  // El feed/lista aún no está montado (navegación muy temprana): lo resuelve init.
-  if (!$('trTeamView')) return;
+  // El mercado aún no está cargado (navegación muy temprana; la portada
+  // generada en el build ya lleva #trTeamView): lo resuelve init.
+  if (!_market || !$('trTeamView')) return;
   const qs = new URLSearchParams(location.search);
   const div = (qs.get('div') || '').toUpperCase();
   if (DIVISIONS.includes(div)) { _activeDiv = div; renderTeams(); }
   const teamId = (e.state && e.state.trTeam)
     || resolveTeamParam(qs.get('team') || qs.get('equipo'));
-  if (teamId && hasTeamView(teamId)) {
+  if (teamId && hasTeamView(_market, teamId)) {
     openTeam(teamId, { push: false });   // sin pushState: no duplica historial
   } else {
     closeTeam();
@@ -772,26 +503,38 @@ async function init() {
 
   const content = $('transfersContent');
   const main = $('fichajesMain');
+  const prerendered = content.hasAttribute('data-prerendered');
 
-  // Se pinta desde la copia local, si existe, y se revalida contra la red. La
-  // revalidación solo repinta si los datos cambian.
+  // Sin portada generada en el build, se pinta desde la copia local, si existe,
+  // y se revalida contra la red; la revalidación solo repinta si los datos
+  // cambian. Con portada generada se espera a la red: la copia local puede ser
+  // anterior al build.
   let mounted = false, mounting = null;
+  const onMarket = market => {
+    applyMarket(market);
+    if (!mounted) {
+      mounted = true;
+      mounting = i18nReady.then(mountMarket);
+      return;
+    }
+    mounting.then(refreshMarketViews);
+  };
   try {
-    await staleWhileRevalidate(`fichajes:${SEASON}`, fetchMarket, market => {
-      applyMarket(market);
-      if (!mounted) {
-        mounted = true;
-        mounting = i18nReady.then(mountMarket);
-        return;
-      }
-      mounting.then(refreshMarketViews);
-    });
+    if (prerendered) {
+      const market = await fetchMarket();
+      writeCache(CACHE_KEY, market);
+      onMarket(market);
+    } else {
+      await staleWhileRevalidate(CACHE_KEY, fetchMarket, onMarket);
+    }
   } catch (err) {
     console.error('[fichajes] load', err);
     await i18nReady;
-    content.innerHTML = `<div class="tr-empty" style="padding:2rem 0">${esc(t('transfers.loadError'))}</div>`;
-    content.hidden = false;
     main.querySelector('#trStaticLoading')?.remove();
+    content.hidden = false;
+    // La portada generada en el build se conserva con los datos de ese build.
+    if (prerendered) return;
+    content.innerHTML = `<div class="tr-empty" style="padding:2rem 0">${esc(t('transfers.loadError'))}</div>`;
     main.querySelector('.static-prerender')?.remove();
     return;
   }
@@ -822,38 +565,39 @@ async function mountMarket() {
     _activeDiv = qs.get('div').toUpperCase();
   }
 
-  content.innerHTML = `
-    <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
-    <div id="trHome">
-      <section class="tr-home-feed" aria-label="${esc(t('transfers.feedTitle'))}">
-        <div class="tr-div-btns" id="trFeedBtns"></div>
-        <div class="tr-home-scroll" id="trFeed"></div>
-      </section>
-      <section class="tr-home-teams">
-        <h2 class="tr-section-title">${esc(t('transfers.teamsTitle', { season: SEASON }))}</h2>
-        <div class="tr-div-btns" id="trDivBtns"></div>
-        <div class="tr-home-scroll tr-team-grid" id="trTeamGrid"></div>
-      </section>
-    </div>
-    <div id="trTeamView" hidden></div>`;
+  // La portada generada en el build con el mismo HTML se conserva
+  // (js/html-fingerprint.js); con otra división en la URL o datos nuevos desde
+  // el build, se actualiza solo lo que difiere.
+  applyPrerenderedHtml(content, marketHomeHtml(_market, { activeDiv: _activeDiv, activeFeed: _activeFeed }), patchMarket);
   content.hidden = false;
 
-  const feedBtns = $('trFeedBtns');
-  const renderFeedButtons = () => {
-    if (!feedBtns) return;
-    feedBtns.innerHTML = [
-      ['signings', t('transfers.feedSignings')],
-      ['renewals', t('transfers.feedRenewals')],
-    ].map(([value, label]) =>
-      `<button class="tr-div-btn${value === _activeFeed ? ' tr-div-btn--active' : ''}" data-feed="${value}">${esc(label)}</button>`
-    ).join('');
-    feedBtns.querySelectorAll('[data-feed]').forEach(button => button.addEventListener('click', () => {
-      _activeFeed = button.dataset.feed;
-      renderFeedButtons();
-      renderFeed();
-    }));
-  };
-  renderFeedButtons();
+  // Botones y tarjetas se delegan en sus contenedores, que persisten entre
+  // repintados (renderFeed, renderTeams): sirven igual sobre la portada
+  // generada que sobre la pintada aquí.
+  $('trFeedBtns').addEventListener('click', (e) => {
+    const button = e.target.closest('[data-feed]');
+    if (!button) return;
+    _activeFeed = button.dataset.feed;
+    renderFeedButtons();
+    renderFeed();
+  });
+
+  $('trDivBtns').addEventListener('click', (e) => {
+    const button = e.target.closest('[data-div]');
+    if (!button) return;
+    _activeDiv = button.dataset.div;
+    const params = new URLSearchParams(location.search);
+    params.set('div', _activeDiv);
+    params.delete('team');
+    params.delete('equipo');   // barre también el param ES antiguo
+    history.replaceState(null, '', `${location.pathname}?${params}`);
+    renderTeams();
+  });
+
+  $('trTeamGrid').addEventListener('click', (e) => {
+    const card = e.target.closest('[data-team]');
+    if (card) openTeam(card.dataset.team);
+  });
 
   // Clic en fila de corredor enlazada (Llegan → equipo de origen; Se marchan →
   // equipo destino): navegación interna a ese equipo, sin recarga. Delegado UNA
@@ -884,14 +628,12 @@ async function mountMarket() {
   main.querySelector('#trStaticLoading')?.remove();
   main.querySelector('.static-prerender')?.remove();
 
-  renderFeed();
-  renderTeams();
   // ?team= (bilingüe ES/EN) acepta el slug legible (visma-lease-a-bike) o,
   // retrocompatible, el teamId antiguo (team_...). El ?equipo= previo se sigue
   // leyendo para no romper enlaces ya compartidos.
   const teamId = resolveTeamParam(qs.get('team') || qs.get('equipo'));
   if (teamId) {
-    const cat = _seasonsByTeamId.get(teamId)?.category;
+    const cat = _market.seasonsByTeamId.get(teamId)?.category;
     if (DIVISIONS.includes(cat)) _activeDiv = cat;
     await openTeam(teamId, { push: false });
     // Deep link a un equipo: sembramos el teamId en el estado de ESTA entrada de

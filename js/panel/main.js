@@ -17,6 +17,7 @@ import { openEditor } from './jornada-editor.js';
 import { openRaceModal, setupModals } from './race-picker.js';
 import { setupRacesView } from './races-view.js';
 import { fetchTeams, openTeamEditor } from './teams.js';
+import { AGENDA_LABEL, panelScopeReduced } from './scope.js';
 
 // ── Guard de autenticación ────────────────────────────────────────
 // Antes de expulsar al login, conservar el deep-link (?edit=…, #analytics…)
@@ -62,7 +63,7 @@ function _clickEditorTab(target, tries = 20) {
 
 // ── Init panel ────────────────────────────────────────────────────
 async function initPanel() {
-  document.querySelector('#sidebar .sidebar__header').innerHTML=panelDayNavigationHtml({pickerId:'agendaDate',previousId:'prevDayBtn',nextId:'nextDayBtn',todayId:'todayBtn',addId:'addJornadaBtn',addLabel:'+ Añadir jornada'});
+  document.querySelector('#sidebar .sidebar__header').innerHTML=panelDayNavigationHtml({pickerId:'agendaDate',previousId:'prevDayBtn',nextId:'nextDayBtn',todayId:'todayBtn',addId:'addJornadaBtn',addLabel:'+ Añadir jornada',title:AGENDA_LABEL});
   const datePicker = document.getElementById('agendaDate');
   wirePanelDayNavigation({
     picker:datePicker, previous:document.getElementById('prevDayBtn'),
@@ -72,7 +73,10 @@ async function initPanel() {
     onChange:date=>{panelState.currentDateKey=date;loadSidebar();},
   });
 
-  document.getElementById('addJornadaBtn').addEventListener('click', openRaceModal);
+  // Alcance reducido: la agenda no crea jornadas.
+  const addJornadaBtn = document.getElementById('addJornadaBtn');
+  if (panelScopeReduced) addJornadaBtn.remove();
+  else addJornadaBtn.addEventListener('click', openRaceModal);
 
   // Cargar carreras
   await loadRaces();
@@ -80,10 +84,12 @@ async function initPanel() {
   // Si venimos desde una página pública con query params, navegar a la sección correspondiente
   const _urlEdit   = new URLSearchParams(location.search);
   const _editId    = _urlEdit.get('edit');
-  const _cxEditId  = _urlEdit.get('cxEdit');
-  const _startlist = _urlEdit.get('startlist');
-  const _perfilId  = _urlEdit.get('perfil');
-  const _teamId    = _urlEdit.get('team');
+  // En alcance reducido solo se atiende ?edit= (editor de jornada).
+  const _fullOnly  = key => (panelScopeReduced ? null : _urlEdit.get(key));
+  const _cxEditId  = _fullOnly('cxEdit');
+  const _startlist = _fullOnly('startlist');
+  const _perfilId  = _fullOnly('perfil');
+  const _teamId    = _fullOnly('team');
   const _tabParam  = _urlEdit.get('tab');
 
   if (_editId) {

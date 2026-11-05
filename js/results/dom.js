@@ -1,4 +1,5 @@
 import { htmlFingerprint } from '../html-fingerprint.js';
+import { patchHtml } from '../dom-patch.js';
 
 // Comparar el HTML generado, no el DOM serializado: filtros y desplegables
 // modifican el DOM y deben conservarse cuando la siguiente consulta no cambia nada.
@@ -28,11 +29,13 @@ function adoptPrerendered(element, html, rows) {
  * Pinta `html` en `element` salvo que sea el último que se pintó (false) o
  * el contenido generado en el build con la misma huella (true, sin tocar el
  * DOM). `rows` ({ head, list, tail }): la tabla por filas, para el contenido
- * generado con las primeras.
+ * generado con las primeras. `paint` pinta sobre lo que hay (`patchHtml` de
+ * js/dom-patch.js): las filas llevan `data-key` y un refresco solo cambia las
+ * celdas que difieren, sin rehacer la tabla ni perder el desplazamiento.
  */
-export function updateResultsHtml(element, html, rows = null) {
+export function updateResultsHtml(element, html, rows = null, paint = patchHtml) {
   if (renderedHtml.get(element) === html) return false;
-  if (!adoptPrerendered(element, html, rows)) element.innerHTML = html;
+  if (!adoptPrerendered(element, html, rows)) paint(element, html);
   renderedHtml.set(element, html);
   return true;
 }

@@ -18,7 +18,7 @@ import { withClient } from './env.mjs';
 
 export const EXPIRY_WARNING_DAYS = 30;
 
-export function expiryWarning(validUntil, now = new Date()) {
+function expiryWarning(validUntil, now = new Date()) {
   if (!validUntil) return null;
   const days = Math.floor((new Date(validUntil) - now) / 86400000);
   if (days >= EXPIRY_WARNING_DAYS) return null;
@@ -30,7 +30,7 @@ function readStdin() {
   try { return readFileSync(0, 'utf8'); } catch { return ''; }
 }
 
-export function parseArgs(argv) {
+function parseArgs(argv) {
   const options = { readOnly: false, rollback: false, all: false, file: null, query: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -57,7 +57,7 @@ export function hasTransactionControl(sql) {
     /^\s*(begin|commit|rollback|end|abort|start\s+transaction|savepoint|release)\b/i.test(statement));
 }
 
-export function pickRows(result, all) {
+function pickRows(result, all) {
   const results = (Array.isArray(result) ? result : [result]).filter(r => r.command);
   const rows = results.map(r => (r.rows?.length || r.command === 'SELECT' ? r.rows : { command: r.command, rowCount: r.rowCount }));
   return all ? rows : rows.at(-1) ?? [];

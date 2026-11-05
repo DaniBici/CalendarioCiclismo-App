@@ -15,6 +15,7 @@ import { panelState } from './state.js';
 import { loadedRaceYears, loadingRaceYears, uciRankSimple } from './helpers.js';
 import { openEditor } from './jornada-editor.js';
 import { createNewRaceDay, getRaceSuggestionsForDate } from './race-picker.js';
+import { panelScopeReduced } from './scope.js';
 
 // ── Carreras ──────────────────────────────────────────────────────
 function sortRaces(arr) {
@@ -124,9 +125,10 @@ export async function loadSidebar() {
     const days = await loadPanelAgendaDay(dateKey);
     if (request !== sidebarRequest) return;
     panelState.currentDayRaceIds = new Set(days.map(d=>d.raceId).filter(Boolean));
-    renderRoadPanelAgenda(list,days,dateKey,{onRaceDay:openEditor,onPendingRace:createNewRaceDay});
+    // Alcance reducido: sin carreras por añadir ni destacados del día.
+    renderRoadPanelAgenda(list,days,dateKey,{onRaceDay:openEditor,onPendingRace:panelScopeReduced?null:createNewRaceDay});
 
-    mountFeaturedEditor(supabase,list,dateKey);
+    if (!panelScopeReduced) mountFeaturedEditor(supabase,list,dateKey);
   } catch (err) {
     if (request !== sidebarRequest) return;
     console.error(err);
@@ -212,9 +214,9 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
       dayGroup.appendChild(item);
     });
 
-    // Carreras sin jornada asignada en este día
-    const pending = getRaceSuggestionsForDate(dateKey,new Set(days.map(d=>d.raceId)))
-      .filter(race => !onlyFirstStageDay || race.raceFormat !== 'stage_race' || race.startDate === dateKey);
+    // Carreras sin jornada asignada en este día (solo si se pueden crear)
+    const pending = onPendingRace ? getRaceSuggestionsForDate(dateKey,new Set(days.map(d=>d.raceId)))
+      .filter(race => !onlyFirstStageDay || race.raceFormat !== 'stage_race' || race.startDate === dateKey) : [];
     if (pending.length > 0) {
       const divider = document.createElement('div');
       divider.className = 'sidebar-pending-divider';

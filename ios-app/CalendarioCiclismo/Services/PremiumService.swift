@@ -337,8 +337,6 @@ final class PremiumService {
     #if DEBUG
     func _debugToggle() { setFriendSubscribed(!isSubscribed) }
     func _debugSetSubscribed(_ value: Bool) { setFriendSubscribed(value) }
-    /// Solo en memoria: no persiste ni reconoce Fundador.
-    func _debugSetLegacyPremiumActive(_ value: Bool) { legacyPremiumEntitlementActive = value }
     func _debugSetFounder(_ value: Bool) {
         isFounder = value
         UserDefaults.standard.set(value, forKey: Self.founderKey)

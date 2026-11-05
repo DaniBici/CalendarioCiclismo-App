@@ -81,7 +81,7 @@ function cxMarkFeatured(rows,ids) {
   return rows;
 }
 
-export function cxTournamentNextDate(rows,seasonKey,dateKey) {
+function cxTournamentNextDate(rows,seasonKey,dateKey) {
   return rows.flatMap(race=>race.cx_race_categories?.length?race.cx_race_categories.filter(c=>!c.isCancelled).map(c=>c.dateKey||race.dateKey):[race.dateKey])
     .filter(date=>date>=dateKey&&cxDateInSeason(seasonKey,date)).sort()[0]||null;
 }

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import {
   dateKeyInZone, fold, hboCatalogEvents, stripHtml, zonedTimeToUtc,
 } from './broadcasts-sync-core.mjs';
-import { sporzaDateKeyFromLabel, sporzaRowField } from './sporza-collector.mjs';
+import { isSporzaDayRow, sporzaDateKeyFromLabel, sporzaLivestreamRow } from './sporza-collector.mjs';
 
 export const CX_TIME_ZONE = 'Europe/Brussels';
 export const HBO_CX_SOURCE = 'hbo_max_cx';
@@ -151,18 +151,15 @@ export function parseSporzaCxLivestreams(html, { todayKey }) {
   let currentDay = null;
   let rowCount = 0;
   for (const [, attrs, rowHtml] of rows) {
-    if (/_customRow_/.test(attrs)) {
+    if (isSporzaDayRow(attrs)) {
       currentDay = sporzaDateKeyFromLabel(rowHtml, todayKey);
       continue;
     }
-    const time = sporzaRowField(rowHtml, '_time_');
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) continue;
+    const row = sporzaLivestreamRow(rowHtml);
+    if (!row) continue;
     rowCount += 1;
     if (!currentDay) continue;
-    const venueLabel = sporzaRowField(rowHtml, '_title_');
-    const subtitles = [...rowHtml.matchAll(
-      /<[^>]+class="[^"]*\b_subSubTitle_[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    )].map((match) => stripHtml(match[1])).filter(Boolean);
+    const { time, title: venueLabel, subtitles } = row;
     if (!venueLabel || fold(subtitles[0]) !== 'veldrijden') continue;
     const competition = subtitles.slice(1).join(' ');
     events.push({

@@ -2955,7 +2955,6 @@ def generate_cx_pages(cx_races):
                           og_image=DEFAULT_OG_IMAGE,body_html=body,
                           json_ld_objs=[event,breadcrumb_list(crumbs)],container_id="cxRaceContent",
                           spa_script="/js/cx-race.js",head_extra=cx_extra,
-                          prerender_visible=False,
                           date_published=(race.get("createdAt") or "")[:10] or None,
                           date_modified=(race.get("updatedAt") or "")[:10] or None)
             if lang == "en" and not has_english:

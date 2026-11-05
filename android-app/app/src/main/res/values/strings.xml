@@ -552,8 +552,8 @@
     <string name="tab_cyclocross">Ciclocross</string>
     <string name="cx_me">Elite masculina</string>
     <string name="cx_we">Elite femenina</string>
-    <string name="cx_mu">Sub-23 masculina</string>
-    <string name="cx_wu">Sub-23 femenina</string>
+    <string name="cx_mu">Sub23 masculina</string>
+    <string name="cx_wu">Sub23 femenina</string>
     <string name="cx_mj">Júnior masculina</string>
     <string name="cx_wj">Júnior femenina</string>
     <string name="cx_cancelled">Cancelada</string>
@@ -586,8 +586,7 @@
     <string name="cx_unfollow">Dejar de seguir carrera CX</string>
     <string name="cx_not_found">Carrera no disponible</string>
     <string name="cx_no_general">No hay general publicada</string>
-    <string name="cx_calendar">Calendario</string>
-    <string name="cx_overall_standings">Clasificación general</string>
+    <string name="cx_races">Carreras</string>
     <string name="cx_more_rounds">Más rondas</string>
     <string name="cx_dropped_result">Resultado descartado</string>
     <string name="cx_points">Puntos</string>

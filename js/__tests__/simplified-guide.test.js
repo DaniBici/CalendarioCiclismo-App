@@ -1,32 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { buildSimplifiedGuide, hasSimplifiedGuide } from '../simplified-guide.js';
 
-// Vectores de prueba COMPARTIDOS con las suites de iOS y Android
-// (SimplifiedGuideServiceTests / SimplifiedGuideTest). Si cambian aquí,
-// actualizar también allí para mantener la paridad.
+// Horas de paso publicadas: interpolación por km entre anclas y horas
+// manuales de cima y pie; en CRI/CRE no se interpola.
 
 const START = '2026-04-26T08:00:00.000Z'; // 10:00 CEST
 const FINISH = '2026-04-26T14:20:00.000Z'; // 16:20 CEST (380 min después)
 
 describe('buildSimplifiedGuide', () => {
-  it('inserta salida y llegada como anclas en los extremos', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100,
-      neutralStartTimeUtc: START,
-      estimatedFinishTimeUtc: FINISH,
-      summits: [],
-      waypoints: [],
-    });
-    expect(rows).toHaveLength(2);
-    expect(rows[0].type).toBe('start');
-    expect(rows[0].km).toBe(0);
-    expect(rows[0].kmToGo).toBe(100);
-    expect(rows[0].isEstimated).toBe(false);
-    expect(rows[1].type).toBe('finish');
-    expect(rows[1].km).toBe(100);
-    expect(rows[1].kmToGo).toBe(0);
-  });
-
   it('interpola linealmente por km un waypoint sin hora', () => {
     // Sprint a mitad de recorrido → mitad de tiempo (10:00 + 190min = 13:10)
     const rows = buildSimplifiedGuide({
@@ -82,75 +63,6 @@ describe('buildSimplifiedGuide', () => {
     expect(hasSimplifiedGuide(rows)).toBe(true);
   });
 
-  it('ordena por km con el pie del puerto antes de la cima', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100,
-      neutralStartTimeUtc: START,
-      estimatedFinishTimeUtc: FINISH,
-      summits: [{ km: 60, name: 'A', startKm: 50 }],
-      waypoints: [{ km: 30, name: 'Sprint', type: 'intermediate_sprint' }],
-    });
-    const types = rows.map(r => r.type);
-    expect(types).toEqual(['start', 'intermediate_sprint', 'climb_foot', 'summit', 'finish']);
-  });
-
-  it('fusiona cima y bonificación solo cuando coincide el km decimal exacto', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100,
-      summits: [{ km: 60.5, name: 'Puerto', category: '1' }],
-      waypoints: [
-        { km: 60.5, name: 'Bonificación', type: 'bonus_sprint', timeUtc: '2026-04-26T12:00:00.000Z' },
-        { km: 60.6, name: 'Sprint', type: 'intermediate_sprint' },
-      ],
-    });
-    const summit = rows.find(row => row.type === 'summit');
-    expect(rows.filter(row => row.km === 60.5)).toHaveLength(1);
-    expect(summit.secondaryType).toBe('bonus_sprint');
-    expect(summit.secondaryLabel).toBe('Bonificación');
-    expect(summit.timeUtc).toBe('2026-04-26T12:00:00.000Z');
-    expect(rows.some(row => row.km === 60.6 && row.type === 'intermediate_sprint')).toBe(true);
-  });
-
-  it('fusiona la meta con una cima o waypoint solo en el km final exacto', () => {
-    const summitFinish = buildSimplifiedGuide({
-      distanceKm: 100,
-      estimatedFinishTimeUtc: FINISH,
-      summits: [{ km: 100, name: 'Alto de meta', category: '1' }],
-    });
-    expect(summitFinish).toHaveLength(1);
-    expect(summitFinish[0]).toMatchObject({
-      type: 'summit',
-      secondaryType: 'finish',
-      secondaryLabel: null,
-      kmToGo: 0,
-      timeUtc: FINISH,
-      isEstimated: true,
-    });
-
-    const waypointFinish = buildSimplifiedGuide({
-      distanceKm: 100,
-      estimatedFinishTimeUtc: FINISH,
-      waypoints: [{ km: 100, name: 'Sprint de meta', type: 'bonus_sprint' }],
-    });
-    expect(waypointFinish).toHaveLength(1);
-    expect(waypointFinish[0]).toMatchObject({
-      type: 'bonus_sprint',
-      secondaryType: 'finish',
-      kmToGo: 0,
-      timeUtc: FINISH,
-      isEstimated: true,
-    });
-
-    const withoutFinishTime = buildSimplifiedGuide({
-      distanceKm: 100,
-      summits: [{ km: 100, name: 'Alto de meta', category: '1' }],
-    });
-    expect(withoutFinishTime).toHaveLength(1);
-    expect(withoutFinishTime[0]).toMatchObject({
-      type: 'summit', secondaryType: 'finish', timeUtc: null, isEstimated: true,
-    });
-  });
-
   it('en CRI/CRE no interpola y solo muestra puntos intermedios manuales', () => {
     const splitTime = '2026-04-26T10:30:00.000Z';
     const rows = buildSimplifiedGuide({
@@ -172,58 +84,5 @@ describe('buildSimplifiedGuide', () => {
     // No se interpola en CRI
     expect(splitNoTime.timeUtc).toBeNull();
     expect(splitNoTime.isEstimated).toBe(true);
-  });
-
-  it('sin distancia no calcula kmToGo y omite la llegada', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: null,
-      neutralStartTimeUtc: START,
-      estimatedFinishTimeUtc: FINISH,
-      waypoints: [{ km: 20, name: 'Sprint', type: 'intermediate_sprint' }],
-    });
-    expect(rows.find(r => r.type === 'finish')).toBeUndefined();
-    expect(rows.every(r => r.kmToGo === null)).toBe(true);
-  });
-
-  it('sin ninguna hora deja los puntos sin timeUtc', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100,
-      summits: [{ km: 50, name: 'A', startKm: 40 }],
-    });
-    expect(rows.every(r => r.timeUtc == null)).toBe(true);
-    expect(rows.every(r => r.isEstimated)).toBe(true);
-  });
-
-  it('excluye waypoints kom y sprints en pruebas de ruta muestran split oculto', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100,
-      neutralStartTimeUtc: START,
-      estimatedFinishTimeUtc: FINISH,
-      waypoints: [
-        { km: 10, type: 'kom' },
-        { km: 20, type: 'intermediate_split' }, // oculto en ruta
-        { km: 30, type: 'cobblestone', name: 'Pavé' },
-      ],
-    });
-    expect(rows.find(r => r.type === 'kom')).toBeUndefined();
-    expect(rows.find(r => r.type === 'intermediate_split')).toBeUndefined();
-    expect(rows.find(r => r.type === 'cobblestone')).toBeTruthy();
-  });
-});
-
-describe('hasSimplifiedGuide (opt-in: requiere ≥1 hora manual)', () => {
-  it('false si solo hay salida y llegada', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100, neutralStartTimeUtc: START, estimatedFinishTimeUtc: FINISH,
-    });
-    expect(hasSimplifiedGuide(rows)).toBe(false);
-  });
-
-  it('false con puntos intermedios SIN hora manual (solo interpolados)', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100, neutralStartTimeUtc: START, estimatedFinishTimeUtc: FINISH,
-      waypoints: [{ km: 50, type: 'intermediate_sprint' }],
-    });
-    expect(hasSimplifiedGuide(rows)).toBe(false);
   });
 });

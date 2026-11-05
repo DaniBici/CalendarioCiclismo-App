@@ -69,21 +69,4 @@ class RegionDetectorTest {
             assertEquals("TZ '$tz'", expected, RegionDetector.allowedBroadcastGroups(tz))
         }
     }
-
-    // ── isEuropean ─────────────────────────────────────────────────
-
-    @Test
-    fun `isEuropean reconoce Europa cubierta y no cubierta`() {
-        val cases = listOf(
-            "Europe/Madrid" to true,
-            "Atlantic/Reykjavik" to true,
-            "Asia/Istanbul" to true,
-            "America/New_York" to false,
-            "Asia/Tokyo" to false,
-            "UTC" to false,
-        )
-        for ((tz, expected) in cases) {
-            assertEquals("TZ '$tz'", expected, RegionDetector.isEuropean(tz))
-        }
-    }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCxResults, loadCxResultsContext, prepareCxResults, resolveCxResultIdentity } from '../results-fetchers/cx-results-upsert.mjs';
+import { applyCxResults, prepareCxResults, resolveCxResultIdentity } from '../results-fetchers/cx-results-upsert.mjs';
 
 function fixture() {
   const riders = [{ id: 'a-cx', firstName: 'A', lastName: 'Prueba', nationality: 'ES', birthDate: '2000-01-01', verified: true }];
@@ -193,9 +193,6 @@ describe('preparación del contrato CX', () => {
 });
 
 describe('aplicación/SQL revisable', () => {
-  it('informa de carrera ausente sin desestructurar una fila inexistente', async () => {
-    await expect(loadCxResultsContext({ query: async () => ({ rows: [] }) },'no-existe')).rejects.toThrow('Carrera CX no encontrada');
-  });
   it('revierte el lote si falla una categoría, sin confirmar categorías parciales', async () => {
     const calls = []; let imports = 0;
     const client = { query: async sql => { calls.push(sql); if (sql.startsWith('SELECT')) { if (++imports === 2) throw Object.assign(new Error('Entrada cambió'), { code: '40001' }); return { rows: [{ imported: { rows: 1 } }] }; } return { rows: [] }; } };

@@ -26,6 +26,7 @@ import {
 import { deleteRaceDay, duplicateRaceDay, saveRaceDay } from './jornada-save.js';
 import { openRaceModal } from './race-picker.js';
 import { setupUciResultsSection } from './results.js';
+import { panelScopeReduced, REDUCED_EDITOR_TAB } from './scope.js';
 
 // ── Editor de jornada ─────────────────────────────────────────────
 // El editor vive en el drawer. `#editorArea` es el contenedor que el drawer
@@ -236,14 +237,18 @@ function renderEditor(rd, race, broadcasts, assets) {
     ? `${CONFIG.basePath}/jornada/${rd.slug}/`
     : `${CONFIG.basePath}/jornada.html?id=${rd.id}`;
 
+  // Alcance reducido: las acciones sobre la ficha quedan ocultas (sus
+  // manejadores se enlazan igualmente más abajo).
+  const fullOnly = panelScopeReduced ? ' hidden' : '';
+
   area.innerHTML = `
     ${panelEditorTopbarHtml({name:race.name||'Jornada',flagHtml:flag,detail:editorStage,date:rd.dateKey,published:!isDraft,updated:rd.updatedAt?formatDateTime(rd.updatedAt):'',actionsHtml:`
         <a class="btn btn--ghost" href="${publicUrl}" target="_blank" rel="noopener">Ver ↗</a>
-        <button class="btn btn--ghost" id="ed-startlist" data-race-id="${rd.raceId}">Dorsales</button>
-        <button class="btn btn--danger" id="ed-delete">Borrar</button>
-        <button class="btn btn--ghost" id="ed-duplicate">Duplicar</button>
-        <button class="btn btn--ghost" id="ed-draft">Borrador</button>
-        <button class="btn btn--primary" id="ed-publish">${isDraft?'Publicar':'Actualizar'}</button>`})}
+        <button class="btn btn--ghost" id="ed-startlist" data-race-id="${rd.raceId}"${fullOnly}>Dorsales</button>
+        <button class="btn btn--danger" id="ed-delete"${fullOnly}>Borrar</button>
+        <button class="btn btn--ghost" id="ed-duplicate"${fullOnly}>Duplicar</button>
+        <button class="btn btn--ghost" id="ed-draft"${fullOnly}>Borrador</button>
+        <button class="btn btn--primary" id="ed-publish"${fullOnly}>${isDraft?'Publicar':'Actualizar'}</button>`})}
     <div class="editor-content">
       ${panelEditorTabsHtml([['general','General'],['tv','TV'],['perfil','GPX'],['mas','Docs'],['resultados','Resultados']].map(([key,label])=>({key,label})),{id:'editorTabs'})}
 
@@ -867,7 +872,8 @@ function renderEditor(rd, race, broadcasts, assets) {
     }
   });
 
-  mountDayTimingEditor(
+  // Se guarda con la ficha (Publicar/Actualizar), ausente en alcance reducido.
+  if (!panelScopeReduced) mountDayTimingEditor(
     document.getElementById('ruSectionBody').closest('.editor-section'),
     rd,
   );
@@ -1006,13 +1012,15 @@ function renderEditor(rd, race, broadcasts, assets) {
     if (isCancelled) hiddenTabs.add('tv');
 
     document.querySelectorAll('#editorTabs .editor-tab').forEach(tab => {
-      tab.hidden = hiddenTabs.has(tab.dataset.target);
+      tab.hidden = panelScopeReduced
+        ? tab.dataset.target !== REDUCED_EDITOR_TAB
+        : hiddenTabs.has(tab.dataset.target);
     });
 
-    // Si la pestaña activa se acaba de ocultar, saltar a General
+    // Si la pestaña activa se acaba de ocultar, saltar a la pestaña por defecto
     const activeTab = document.querySelector('#editorTabs .editor-tab--active');
     if (activeTab && activeTab.hidden) {
-      document.querySelector('#editorTabs .editor-tab[data-target="general"]')?.click();
+      document.querySelector(`#editorTabs .editor-tab[data-target="${defaultEditorTab()}"]`)?.click();
     }
   }
 
@@ -1119,7 +1127,8 @@ function renderEditor(rd, race, broadcasts, assets) {
   initMdToolbar('md-toolbar', 'ed-description');
   initMdToolbar('md-toolbar-en', 'ed-description-en', 'ed-description-en-wysiwyg');
 
-  // Pestañas del editor
+  // Pestañas del editor (sin barra en alcance reducido: solo queda Resultados)
+  document.getElementById('editorTabs').hidden = panelScopeReduced;
   setupEditorTabs();
 
   // Sección Documentación: selector dinámico para añadir/quitar tipos
@@ -1130,6 +1139,7 @@ function renderEditor(rd, race, broadcasts, assets) {
 
   // Pestaña Resultados: clasificaciones UCI in-house (carga async)
   if (!rd.isRestDay) setupUciResultsSection(rd, race);
+  else document.getElementById('ruSectionBody').innerHTML = '<div class="u-c-muted u-fs-2">Jornada de descanso: sin clasificaciones.</div>';
 
   // Toggles ES/EN por sección
   setupLangToggles();
@@ -1158,6 +1168,8 @@ function setupLangToggles() {
   });
 }
 
+const defaultEditorTab = () => (panelScopeReduced ? REDUCED_EDITOR_TAB : 'general');
+
 // Activación de pestañas del editor.
 // La pestaña activa se persiste en localStorage para que al volver al editor
 // el usuario caiga donde estaba.
@@ -1166,12 +1178,12 @@ function setupEditorTabs() {
   if (tabs.length === 0) return;
   const saved = localStorage.getItem('panel_editorTab');
   const savedTab = saved ? document.querySelector(`#editorTabs .editor-tab[data-target="${saved}"]`) : null;
-  const initial = savedTab && !savedTab.hidden ? saved : 'general';
+  const initial = savedTab && !savedTab.hidden ? saved : defaultEditorTab();
   const activate = (target, { persist = true } = {}) => {
     const targetTab = document.querySelector(`#editorTabs .editor-tab[data-target="${target}"]`);
     let effective = target;
     let fallbackApplied = false;
-    if (targetTab?.hidden) { effective = 'general'; fallbackApplied = true; }
+    if (targetTab?.hidden) { effective = defaultEditorTab(); fallbackApplied = true; }
     tabs.forEach(t => t.classList.toggle('editor-tab--active', t.dataset.target === effective));
     document.querySelectorAll('.editor-section[data-tab]').forEach(sec => {
       sec.style.display = sec.dataset.tab === effective ? '' : 'none';

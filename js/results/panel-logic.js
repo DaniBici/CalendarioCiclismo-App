@@ -14,7 +14,7 @@ export function resultClassificationBelongsToDay(stage, rd, raceDays = []) {
   return candidates.length === 1 && candidates[0].id === rd.id;
 }
 
-export function findResultClassificationDuplicate(stages, rd, { kind, scope, isFinal }, raceDays = []) {
+function findResultClassificationDuplicate(stages, rd, { kind, scope, isFinal }, raceDays = []) {
   const stageNumber = isFinal ? null : (rd.stageNumber ?? null);
   return stages.find(stage => stage.classKind === kind && stage.scope === scope
     && (!stage.raceId || !rd.raceId || stage.raceId === rd.raceId)
@@ -126,7 +126,7 @@ export function isFinalStageRaceDay(rd, race, raceDays = []) {
 // Una excepción de horario de jornada se reconoce por sus instantes exactos.
 // Cualquier carrera enlazada está activa y una jornada solo puede modificar su
 // ventana, no apagar el volcado.
-export function hasResultSyncDayOverride(rd) {
+function hasResultSyncDayOverride(rd) {
   return rd?.resultsSyncStartAt != null
     || rd?.resultsSyncStopAt != null
     || rd?.resultsSyncStartOffsetMinutes != null

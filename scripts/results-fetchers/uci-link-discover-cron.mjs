@@ -84,7 +84,7 @@ const BACKFILL = join(HERE, 'uci-backfill-links.mjs');
 // Espejo del mapa del matcher (uci-match-poc.mjs / uci-backfill-links.mjs). Solo se usa
 // aquí para SABER qué años son barribles; la fuente de verdad sigue siendo el matcher.
 // Cuando la UCI abra una temporada nueva, añadir su seasonId aquí Y en los otros dos scripts.
-const ROAD_SEASON = { 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
+const ROAD_SEASON = { 2027: 477, 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
 
 // Años a barrer: el actual siempre; el siguiente si estamos en Q4 (la UCI ya publica
 // la próxima temporada y nosotros ya tenemos esas carreras en DB).

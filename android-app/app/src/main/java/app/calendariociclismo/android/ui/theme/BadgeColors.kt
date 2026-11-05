@@ -53,12 +53,14 @@ fun stageTypeBadgeColor(type: String?): BadgeColor {
             .maybeDark(dark, Color(0xFFD4CD6A))
         "medium_mountain" -> BadgeColor(mix(Color(0xFFFFB750)), Color(0xFFB87400))
             .maybeDark(dark, Color(0xFFFFB750))
-        "high_mountain", "summit_finish", "chrono_climb" ->
+        "high_mountain", "summit_finish" ->
             BadgeColor(mix(Color(0xFFFF7864)), Color(0xFFB1392A))
                 .maybeDark(dark, Color(0xFFFF7864))
         "uphill_finish" -> BadgeColor(mix(Color(0xFFFFA030)), Color(0xFFB86000))
             .maybeDark(dark, Color(0xFFFFA030))
-        "itt", "ttt" -> BadgeColor(mix(Color(0xFF64C8FF)), Color(0xFF1565C0))
+        // Cronoescalada con el azul de contrarreloj, como `badge--type-chrono`
+        // de la web.
+        "itt", "ttt", "chrono_climb" -> BadgeColor(mix(Color(0xFF64C8FF)), Color(0xFF1565C0))
             .maybeDark(dark, Color(0xFF64C8FF))
         "cobbles" -> BadgeColor(mix(Color(0xFFA8A8A8)), Color(0xFF4A4A4A))
             .maybeDark(dark, Color(0xFFBDBDBD))

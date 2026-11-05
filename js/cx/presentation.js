@@ -21,9 +21,9 @@ export function cxRacePageLocation(pathname,search='') {
   const view=new URLSearchParams(search).get('view');
   return {page:suffixPage||(CX_RACE_VIEWS.includes(view)?view:'race'),slug:decodeURIComponent(suffixPage?parts.at(-2)||'':last||'')};
 }
-// Vistas de la página de torneo: calendario (raíz) y clasificación general.
-export const cxTournamentPageUrl=(tournament,lang='es',page='calendar',category='')=>`${cxTournamentUrl(tournament,lang)}${page==='general'?'?view=general':''}${category?`#${category}`:''}`;
-export const cxTournamentPage=search=>new URLSearchParams(search).get('view')==='general'?'general':'calendar';
+// Vistas de la página de torneo: carreras (raíz) y general.
+export const cxTournamentPageUrl=(tournament,lang='es',page='races',category='')=>`${cxTournamentUrl(tournament,lang)}${page==='general'?'?view=general':''}${category?`#${category}`:''}`;
+export const cxTournamentPage=search=>new URLSearchParams(search).get('view')==='general'?'general':'races';
 export const cxCategoryDate = (race,category) => category.dateKey||race.dateKey;
 // Categoría de una clasificación por fragmento: la pedida si existe; si no, la
 // principal (ME) o la primera disponible.
@@ -155,10 +155,10 @@ export const cxColor = race => cxTournamentColor(race.cx_tournaments)||(/^#[0-9a
 // pruebas ya tiene clasificaciones publicadas.
 const CX_DOC_TYPES=['technicalGuide','map'];
 const CX_RESULTS_STATUSES=['official','provisional'];
-export function cxHasClassifications(race) {
+function cxHasClassifications(race) {
   return (race.cx_race_categories||[]).some(c=>CX_RESULTS_STATUSES.includes(c.resultsStatus));
 }
-export function cxRaceOpen(race) {
+function cxRaceOpen(race) {
   const hasDocs=(race.assets||[]).some(a=>CX_DOC_TYPES.includes(a.type)&&a.url);
   const hasSchedule=(race.cx_race_categories||[]).some(c=>c.startTimeUtc);
   return hasDocs&&hasSchedule||cxHasClassifications(race);
@@ -288,7 +288,7 @@ export function cxRoundBadge(round) {
   const label=cxRoundLabel(round);
   return label?`<span class="cx-round-badge"><span aria-hidden="true">${cxEscape(String(label.text))}</span><span class="sr-only">${cxEscape(label.aria)}</span></span>`:'';
 }
-export function cxStandingTotal(row,mode,locale='es-ES') {
+function cxStandingTotal(row,mode,locale='es-ES') {
   if(mode==='time')return row.timeSeconds==null?'-':cxDuration(row.timeSeconds);
   if(mode==='points')return cxPoints(row.points,locale);
   return '-';
@@ -370,7 +370,7 @@ export function cxResultCells(rows,lang='es') {
 // llegada estimada + 30 min, como las jornadas de carretera. Sin duración
 // verificada cuenta la manga más larga (60 min); sin hora, las 06:00 UTC del
 // día siguiente.
-export function cxCategoryConcludedAt(race,category) {
+function cxCategoryConcludedAt(race,category) {
   const start=Date.parse(category.startTimeUtc);
   if(Number.isFinite(start)) {
     const minutes=cxRegulationMinutes(category.category,category.durationFormat,category.durationRuleVersion??null)??60;
@@ -389,13 +389,17 @@ export function cxProgrammeOrder(race,categories) {
 // esté cancelada, no tenga resultados y no haya concluido; Revive llega con
 // resultados o cancelación, con el criterio de carretera (isReviveBroadcast) o
 // Sporza, y sin repetir lo que sigue en directo por otra categoría. Sin
-// categorías solo cuentan las filas globales.
+// categorías solo cuentan las filas globales. Una emisión visible de YouTube
+// con vídeo fijo e insertable pasa de Revive a Vídeos cuando todas sus
+// categorías no canceladas tienen resultados (y al menos una los tiene), tras
+// los vídeos de la prueba y sin repetir uno de ellos: «Carrera completa
+// <categoría>» o, si es global, «Retransmisión completa».
 export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibleBroadcasts=broadcasts,at=new Date()}={}) {
   const now=new Date(at).getTime();
   const units=(categories.length?cxProgrammeOrder(race,categories):[{category:'',dateKey:race.endDateKey||race.dateKey}]).map(category=>{
     const cancelled=!!(race.isCancelled||category.isCancelled);
     const hasResults=!!category.category&&['official','provisional'].includes(category.resultsStatus)&&results.some(row=>row.category===category.category);
-    return {category,code:category.category||'',cancelled,finished:hasResults||cancelled,
+    return {category,code:category.category||'',cancelled,hasResults,finished:hasResults||cancelled,
       live:!cancelled&&!hasResults&&now<cxCategoryConcludedAt(race,category).getTime()};
   });
   const applies=(row,code)=>!row.category||row.category===code;
@@ -412,9 +416,21 @@ export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibl
   const tv=collect(rows,row=>live.some(unit=>applies(row,unit.code))&&liveRows.add(row),(row,url)=>`${row.category||''}|${url}|${row.country||'ALL'}|${row.channel||''}`);
   const visible=new Set(visibleBroadcasts);
   const replay=(row,unit)=>unit.cancelled?row.showInRevive===true:row.showInRevive===true||isReviveBroadcast(row)||row.isSporza===true;
-  const revive=collect(rows,row=>visible.has(row)&&!liveRows.has(row)&&units.some(unit=>unit.finished&&applies(row,unit.code)&&replay(row,unit)),(_,url)=>url);
+  const replayVideoId=row=>{
+    const own=units.filter(unit=>applies(row,unit.code)),id=row.embeddable===false?null:cxYouTubeVideoId(row.url);
+    return id&&own.some(unit=>unit.hasResults)&&own.every(unit=>unit.finished)?id:null;
+  };
+  const replayVideos=new Map(rows.flatMap(({row})=>visible.has(row)&&replayVideoId(row)?[[row,replayVideoId(row)]]:[]));
+  const revive=collect(rows,row=>visible.has(row)&&!liveRows.has(row)&&!replayVideos.has(row)&&units.some(unit=>unit.finished&&applies(row,unit.code)&&replay(row,unit)),(_,url)=>url);
   const media=collect(valid(videos),row=>units.some(unit=>applies(row,unit.code)),(_,url)=>url);
-  return {tv,revive,videos:media,liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category)};
+  const videoIds=new Set(media.map(row=>cxYouTubeVideoId(row.url)).filter(Boolean));
+  const fullRaces=[...replayVideos].flatMap(([row,id])=>{
+    if(videoIds.has(id))return [];
+    videoIds.add(id);
+    const title=row.category?t('cx.fullRace',{category:t(`cx.category.${row.category}`)}):t('cx.fullBroadcast');
+    return [{id:row.id,raceId:row.raceId,category:row.category??null,title,titleEn:title,url:`https://www.youtube.com/watch?v=${id}`,sortOrder:row.sortOrder}];
+  });
+  return {tv,revive,videos:[...media,...fullRaces],liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category)};
 }
 // Badge de TV de la tarjeta de Agenda, entre las emisiones visibles en la
 // región del usuario (llegan ya filtradas). Muestra la hora de la primera
@@ -439,12 +455,14 @@ export function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) 
 }
 // Badge de resumen de la tarjeta de Agenda: hay al menos un vídeo de YouTube
 // de la prueba aplicable a las categorías del día (sin categoría o de una de
-// ellas). Una prueba cancelada no lo muestra. Devuelve el vídeo que encabeza la
-// ficha o null.
-export function cxAgendaVideo(race,dateKey,videos) {
-  const categories=cxCategories(race,dateKey);
-  if(race.isCancelled||!categories.length||!videos?.length)return null;
-  return cxRaceMedia(race,categories,[],videos).videos.find(row=>cxYouTubeVideoId(row.url))||null;
+// ellas), incluidas las emisiones que la ficha ya muestra como vídeo (llegan
+// filtradas por región). Una prueba cancelada no lo muestra. Devuelve el vídeo
+// que encabeza la ficha o null.
+export function cxAgendaVideo(race,dateKey,videos,visibleBroadcasts=[]) {
+  const categories=cxCategories(race,dateKey),codes=new Set(categories.map(c=>c.category));
+  if(race.isCancelled||!categories.length||!(videos?.length||visibleBroadcasts?.length))return null;
+  const all=cxCategories(race),results=all.filter(c=>['official','provisional'].includes(c.resultsStatus)).map(c=>({category:c.category}));
+  return cxRaceMedia(race,all,visibleBroadcasts||[],videos||[],{results}).videos.find(row=>(!row.category||codes.has(row.category))&&cxYouTubeVideoId(row.url))||null;
 }
 // Badge de dorsales de la tarjeta de Agenda: primera categoría del día con
 // lista cargada que aún no tiene resultados ni está cancelada.

@@ -3,6 +3,9 @@ import Foundation
 struct CxCached<T> {
     let data: T
     let offline: Bool
+    /// Momento de la lectura de red: la de esta respuesta o, en una copia
+    /// local, la que la guardó. Nil si se desconoce.
+    var savedAt: Date? = nil
 }
 
 extension CxCached: Sendable where T: Sendable {}
@@ -16,6 +19,8 @@ protocol CxStore {
     /// figuran entre los meses conocidos.
     func today(_ key: String) async -> [CxRace]?
     func saveToday(_ races: [CxRace], key: String) async
+    /// Momento en que se guardó la copia `today(key)`.
+    func todaySavedAt(_ key: String) async -> Date?
     func detail(_ id: String) async -> CxDetail?
     func saveDetail(_ detail: CxDetail) async
     func detailId(forSlug slug: String) async -> String?
@@ -28,6 +33,7 @@ protocol CxStore {
 extension CxStore {
     func today(_ key: String) async -> [CxRace]? { await month(key) }
     func saveToday(_ races: [CxRace], key: String) async { await saveMonth(races, key: key) }
+    func todaySavedAt(_ key: String) async -> Date? { nil }
     func featured() async -> [String]? { nil }
     func saveFeatured(_ ids: [String]) async {}
 }
@@ -38,6 +44,9 @@ struct CxDiskStore: CxStore {
 
     func today(_ key: String) async -> [CxRace]? { await cache.load([CxRace].self, forKey: "cx_today:" + key) }
     func saveToday(_ races: [CxRace], key: String) async { await cache.save(races, forKey: "cx_today:" + key) }
+    func todaySavedAt(_ key: String) async -> Date? {
+        await cache.age(forKey: "cx_today:" + key).map { Date(timeIntervalSinceNow: -$0) }
+    }
 
     func featured() async -> [String]? { await cache.load([String].self, forKey: "cx_featured") }
     func saveFeatured(_ ids: [String]) async { await cache.save(ids, forKey: "cx_featured") }
@@ -135,9 +144,11 @@ final class CyclocrossRepository {
 
     /// Carreras de un día guardadas localmente.
     func cachedDay(season: String, dateKey: String) async -> CxCached<[CxRace]>? {
+        let key = "day:" + season + ":" + dateKey
         guard CyclocrossLogic.dateInSeason(dateKey, season: season),
-              let rows = await store.today("day:" + season + ":" + dateKey) else { return nil }
-        return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: true)
+              let rows = await store.today(key) else { return nil }
+        return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: true,
+                        savedAt: await store.todaySavedAt(key))
     }
 
     /// Carreras con alguna categoría el `dateKey`, con documentos y
@@ -147,7 +158,7 @@ final class CyclocrossRepository {
         do {
             let rows = try await remote.cxDay(season: season, dateKey: dateKey)
             await store.saveToday(rows, key: "day:" + season + ":" + dateKey)
-            return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: false)
+            return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: false, savedAt: Date())
         } catch {
             if Task.isCancelled || error is CancellationError { throw error }
             if let cached = await cachedDay(season: season, dateKey: dateKey) { return cached }

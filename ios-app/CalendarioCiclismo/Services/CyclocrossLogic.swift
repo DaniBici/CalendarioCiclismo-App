@@ -191,6 +191,7 @@ enum CyclocrossLogic {
 
     static func duration(_ seconds: Int64?) -> String {
         guard let seconds, seconds >= 0 else { return "-" }
+        if seconds < 3600 { return String(format: "%lld:%02lld", seconds / 60, seconds % 60) }
         return String(format: "%lld:%02lld:%02lld", seconds / 3600, seconds / 60 % 60, seconds % 60)
     }
 

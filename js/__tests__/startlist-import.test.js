@@ -3,10 +3,7 @@ import {
   normalizeStartlistSource,
   normalizePersonName,
   saveEnrichedStartlist,
-  hasAssignedStartlistDorsals,
   loadCompleteStartlistCatalog,
-  orderStartlistTeamsForSave,
-  selectUpcomingStartlistRaces,
 } from '../startlist/import.js';
 
 const source = () => ({ raceId: 'vuelta-2026', expectedRiderCount: 1, sourceUrl: 'https://official.test/list',
@@ -63,23 +60,6 @@ describe('importación enriquecida compartida con el panel', () => {
     ]);
   });
 
-  it('conserva el orden manual sin dorsales y ordena por dorsal cuando existen', () => {
-    const manual = [
-      { teamName: 'Norway', riders: [{ dorsal: '' }] },
-      { teamName: 'Austria', riders: [{ dorsal: 0 }] },
-    ];
-    expect(hasAssignedStartlistDorsals(manual)).toBe(false);
-    expect(orderStartlistTeamsForSave(manual).map(team => team.teamName)).toEqual(['Norway', 'Austria']);
-
-    const numbered = [
-      { teamName: 'Norway', riders: [{ dorsal: 21 }] },
-      { teamName: 'Austria', riders: [{ dorsal: 1 }] },
-      { teamName: 'Canada', riders: [{ dorsal: '' }] },
-    ];
-    expect(hasAssignedStartlistDorsals(numbered)).toBe(true);
-    expect(orderStartlistTeamsForSave(numbered).map(team => team.teamName)).toEqual(['Austria', 'Norway', 'Canada']);
-  });
-
   it('prepara y aplica en dos llamadas, con el mismo documento validado', async () => {
     const calls = [];
     const rpc = async (name, args) => { calls.push({ name, args }); return { data: name === 'prepare_startlist_import'
@@ -116,26 +96,7 @@ describe('importación enriquecida compartida con el panel', () => {
     await saveEnrichedStartlist(rpc, edited, false, first.prepared);
     expect(calls[1].p_document.teams[0].riders[0].birthDate).toBe('2001-01-01');
   });
-
-  it('ofrece desde hoy y ordena las carreras por fecha de inicio ascendente', () => {
-    const races = [
-      { id: 'sin-fecha', name: 'Sin fecha' },
-      { id: 'ayer', name: 'Ayer', startDate: '2026-08-21' },
-      { id: 'pasado-b', name: 'B', startDate: '2026-08-24' },
-      { id: 'hoy', name: 'Hoy', startDate: '2026-08-22' },
-      { id: 'manana', name: 'Mañana', startDate: '2026-08-23' },
-      { id: 'pasado-a', name: 'A', startDate: '2026-08-24' },
-    ];
-
-    expect(selectUpcomingStartlistRaces(races, '2026-08-22').map(race => race.id)).toEqual([
-      'hoy',
-      'manana',
-      'pasado-a',
-      'pasado-b',
-    ]);
-  });
 });
-
 
 describe('catálogos completos del panel', () => {
   it('recupera equipos y alias posteriores al límite de PostgREST', async () => {

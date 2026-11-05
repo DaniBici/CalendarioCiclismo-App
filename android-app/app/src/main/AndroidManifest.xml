@@ -17,6 +17,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- WorkManager con constraint de batería / red -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- MapLibre declara la ubicación para su LocationComponent, que la app no
+         usa. Sin estos permisos no hace falta la declaración de ubicación de
+         Play Console (obligatoria desde el 27-01-2027 con ACCESS_FINE_LOCATION). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
 
     <application
         android:name=".CalendarioCiclismoApp"
@@ -34,8 +39,12 @@
         tools:targetApi="33">
 
         <!-- ── MainActivity — entry point Compose ──────────────── -->
+        <!-- configChanges uiMode: el cambio de modo noche (del sistema o de la
+             app con setApplicationNightMode) recompone con la configuración
+             nueva en lugar de recrear la actividad y repetir el splash. -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="uiMode"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.CalendarioCiclismo.Splash"

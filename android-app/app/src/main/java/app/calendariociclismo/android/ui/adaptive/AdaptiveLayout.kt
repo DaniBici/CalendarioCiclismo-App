@@ -63,8 +63,6 @@ object AdaptiveLayoutPolicy {
     const val STARTLIST_CARD_MIN_DP = 290
     const val MAX_STARTLIST_COLUMNS = 3
 
-    data class BalancedBreak(val blockIndex: Int, val offset: Int)
-
     data class Row<T>(val items: List<T>, val spansAllColumns: Boolean)
 
     fun feedColumns(containerWidthDp: Float, info: AdaptiveLayoutInfo): Int =
@@ -79,19 +77,6 @@ object AdaptiveLayoutPolicy {
     fun usesWideDetail(containerWidthDp: Float, info: AdaptiveLayoutInfo): Boolean =
         info.supportsTwoPanes && containerWidthDp >= DETAIL_MIN_DP
 
-    fun balancedBreak(counts: List<Int>): BalancedBreak {
-        val target = (counts.sum() + 1) / 2
-        var accumulated = 0
-        counts.forEachIndexed { index, count ->
-            when {
-                accumulated + count < target -> accumulated += count
-                accumulated + count == target -> return BalancedBreak(index + 1, 0)
-                else -> return BalancedBreak(index, (target - accumulated).coerceAtLeast(0))
-            }
-        }
-        return BalancedBreak(counts.size, 0)
-    }
-
     /** Elige un límite entre bloques completos minimizando la diferencia de carga. */
     fun balancedBlockBreak(counts: List<Int>): Int {
         if (counts.size < 2) return counts.size
@@ -101,30 +86,8 @@ object AdaptiveLayoutPolicy {
         }
     }
 
-    fun <T> rows(
-        items: List<T>,
-        columns: Int,
-        spansAllColumns: (T) -> Boolean = { false },
-    ): List<Row<T>> {
+    fun <T> rows(items: List<T>, columns: Int): List<Row<T>> {
         if (columns <= 1) return items.map { Row(listOf(it), true) }
-        val result = mutableListOf<Row<T>>()
-        val pending = mutableListOf<T>()
-        fun flush() {
-            if (pending.isNotEmpty()) {
-                result += Row(pending.toList(), false)
-                pending.clear()
-            }
-        }
-        items.forEach { item ->
-            if (spansAllColumns(item)) {
-                flush()
-                result += Row(listOf(item), true)
-            } else {
-                pending += item
-                if (pending.size == columns) flush()
-            }
-        }
-        flush()
-        return result
+        return items.chunked(columns).map { Row(it, false) }
     }
 }

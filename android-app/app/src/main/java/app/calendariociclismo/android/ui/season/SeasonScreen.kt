@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -165,13 +166,14 @@ fun SeasonScreen(
     }
 
     // Filtrado y agrupación por mes.
-    // Los Campeonatos Nacionales (uciCategory == "CN") se EXCLUYEN aquí: se
-    // muestran colapsados en una sola fila sintética que enlaza a la pantalla de
-    // Campeonatos (igual que la vista de Mes y la web `js/temporada.js`).
+    // Las CN de la pantalla de Campeonatos se EXCLUYEN aquí: se muestran
+    // colapsadas en una sola fila sintética que enlaza a esa pantalla (igual que
+    // la web `js/temporada.js`). Las de fuera de su ventana se listan agrupadas
+    // por país.
     val filtered = remember(allRaces, year, category, country) {
         allRaces
             .filter { it.year == year }
-            .filter { !ChampionshipsConfig.isChampionship(it) }
+            .filter { !ChampionshipsConfig.isOnChampionshipsScreen(it) }
             .filter { race -> RaceLogic.matchesCategory(race, category) }
             .filter { race ->
                 country == null || run {
@@ -198,7 +200,11 @@ fun SeasonScreen(
     // a aparecer todos los meses automáticamente.
     val shouldCollapseToAll = country != null && filtered.isNotEmpty() &&
         filtered.size < COLLAPSE_COUNTRY_THRESHOLD
-    val byMonth = remember(filtered, shouldCollapseToAll, challengeGroups) {
+    // Grupos de la lista: los challenges y los campeonatos agrupados.
+    val seasonGroups = remember(allRaces, year, challengeGroups) {
+        challengeGroups + SeasonChallengeLogic.championshipGroups(allRaces.filter { it.year == year })
+    }
+    val byMonth = remember(filtered, shouldCollapseToAll, seasonGroups) {
         if (filtered.isEmpty()) {
             sortedMapOf<Int, List<Race>>()
         } else {
@@ -206,7 +212,7 @@ fun SeasonScreen(
             if (shouldCollapseToAll) {
                 sortedMapOf<Int, List<Race>>().apply { putAll(all) }
             } else {
-                (all + groupByMonth(filtered, challengeGroups)).toSortedMap()
+                (all + groupByMonth(filtered, seasonGroups)).toSortedMap()
             }
         }
     }
@@ -228,7 +234,7 @@ fun SeasonScreen(
     data class CountryEntry(val code: String, val label: String, val name: String)
     val availableCountries = remember(allRaces, year) {
         val codes = allRaces.filter { it.year == year }
-            .filter { !ChampionshipsConfig.isChampionship(it) }
+            .filter { !ChampionshipsConfig.isOnChampionshipsScreen(it) }
             .mapNotNull { race ->
                 val cc = race.countryCode?.lowercase() ?: return@mapNotNull null
                 if (cc.startsWith("es-")) "es" else cc
@@ -527,7 +533,7 @@ fun SeasonScreen(
                             year = year,
                             month = month,
                             races = races,
-                            challengeGroups = challengeGroups,
+                            challengeGroups = seasonGroups,
                             activeFilter = category,
                             showChampionships = hasChampionships,
                             championshipsMonth = championshipsMonth,
@@ -729,6 +735,7 @@ private fun MonthPage(
                                     SeasonRaceRow(
                                         race = row.race,
                                         activeFilter = activeFilter,
+                                        nested = row.nested,
                                         onClick = { onRaceClick(row.race) },
                                     )
                                 }
@@ -757,6 +764,8 @@ private fun SeasonRowLayout(
     category: String?,
     modifier: Modifier = Modifier,
     cancelled: Boolean = false,
+    // Los Campeonatos Nacionales no llevan logo: sin hueco.
+    showLogo: Boolean = true,
     logo: @Composable () -> Unit,
     trailing: @Composable () -> Unit,
 ) {
@@ -770,14 +779,15 @@ private fun SeasonRowLayout(
         modifier = modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp)
+            .heightIn(min = 28.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (showFlag) CountryFlag(countryCode = countryCode)
         // Hueco fijo del logo aunque la carrera no tenga: misma altura y mismo
-        // arranque del nombre en todas las filas.
-        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { logo() }
+        // arranque del nombre en todas las filas, salvo las CN.
+        if (showLogo) Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { logo() }
         Text(
             text = nameText,
             style = CCText.S14,
@@ -842,7 +852,7 @@ private fun SeasonRowChevron(expanded: Boolean = false) {
 }
 
 /**
- * Carreras por mes (1-12). Las pruebas de un challenge van al mes de la
+ * Carreras por mes (1-12). Las pruebas de un grupo van al mes de la
  * primera, donde se muestra su fila.
  */
 private fun groupByMonth(races: List<Race>, challengeGroups: List<ChallengeGroup>): Map<Int, List<Race>> {
@@ -890,6 +900,7 @@ private fun SeasonChallengeRow(
         dates = range,
         category = group.uciCategory ?: entry.races.firstOrNull()?.uciCategory,
         modifier = Modifier.semantics { stateDescription = stateLabel },
+        showLogo = group.uciCategory != "CN",
         logo = { RaceLogo(url = group.logoUrl, size = 28.dp) },
         trailing = { SeasonRowChevron(expanded = expanded) },
     )
@@ -899,15 +910,17 @@ private fun SeasonChallengeRow(
 private fun SeasonRaceRow(
     race: Race,
     activeFilter: Constants.CategoryFilter,
+    nested: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val displayName = remember(race.id, activeFilter) {
+    val displayName = remember(race.id, activeFilter, nested) {
+        val name = if (nested) SeasonChallengeLogic.nameInGroup(race) else race.localizedName
         if ((activeFilter == Constants.CategoryFilter.WWT ||
                 activeFilter == Constants.CategoryFilter.FEMALE) && race.isFemale
         ) {
-            RaceLogic.cleanFeminineDisplayName(race.localizedName)
+            RaceLogic.cleanFeminineDisplayName(name)
         } else {
-            race.localizedName
+            name
         }
     }
     val showFemale = remember(race.id, activeFilter) {
@@ -930,6 +943,7 @@ private fun SeasonRaceRow(
         modifier = Modifier
             .alpha(rowAlpha)
             .semantics { if (race.isCancelled) stateDescription = cancelledLabel },
+        showLogo = !ChampionshipsConfig.isChampionship(race),
         logo = { RaceLogo(url = race.logoUrl, size = 28.dp) },
         trailing = { SeasonRowChevron() },
     )

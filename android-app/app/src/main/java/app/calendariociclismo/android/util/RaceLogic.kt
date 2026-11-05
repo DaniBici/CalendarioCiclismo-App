@@ -7,7 +7,6 @@ import app.calendariociclismo.android.data.model.RaceDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.temporal.ChronoUnit
 
 /**
  * Lógica de negocio de carreras — port literal de
@@ -332,15 +331,6 @@ object RaceLogic {
     fun genderRank(gender: String?): Int = if (gender == "female") 2 else 1
 
     fun grandTourRank(race: Race?): Int = if (race?.isGrandTour == true) 0 else 1
-
-    fun categoryTier(uci: String?): String? {
-        if (uci == null) return null
-        if (Constants.CATEGORY_TIERS["WC"]?.contains(uci) == true) return "wc"
-        if (Constants.CATEGORY_TIERS["WT"]?.contains(uci) == true) return "wt"
-        if (Constants.CATEGORY_TIERS["PRO"]?.contains(uci) == true) return "pro"
-        if (Constants.CATEGORY_TIERS["MINOR"]?.contains(uci) == true) return "2"
-        return if (uci.isEmpty()) null else "1"
-    }
 
     /**
      * Nombre legible de la categoría UCI para cabeceras: las siglas sin
@@ -694,12 +684,4 @@ object RaceLogic {
 
     private fun String.containsIgnoreCase(other: String): Boolean =
         contains(other, ignoreCase = true)
-
-    /** Días entre dos dateKeys. Útil para tests. */
-    @Suppress("unused")
-    fun daysBetween(fromDateKey: String, toDateKey: String): Long? {
-        val a = DateFormatting.parseLocalDate(fromDateKey) ?: return null
-        val b = DateFormatting.parseLocalDate(toDateKey) ?: return null
-        return ChronoUnit.DAYS.between(a, b)
-    }
 }

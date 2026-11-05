@@ -184,35 +184,14 @@ enum CyclocrossPresentation {
         switch code {
         case "ME": t("Elite masculina", "Men Elite")
         case "WE": t("Elite femenina", "Women Elite")
-        case "MU": t("Sub-23 masculina", "Men Under 23")
-        case "WU": t("Sub-23 femenina", "Women Under 23")
+        case "MU": t("Sub23 masculina", "Men Under 23")
+        case "WU": t("Sub23 femenina", "Women Under 23")
         case "MJ": t("Júnior masculina", "Men Junior")
         case "WJ": t("Júnior femenina", "Women Junior")
         default: code
         }
     }
     static func logo(_ race: CxRace) -> String? { link(race.logoUrl)?.absoluteString ?? link(race.tournament?.logoUrl)?.absoluteString }
-    static func color(_ race: CxRace) -> String? {
-        func valid(_ hex: String?) -> String? { hex.flatMap { $0.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil ? $0 : nil } }
-        if let tournament = race.tournament {
-            if let color = valid(tournament.colorHex) { return color }
-            let identity = (tournament.slug + " " + tournament.name).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-                .lowercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
-            if identity.contains("superprestige") { return "#FFC600" }
-            if identity.contains("x2o") { return "#00A8C7" }
-            if identity.contains("worldcup") || identity.contains("copadelmundo") { return "#8B173D" }
-            if identity.contains("copadeespana") || identity.contains("copaespana") { return "#D71920" }
-            if identity.contains("exactcross") || identity.contains("hgcross") { return "#E6342A" }
-            if identity.contains("coupedefrance") || identity.contains("copadefrancia") { return "#0055A4" }
-            if identity.contains("swisscyclocrosscup") || identity.contains("swisscxcup") { return "#D52B1E" }
-            if identity.contains("toitoi") || identity.contains("hsfsystem") { return "#E87524" }
-            if identity.contains("nationaltrophy") { return "#6B3FA0" }
-            if identity.contains("uscx") { return "#233C78" }
-            if identity.contains("girodelleregioni") || identity.contains("giroregioni") || identity.contains("giroditalia") { return "#E94B8A" }
-            if identity.contains("tacadeportugal") || identity.contains("tacaportugal") { return "#008657" }
-        }
-        return valid(race.colorHex)
-    }
     static func raceClass(_ code: String) -> String { code == "NAC" ? t("Nac", "Nat") : code }
     /// Nombre completo de la clase para la cabecera de la ficha: las siglas
     /// sin contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
@@ -297,7 +276,6 @@ enum CyclocrossPresentation {
         let seconds = row?.timeSeconds.map(Double.init) ?? dataRideSubhourSeconds(row?.timeText) ?? UciResultsLogic.tttToSeconds(row?.timeText)
         return seconds.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
     }
-    static func resultValue(_ row: CxResult) -> String { resultRow(row).valueText }
     static func resultRows(_ rows: [CxResult], teams: [Team] = []) -> [UciResultsLogic.ResultRowVM] {
         resultRows(rows, matcher: UciResultsLogic.TeamMatcher(teams: teams))
     }
@@ -309,9 +287,6 @@ enum CyclocrossPresentation {
             if row.rank != 1 && vm.valueKind != .sameTime { head = false }
             return vm
         }
-    }
-    static func resultRow(_ row: CxResult, winnerSeconds: Double? = nil, head: Bool = true, teams: [Team] = []) -> UciResultsLogic.ResultRowVM {
-        resultRow(row, winnerSeconds: winnerSeconds, head: head, matcher: UciResultsLogic.TeamMatcher(teams: teams))
     }
     private static func resultRow(_ row: CxResult, winnerSeconds: Double?, head: Bool, matcher: UciResultsLogic.TeamMatcher) -> UciResultsLogic.ResultRowVM {
         let isEn = LocaleService.shared.current.rawValue == "en"
@@ -345,9 +320,6 @@ enum CyclocrossPresentation {
         return UciResultsLogic.ResultRowVM(rank: rank, rankBadge: badge, isOut: rank == nil, riderName: row.riderDisplay,
             countryCode: row.isoCode2 ?? "", teamName: row.teamName ?? "", team: matcher.match(row.teamName), uciPoints: row.points,
             valueKind: kind, valueText: value, rowGap: kind == .gap && value != "+0\"" ? value : "")
-    }
-    static func standingRow(_ row: CxStanding, mode: String, teams: [Team] = []) -> UciResultsLogic.ResultRowVM {
-        standingRow(row, mode: mode, matcher: UciResultsLogic.TeamMatcher(teams: teams))
     }
     static func standingRow(_ row: CxStanding, mode: String, matcher: UciResultsLogic.TeamMatcher) -> UciResultsLogic.ResultRowVM {
         classificationRow(rank: row.rank, badge: nil, rider: row.riderDisplay, country: row.isoCode2, team: row.teamName, matcher: matcher,
@@ -451,14 +423,39 @@ enum CyclocrossPresentation {
         guard let id, id.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil else { return nil }
         return id
     }
-    static func videos(_ detail: CxDetail) -> [CxVideo] {
+    /// Vídeos de la ficha: los de la prueba y, tras ellos, las emisiones de
+    /// YouTube que ya son vídeo (`replayVideoRows`), sin repetir un vídeo.
+    static func videos(_ detail: CxDetail, allowedGroups: Set<String>? = nil) -> [CxVideo] {
         let categories = Set(CxDetailSelection.actualCategories(detail))
         var seen = Set<String>()
-        return detail.videos.sorted { $0.sortOrder < $1.sortOrder }.filter { row in
+        let own = detail.videos.sorted { $0.sortOrder < $1.sortOrder }.filter { row in
             guard row.category.map({ categories.contains($0) || $0.isEmpty }) ?? true,
                   let id = youtubeVideoId(row.url) else { return false }
             return seen.insert(id).inserted
         }
+        let replays = replayVideoRows(detail.broadcasts, categories: mediaCategories(detail, at: Date()),
+                                      allowedGroups: allowedGroups ?? RegionService.shared.allowedBroadcastGroups)
+        return own + replays.filter { seen.insert($0.videoId).inserted }.map { fullRaceVideo($0.row, videoId: $0.videoId) }
+    }
+    /// Emisiones que la ficha muestra en Vídeos y no en Revive, espejo de
+    /// `cxRaceMedia` (`js/cx/presentation.js`): de la región del usuario, de
+    /// YouTube con vídeo fijo e insertable, y con resultados en todas sus
+    /// categorías no canceladas (al menos una).
+    private static func replayVideoRows(_ broadcasts: [CxBroadcast], categories: [CxMediaCategory], allowedGroups: Set<String>) -> [(row: CxBroadcast, videoId: String)] {
+        broadcasts.sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }.compactMap { row in
+            guard row.embeddable != false, RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: allowedGroups),
+                  let id = youtubeVideoId(row.url) else { return nil }
+            let own = categories.filter { applies(row, to: $0) }
+            return own.contains(where: \.hasResults) && own.allSatisfy(\.finished) ? (row, id) : nil
+        }
+    }
+    /// «Carrera completa <categoría>» o, si la emisión es global,
+    /// «Retransmisión completa».
+    private static func fullRaceVideo(_ row: CxBroadcast, videoId: String) -> CxVideo {
+        let code = row.category.flatMap { $0.isEmpty ? nil : $0 }
+        let title = code.map { t("Carrera completa " + category($0), category($0) + " full race") } ?? t("Retransmisión completa", "Full broadcast")
+        return CxVideo(id: row.id, raceId: row.raceId, category: code, title: title, titleEn: title,
+                       url: "https://www.youtube.com/watch?v=\(videoId)", sortOrder: row.sortOrder)
     }
     static func tournamentRoundTotal(_ tournamentId: String, races: [CxRace], rounds: [String: CxRound]) -> Int {
         races.filter { $0.tournamentId == tournamentId }
@@ -532,12 +529,14 @@ enum CyclocrossPresentation {
             if !block.isEmpty { groups.append(CxTVGroup(category: code, rows: block)) }
         }
         // Revive: filas de la región que aplican a una categoría concluida con
-        // resultados o cancelada; nunca una fila que siga en directo.
+        // resultados o cancelada; nunca una fila que siga en directo ni una
+        // que ya figura en Vídeos.
         let liveIds = Set(liveRows.map(\.id))
+        let videoIds = Set(replayVideoRows(rows, categories: categories, allowedGroups: allowedGroups).map(\.row.id))
         let finished = categories.filter(\.finished)
         var urls = Set<String>()
         let revive = rows.filter { row in
-            !liveIds.contains(row.id) && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: allowedGroups)
+            !liveIds.contains(row.id) && !videoIds.contains(row.id) && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: allowedGroups)
                 && finished.contains { category in
                     guard applies(row, to: category) else { return false }
                     if category.cancelled { return row.showInRevive }
@@ -651,14 +650,26 @@ enum CyclocrossPresentation {
     }
 
     /// Badge de resumen de la tarjeta: primer vídeo de YouTube de la prueba
-    /// aplicable a las categorías del día (sin categoría o de una de ellas).
-    /// Una prueba cancelada no lo muestra.
-    static func agendaVideo(race: CxRace, date: String) -> CxVideo? {
+    /// aplicable a las categorías del día (sin categoría o de una de ellas);
+    /// sin ninguno, la primera emisión de la región que la ficha ya muestra
+    /// como vídeo. Una prueba cancelada no lo muestra.
+    static func agendaVideo(race: CxRace, date: String, allowedGroups: Set<String>) -> CxVideo? {
         let codes = Set(CyclocrossLogic.categories(on: date, race: race).map(\.category))
         guard !race.isCancelled, !codes.isEmpty else { return nil }
-        return (race.videos ?? []).sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }.first { row in
-            (row.category.map { $0.isEmpty || codes.contains($0) } ?? true) && youtubeVideoId(row.url) != nil
+        let appliesToDay = { (code: String?) in code.map { $0.isEmpty || codes.contains($0) } ?? true }
+        if let own = (race.videos ?? []).sorted(by: { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }).first(where: {
+            appliesToDay($0.category) && youtubeVideoId($0.url) != nil
+        }) { return own }
+        // Estado de todas las categorías de la prueba: una emisión global
+        // espera a la última, aunque sea de otro día.
+        let categories = race.categories.filter { CyclocrossLogic.dateInSeason($0.dateKey ?? race.dateKey, season: race.seasonKey) }.map { category in
+            CxMediaCategory(code: category.category, dateKey: category.dateKey ?? race.dateKey, start: nil,
+                            cancelled: race.isCancelled || category.isCancelled,
+                            hasResults: CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus),
+                            concludedAt: .distantFuture, concluded: false)
         }
+        return replayVideoRows(race.broadcasts ?? [], categories: categories, allowedGroups: allowedGroups)
+            .first { appliesToDay($0.row.category) }.map { fullRaceVideo($0.row, videoId: $0.videoId) }
     }
     /// Badge de dorsales de la tarjeta de Agenda, espejo de
     /// `cxAgendaStartlistCategory`: primera categoría del día con lista

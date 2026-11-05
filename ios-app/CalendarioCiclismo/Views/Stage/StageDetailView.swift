@@ -1011,15 +1011,17 @@ struct StageDetailView: View {
                 HStack(spacing: 20) {
                     if hasStart, let start = rd.neutralStartTimeUtc,
                        let formatted = DateFormatting.formatTimeLocal(start) {
+                        let day = DateFormatting.otherDayLabel(start, dateKey: rd.dateKey)
                         VStack(spacing: 2) {
                             Text(formatted)
                                 .ccFont(.s16, weight: .semibold)
                                 .monospacedDigit()
+                            otherDayText(day)
                             Text(startTitle)
                                 .ccFont(.s13)
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel(localeService.t("\(startTitle) a las \(formatted)", "\(startTitle) at \(formatted)"))
+                        .accessibilityLabel(localeService.t("\(startTitle) a las \(formatted)", "\(startTitle) at \(formatted)") + (day.map { " (\($0))" } ?? ""))
                     }
 
                     if hasStart && hasFinish {
@@ -1030,21 +1032,33 @@ struct StageDetailView: View {
 
                     if hasFinish, let finish = rd.estimatedFinishTimeUtc,
                        let formatted = DateFormatting.formatTimeLocal(finish) {
+                        let day = DateFormatting.otherDayLabel(finish, dateKey: rd.dateKey)
                         VStack(spacing: 2) {
                             Text(formatted)
                                 .ccFont(.s16, weight: .semibold)
                                 .monospacedDigit()
+                            otherDayText(day)
                             Text(finishTitle)
                                 .ccFont(.s13)
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel(localeService.t("\(finishTitle) a las \(formatted)", "\(finishTitle) at \(formatted)"))
+                        .accessibilityLabel(localeService.t("\(finishTitle) a las \(formatted)", "\(finishTitle) at \(formatted)") + (day.map { " (\($0))" } ?? ""))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
             }
             .accessibilityIdentifier(AccessibilityID.timeSection)
+        }
+    }
+
+    /// Día de la hora cuando cae en otra fecha que la jornada: "(sáb.)" bajo la hora.
+    @ViewBuilder
+    private func otherDayText(_ day: String?) -> some View {
+        if let day {
+            Text("(\(day))")
+                .ccFont(.s13)
+                .foregroundStyle(.secondary)
         }
     }
 

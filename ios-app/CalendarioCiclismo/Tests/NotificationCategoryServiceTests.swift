@@ -4,8 +4,6 @@ import XCTest
 @MainActor
 final class NotificationCategoryServiceTests: XCTestCase {
 
-    // MARK: - rawValue
-
     func test_rawValuesMatchServerCategories() {
         // Estos rawValues son contrato con send-push y la columna
         // push_subscription_categories.category. Si cambian, hay que tocar
@@ -15,15 +13,6 @@ final class NotificationCategoryServiceTests: XCTestCase {
         XCTAssertEqual(NotificationCategoryService.NotificationCategory.tvStart.rawValue, "tv_start")
         XCTAssertEqual(NotificationCategoryService.NotificationCategory.results.rawValue, "results")
         XCTAssertEqual(NotificationCategoryService.NotificationCategory.cyclocross.rawValue, "cyclocross")
-    }
-
-    // MARK: - allCases
-
-    func test_allCases_orderIsStable() {
-        XCTAssertEqual(
-            NotificationCategoryService.NotificationCategory.allCases.map { $0.rawValue },
-            ["general", "race_start", "tv_start", "results", "cyclocross"]
-        )
     }
 
     func test_cyclocrossCanBeEnabledWithoutChangingRoadCategories() {

@@ -15,6 +15,7 @@ import { supabase, toDateKey, formatTime, formatTimeUser,
          setPressed, announce, agendaDateHtml }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
+import { retireStaticText } from './static-text.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
@@ -280,9 +281,9 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   // carrera del día (tarjetas normales). La rejilla país×prueba sigue accesible
   // aparte, pero no sustituye ni oculta nada en Hoy.
 
-  // El texto pre-renderizado (oculto) sale de la lista para no perderse al pintarla.
-  const prerender = list.querySelector('.static-prerender');
-  if (prerender) list.after(prerender);
+  // El texto estático (visible sin JS) se retira al pintar la lista; su <h1>
+  // queda delante como título de la página (js/static-text.js).
+  retireStaticText(list.querySelector('.static-prerender'), title => list.before(title));
 
   if (!refresh) list.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.stages')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
@@ -649,8 +650,8 @@ function buildCard(rd) {
     && !rd.isCancelledDay && !!rd.dateKey && rd.dateKey === race.endDate;
   const stage = stageLabel(rd.stageNumber, rd._stageSuffix, isFinalStage);
   const { km, elev } = formatStageMetrics(rd);
-  const startTU = formatTimeUser(rd.neutralStartTimeUtc);
-  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+  const startTU = formatTimeUser(rd.neutralStartTimeUtc, rd.dateKey);
+  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc, rd.dateKey);
   if (!rd._broadcasts) rd._broadcasts = [];
   const overviewBtn = _overviewBtnHtml({ ...race, id: rd.raceId });
   const logo = cardLogoHtml(race.logoUrl, flag, hideFlag);

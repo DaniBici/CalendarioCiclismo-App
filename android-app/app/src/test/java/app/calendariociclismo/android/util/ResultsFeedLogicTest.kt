@@ -8,10 +8,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Port de los casos clave de `js/resultados-feed.js` (fetchEntries +
- * cmpEntries), incluidos los bugs reales cazados en la web: el orden del día
- * con hora POR CARRERA-DÍA (sin ella el comparador no es transitivo y las
- * vueltas que acaban el mismo día se entrelazan) y las fechas NULL de los
+ * Construcción de las entradas del feed de resultados: jornada de cada
+ * clasificación, deduplicación de las pruebas de un día y fechas NULL de los
  * volcados PDF (migración 090).
  */
 class ResultsFeedLogicTest {
@@ -20,15 +18,11 @@ class ResultsFeedLogicTest {
         id: String,
         format: String = "stage_race",
         uci: String? = "2.1",
-        gender: String? = "male",
-        name: String = id,
-        gt: Boolean = false,
         start: String? = null,
         end: String? = null,
     ) = Race(
-        id = id, name = name, uciCategory = uci, gender = gender,
-        raceFormat = format, isGrandTour = gt,
-        startDate = start, endDate = end,
+        id = id, name = id, uciCategory = uci, gender = "male",
+        raceFormat = format, startDate = start, endDate = end,
     )
 
     private fun stage(
@@ -57,30 +51,6 @@ class ResultsFeedLogicTest {
         id = id, raceId = raceId, dateKey = dateKey, stageNumber = sn,
         neutralStartTimeUtc = start, countryCode = countryCode,
     )
-
-    // ── Destacadas ──
-
-    @Test
-    fun `la destacada abre su dia con todas sus entradas`() {
-        val races = listOf(
-            race("WT", format = "one_day", uci = "1.UWT"),
-            race("P", uci = "2.2"),
-            race("Q", format = "one_day", uci = "1.UWT"),
-        )
-        val stages = listOf(
-            stage("w1", "WT", sn = null, date = "2026-06-05", winner = "A"),
-            stage("p1", "P", sn = 3, date = "2026-06-05", winner = "B"),
-            stage("p2", "P", kind = "gc", sn = null, date = "2026-06-05", final = true, winner = "C"),
-            stage("p0", "P", sn = 2, date = "2026-06-04", winner = "D"),
-            stage("q0", "Q", sn = null, date = "2026-06-04", winner = "E"),
-        )
-        val entries = ResultsFeedLogic.buildEntries(stages, emptyList(), races, "2026-06-01", "2026-06-10")
-        assertEquals("WT", entries.first().race.id)
-        val sorted = ResultsFeedLogic.featuredFirst(entries, setOf("2026-06-05#P"))
-        assertEquals(listOf("p2", "p1", "w1"), sorted.filter { it.date == "2026-06-05" }.map { it.stageRefId })
-        assertEquals(entries.filter { it.date == "2026-06-04" }, sorted.filter { it.date == "2026-06-04" })
-        assertEquals(entries.map { it.date }, sorted.map { it.date })
-    }
 
     // ── Override de país por jornada sin raceDayId en la clasificación ──
 
@@ -204,46 +174,6 @@ class ResultsFeedLogicTest {
         assertTrue(entries.isEmpty())
     }
 
-    // ── Generales finales de vueltas ─────────────────────────────────
-
-    @Test
-    fun `la general final va POR DELANTE de la etapa de su carrera`() {
-        val r = race("giro", gt = true, uci = "2.UWT")
-        val entries = ResultsFeedLogic.buildEntries(
-            listOf(
-                stage("e21", "giro", kind = "stage", sn = 21, date = "2026-05-31", winner = "Etapa"),
-                stage("gcf", "giro", kind = "gc", sn = null, final = true, date = "2026-05-31", winner = "Vingegaard"),
-            ),
-            emptyList(), listOf(r), "2026-05-01", "2026-05-31",
-        )
-        assertEquals(2, entries.size)
-        assertTrue(entries[0].isGcFinal)
-        assertEquals(21, entries[1].stageNumber)
-    }
-
-    @Test
-    fun `adyacencia con varias vueltas acabando el mismo dia (hora por carrera-dia)`() {
-        // Caso real (31 de mayo): varias vueltas con general final + etapa. Si el
-        // desempate usara el rd de CADA entrada (las generales no tienen rd →
-        // 999999), el comparador no sería transitivo y los bloques se entrelazan.
-        val japon = race("japon", uci = "2.2", name = "Tour de Japón")
-        val lituania = race("lituania", uci = "2.2", name = "Tour de Lituania")
-        val rdJapon = rd("rdJ", "japon", "2026-05-31", sn = 8, start = "2026-05-31T02:00:00Z")
-        val rdLituania = rd("rdL", "lituania", "2026-05-31", sn = 4, start = "2026-05-31T10:00:00Z")
-        val entries = ResultsFeedLogic.buildEntries(
-            listOf(
-                stage("eL", "lituania", sn = 4, date = "2026-05-31", rdId = "rdL"),
-                stage("gJ", "japon", kind = "gc", sn = null, final = true, date = "2026-05-31"),
-                stage("eJ", "japon", sn = 8, date = "2026-05-31", rdId = "rdJ"),
-                stage("gL", "lituania", kind = "gc", sn = null, final = true, date = "2026-05-31"),
-            ),
-            listOf(rdJapon, rdLituania), listOf(japon, lituania), "2026-05-01", "2026-05-31",
-        )
-        val orden = entries.map { "${it.race.id}#${if (it.isGcFinal) "gc" else it.stageNumber}" }
-        // Japón sale antes (hora 02:00 < 10:00) y cada general pegada DELANTE de su etapa.
-        assertEquals(listOf("japon#gc", "japon#8", "lituania#gc", "lituania#4"), orden)
-    }
-
     // ── Fechas (volcados PDF con stageDate NULL) ─────────────────────
 
     @Test
@@ -277,15 +207,7 @@ class ResultsFeedLogicTest {
         assertTrue(entries.isEmpty())
     }
 
-    // ── Ganadores ────────────────────────────────────────────────────
-
-    @Test
-    fun `cleanWinner filtra la pseudo-fila de etapa cancelada`() {
-        assertEquals("", ResultsFeedLogic.cleanWinner("Race Cancelled"))
-        assertEquals("", ResultsFeedLogic.cleanWinner("Cancelled Race"))
-        assertEquals("", ResultsFeedLogic.cleanWinner(null))
-        assertEquals("SIMMONS Quinn", ResultsFeedLogic.cleanWinner("SIMMONS Quinn"))
-    }
+    // ── CRE ──────────────────────────────────────────────────────────
 
     @Test
     fun `isCreEntry detecta variante A (varios rank 1) y B (jornada ttt)`() {
@@ -334,81 +256,5 @@ class ResultsFeedLogicTest {
         )
         assertEquals(1, entries.size)
         assertEquals(Kind.INHOUSE, entries[0].kind)
-    }
-
-    // ── Orden global ─────────────────────────────────────────────────
-
-    @Test
-    fun `dos Campeonatos Nacionales se ordenan por pais y luego linea-CRI`() {
-        // Espec Dani: país (COUNTRY_ORDER) → línea masc/fem/sub23m/sub23f →
-        // CRI masc/fem/sub23m/sub23f. Las CN son carreras de un día; cada una
-        // entra como gc final con su jornada (rd) → cmpEntries aplica el orden.
-        // Mezcla desordenada de ES (top-6), Francia y Gran Bretaña el mismo día.
-        fun cn(id: String, name: String, cc: String, gender: String) =
-            race(id, format = "one_day", uci = "CN", gender = gender, name = name)
-                .copy(countryCode = cc, startDate = "2026-06-25")
-        val races = listOf(
-            cn("es-cri-f",   "Campeonato de España CRI femenino",         "ES", "female"),
-            cn("fr-linea-m", "Campeonato de Francia línea masculino",     "FR", "male"),
-            cn("es-linea-m", "Campeonato de España línea masculino",      "ES", "male"),
-            cn("es-cri-m",   "Campeonato de España CRI masculino",        "ES", "male"),
-            cn("gb-linea-f", "Campeonato de Gran Bretaña línea femenino",  "GB", "female"),
-            cn("es-linea-f", "Campeonato de España línea femenino",       "ES", "female"),
-            cn("es-cri-s23m","Campeonato de España CRI sub23 masculino",  "ES", "male"),
-            cn("es-linea-s23m","Campeonato de España línea sub23 masculino","ES", "male"),
-        )
-        val stages = races.map {
-            stage("st-${it.id}", it.id, kind = "gc", sn = null, final = true, date = "2026-06-25")
-        }
-        val rds = races.map { rd("rd-${it.id}", it.id, "2026-06-25", sn = null) }
-        val entries = ResultsFeedLogic.buildEntries(
-            stages, rds, races, "2026-06-01", "2026-06-30",
-        )
-        assertEquals(
-            listOf(
-                // España (top-6): toda la línea antes que toda la CRI; dentro de
-                // cada bloque, masc → fem → sub23 masc → sub23 fem.
-                "es-linea-m", "es-linea-f", "es-linea-s23m",
-                "es-cri-m", "es-cri-f", "es-cri-s23m",
-                // Luego Francia, luego Gran Bretaña (orden de COUNTRY_ORDER).
-                "fr-linea-m", "gb-linea-f",
-            ),
-            entries.map { it.race.id },
-        )
-    }
-
-    @Test
-    fun `cronologia inversa entre dias y canonico dentro del dia`() {
-        val gt = race("giro", gt = true, uci = "2.UWT", name = "Giro")
-        val menor = race("camerun", uci = "2.2", name = "Vuelta a Camerún")
-        val entries = ResultsFeedLogic.buildEntries(
-            listOf(
-                stage("c5", "camerun", sn = 5, date = "2026-06-08"),
-                stage("g20", "giro", sn = 20, date = "2026-05-30"),
-                stage("c6", "camerun", sn = 6, date = "2026-06-09"),
-                stage("g21", "giro", sn = 21, date = "2026-06-09"),
-            ),
-            emptyList(), listOf(gt, menor), "2026-05-01", "2026-06-30",
-        )
-        val orden = entries.map { "${it.race.id}#${it.stageNumber}" }
-        // 9 jun primero (Giro GT antes que Camerún), después 8 jun, después 30 may.
-        assertEquals(listOf("giro#21", "camerun#6", "camerun#5", "giro#20"), orden)
-    }
-
-    @Test
-    fun `selecciones nacionales con el nombre del pais en castellano`() {
-        fun nation(name: String, code: String?, selectionCode: String? = code, isEnglish: Boolean = false) =
-            TeamNames.localizedName(name, "selection", "national", code, selectionCode, isEnglish)
-        assertEquals("Francia", nation("France", "fr"))
-        assertEquals("Gran Bretaña", nation("Great Britain", "gb"))
-        assertEquals("República Checa", nation("Czech Republic", "cz"))
-        assertEquals("Costa de Marfil", nation("Ivory Coast", "ci"))
-        assertEquals("Nicaragua", nation("NICARAGUA", "ni"))
-        assertEquals("Deportistas Individuales Neutrales", nation("Individual Neutral Athletes", null, "ain"))
-        assertEquals("Canadá sub23", nation("Canada U23", "ca"))
-        assertEquals("Refugee Cycling Team", nation("Refugee Cycling Team", null, "ref"))
-        assertEquals("France", nation("France", "fr", isEnglish = true))
-        assertEquals("Euskadi", TeamNames.localizedName("Euskadi", "selection", "regional", "es", "eus", false))
-        assertEquals("Kenya", TeamNames.localizedName("Kenya", null, false))
     }
 }

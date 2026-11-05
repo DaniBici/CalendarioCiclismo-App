@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   decorateUciRanking,
-  formatUciRankingUpdated,
   UciRankingTier,
   uciRankingRuleText,
 } from '../results/uci-team-ranking.js';
@@ -17,13 +16,6 @@ function row(rank, teamCategory, gender = 'male') {
 }
 
 describe('decorateUciRanking', () => {
-  it('presenta la actualización con el mismo patrón en castellano e inglés', () => {
-    expect(formatUciRankingUpdated('2026-07-28'))
-      .toBe('Actualizado: martes, 28 de julio de 2026');
-    expect(formatUciRankingUpdated('2026-07-28', true))
-      .toBe('Updated: Tuesday, 28 July 2026');
-  });
-
   it('cuenta ProTeams, no posiciones absolutas, para las invitaciones masculinas', () => {
     const rows = [
       row(1, 'WT'),

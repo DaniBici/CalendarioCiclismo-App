@@ -38,4 +38,18 @@ describe('formatTimeUser con formateadores memorizados', () => {
     expect(formatTimeUser('')).toBeNull();
     expect(formatTimeUser('no es una fecha')).toEqual(reference('no es una fecha'));
   });
+
+  it('con la fecha de la jornada, marca el día cuando la hora mostrada cae en otra fecha', () => {
+    // Tour de Okinawa 2026: 06:45 del domingo en Japón, 22:45 del sábado en Madrid.
+    process.env.TZ = 'Europe/Madrid';
+    expect(formatTimeUser('2026-11-07T21:45:00Z', '2026-11-08')).toEqual({ display: '22:45', tooltip: null, day: 'sáb.' });
+    process.env.TZ = 'Asia/Tokyo';
+    expect(formatTimeUser('2026-11-07T21:45:00Z', '2026-11-08')).toEqual({ display: '06:45', tooltip: '22:45', day: null });
+    // Llegada en América pasada la medianoche de Madrid.
+    process.env.TZ = 'America/Bogota';
+    expect(formatTimeUser('2026-11-07T23:30:00Z', '2026-11-07')).toEqual({ display: '18:30', tooltip: '00:30', day: null });
+    process.env.TZ = 'Europe/Madrid';
+    expect(formatTimeUser('2026-11-07T23:30:00Z', '2026-11-07')).toEqual({ display: '00:30', tooltip: null, day: 'dom.' });
+    expect(formatTimeUser('2026-11-07T10:00:00Z', '2026-11-07')).toEqual({ display: '11:00', tooltip: null, day: null });
+  });
 });
