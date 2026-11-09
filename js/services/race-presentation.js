@@ -1,5 +1,15 @@
 export const startlistCyclistHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
 export const tvIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+const tvOffIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="3" y1="2" x2="21" y2="18"/></svg>';
+// Chip de un estado de TV sin emisión (`none`, `unavailable_es`, `pending`) de
+// Hoy y de la jornada, en carretera y ciclocross. `label`: `tv.status.<estado>`
+// traducido. Otro estado: cadena vacía.
+export function tvStatusChipHtml(status, label) {
+  if (status === 'none') return `<span class="badge badge--notv">${label}</span>`;
+  if (status === 'unavailable_es') return `<span class="badge badge--notv-es">${tvOffIconHtml} ${label}</span>`;
+  if (status === 'pending') return `<span class="badge badge--pend">${tvIconHtml} ${label}</span>`;
+  return '';
+}
 export const resultsTrophyHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>';
 const CLASS_ORDER = ['stage', 'gc', 'points', 'kom', 'youth', 'teams'];
 const CLASS_LABELS = {
@@ -68,13 +78,19 @@ export function waitingResultsHtml(lang = 'es', element = 'div') {
     <svg class="race-card__waiting-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>
   </${tag}>`;
 }
+// Avance del perfil por tiempo, de la salida a la llegada estimada. En CRI/CRE
+// va de la salida del primer corredor a la llegada del último: es tiempo de la
+// sesión, no distancia, y se pinta rayado (profileUsesTimeHatch).
 export function profileProgress(day, now = Date.now()) {
   if (day.isCancelledDay || day.isRestDay) return 0;
   if (day._hasInhouse || day.raceStatus === 'finished') return 1;
-  // Crono en curso: con salidas escalonadas no hay un avance único que pintar.
-  if (['itt','ttt'].includes(day.primaryType)) return 0;
   const start = Date.parse(day.realStartTimeUtc || day.neutralStartTimeUtc), finish = Date.parse(day.estimatedFinishTimeUtc);
   return Number.isFinite(start) && finish > start ? Math.max(0, Math.min(1, (now-start)/(finish-start))) : 0;
+}
+// CRI/CRE sin resultados: el avance de profileProgress se pinta rayado.
+export function profileUsesTimeHatch(day) {
+  return ['itt','ttt'].includes(day.primaryType) && !day.isCancelledDay && !day.isRestDay
+    && !day._hasInhouse && day.raceStatus !== 'finished';
 }
 export function hasValidTimeLimit(day) {
   if (!Number.isFinite(Number(day?.timeLimitSeconds)) || Number(day.timeLimitSeconds)<=0 || !Number.isFinite(Date.parse(day?.timeLimitBasis?.verifiedAt))) return false;

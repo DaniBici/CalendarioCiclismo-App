@@ -8,6 +8,9 @@ import { buildKbwbCxDocument, fetchKbwbRaces } from './kbwb-cx-fetch.mjs';
 import { buildSmartwebCxDocument, fetchSmartwebRace, resolveSmartwebIdentities } from './smartweb-cx-fetch.mjs';
 import { buildGolazoCxDocument, fetchGolazoPages, golazoFinality, golazoObserve } from './golazo-cx-fetch.mjs';
 import { fetchZone4Linked, fetchZone4Tree } from './zone4-cx-fetch.mjs';
+import { fetchChronoraceXcoCx } from './chronorace-xco-cx-fetch.mjs';
+import { buildFotofinissCxDocument, fetchFotofinissGroups } from './fotofiniss-cx-fetch.mjs';
+import { buildRaceresultCxDocument, fetchRaceresultContests } from './raceresult-cx-fetch.mjs';
 import { resolveCxResultIdentity } from '../../js/cx/result-identity.js';
 import { normalizeCxDocumentTeams } from './cx-team-names.mjs';
 import { processCxCategoryDocuments } from './cx-category-batches.mjs';
@@ -17,7 +20,7 @@ import { processStandingsQueue } from '../cx/cx-recompute-standings.mjs';
 import { finishAutomationRun, openAutomationClient, recordAutomationSourceRun, startAutomationRun } from '../automation-monitor.mjs';
 import { databaseUrl } from '../db/env.mjs';
 
-// Una sola lectura: enlaces DataRide y enlaces de cronometraje (`link.provider` acn, wiclax, kbwb, smartweb, zone4 o golazo).
+// Una sola lectura: enlaces DataRide y enlaces de cronometraje (`link.provider` acn, wiclax, kbwb, smartweb, zone4, chronorace_xco, fotofiniss, raceresult o golazo).
 const CX_CANDIDATE_CATEGORIES=`(SELECT coalesce(jsonb_agg(to_jsonb(c)||jsonb_build_object('resultsLastFetchAt',s."lastFetchAt") ORDER BY c."sortOrder",c.category),'[]')
       FROM public.cx_race_categories c LEFT JOIN private.cx_results_fetch_state s ON s."raceId"=c."raceId" AND s.category=c.category
       WHERE c."raceId"=r.id AND coalesce(c."dateKey",r."dateKey") BETWEEN r."dateKey" AND coalesce(r."endDateKey",r."dateKey")
@@ -380,35 +383,115 @@ export async function collectCxZone4Race(client,raceId,{now=new Date(),manual=fa
   }
 }
 
+const sameChronoraceXco=(left,right)=>left&&right&&left.provider==='chronorace_xco'&&right.provider==='chronorace_xco'
+  &&left.raceId===right.raceId&&left.ctx===right.ctx;
+async function recordChronoraceXcoLink(client,link,status,error=null) {
+  await client.query(`UPDATE public.cx_race_timing_links SET "syncStatus"=$1,"lastFetchAt"=now(),"lastFetchError"=$2,"updatedAt"=now()
+    WHERE "raceId"=$3 AND provider='chronorace_xco' AND ctx=$4`,[status,error,link.raceId,link.ctx]);
+}
+async function recordChronoraceXcoAttempts(client,link,categories) {
+  if(!categories.length)return;
+  await client.query(`INSERT INTO private.cx_results_fetch_state("raceId",category,"lastFetchAt")
+    SELECT c."raceId",c.category,now() FROM public.cx_race_categories c
+    WHERE c."raceId"=$1 AND c.category=ANY($2::text[])
+      AND EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider='chronorace_xco' AND l.ctx=$3)
+    ON CONFLICT ("raceId",category) DO UPDATE SET "lastFetchAt"=excluded."lastFetchAt"`,[link.raceId,categories,link.ctx]);
+}
+
+/**
+ * Recogida desde el visor UCI «xco» de Chronorace (Campeonatos de Europa UEC). El enlace
+ * guarda el contexto (`20261107_uec`); cada manga es la clave ME…WJ del árbol. Chronorace es
+ * el cronometraje oficial del campeonato: la manga se importa como `official` cuando la marca
+ * terminada (`Status=Finished` y `AllPassed`), con su fecha civil en la zona de la carrera.
+ * Nunca sustituye una categoría oficial de otra fuente ni una protegida; una corrección
+ * posterior del directo (descalificación) se reimporta sobre su propia clasificación oficial.
+ */
+export async function collectCxChronoraceXcoRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,fetchJson=undefined,context:preloaded=null}={}) {
+  let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
+  try {
+    const context=preloaded||await loadCxResultsContext(client,raceId);originalLink=context.timingLink;
+    if(originalLink?.provider!=='chronorace_xco')return {raceId,provider:'chronorace_xco',status:'skipped',decisions:[],rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(category&&!context.categories.some(c=>c.category===category))throw new Error('Categoría solicitada ausente en el calendario propio');
+    if(!context.race.timezone)throw new Error('Carrera sin zona horaria: la fecha civil de la manga no se puede verificar');
+    const evaluated=decisions({...context,link:{...originalLink,disciplineId:3}},{now,manual,category,categories});
+    attemptedCategories=evaluated.filter(item=>item.due).map(item=>item.category);
+    if(!attemptedCategories.length)return {raceId,provider:'chronorace_xco',status:'skipped',decisions:evaluated,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    const providerOfficial=attemptedCategories.filter(value=>{const own=context.categories.find(c=>c.category===value);
+      return own?.resultsStatus==='official'&&own.resultsProvider!=='chronorace_xco';})
+      .map(value=>({category:value,reason:'Resultados oficiales de otra fuente; Chronorace no los sustituye'}));
+    const wanted=attemptedCategories.filter(value=>!providerOfficial.some(item=>item.category===value));
+    const document=wanted.length?await fetchChronoraceXcoCx({url:originalLink.ctx,raceId,seasonKey:context.race.seasonKey,timezone:context.race.timezone,
+      only:wanted,source:'chronorace_xco',...(fetchJson?{fetchJson}:{})})
+      :{schemaVersion:1,source:'chronorace_xco',disciplineId:3,raceId,seasonKey:context.race.seasonKey,evidence:{},categories:[],skipped:[]};
+    const pending=(document.skipped||[]).filter(item=>item.category).map(item=>({category:item.category,reason:`${item.reason}; se reintenta en la siguiente pasada`}));
+    const reviews=wanted.filter(value=>!document.categories.some(c=>c.category===value)&&!pending.some(item=>item.category===value))
+      .map(value=>({category:value,reason:'Manga sin live timing en el contexto de Chronorace'}));
+    // La fecha civil procede de la hora de salida de Chronorace: una manga de otro día no se carga.
+    for(const manga of [...document.categories]){
+      const own=context.categories.find(c=>c.category===manga.category);
+      if(manga.dateKey===(own?.dateKey||context.race.dateKey))continue;
+      reviews.push({category:manga.category,reason:`Manga de Chronorace del ${manga.dateKey}, distinta de la fecha propia`});
+      document.categories.splice(document.categories.indexOf(manga),1);
+    }
+    await normalizeCxDocumentTeams(client,document);
+    const fresh=await loadCxResultsContext(client,raceId);
+    const unchangedLink=sameChronoraceXco(originalLink,fresh.timingLink);
+    const stillDue=unchangedLink
+      ?decisions({...fresh,link:{...fresh.timingLink,disciplineId:3}},{now,manual,category,categories}).filter(item=>item.due).map(item=>item.category):[];
+    if(!unchangedLink)reviews.push({category:null,reason:'El enlace Chronorace cambió durante la consulta; se descarta la respuesta anterior'});
+    for(const manga of document.categories.filter(c=>!stillDue.includes(c.category)))reviews.push({category:manga.category,reason:'La manga dejó de estar disponible para la recogida durante la consulta'});
+    await recordChronoraceXcoAttempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
+    const processed=await processCxCategoryDocuments({
+      document,
+      categories:document.categories.filter(value=>stillDue.includes(value.category)).map(value=>value.category),
+      prepareCategory:source=>prepareCxResults({...document,categories:[source]},fresh,{status:'official'}),
+      applyCategory:prepared=>applyCxResults(client,prepared),
+    });
+    reviews.push(...processed.reviews);
+    const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
+    const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
+    const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
+    await recordChronoraceXcoLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
+    return {raceId,provider:'chronorace_xco',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,
+      imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged})),
+      reviews,pending,skipped:[...processed.skipped,...providerOfficial],warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length};
+  }catch(error){
+    if(originalLink?.provider==='chronorace_xco'&&attemptedCategories.length&&!attemptsRecorded)await recordChronoraceXcoAttempts(client,originalLink,attemptedCategories).catch(()=>{});
+    if(originalLink?.provider==='chronorace_xco')await recordChronoraceXcoLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    return {raceId,provider:'chronorace_xco',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
+  }
+}
+
 const sameSmartweb=(left,right)=>left&&right&&left.provider==='smartweb'&&right.provider==='smartweb'
   &&left.raceId===right.raceId&&left.sourceUrl===right.sourceUrl&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
 // smartweb no marca la clasificación como terminada: se publica la tabla que se lee igual en dos pasadas seguidas.
 const SMARTWEB_STABLE_MS=4*60000;
 const SMARTWEB_MIN_DURATION_RATIO=0.8;
-async function recordSmartwebLink(client,link,status,error=null) {
+// Enlaces identificados por proveedor y "sourceUrl" (smartweb, fotofiniss, raceresult).
+async function recordUrlLink(client,link,status,error=null) {
   await client.query(`UPDATE public.cx_race_timing_links SET "syncStatus"=$1,"lastFetchAt"=now(),"lastFetchError"=$2,"updatedAt"=now()
-    WHERE "raceId"=$3 AND provider='smartweb' AND "sourceUrl"=$4`,[status,error,link.raceId,link.sourceUrl]);
+    WHERE "raceId"=$3 AND provider=$5 AND "sourceUrl"=$4`,[status,error,link.raceId,link.sourceUrl,link.provider]);
 }
-async function recordSmartwebAttempts(client,link,categories) {
+async function recordUrlAttempts(client,link,categories) {
   if(!categories.length)return;
   await client.query(`INSERT INTO private.cx_results_fetch_state("raceId",category,"lastFetchAt")
     SELECT c."raceId",c.category,now() FROM public.cx_race_categories c
     WHERE c."raceId"=$1 AND c.category=ANY($2::text[])
-      AND EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider='smartweb' AND l."sourceUrl"=$3)
-    ON CONFLICT ("raceId",category) DO UPDATE SET "lastFetchAt"=excluded."lastFetchAt"`,[link.raceId,categories,link.sourceUrl]);
+      AND EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider=$4 AND l."sourceUrl"=$3)
+    ON CONFLICT ("raceId",category) DO UPDATE SET "lastFetchAt"=excluded."lastFetchAt"`,[link.raceId,categories,link.sourceUrl,link.provider]);
 }
 // Guarda la huella de cada tabla leída y devuelve desde cuándo se lee sin cambios.
-async function recordSmartwebDigests(client,link,entries,now) {
+async function recordUrlDigests(client,link,entries,now) {
   if(!entries.length)return new Map();
   const {rows}=await client.query(`INSERT INTO private.cx_results_fetch_state("raceId",category,"lastFetchAt","sourceDigest","sourceDigestAt")
     SELECT c."raceId",c.category,$4::timestamptz,d.digest,$4::timestamptz
     FROM jsonb_to_recordset($2::jsonb) AS d(category text,digest text)
     JOIN public.cx_race_categories c ON c."raceId"=$1 AND c.category=d.category
-    WHERE EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider='smartweb' AND l."sourceUrl"=$3)
+    WHERE EXISTS (SELECT 1 FROM public.cx_race_timing_links l WHERE l."raceId"=c."raceId" AND l.provider=$5 AND l."sourceUrl"=$3)
     ON CONFLICT ("raceId",category) DO UPDATE SET "sourceDigest"=excluded."sourceDigest",
       "sourceDigestAt"=CASE WHEN private.cx_results_fetch_state."sourceDigest"=excluded."sourceDigest"
         THEN private.cx_results_fetch_state."sourceDigestAt" ELSE excluded."sourceDigestAt" END
-    RETURNING category,"sourceDigestAt"`,[link.raceId,JSON.stringify(entries),link.sourceUrl,new Date(now).toISOString()]);
+    RETURNING category,"sourceDigestAt"`,[link.raceId,JSON.stringify(entries),link.sourceUrl,new Date(now).toISOString(),link.provider]);
   return new Map(rows.map(row=>[row.category,new Date(row.sourceDigestAt).getTime()]));
 }
 
@@ -475,13 +558,13 @@ export async function collectCxSmartwebRace(client,raceId,{now=new Date(),manual
       return {raceId,provider:'smartweb',status:'dry_run',dryRun:true,sources,prepared,document,reviews,pending,omitted:document.omitted,
         sourceWarnings:document.warnings,skipped:providerOfficial};
     }
-    const stableSince=await recordSmartwebDigests(client,originalLink,due.map(c=>({category:c.category,digest:c.sourceDigest})),now);
+    const stableSince=await recordUrlDigests(client,originalLink,due.map(c=>({category:c.category,digest:c.sourceDigest})),now);
     const publishable=due.filter(manga=>{
       const since=stableSince.get(manga.category);
       if(Number.isFinite(since)&&new Date(now).getTime()-since>=SMARTWEB_STABLE_MS)return true;
       pending.push({category:manga.category,reason:'Clasificación smartweb nueva o modificada; se publica cuando se lea sin cambios en la siguiente pasada'});return false;
     });
-    await recordSmartwebAttempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
+    await recordUrlAttempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
     const processed=await processCxCategoryDocuments({
       document,
       categories:publishable.map(value=>value.category),
@@ -492,15 +575,205 @@ export async function collectCxSmartwebRace(client,raceId,{now=new Date(),manual
     const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
     const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
     const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
-    await recordSmartwebLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
+    await recordUrlLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
     return {raceId,provider:'smartweb',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,sources,
       imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged})),
       reviews,pending,omitted:document.omitted,skipped:[...processed.skipped,...providerOfficial],warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length};
   }catch(error){
     if(dryRun)return {raceId,provider:'smartweb',status:'error',dryRun:true,error:error.message,rowsFound:0,rowsMatched:0,rowsChanged:0};
-    if(originalLink?.provider==='smartweb'&&attemptedCategories.length&&!attemptsRecorded)await recordSmartwebAttempts(client,originalLink,attemptedCategories).catch(()=>{});
-    if(originalLink?.provider==='smartweb')await recordSmartwebLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    if(originalLink?.provider==='smartweb'&&attemptedCategories.length&&!attemptsRecorded)await recordUrlAttempts(client,originalLink,attemptedCategories).catch(()=>{});
+    if(originalLink?.provider==='smartweb')await recordUrlLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
     return {raceId,provider:'smartweb',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
+  }
+}
+
+const sameFotofiniss=(left,right)=>left&&right&&left.provider==='fotofiniss'&&right.provider==='fotofiniss'
+  &&left.raceId===right.raceId&&left.sourceUrl===right.sourceUrl&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
+// fotofiniss publica en directo y sin marca de definitiva: un grupo está terminado cuando su tabla
+// no cambia durante más de FOTOFINISS_LAP_FACTOR veces la vuelta más lenta leída en él (nadie sigue
+// en carrera), y nunca antes de FOTOFINISS_MIN_STABLE_MS.
+const FOTOFINISS_MIN_STABLE_MS=4*60000;
+const FOTOFINISS_LAP_FACTOR=1.5;
+
+/**
+ * Recogida desde las tablas por grupo de edad de fotofiniss.lv. `categoryKeys`
+ * asigna el rótulo de cada grupo a una categoría propia. Un grupo se publica
+ * cuando su tabla deja de cambiar (FOTOFINISS_LAP_FACTOR por su vuelta más
+ * lenta), siempre como `provisional`: la promoción a oficial llega al día civil
+ * siguiente y DataRide la sustituye. En un Campeonato Nacional (solo licencias
+ * de la federación) la nacionalidad por defecto es la del país, corregida por
+ * las fichas verificadas que coinciden por nombre. Nunca sustituye una
+ * categoría oficial ni una protegida. `dryRun` lee, normaliza y prepara sin
+ * escribir nada ni exigir la estabilidad, ventana ni recogida activa.
+ */
+export async function collectCxFotofinissRace(client,raceId,{now=new Date(),manual=false,dryRun=false,category=null,categories=null,fetchGroups=fetchFotofinissGroups,context:preloaded=null}={}) {
+  let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
+  try {
+    const context=preloaded||await loadCxResultsContext(client,raceId);originalLink=context.timingLink;
+    if(originalLink?.provider!=='fotofiniss')return {raceId,provider:'fotofiniss',status:'skipped',decisions:[],rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(category&&!context.categories.some(c=>c.category===category))throw new Error('Categoría solicitada ausente en el calendario propio');
+    const evaluated=decisions({...context,link:{...originalLink,disciplineId:3}},{now,manual:manual||dryRun,category,categories});
+    attemptedCategories=evaluated.filter(item=>item.due).map(item=>item.category);
+    if(!attemptedCategories.length)return {raceId,provider:'fotofiniss',status:'skipped',decisions:evaluated,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    const map=Object.fromEntries(Object.entries(originalLink.categoryKeys||{}).filter(([,value])=>attemptedCategories.includes(value)));
+    const reviews=attemptedCategories.filter(value=>!Object.values(map).includes(value)).map(value=>({category:value,reason:'Categoría sin grupo fotofiniss asignado en categoryKeys'}));
+    const providerOfficial=[];
+    for(const [label,value] of Object.entries(map)){
+      if(context.categories.find(c=>c.category===value)?.resultsStatus!=='official')continue;
+      providerOfficial.push({category:value,reason:'Resultados ya oficiales; fotofiniss no los sustituye'});delete map[label];
+    }
+    const fetched=Object.keys(map).length?await fetchGroups(originalLink.sourceUrl):{resultsUrl:originalLink.sourceUrl,groups:[]};
+    if(fetched.resultsUrl!==originalLink.sourceUrl)throw new Error(`Evento fotofiniss ${fetched.resultsUrl} distinto del enlace`);
+    const defaultCountry=context.race.class==='CN'&&/^[A-Z]{2}/.test(context.race.countryCode||'')?context.race.countryCode.slice(0,2):null;
+    const document=buildFotofinissCxDocument({...fetched,map,raceId,seasonKey:context.race.seasonKey,dateKey:context.race.dateKey,defaultCountry,source:'fotofiniss'});
+    const pending=document.skipped.map(item=>({category:item.category,reason:`${item.reason}; se reintenta en la siguiente pasada`}));
+    reviews.push(...document.invalid.map(item=>({category:item.category,reason:`Grupo fotofiniss ${item.reason}`})));
+    await normalizeCxDocumentTeams(client,document);
+    const fresh=await loadCxResultsContext(client,raceId);
+    // Misma regla que smartweb: el país por defecto cede ante una ficha verificada que coincide por nombre.
+    resolveSmartwebIdentities(document,fresh.riders);
+    const unchangedLink=sameFotofiniss(originalLink,fresh.timingLink);
+    const stillDue=unchangedLink
+      ?decisions({...fresh,link:{...fresh.timingLink,disciplineId:3}},{now,manual:manual||dryRun,category,categories}).filter(item=>item.due).map(item=>item.category):[];
+    if(!unchangedLink)reviews.push({category:null,reason:'El enlace fotofiniss cambió durante la consulta; se descarta la respuesta anterior'});
+    for(const manga of document.categories.filter(c=>!stillDue.includes(c.category)))reviews.push({category:manga.category,reason:'La manga dejó de estar disponible para la recogida durante la consulta'});
+    const due=document.categories.filter(c=>stillDue.includes(c.category));
+    const sources=document.categories.map(c=>({category:c.category,group:c.sourceGroup,rows:c.rows.length,digest:c.sourceDigest,maxLapSeconds:c.maxLapSeconds,sourceUrl:c.evidence.sourceUrl}));
+    if(dryRun){
+      const prepared=[];
+      for(const manga of due){
+        try{
+          const value=prepareCxResults({...document,categories:[manga]},fresh,{status:'provisional'});
+          const rows=value.imports[0]?.rows||[];
+          prepared.push({category:manga.category,rows:rows.length,linked:rows.filter(row=>row.globalRiderId).length,skipped:value.skipped,
+            unresolved:value.warnings.map(item=>({riderDisplay:item.riderDisplay,reason:item.reason,candidates:item.candidates}))});
+        }catch(error){reviews.push({category:manga.category,reason:error.message});}
+      }
+      return {raceId,provider:'fotofiniss',status:'dry_run',dryRun:true,sources,prepared,document,reviews,pending,sourceWarnings:document.warnings,skipped:providerOfficial};
+    }
+    const stableSince=await recordUrlDigests(client,originalLink,due.map(c=>({category:c.category,digest:c.sourceDigest})),now);
+    const publishable=due.filter(manga=>{
+      const since=stableSince.get(manga.category);
+      const required=Math.max(FOTOFINISS_MIN_STABLE_MS,FOTOFINISS_LAP_FACTOR*(manga.maxLapSeconds||0)*1000);
+      if(Number.isFinite(since)&&new Date(now).getTime()-since>=required)return true;
+      pending.push({category:manga.category,reason:`Grupo fotofiniss en curso o modificado; se publica tras ${Math.ceil(required/60000)} min sin cambios`});return false;
+    });
+    await recordUrlAttempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
+    const processed=await processCxCategoryDocuments({
+      document,
+      categories:publishable.map(value=>value.category),
+      prepareCategory:source=>prepareCxResults({...document,categories:[source]},fresh,{status:'provisional'}),
+      applyCategory:prepared=>applyCxResults(client,prepared),
+    });
+    reviews.push(...processed.reviews);
+    const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
+    const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
+    const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
+    await recordUrlLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
+    return {raceId,provider:'fotofiniss',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,sources,
+      imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged})),
+      reviews,pending,skipped:[...processed.skipped,...providerOfficial],warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length};
+  }catch(error){
+    if(dryRun)return {raceId,provider:'fotofiniss',status:'error',dryRun:true,error:error.message,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(originalLink?.provider==='fotofiniss'&&attemptedCategories.length&&!attemptsRecorded)await recordUrlAttempts(client,originalLink,attemptedCategories).catch(()=>{});
+    if(originalLink?.provider==='fotofiniss')await recordUrlLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    return {raceId,provider:'fotofiniss',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
+  }
+}
+
+const sameRaceresult=(left,right)=>left&&right&&left.provider==='raceresult'&&right.provider==='raceresult'
+  &&left.raceId===right.raceId&&left.sourceUrl===right.sourceUrl&&JSON.stringify(left.categoryKeys)===JSON.stringify(right.categoryKeys);
+// RaceResult publica en directo y sin marca de definitiva. Con todos los inscritos con puesto o estado
+// basta que la lista no cambie durante RACERESULT_STABLE_MS; si quedan inscritos sin puesto ni estado
+// (no salieron y el cronometrador no los marcó), hace falta RACERESULT_OPEN_STABLE_MS y quedan fuera.
+const RACERESULT_STABLE_MS=4*60000;
+const RACERESULT_OPEN_STABLE_MS=20*60000;
+
+/**
+ * Recogida desde las listas por concurso de RACE|RESULT (my.raceresult.com).
+ * `categoryKeys` asigna cada concurso («26», o «26/2» con el día del selector)
+ * a una categoría propia, y el nombre del concurso debe corresponder a ella.
+ * Un concurso se publica cuando su lista deja de cambiar, siempre como
+ * `provisional`: la promoción a oficial llega al día civil siguiente y DataRide
+ * la sustituye. La lista no trae nacionalidad: las fichas verificadas que
+ * coinciden por nombre aportan la suya. Nunca sustituye una categoría oficial
+ * ni una protegida. `dryRun` lee, normaliza y prepara sin escribir nada ni
+ * exigir la estabilidad, ventana ni recogida activa.
+ */
+export async function collectCxRaceresultRace(client,raceId,{now=new Date(),manual=false,dryRun=false,category=null,categories=null,fetchContests=fetchRaceresultContests,context:preloaded=null}={}) {
+  let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
+  try {
+    const context=preloaded||await loadCxResultsContext(client,raceId);originalLink=context.timingLink;
+    if(originalLink?.provider!=='raceresult')return {raceId,provider:'raceresult',status:'skipped',decisions:[],rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(category&&!context.categories.some(c=>c.category===category))throw new Error('Categoría solicitada ausente en el calendario propio');
+    const evaluated=decisions({...context,link:{...originalLink,disciplineId:3}},{now,manual:manual||dryRun,category,categories});
+    attemptedCategories=evaluated.filter(item=>item.due).map(item=>item.category);
+    if(!attemptedCategories.length)return {raceId,provider:'raceresult',status:'skipped',decisions:evaluated,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    const map=Object.fromEntries(Object.entries(originalLink.categoryKeys||{}).filter(([,value])=>attemptedCategories.includes(value)));
+    const reviews=attemptedCategories.filter(value=>!Object.values(map).includes(value)).map(value=>({category:value,reason:'Categoría sin concurso RaceResult asignado en categoryKeys'}));
+    const providerOfficial=[];
+    for(const [key,value] of Object.entries(map)){
+      if(context.categories.find(c=>c.category===value)?.resultsStatus!=='official')continue;
+      providerOfficial.push({category:value,reason:'Resultados ya oficiales; RaceResult no los sustituye'});delete map[key];
+    }
+    const fetched=Object.keys(map).length?await fetchContests(originalLink.sourceUrl,Object.keys(map)):{eventUrl:originalLink.sourceUrl,contests:[]};
+    if(fetched.eventUrl!==originalLink.sourceUrl)throw new Error(`Evento RaceResult ${fetched.eventUrl} distinto del enlace`);
+    const document=buildRaceresultCxDocument({...fetched,map,raceId,seasonKey:context.race.seasonKey,dateKey:context.race.dateKey,source:'raceresult'});
+    const pending=document.skipped.map(item=>({category:item.category,reason:`${item.reason}; se reintenta en la siguiente pasada`}));
+    reviews.push(...document.invalid.map(item=>({category:item.category,reason:`RaceResult: ${item.reason}`})));
+    await normalizeCxDocumentTeams(client,document);
+    const fresh=await loadCxResultsContext(client,raceId);
+    // Sin nacionalidad en la fuente: una ficha verificada que coincide por nombre aporta la suya.
+    resolveSmartwebIdentities(document,fresh.riders);
+    const unchangedLink=sameRaceresult(originalLink,fresh.timingLink);
+    const stillDue=unchangedLink
+      ?decisions({...fresh,link:{...fresh.timingLink,disciplineId:3}},{now,manual:manual||dryRun,category,categories}).filter(item=>item.due).map(item=>item.category):[];
+    if(!unchangedLink)reviews.push({category:null,reason:'El enlace RaceResult cambió durante la consulta; se descarta la respuesta anterior'});
+    for(const manga of document.categories.filter(c=>!stillDue.includes(c.category)))reviews.push({category:manga.category,reason:'La manga dejó de estar disponible para la recogida durante la consulta'});
+    const due=document.categories.filter(c=>stillDue.includes(c.category));
+    const sources=document.categories.map(c=>({category:c.category,contest:c.sourceContest,contestName:c.sourceContestName,rows:c.rows.length,unfinished:c.unfinished,digest:c.sourceDigest,sourceUrl:c.evidence.sourceUrl}));
+    if(dryRun){
+      const prepared=[];
+      for(const manga of due){
+        try{
+          const value=prepareCxResults({...document,categories:[manga]},fresh,{status:'provisional'});
+          const rows=value.imports[0]?.rows||[];
+          prepared.push({category:manga.category,rows:rows.length,linked:rows.filter(row=>row.globalRiderId).length,skipped:value.skipped,
+            unresolved:value.warnings.map(item=>({riderDisplay:item.riderDisplay,reason:item.reason,candidates:item.candidates}))});
+        }catch(error){reviews.push({category:manga.category,reason:error.message});}
+      }
+      return {raceId,provider:'raceresult',status:'dry_run',dryRun:true,sources,prepared,document,reviews,pending,sourceWarnings:document.warnings,skipped:providerOfficial};
+    }
+    const stableSince=await recordUrlDigests(client,originalLink,due.map(c=>({category:c.category,digest:c.sourceDigest})),now);
+    const publishable=due.filter(manga=>{
+      const since=stableSince.get(manga.category);
+      const required=manga.unfinished?RACERESULT_OPEN_STABLE_MS:RACERESULT_STABLE_MS;
+      if(Number.isFinite(since)&&new Date(now).getTime()-since>=required){
+        if(manga.unfinished)reviews.push({category:manga.category,reason:`${manga.unfinished} inscritos sin puesto ni estado en RaceResult quedan fuera de la clasificación`});
+        return true;
+      }
+      pending.push({category:manga.category,reason:`Concurso RaceResult en curso o modificado${manga.unfinished?` (${manga.unfinished} inscritos sin puesto ni estado)`:''}; se publica tras ${Math.ceil(required/60000)} min sin cambios`});return false;
+    });
+    await recordUrlAttempts(client,originalLink,attemptedCategories);attemptsRecorded=true;
+    const processed=await processCxCategoryDocuments({
+      document,
+      categories:publishable.map(value=>value.category),
+      prepareCategory:source=>prepareCxResults({...document,categories:[source]},fresh,{status:'provisional'}),
+      applyCategory:prepared=>applyCxResults(client,prepared),
+    });
+    reviews.push(...processed.reviews);
+    const rowsFound=document.categories.reduce((sum,c)=>sum+c.rows.length,0);
+    const rowsChanged=processed.applied.filter(value=>!value.unchanged).reduce((sum,value)=>sum+value.rows,0);
+    const status=reviews.length||processed.skipped.length||processed.warnings.length?'partial':'ok';
+    await recordUrlLink(client,originalLink,status,status==='partial'?JSON.stringify({reviews,skipped:processed.skipped,warnings:processed.warnings.slice(0,10)}).slice(0,4000):null);
+    return {raceId,provider:'raceresult',status,rowsFound,rowsMatched:processed.rowsMatched,rowsChanged,sources,
+      imported:processed.applied.map(value=>({category:value.category,rows:value.rows,status:value.status,unchanged:!!value.unchanged})),
+      reviews,pending,skipped:[...processed.skipped,...providerOfficial],warnings:processed.warnings.slice(0,10),warningCount:processed.warnings.length};
+  }catch(error){
+    if(dryRun)return {raceId,provider:'raceresult',status:'error',dryRun:true,error:error.message,rowsFound:0,rowsMatched:0,rowsChanged:0};
+    if(originalLink?.provider==='raceresult'&&attemptedCategories.length&&!attemptsRecorded)await recordUrlAttempts(client,originalLink,attemptedCategories).catch(()=>{});
+    if(originalLink?.provider==='raceresult')await recordUrlLink(client,originalLink,'error',error.message.slice(0,4000)).catch(()=>{});
+    return {raceId,provider:'raceresult',status:'error',error:error.message,errorCode:error.code||null,rowsFound:0,rowsMatched:0,rowsChanged:0};
   }
 }
 
@@ -588,12 +861,15 @@ export async function collectCxGolazoRace(client,raceId,{now=new Date(),manual=f
   }
 }
 
-export async function collectCxRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,dataRideClient=createCxDataRideClient(),fetchCompetition=fetchCxCompetition,fetchTables=fetchAcnTables,fetchClax=fetchWiclaxXml,fetchRaces=fetchKbwbRaces,fetchRace=fetchSmartwebRace,fetchPages=fetchGolazoPages,fetchTree=fetchZone4Tree}={}) {
+export async function collectCxRace(client,raceId,{now=new Date(),manual=false,category=null,categories=null,dataRideClient=createCxDataRideClient(),fetchCompetition=fetchCxCompetition,fetchTables=fetchAcnTables,fetchClax=fetchWiclaxXml,fetchRaces=fetchKbwbRaces,fetchRace=fetchSmartwebRace,fetchPages=fetchGolazoPages,fetchTree=fetchZone4Tree,fetchJson=undefined,fetchGroups=fetchFotofinissGroups,fetchContests=fetchRaceresultContests}={}) {
   let originalLink;let attemptedCategories=[];let attemptsRecorded=false;
   try {
     const context=await loadCxResultsContext(client,raceId);originalLink=context.link;
     if(!originalLink&&!context.timingLink&&context.golazoLink)return await collectCxGolazoRace(client,raceId,{now,manual,category,categories,fetchPages,context});
-    // Carrera solo con enlace de cronometraje: la recogida pertenece a ese proveedor (ACN, Wiclax, KBWB, smartweb o Zone4).
+    // Carrera solo con enlace de cronometraje: la recogida pertenece a ese proveedor (ACN, Wiclax, KBWB, smartweb, Zone4, Chronorace xco, fotofiniss o RaceResult).
+    if(!originalLink&&context.timingLink?.provider==='raceresult')return await collectCxRaceresultRace(client,raceId,{now,manual,category,categories,fetchContests,context});
+    if(!originalLink&&context.timingLink?.provider==='fotofiniss')return await collectCxFotofinissRace(client,raceId,{now,manual,category,categories,fetchGroups,context});
+    if(!originalLink&&context.timingLink?.provider==='chronorace_xco')return await collectCxChronoraceXcoRace(client,raceId,{now,manual,category,categories,fetchJson,context});
     if(!originalLink&&context.timingLink?.provider==='zone4')return await collectCxZone4Race(client,raceId,{now,manual,category,categories,fetchTree,context});
     if(!originalLink&&context.timingLink?.provider==='smartweb')return await collectCxSmartwebRace(client,raceId,{now,manual,category,categories,fetchRace,context});
     if(!originalLink&&context.timingLink?.provider==='kbwb')return await collectCxKbwbRace(client,raceId,{now,manual,category,categories,fetchRaces,context});
@@ -720,7 +996,7 @@ export async function promoteCxProvisionalResults(client,{now=new Date()}={}) {
 }
 
 export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,standingsLimit=20,
-  collect=collectCxRace,collectAcn=collectCxAcnRace,collectWiclax=collectCxWiclaxRace,collectKbwb=collectCxKbwbRace,collectSmartweb=collectCxSmartwebRace,collectZone4=collectCxZone4Race,collectGolazo=collectCxGolazoRace,collectBonuses=collectCxRoundBonuses,dataRideClient=createCxDataRideClient(),promote=promoteCxProvisionalResults,processQueue=processStandingsQueue,enqueuePushes=enqueueCxAutomaticPushes}={}) {
+  collect=collectCxRace,collectAcn=collectCxAcnRace,collectWiclax=collectCxWiclaxRace,collectKbwb=collectCxKbwbRace,collectSmartweb=collectCxSmartwebRace,collectZone4=collectCxZone4Race,collectChronoraceXco=collectCxChronoraceXcoRace,collectFotofiniss=collectCxFotofinissRace,collectRaceresult=collectCxRaceresultRace,collectGolazo=collectCxGolazoRace,collectBonuses=collectCxRoundBonuses,dataRideClient=createCxDataRideClient(),promote=promoteCxProvisionalResults,processQueue=processStandingsQueue,enqueuePushes=enqueueCxAutomaticPushes}={}) {
   if(!Number.isInteger(limit)||limit<1||limit>20||!Number.isInteger(standingsLimit)||standingsLimit<1||standingsLimit>100)throw new Error('Límites CX inválidos');
   const candidates=await loadCxSyncCandidates(client);
   if(dryRun)return {disciplineId:3,dryRun:true,candidates:candidates.map(context=>({raceId:context.race.id,decisions:decisions(context,{now})}))};
@@ -755,6 +1031,9 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
         :provider==='kbwb'?await collectKbwb(client,context.race.id,{now})
         :provider==='smartweb'?await collectSmartweb(client,context.race.id,{now})
         :provider==='zone4'?await collectZone4(client,context.race.id,{now})
+        :provider==='chronorace_xco'?await collectChronoraceXco(client,context.race.id,{now})
+        :provider==='fotofiniss'?await collectFotofiniss(client,context.race.id,{now})
+        :provider==='raceresult'?await collectRaceresult(client,context.race.id,{now})
         :provider==='golazo'?await collectGolazo(client,context.race.id,{now})
         :await collect(client,context.race.id,{now,dataRideClient}));seen.add(key);
       if(++scheduled>=limit)break;
@@ -771,14 +1050,17 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
     const decisionReviews=candidates.filter(c=>!seen.has(c.race.id)&&!seen.has(keyOf(c))).flatMap(context=>decisions(context,{now}).filter(d=>d.review).map(d=>({raceId:context.race.id,...d})));
     const sourceErrors=results.filter(value=>value.status==='error').length,generalErrors=general.filter(value=>value.error).length;
     const sourceReviews=results.filter(value=>value.status==='partial').length+decisionReviews.length,generalReviews=general.filter(value=>value.review||value.calculation?.status==='needs_review').length;
-    const dataRideResults=results.filter(value=>!['acn','wiclax','kbwb','smartweb','zone4','golazo'].includes(value.provider)),zone4Results=results.filter(value=>value.provider==='zone4'),acnResults=results.filter(value=>value.provider==='acn'),wiclaxResults=results.filter(value=>value.provider==='wiclax'),kbwbResults=results.filter(value=>value.provider==='kbwb'),smartwebResults=results.filter(value=>value.provider==='smartweb'),golazoResults=results.filter(value=>value.provider==='golazo');
+    const dataRideResults=results.filter(value=>!['acn','wiclax','kbwb','smartweb','zone4','chronorace_xco','fotofiniss','raceresult','golazo'].includes(value.provider)),fotofinissResults=results.filter(value=>value.provider==='fotofiniss'),raceresultResults=results.filter(value=>value.provider==='raceresult'),zone4Results=results.filter(value=>value.provider==='zone4'),chronoraceXcoResults=results.filter(value=>value.provider==='chronorace_xco'),acnResults=results.filter(value=>value.provider==='acn'),wiclaxResults=results.filter(value=>value.provider==='wiclax'),kbwbResults=results.filter(value=>value.provider==='kbwb'),smartwebResults=results.filter(value=>value.provider==='smartweb'),golazoResults=results.filter(value=>value.provider==='golazo');
     const acnErrors=acnResults.filter(value=>value.status==='error').length,acnReviews=acnResults.filter(value=>value.status==='partial').length;
     const wiclaxErrors=wiclaxResults.filter(value=>value.status==='error').length,wiclaxReviews=wiclaxResults.filter(value=>value.status==='partial').length;
     const kbwbErrors=kbwbResults.filter(value=>value.status==='error').length,kbwbReviews=kbwbResults.filter(value=>value.status==='partial').length;
     const smartwebErrors=smartwebResults.filter(value=>value.status==='error').length,smartwebReviews=smartwebResults.filter(value=>value.status==='partial').length;
     const golazoErrors=golazoResults.filter(value=>value.status==='error').length,golazoReviews=golazoResults.filter(value=>value.status==='partial').length;
     const zone4Errors=zone4Results.filter(value=>value.status==='error').length,zone4Reviews=zone4Results.filter(value=>value.status==='partial').length;
-    const dataRideErrors=sourceErrors-acnErrors-wiclaxErrors-kbwbErrors-smartwebErrors-golazoErrors-zone4Errors,dataRideReviews=sourceReviews-acnReviews-wiclaxReviews-kbwbReviews-smartwebReviews-golazoReviews-zone4Reviews;
+    const chronoraceXcoErrors=chronoraceXcoResults.filter(value=>value.status==='error').length,chronoraceXcoReviews=chronoraceXcoResults.filter(value=>value.status==='partial').length;
+    const fotofinissErrors=fotofinissResults.filter(value=>value.status==='error').length,fotofinissReviews=fotofinissResults.filter(value=>value.status==='partial').length;
+    const raceresultErrors=raceresultResults.filter(value=>value.status==='error').length,raceresultReviews=raceresultResults.filter(value=>value.status==='partial').length;
+    const dataRideErrors=sourceErrors-acnErrors-wiclaxErrors-kbwbErrors-smartwebErrors-golazoErrors-zone4Errors-chronoraceXcoErrors-fotofinissErrors-raceresultErrors,dataRideReviews=sourceReviews-acnReviews-wiclaxReviews-kbwbReviews-smartwebReviews-golazoReviews-zone4Reviews-chronoraceXcoReviews-fotofinissReviews-raceresultReviews;
     await recordAutomationSourceRun(client,{runId,source:'dataride_cx',status:dataRideErrors?'error':dataRideReviews?'warning':dataRideResults.some(r=>r.status==='ok')?'success':'noop',
       itemsFound:dataRideResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:dataRideResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:dataRideResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:dataRideErrors,summary:{results:dataRideResults,decisions:decisionReviews.slice(0,50)}});
     if(acnResults.length)await recordAutomationSourceRun(client,{runId,source:'acn_cx',status:acnErrors?'error':acnReviews?'warning':acnResults.some(r=>r.status==='ok')?'success':'noop',
@@ -791,6 +1073,12 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
       itemsFound:smartwebResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:smartwebResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:smartwebResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:smartwebErrors,summary:{results:smartwebResults}});
     if(zone4Results.length)await recordAutomationSourceRun(client,{runId,source:'zone4_cx',status:zone4Errors?'error':zone4Reviews?'warning':zone4Results.some(r=>r.status==='ok')?'success':'noop',
       itemsFound:zone4Results.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:zone4Results.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:zone4Results.reduce((sum,value)=>sum+value.rowsChanged,0),errors:zone4Errors,summary:{results:zone4Results}});
+    if(chronoraceXcoResults.length)await recordAutomationSourceRun(client,{runId,source:'chronorace_xco_cx',status:chronoraceXcoErrors?'error':chronoraceXcoReviews?'warning':chronoraceXcoResults.some(r=>r.status==='ok')?'success':'noop',
+      itemsFound:chronoraceXcoResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:chronoraceXcoResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:chronoraceXcoResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:chronoraceXcoErrors,summary:{results:chronoraceXcoResults}});
+    if(fotofinissResults.length)await recordAutomationSourceRun(client,{runId,source:'fotofiniss_cx',status:fotofinissErrors?'error':fotofinissReviews?'warning':fotofinissResults.some(r=>r.status==='ok')?'success':'noop',
+      itemsFound:fotofinissResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:fotofinissResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:fotofinissResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:fotofinissErrors,summary:{results:fotofinissResults}});
+    if(raceresultResults.length)await recordAutomationSourceRun(client,{runId,source:'raceresult_cx',status:raceresultErrors?'error':raceresultReviews?'warning':raceresultResults.some(r=>r.status==='ok')?'success':'noop',
+      itemsFound:raceresultResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:raceresultResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:raceresultResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:raceresultErrors,summary:{results:raceresultResults}});
     if(golazoResults.length)await recordAutomationSourceRun(client,{runId,source:'golazo_cx',status:golazoErrors?'error':golazoReviews?'warning':golazoResults.some(r=>r.status==='ok')?'success':'noop',
       itemsFound:golazoResults.reduce((sum,value)=>sum+value.rowsFound,0),itemsMatched:golazoResults.reduce((sum,value)=>sum+value.rowsMatched,0),itemsChanged:golazoResults.reduce((sum,value)=>sum+value.rowsChanged,0),errors:golazoErrors,summary:{results:golazoResults}});
     if(bonuses.candidates||bonuses.reviews.length)await recordAutomationSourceRun(client,{runId,source:'chronorace_cx',status:bonuses.reviews.length?'warning':bonuses.applied.length?'success':'noop',

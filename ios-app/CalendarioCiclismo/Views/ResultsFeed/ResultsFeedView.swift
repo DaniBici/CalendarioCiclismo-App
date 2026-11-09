@@ -24,28 +24,232 @@ private struct UciRankingExplanationItem: Identifiable {
 /// Pestañas según `ResultsFeedTabs`: durante la temporada de ciclocross se
 /// añade la de resultados CX (`CxResultsFeedModel`), con filas que abren la
 /// ficha CX en sus resultados.
-struct ResultsFeedView: View {
-    @State private var entries: [FeedEntry] = []
-    @State private var isLoading = true
-    @State private var error: String?
+/// Destino de una fila del feed en la columna de detalle de
+/// `ResultsSplitView`.
+enum ResultsFeedSelection: Hashable {
+    case road(ResultsRoute)
+    case cx(CxDestination)
+}
+
+/// Estado de la pestaña Resultados: secciones, feed de carretera, ciclocross
+/// y ránking UCI. `ResultsSplitView` lo conserva al pasar de la lista y
+/// detalle al ránking a todo el ancho, que recrea `ResultsFeedView`: los
+/// datos no se vuelven a pedir con pantalla de carga ni se pierde la sección.
+@MainActor @Observable
+final class ResultsFeedStore {
+    var tabLayout: ResultsFeedTabLayout
+    var activeSection: ResultsFeedTab
+    var entries: [FeedEntry] = []
+    var isLoading = true
+    var error: String?
     /// Inicio de la ventana cargada (se amplía con "Cargar más").
-    @State private var fromKey = ResultsFeedLogic.initialFromKey()
-    @State private var isLoadingMore = false
+    var fromKey = ResultsFeedLogic.initialFromKey()
+    /// La ventana inicial ya cuenta desde el último día con resultados.
+    private var windowAnchored = false
+    var isLoadingMore = false
     /// Identifica la última carga del feed (completa o «Cargar más»). Una
     /// respuesta de una carga anterior se descarta: no puede sustituir la
     /// lista ni el inicio de la ventana de otra más reciente.
-    @State private var feedGeneration = 0
+    private var feedGeneration = 0
+    let cxModel: CxResultsFeedModel
+    fileprivate var rankingGender = UciRankingGender.male
+    var rankingRows: [UciTeamRankingRow] = []
+    var isRankingLoading = false
+    var rankingError: String?
+    /// Marco del selector de sección en la columna lateral, en coordenadas
+    /// globales: el ránking a todo el ancho lo dibuja en el mismo sitio y con
+    /// el mismo ancho.
+    var sidebarSelectorFrame: CGRect?
+    /// Esquina superior izquierda del contenido a todo el ancho (bajo la barra
+    /// de navegación), en coordenadas globales; se mide al entrar en el
+    /// ránking.
+    var fullWidthContentOrigin: CGPoint?
+    /// El cambio de contenedor recrea la vista: su `onAppear` no es una
+    /// visita nueva a la pantalla.
+    var skipsNextAppearanceLog = false
+
+    init() {
+        let layout = ResultsFeedTabs.layout()
+        tabLayout = layout
+        activeSection = layout.initial
+        cxModel = CxResultsFeedModel()
+    }
+
+    func load() async {
+        feedGeneration &+= 1
+        let generation = feedGeneration
+        if entries.isEmpty { isLoading = true }
+        error = nil
+        do {
+            let todayKey = DateFormatting.todayKey()
+            // Primera carga: 14 días contados desde el último día con
+            // resultados, no desde hoy. Si la consulta falla, la ventana
+            // cuenta desde hoy y la siguiente carga vuelve a intentarlo.
+            if !windowAnchored {
+                let last: String?
+                do {
+                    last = try await SupabaseService.shared.latestResultsFeedDate(onOrBefore: todayKey)
+                    windowAnchored = true
+                } catch is CancellationError {
+                    return
+                } catch {
+                    last = nil
+                }
+                guard generation == feedGeneration else { return }
+                // Nunca acorta la ventana: el ancla es como mucho hoy.
+                if let last { fromKey = min(fromKey, ResultsFeedLogic.initialFromKey(anchorKey: min(last, todayKey))) }
+            }
+            let loadedEntries = try await SupabaseService.shared.loadResultsFeed(
+                from: fromKey,
+                to: todayKey
+            )
+            try Task.checkCancellation()
+            guard generation == feedGeneration else { return }
+            // Commit único: nunca se expone una lista previa a la resolución de
+            // ganadores y líderes.
+            entries = loadedEntries
+            isLoading = false
+        } catch is CancellationError {
+            // Navegar fuera cancela .task; se conserva el último modelo completo.
+            return
+        } catch {
+            guard generation == feedGeneration else { return }
+            self.error = error.localizedDescription
+            isLoading = false
+        }
+    }
+
+    /// Amplía la ventana 14 días más (tope: arranque de temporada). Solo se
+    /// descarga el tramo nuevo: las entradas se ordenan primero por fecha y
+    /// el tramo es anterior a todo lo cargado, así que se añade al final.
+    func loadMore() async {
+        guard !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        let previousFrom = fromKey
+        let newFrom = ResultsFeedLogic.extendedFromKey(previousFrom)
+        guard newFrom < previousFrom else { return }
+        feedGeneration &+= 1
+        let generation = feedGeneration
+        fromKey = newFrom
+        do {
+            let older = try await SupabaseService.shared.loadResultsFeed(
+                from: newFrom,
+                to: ResultsFeedLogic.addDays(previousFrom, -1)
+            )
+            try Task.checkCancellation()
+            // Una carga completa posterior ya cubre la ventana ampliada.
+            guard generation == feedGeneration else { return }
+            let loadedKeys = Set(entries.map(\.key))
+            entries += older.filter { !loadedKeys.contains($0.key) }
+        } catch {
+            guard generation == feedGeneration else { return }
+            // El tramo no se cargó: se restaura el inicio de la ventana para
+            // que «Cargar más» vuelva a pedirlo.
+            fromKey = previousFrom
+            if !(error is CancellationError) { self.error = error.localizedDescription }
+        }
+    }
+
+    func loadRanking() async {
+        if rankingRows.isEmpty { isRankingLoading = true }
+        rankingError = nil
+        do {
+            rankingRows = try await SupabaseService.shared.loadUciTeamRankings()
+        } catch {
+            if rankingRows.isEmpty {
+                rankingError = LocaleService.t(
+                    "No se pudo cargar el ránking UCI.",
+                    "The UCI ranking could not be loaded."
+                )
+            }
+        }
+        isRankingLoading = false
+    }
+}
+
+/// Resultados en iPad (ancho regular): el feed en la columna lateral y la
+/// clasificación o la ficha CX en el detalle. El ránking UCI no abre ningún
+/// detalle: ocupa todo el ancho, fuera de la lista y detalle, con el
+/// selector de sección en el mismo sitio que en la columna lateral. En
+/// ancho compacto la pestaña usa `ResultsFeedView` en una pila, como en el
+/// iPhone.
+struct ResultsSplitView: View {
+    @State private var store = ResultsFeedStore()
+    @State private var selection: ResultsFeedSelection?
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+
+    var body: some View {
+        Group {
+            if store.activeSection == .ranking {
+                NavigationStack {
+                    ResultsFeedView(store: store, placement: .fullWidth)
+                }
+            } else {
+                splitView
+            }
+        }
+    }
+
+    private var splitView: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            ResultsFeedView(store: store, placement: .sidebar, onSelect: { selection = $0 })
+                .navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 420)
+        } detail: {
+            NavigationStack {
+                Group {
+                    switch selection {
+                    case .road(let route):
+                        ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
+                    case .cx(let destination):
+                        CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+                    case nil:
+                        ContentUnavailableView(
+                            LocaleService.t("Elige un resultado", "Choose a result"),
+                            systemImage: "trophy",
+                            description: Text(LocaleService.t(
+                                "La clasificación se abre aquí.",
+                                "The classification opens here."
+                            ))
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(AppTheme.background.ignoresSafeArea())
+                    }
+                }
+                .navigationDestination(for: CxDestination.self) { destination in
+                    CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+                }
+                .navigationDestination(for: CxTournamentDestination.self) { destination in
+                    CyclocrossView(tournament: destination.tournament, season: destination.season)
+                }
+            }
+            // Cada selección parte de una pila nueva.
+            .id(selection)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+}
+
+struct ResultsFeedView: View {
+    /// Contenedor de la vista.
+    enum Placement {
+        /// Pila del iPhone y de las ventanas compactas.
+        case stack
+        /// Columna lateral de `ResultsSplitView`.
+        case sidebar
+        /// Ránking UCI a todo el ancho en `ResultsSplitView`.
+        case fullWidth
+    }
+
+    let placement: Placement
+    /// En `ResultsSplitView`, la fila abre su destino en la columna de
+    /// detalle en lugar de empujarlo en la pila.
+    var onSelect: ((ResultsFeedSelection) -> Void)? = nil
+    @State private var store: ResultsFeedStore
     /// Push por valor a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
-    @State private var tabLayout: ResultsFeedTabLayout
-    @State private var activeSection: ResultsFeedTab
-    @State private var cxModel = CxResultsFeedModel()
     /// Push por valor a la ficha CX, en su sección de resultados.
     @State private var cxRoute: CxDestination?
-    @State private var rankingGender = UciRankingGender.male
-    @State private var rankingRows: [UciTeamRankingRow] = []
-    @State private var isRankingLoading = false
-    @State private var rankingError: String?
     @State private var rankingExplanation: UciRankingExplanationItem?
     @State private var localeService = LocaleService.shared
     @State private var contentWidth: CGFloat = 0
@@ -55,11 +259,21 @@ struct ResultsFeedView: View {
     /// pestaña ni por un push): solo entonces el regreso de la app recarga.
     @State private var isVisible = false
 
-    init() {
-        let layout = ResultsFeedTabs.layout()
-        _tabLayout = State(initialValue: layout)
-        _activeSection = State(initialValue: layout.initial)
+    /// Sin `store`, la vista tiene el suyo (pila del iPhone).
+    init(
+        store: ResultsFeedStore? = nil,
+        placement: Placement = .stack,
+        onSelect: ((ResultsFeedSelection) -> Void)? = nil
+    ) {
+        _store = State(initialValue: store ?? ResultsFeedStore())
+        self.placement = placement
+        self.onSelect = onSelect
     }
+
+    private var activeSection: ResultsFeedTab { store.activeSection }
+    private var tabLayout: ResultsFeedTabLayout { store.tabLayout }
+    private var cxModel: CxResultsFeedModel { store.cxModel }
+    private var entries: [FeedEntry] { store.entries }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,21 +291,21 @@ struct ResultsFeedView: View {
                         cxList
                     }
                 case .road:
-                    if isLoading && entries.isEmpty {
+                    if store.isLoading && entries.isEmpty {
                         LoadingView(branded: true, title: localeService.t("Últimos resultados", "Latest results"))
-                    } else if let error, entries.isEmpty {
+                    } else if let error = store.error, entries.isEmpty {
                         ErrorView(message: error) {
-                            Task { await load() }
+                            Task { await store.load() }
                         }
                     } else {
                         feedList
                     }
                 case .ranking:
-                    if isRankingLoading && rankingRows.isEmpty {
+                    if store.isRankingLoading && store.rankingRows.isEmpty {
                         LoadingView(branded: true, title: localeService.t("Ránking UCI", "UCI ranking"))
-                    } else if let rankingError, rankingRows.isEmpty {
+                    } else if let rankingError = store.rankingError, store.rankingRows.isEmpty {
                         ErrorView(message: rankingError) {
-                            Task { await loadRanking() }
+                            Task { await store.loadRanking() }
                         }
                     } else {
                         rankingList
@@ -100,8 +314,17 @@ struct ResultsFeedView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A todo el ancho, origen del contenido bajo la barra.
+        .onGeometryChange(for: CGPoint?.self) { proxy in
+            placement == .fullWidth ? proxy.frame(in: .global).origin : nil
+        } action: { origin in
+            if let origin { store.fullWidthContentOrigin = origin }
+        }
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(localeService.t("Resultados", "Results"))
+        // «Ránking» con el ránking UCI, que no es un resultado.
+        .navigationTitle(activeSection == .ranking
+            ? localeService.t("Ránking", "Ranking")
+            : localeService.t("Resultados", "Results"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if #available(iOS 26, *) {
@@ -137,7 +360,7 @@ struct ResultsFeedView: View {
                 dismissButton: .default(Text(localeService.t("Cerrar", "Close")))
             )
         }
-        .task { await load() }
+        .task { await store.load() }
         // Pestaña Ciclocross: la primera vez se carga; cada vez que vuelve a
         // aparecer (otra pestaña de la app, regreso de una ficha) o se
         // selecciona se recarga sin pantalla de carga, como el feed de
@@ -154,8 +377,8 @@ struct ResultsFeedView: View {
             guard phase == .active else { return }
             let layout = ResultsFeedTabs.layout()
             if layout != tabLayout {
-                tabLayout = layout
-                if !layout.tabs.contains(activeSection) { activeSection = layout.initial }
+                store.tabLayout = layout
+                if !layout.tabs.contains(activeSection) { store.activeSection = layout.initial }
             }
             // Regreso a primer plano con esta pantalla visible: la sección
             // activa se actualiza, también en ciclocross.
@@ -173,6 +396,10 @@ struct ResultsFeedView: View {
         }
         .onAppear {
             isVisible = true
+            if store.skipsNextAppearanceLog {
+                store.skipsNextAppearanceLog = false
+                return
+            }
             AnalyticsService.shared.logScreenView("results_feed")
             // Pestaña inicial en Ciclocross (modo ciclocross): mismo nombre
             // que Android.
@@ -204,9 +431,13 @@ struct ResultsFeedView: View {
     }
 
     /// Selector de vista: control segmentado nativo, como el de Fichajes. El
-    /// título de la pantalla es el de navegación («Resultados»).
-    private var sectionSelector: some View {
-        Picker(
+    /// título de la pantalla es el de navegación («Resultados», o «Ránking»
+    /// con el ránking UCI). En la
+    /// columna lateral del iPad se mide su marco, y el ránking a todo el
+    /// ancho lo dibuja con ese marco: el selector no se mueve al entrar en
+    /// el ránking ni al salir de él.
+    @ViewBuilder private var sectionSelector: some View {
+        let picker = Picker(
             localeService.t("Vista de resultados", "Results view"),
             selection: Binding(
                 get: { activeSection },
@@ -218,22 +449,70 @@ struct ResultsFeedView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
+        switch placement {
+        case .stack:
+            picker
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+        case .sidebar:
+            picker
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    store.sidebarSelectorFrame = $0
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+        case .fullWidth:
+            let inset = fullWidthSelectorInset
+            picker
+                .frame(width: store.sidebarSelectorFrame?.width ?? Self.sidebarSelectorFallbackWidth)
+                .padding(.leading, inset.leading)
+                .padding(.top, inset.top)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Ancho del selector en la columna lateral de anchura ideal (360 pt),
+    /// si aún no se ha medido.
+    private static let sidebarSelectorFallbackWidth: CGFloat = 328
+
+    /// Margen del selector a todo el ancho que lo deja en el marco medido en
+    /// la columna lateral, a partir del origen del contenido a todo el ancho.
+    /// Antes de medirlo, el contenido empieza en el borde de la ventana y
+    /// bajo una barra de la misma altura que la de la columna lateral.
+    private var fullWidthSelectorInset: (leading: CGFloat, top: CGFloat) {
+        guard let frame = store.sidebarSelectorFrame else { return (16, 8) }
+        let origin = store.fullWidthContentOrigin ?? CGPoint(x: 0, y: frame.minY - 8)
+        return (max(0, frame.minX - origin.x), max(0, frame.minY - origin.y))
+    }
+
+    /// Margen lateral del ránking: a todo el ancho, el del selector, para que
+    /// el género, el panel y la tabla arranquen bajo él.
+    private var rankingHorizontalInset: CGFloat {
+        placement == .fullWidth ? fullWidthSelectorInset.leading : 16
     }
 
     private func selectSection(_ section: ResultsFeedTab) {
         guard section != activeSection else { return }
         Haptics.play(.selection)
-        activeSection = section
+        // En el iPad, entrar en el ránking o salir de él cambia de
+        // contenedor y recrea la vista.
+        if placement != .stack, section == .ranking || activeSection == .ranking {
+            store.skipsNextAppearanceLog = true
+        }
+        store.activeSection = section
         if section == .cyclocross {
             AnalyticsService.shared.logScreenView("results_feed_cx")
         }
         if section == .ranking {
             AnalyticsService.shared.logScreenView("uci_team_ranking")
-            if rankingRows.isEmpty {
-                Task { await loadRanking() }
+            if store.rankingRows.isEmpty {
+                // Carga a la vista desde el primer fotograma, sin pasar por
+                // «Ránking no disponible».
+                store.isRankingLoading = true
+                Task { await store.loadRanking() }
             }
         }
     }
@@ -308,7 +587,7 @@ struct ResultsFeedView: View {
                     }
                 }
 
-                if fromKey > ResultsFeedLogic.seasonStart {
+                if store.fromKey > ResultsFeedLogic.seasonStart {
                     loadMoreButton
                 }
             }
@@ -320,17 +599,18 @@ struct ResultsFeedView: View {
         } action: { width in
             contentWidth = width
         }
-        .refreshable { await load() }
+        .refreshable { await store.load() }
     }
 
     private func feedRow(_ entry: FeedEntry) -> some View {
         FeedRowView(entry: entry) {
             Haptics.play(.navigation)
-            resultsRoute = ResultsRoute(
+            let route = ResultsRoute(
                 raceId: entry.race.id,
                 stageNumber: entry.stageNumber,
                 stageSuffix: entry.stageSuffix.isEmpty ? nil : entry.stageSuffix
             )
+            if let onSelect { onSelect(.road(route)) } else { resultsRoute = route }
         }
     }
 
@@ -402,14 +682,15 @@ struct ResultsFeedView: View {
     private func cxRow(_ entry: CxResultsFeedEntry) -> some View {
         CxFeedRowView(entry: entry, round: cxModel.rounds[entry.race.id]) {
             Haptics.play(.navigation)
-            cxRoute = CxDestination(raceId: entry.race.id, anchor: entry.resultsAnchor)
+            let destination = CxDestination(raceId: entry.race.id, anchor: entry.resultsAnchor)
+            if let onSelect { onSelect(.cx(destination)) } else { cxRoute = destination }
         }
     }
 
     // MARK: - Ránking UCI
 
     private var decoratedRanking: [UciTeamRankingPresentation] {
-        UciTeamRankingLogic.decorate(rankingRows, gender: rankingGender.rawValue)
+        UciTeamRankingLogic.decorate(store.rankingRows, gender: store.rankingGender.rawValue)
     }
 
     /// Ránking UCI por equipos con la presentación de las clasificaciones:
@@ -425,13 +706,13 @@ struct ResultsFeedView: View {
         )
         return VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Picker(localeService.t("Género del ránking", "Ranking gender"), selection: $rankingGender) {
+                Picker(localeService.t("Género del ránking", "Ranking gender"), selection: $store.rankingGender) {
                     Text(localeService.t("Masculino", "Men")).tag(UciRankingGender.male)
                     Text(localeService.t("Femenino", "Women")).tag(UciRankingGender.female)
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
-                .onChange(of: rankingGender) { _, _ in Haptics.play(.selection) }
+                .onChange(of: store.rankingGender) { _, _ in Haptics.play(.selection) }
 
                 if let rankingDate = ranking.first?.row.rankingDate {
                     Text(DateFormatting.formatUciRankingUpdated(rankingDate))
@@ -442,7 +723,7 @@ struct ResultsFeedView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, rankingHorizontalInset)
             .padding(.bottom, 12)
 
             if ranking.isEmpty {
@@ -481,11 +762,11 @@ struct ResultsFeedView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, rankingHorizontalInset)
                     .padding(.bottom, 24)
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
-                .refreshable { await loadRanking() }
+                .refreshable { await store.loadRanking() }
             }
         }
     }
@@ -518,9 +799,9 @@ struct ResultsFeedView: View {
             Spacer()
             Button {
                 Haptics.play(.primaryAction)
-                Task { await loadMore() }
+                Task { await store.loadMore() }
             } label: {
-                if isLoadingMore {
+                if store.isLoadingMore {
                     ProgressView()
                 } else {
                     Text(localeService.t("Cargar más resultados", "Load more results"))
@@ -529,7 +810,7 @@ struct ResultsFeedView: View {
             }
             .buttonStyle(.bordered)
             .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
-            .disabled(isLoadingMore)
+            .disabled(store.isLoadingMore)
             Spacer()
         }
         .padding(.vertical, 12)
@@ -543,84 +824,10 @@ struct ResultsFeedView: View {
         case .cyclocross:
             if cxModel.hasLoaded { await cxModel.refresh(forceRounds: false) }
         case .road:
-            await load()
+            await store.load()
         case .ranking:
             break
         }
-    }
-
-    private func load() async {
-        feedGeneration &+= 1
-        let generation = feedGeneration
-        if entries.isEmpty { isLoading = true }
-        error = nil
-        do {
-            let loadedEntries = try await SupabaseService.shared.loadResultsFeed(
-                from: fromKey,
-                to: DateFormatting.todayKey()
-            )
-            try Task.checkCancellation()
-            guard generation == feedGeneration else { return }
-            // Commit único: nunca se expone una lista previa a la resolución de
-            // ganadores y líderes.
-            entries = loadedEntries
-            isLoading = false
-        } catch is CancellationError {
-            // Navegar fuera cancela .task; se conserva el último modelo completo.
-            return
-        } catch {
-            guard generation == feedGeneration else { return }
-            self.error = error.localizedDescription
-            isLoading = false
-        }
-    }
-
-    /// Amplía la ventana 14 días más (tope: arranque de temporada). Solo se
-    /// descarga el tramo nuevo: las entradas se ordenan primero por fecha y
-    /// el tramo es anterior a todo lo cargado, así que se añade al final.
-    private func loadMore() async {
-        guard !isLoadingMore else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
-        let previousFrom = fromKey
-        let newFrom = ResultsFeedLogic.extendedFromKey(previousFrom)
-        guard newFrom < previousFrom else { return }
-        feedGeneration &+= 1
-        let generation = feedGeneration
-        fromKey = newFrom
-        do {
-            let older = try await SupabaseService.shared.loadResultsFeed(
-                from: newFrom,
-                to: ResultsFeedLogic.addDays(previousFrom, -1)
-            )
-            try Task.checkCancellation()
-            // Una carga completa posterior ya cubre la ventana ampliada.
-            guard generation == feedGeneration else { return }
-            let loadedKeys = Set(entries.map(\.key))
-            entries += older.filter { !loadedKeys.contains($0.key) }
-        } catch {
-            guard generation == feedGeneration else { return }
-            // El tramo no se cargó: se restaura el inicio de la ventana para
-            // que «Cargar más» vuelva a pedirlo.
-            fromKey = previousFrom
-            if !(error is CancellationError) { self.error = error.localizedDescription }
-        }
-    }
-
-    private func loadRanking() async {
-        if rankingRows.isEmpty { isRankingLoading = true }
-        rankingError = nil
-        do {
-            rankingRows = try await SupabaseService.shared.loadUciTeamRankings()
-        } catch {
-            if rankingRows.isEmpty {
-                rankingError = localeService.t(
-                    "No se pudo cargar el ránking UCI.",
-                    "The UCI ranking could not be loaded."
-                )
-            }
-        }
-        isRankingLoading = false
     }
 }
 
@@ -848,18 +1055,25 @@ private struct CxFeedRowView: View {
                 ZStack(alignment: .trailing) {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(spacing: 3) {
-                            RaceLogo(CyclocrossPresentation.logo(race), size: 36)
+                            RaceLogo(CyclocrossPresentation.logo(race), size: 36, placeholder: race.raceClass != "CN")
                             CountryFlag(countryCode: race.countryCode, width: 18)
                         }
+                        // Columna del logo aunque no lo haya (Nacionales): el
+                        // nombre arranca a la misma altura en todas las filas.
+                        .frame(width: 36)
 
                         VStack(alignment: .leading, spacing: 3) {
+                            // Una línea, con puntos suspensivos si no cabe.
                             Text(CyclocrossPresentation.name(race))
                                 .ccFont(.s16, weight: .semibold)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
 
                             if !subtitle.isEmpty {
                                 Text(subtitle)
                                     .ccFont(.s13)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
                                     .lineLimit(1)
@@ -955,7 +1169,7 @@ private struct FeedRowView: View {
                     HStack(alignment: entry.isFeatured ? .top : .center, spacing: 10) {
                         // Columna izquierda: logo de carrera con la bandera debajo.
                         VStack(spacing: 3) {
-                            RaceLogo(race.logoUrl, size: 36)
+                            RaceLogo(race.logoUrl, size: 36, placeholder: race.uciCategory != "CN")
                             // Bandera de la ETAPA: el país propio de la jornada
                             // (rd.countryCode) prevalece sobre el de la carrera, y
                             // vence también al hideFlag cuando está fijado (espejo
@@ -964,14 +1178,18 @@ private struct FeedRowView: View {
                                 CountryFlag(countryCode: rd?.countryCode ?? race.countryCode, width: 18)
                             }
                         }
+                        // Columna del logo aunque no lo haya (Nacionales): el
+                        // nombre arranca a la misma altura en todas las filas.
+                        .frame(width: 36)
 
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                // Nombre completo: pasa a una segunda línea en
-                                // lugar de cortarse («sub23 masculino/femenino»).
+                                // Una línea, con puntos suspensivos si no cabe;
+                                // el símbolo femenino queda visible.
                                 Text(race.localizedName)
                                     .ccFont(.s16, weight: .semibold)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
                                 if RaceLogic.shouldShowFemaleIndicator(race) {
                                     Text("♀")
                                         .ccFont(.s12)

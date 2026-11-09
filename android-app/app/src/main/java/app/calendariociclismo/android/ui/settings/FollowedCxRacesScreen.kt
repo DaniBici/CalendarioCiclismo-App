@@ -179,7 +179,7 @@ fun FollowedCxRacesScreen(navController: NavController) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            RaceLogo(url = CxPresentation.logo(race), size = 36.dp)
+                            RaceLogo(url = CxPresentation.logo(race), size = 36.dp, placeholder = race.raceClass != "CN")
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = LocaleHolder.t(race.name, race.nameEn?.takeIf { it.isNotBlank() } ?: race.name),

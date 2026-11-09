@@ -70,6 +70,10 @@ struct ResultsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var safariURL: URL?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Ancho de la pantalla: la columna de contexto exige ancho regular y al
+    /// menos `twoColumnThreshold` (en la columna de detalle del iPad puede
+    /// faltar sitio).
+    @State private var viewWidth: CGFloat = 0
 
     var body: some View {
         Group {
@@ -94,6 +98,7 @@ struct ResultsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewWidth = $0 }
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(LocaleService.t("Clasificaciones", "Classifications"))
         .navigationBarTitleDisplayMode(.inline)
@@ -328,6 +333,7 @@ struct ResultsView: View {
 
             if let activeStage {
                 if horizontalSizeClass == .regular,
+                   viewWidth == 0 || viewWidth >= AdaptiveLayoutPolicy.twoColumnThreshold,
                    let rd = headerRaceDay,
                    hasResultsStageContext(rd) {
                     HStack(alignment: .top, spacing: 16) {

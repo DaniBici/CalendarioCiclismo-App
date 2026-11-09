@@ -140,7 +140,7 @@
 }
 
 /* ── Responsive ────────────────────────────────────────────────── */
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .camp-wrap { padding: 0.85rem 0.85rem 3rem; }
   .camp-sticky__inner { padding: 0.85rem 0.85rem 0.6rem; }
   .camp-title { font-size: var(--fs-5); margin-bottom: 1rem; }

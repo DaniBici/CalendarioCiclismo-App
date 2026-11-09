@@ -321,13 +321,14 @@ class CalendarRepository(
     // ─────────── Acceso directo al backend ───────────
 
     /**
-     * Resuelve el slug de una carrera (`/competicion/<slug>/` del App Link web)
-     * al `id` real. Devuelve null si no existe — el deep-link cae a un fallback
-     * en vez de crashear. Espejo de `race(bySlug:)` en iOS.
+     * Resuelve el slug de una carrera del App Link web al `id` real:
+     * `/competicion/<slug>/` por `slug` y `/en/race/<slug>/` por `slugEn`.
+     * Devuelve null si no existe o falla la consulta; el deep-link cae entonces
+     * a la pestaña inicial. Espejo de `raceId(forWebSlug:english:)` en iOS.
      */
-    suspend fun raceIdForSlug(slug: String): String? =
+    suspend fun raceIdForSlug(slug: String, english: Boolean = false): String? =
         try {
-            api.raceBySlug(slug).id
+            api.raceIdByWebSlug(slug, english)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -335,12 +336,13 @@ class CalendarRepository(
         }
 
     /**
-     * Resuelve el slug de una jornada (`/jornada/<slug>/` del App Link web) al
-     * `id` real. Devuelve null si no existe. Espejo de `raceDay(bySlug:)` en iOS.
+     * Resuelve el slug de una jornada del App Link web al `id` real:
+     * `/jornada/<slug>/` por `slug` y `/en/stage/<slug>/` por `slugEn`.
+     * Devuelve null si no existe. Espejo de `raceDayId(forWebSlug:english:)` en iOS.
      */
-    suspend fun raceDayIdForSlug(slug: String): String? =
+    suspend fun raceDayIdForSlug(slug: String, english: Boolean = false): String? =
         try {
-            api.raceDayBySlug(slug).id
+            api.raceDayIdByWebSlug(slug, english)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -910,6 +912,9 @@ class CalendarRepository(
      * inscritos/orden de salida/resultados. El ganador con nombre canónico se
      * resuelve aparte (`resolveFeedWinners`).
      */
+    /** Último día con clasificaciones del feed hasta [toKey] (incluido). */
+    suspend fun latestResultsFeedDate(toKey: String): String? = api.latestResultsFeedDate(toKey)
+
     suspend fun loadResultsFeedWindow(fromKey: String, toKey: String): List<ResultsFeedLogic.FeedEntry> =
         coroutineScope {
             val stagesDeferred = async { api.raceUciStagesFeed(fromKey, toKey) }

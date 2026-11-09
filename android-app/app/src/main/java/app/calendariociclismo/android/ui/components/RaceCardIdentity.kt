@@ -17,13 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun RowScope.RaceCardIdentity(logoUrl: String?, title: @Composable () -> Unit, details: @Composable ColumnScope.() -> Unit, countryCode: String? = null, stackedFlag: Boolean = false) {
+fun RowScope.RaceCardIdentity(logoUrl: String?, title: @Composable () -> Unit, details: @Composable ColumnScope.() -> Unit, countryCode: String? = null, stackedFlag: Boolean = false, logoPlaceholder: Boolean = false) {
     if (stackedFlag) Column(Modifier.width(36.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         // Sin logo no se reserva el hueco de 32 dp: la bandera sube a la parte
         // superior de la card, junto a la primera línea del título (paridad iOS).
-        if (logoUrl != null) Box(Modifier.size(32.dp)) { RaceLogo(logoUrl, size = 32.dp) }
+        if (logoUrl != null || logoPlaceholder) Box(Modifier.size(32.dp)) { RaceLogo(logoUrl, size = 32.dp, placeholder = logoPlaceholder) }
         Box(Modifier.height(16.dp), contentAlignment = Alignment.Center) { CountryFlag(countryCode) }
-    } else RaceLogo(logoUrl, size = 36.dp)
+    } else RaceLogo(logoUrl, size = 36.dp, placeholder = logoPlaceholder)
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { title(); details() }
 }
 
@@ -63,13 +63,13 @@ fun RaceCardChevron() {
 }
 
 @Composable
-fun RaceCompetitionIdentity(name: String, logoUrl: String?, countryCode: String?, hideFlag: Boolean = false, showFemale: Boolean = false, onBack: () -> Unit) {
+fun RaceCompetitionIdentity(name: String, logoUrl: String?, countryCode: String?, hideFlag: Boolean = false, showFemale: Boolean = false, logoPlaceholder: Boolean = false, onBack: () -> Unit) {
     // Todo arriba aunque el nombre ocupe varias líneas, como en Hoy de Ciclocross.
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.action_back), Modifier.size(18.dp))
         }
-        RaceLogo(url = logoUrl, size = 44.dp)
+        RaceLogo(url = logoUrl, size = 44.dp, placeholder = logoPlaceholder)
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (!hideFlag) CountryFlag(countryCode, modifier = Modifier.padding(top = 7.dp))

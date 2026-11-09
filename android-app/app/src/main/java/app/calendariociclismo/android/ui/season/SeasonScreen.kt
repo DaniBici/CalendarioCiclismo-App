@@ -901,7 +901,7 @@ private fun SeasonChallengeRow(
         category = group.uciCategory ?: entry.races.firstOrNull()?.uciCategory,
         modifier = Modifier.semantics { stateDescription = stateLabel },
         showLogo = group.uciCategory != "CN",
-        logo = { RaceLogo(url = group.logoUrl, size = 28.dp) },
+        logo = { RaceLogo(url = group.logoUrl, size = 28.dp, placeholder = true) },
         trailing = { SeasonRowChevron(expanded = expanded) },
     )
 }
@@ -944,7 +944,7 @@ private fun SeasonRaceRow(
             .alpha(rowAlpha)
             .semantics { if (race.isCancelled) stateDescription = cancelledLabel },
         showLogo = !ChampionshipsConfig.isChampionship(race),
-        logo = { RaceLogo(url = race.logoUrl, size = 28.dp) },
+        logo = { RaceLogo(url = race.logoUrl, size = 28.dp, placeholder = true) },
         trailing = { SeasonRowChevron() },
     )
 }

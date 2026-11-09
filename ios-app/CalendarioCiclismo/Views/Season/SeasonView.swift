@@ -736,7 +736,7 @@ private struct SeasonRaceRow: View {
             countryCode: race.countryCode,
             showFlag: race.hideFlag != true,
             showLogo: !ChampionshipsConfig.isChampionship(race),
-            logo: { RaceLogo(race.logoUrl, size: 28) },
+            logo: { RaceLogo(race.logoUrl, size: 28, placeholder: true) },
             name: { seasonRowName(displayName, showFemale: showFemale, cancelled: race.isCancelled) },
             dates: DateFormatting.formatDateRange(start: race.startDate, end: race.endDate),
             category: race.uciCategory,
@@ -768,7 +768,7 @@ private struct SeasonChallengeRow: View {
         SeasonRowLayout(
             countryCode: group.countryCode,
             showLogo: group.uciCategory != "CN",
-            logo: { RaceLogo(group.logoUrl, size: 28) },
+            logo: { RaceLogo(group.logoUrl, size: 28, placeholder: true) },
             name: { seasonRowName(displayName, showFemale: showFemale) },
             dates: dateRange,
             category: group.uciCategory ?? races.first?.uciCategory,

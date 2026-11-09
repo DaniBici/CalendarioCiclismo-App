@@ -10,7 +10,9 @@ struct CalendarioCiclismoWidget: Widget {
         }
         .configurationDisplayName("Carreras de hoy")
         .description("Carretera y ciclocross del día: TV, directo, ganadores y próxima cita.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline])
+        // `systemExtraLarge` solo existe en la pantalla de inicio del iPad.
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge,
+                            .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }
 }
@@ -22,6 +24,12 @@ struct CalendarioCiclismoWidget: Widget {
 }
 
 #Preview(as: .systemLarge) {
+    CalendarioCiclismoWidget()
+} timeline: {
+    WidgetEntry(date: .now, response: WidgetSample.response(), fromCache: false, scope: .appFilter)
+}
+
+#Preview(as: .systemExtraLarge) {
     CalendarioCiclismoWidget()
 } timeline: {
     WidgetEntry(date: .now, response: WidgetSample.response(), fromCache: false, scope: .appFilter)

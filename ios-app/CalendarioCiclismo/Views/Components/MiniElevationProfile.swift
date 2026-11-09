@@ -141,6 +141,11 @@ struct MiniElevationProfile: View {
     /// Avance ya resuelto por el llamador (Hoy: `RaceLogic.profileProgress`).
     /// Tiene prioridad sobre el resto de reglas; nil conserva el cálculo propio.
     var fixedProgress: Double? = nil
+    /// CRI/CRE en Hoy (`RaceLogic.profileUsesTimeHatch`): el avance es tiempo
+    /// de la sesión, no distancia. La silueta queda gris entera y la parte
+    /// transcurrida lleva rayas diagonales finas del color de la carrera
+    /// (`.race-card__ep-hatch` de la web: 1 pt cada 4 pt, a 45°).
+    var timeHatch: Bool = false
 
     /// Radio del círculo del indicador en px. `nonisolated` para que el closure
     /// del `Canvas` (que se ejecuta fuera del MainActor en Swift 6) pueda leerla
@@ -155,6 +160,8 @@ struct MiniElevationProfile: View {
     }
     /// Opacidad de relleno de la porción recorrida (color de la carrera).
     nonisolated static let traversedOpacity: Double = 0.6
+    /// Separación perpendicular entre rayas del avance de CRI/CRE (pt).
+    nonisolated static let hatchSpacing: CGFloat = 4
 
     var body: some View {
         Group {
@@ -286,7 +293,25 @@ struct MiniElevationProfile: View {
             // web: la parte pendiente en gris y la recorrida con el color de
             // la carrera recortada al avance (de izquierda a derecha).
             let traversed = profileTint.opacity(Self.traversedOpacity)
-            if let progress {
+            if let progress, timeHatch {
+                ctx.fill(fillPath, with: .color(pendingFill))
+                let elapsedWidth = size.width * CGFloat(progress)
+                if elapsedWidth > 0 {
+                    var hatched = ctx
+                    hatched.clip(to: fillPath)
+                    hatched.clip(to: Path(CGRect(x: 0, y: 0, width: elapsedWidth, height: size.height)))
+                    // Rayas «/» de 1 pt con 3 pt de hueco perpendicular.
+                    let step = Self.hatchSpacing * 2.squareRoot()
+                    var lines = Path()
+                    var x = -size.height
+                    while x < elapsedWidth {
+                        lines.move(to: CGPoint(x: x, y: size.height))
+                        lines.addLine(to: CGPoint(x: x + size.height, y: 0))
+                        x += step
+                    }
+                    hatched.stroke(lines, with: .color(profileTint), lineWidth: 1)
+                }
+            } else if let progress {
                 ctx.fill(fillPath, with: .color(pendingFill))
                 var tinted = ctx
                 tinted.clip(to: Path(CGRect(x: 0, y: 0, width: size.width * CGFloat(progress), height: size.height)))

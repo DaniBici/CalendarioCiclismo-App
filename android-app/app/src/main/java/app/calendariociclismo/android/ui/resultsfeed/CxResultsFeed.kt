@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -62,8 +63,14 @@ internal fun CxResultsContent(
     onEntryTap: (CxResultsFeedLogic.Entry) -> Unit,
 ) {
     val days by remember(state) { derivedStateOf { CxResultsFeedLogic.days(state.races, state.season, state.featured) } }
-    // Como en carretera: 14 días hasta hoy y «Cargar más» amplía otros 14.
-    var windowStart by rememberSaveable { mutableStateOf(LocalDate.now().minusDays(CX_WINDOW_DAYS - 1L).toString()) }
+    // Como en carretera: 14 días contados desde el último día con resultados
+    // (como mucho, hoy), para que un periodo sin pruebas no deje la lista
+    // vacía; «Cargar más» amplía otros 14.
+    var extraWindows by rememberSaveable { mutableStateOf(0) }
+    val today = LocalDate.now().toString()
+    val anchor = days.map { it.date }.filter { it <= today }.maxOrNull() ?: today
+    val windowStart = LocalDate.parse(anchor)
+        .minusDays(CX_WINDOW_DAYS - 1L + extraWindows * CX_WINDOW_DAYS.toLong()).toString()
     val visible = days.filter { it.date >= windowStart }
     when {
         !state.loaded && state.error != null && !state.busy -> Column(
@@ -91,7 +98,7 @@ internal fun CxResultsContent(
             adaptiveInfo = adaptiveInfo,
             onEntryTap = onEntryTap,
             canLoadMore = days.any { it.date < windowStart },
-            onLoadMore = { windowStart = LocalDate.parse(windowStart).minusDays(CX_WINDOW_DAYS.toLong()).toString() },
+            onLoadMore = { extraWindows += 1 },
         )
     }
 }
@@ -197,15 +204,19 @@ private fun CxFeedEntryRow(
     val race = entry.race
     FeedRowFrame(
         logoUrl = CxPresentation.logo(race),
+        logoPlaceholder = race.raceClass != "CN",
         flagCountryCode = race.countryCode?.takeIf { it.isNotBlank() },
         alignTop = true,
         onClick = onClick,
         modifier = modifier,
     ) {
+        // Una línea, con puntos suspensivos si no cabe.
         Text(
             text = LocaleHolder.t(race.name, race.nameEn?.takeIf { it.isNotBlank() } ?: race.name),
             style = CCText.S16,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         val tournament = race.tournament?.let { LocaleHolder.t(it.name, it.nameEn?.takeIf { name -> name.isNotBlank() } ?: it.name) }
         val venue = race.venue?.takeIf { it.isNotBlank() && it != race.name }

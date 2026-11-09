@@ -102,6 +102,8 @@ const textarea=(name,label,value='',extra='')=>`<label class="cx-field cx-wide">
 const checkbox=(name,label,checked)=>`<label class="cx-check"><input name="${name}" type="checkbox" ${checked?'checked':''}>${esc(label)}</label>`;
 const actions=(save='Guardar')=>`<div class="cx-actions"><button class="btn btn--primary" type="submit">${save}</button><span class="cx-error" role="alert"></span></div>`;
 const dataOf=root=>{const values={};for(const node of root.querySelectorAll('input[name],select[name],textarea[name]')){if(node.disabled || node.type==='radio'&&!node.checked)continue;values[node.name]=node.type==='checkbox'?node.checked:node.value;}return values;};
+// Estados de TV de la carrera, los del editor de jornadas de carretera.
+const CX_TV_STATUS_OPTIONS=[['','—'],['confirmed_time','Confirmado con hora'],['confirmed_notime','Confirmado sin hora'],['pending','Por confirmar'],['none','Sin retransmisión'],['unavailable_es','No TV España']];
 const emptyNull=v=>v===''?null:v;
 const get=form=>Object.fromEntries(Object.entries(dataOf(form)).map(([k,v])=>[k,emptyNull(v)]));
 const categoryOptions=(categories,selected,global=false)=>`${global?option('','Todas',selected):''}${categories.map(c=>option(c.category,c.category,selected)).join('')}`;
@@ -351,12 +353,12 @@ function cxOriginHtml(link,timingLinks,lastDumpAt) {
   const dataRide=link?`<div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
     ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}`:'';
   const acn=timingLinks.map(timingLink=>{
-    const wiclax=timingLink.provider==='wiclax',kbwb=timingLink.provider==='kbwb',smartweb=timingLink.provider==='smartweb',golazo=timingLink.provider==='golazo',zone4=timingLink.provider==='zone4';
-    const timingUrl=wiclax||smartweb||golazo?timingLink.sourceUrl:kbwb?'https://cycling.vlaanderen/competitie/uitslagen':zone4?cxZone4Url(timingLink):cxAcnUrl(timingLink);
+    const wiclax=timingLink.provider==='wiclax',kbwb=timingLink.provider==='kbwb',smartweb=timingLink.provider==='smartweb',golazo=timingLink.provider==='golazo',zone4=timingLink.provider==='zone4',chronoraceXco=timingLink.provider==='chronorace_xco',fotofiniss=timingLink.provider==='fotofiniss',raceresult=timingLink.provider==='raceresult';
+    const timingUrl=wiclax||smartweb||golazo||fotofiniss||raceresult?timingLink.sourceUrl:kbwb?'https://cycling.vlaanderen/competitie/uitslagen':zone4?cxZone4Url(timingLink):chronoraceXco?cxChronoraceXcoUrl(timingLink):cxAcnUrl(timingLink);
     const timingKeys=()=>Object.entries(timingLink.categoryKeys||{}).map(([key,category])=>`${esc(key)} (${esc(category)})`).join(', ');
     const timingDetail=wiclax?`${Object.keys(timingLink.categoryKeys||{}).length} recorridos`
-      :kbwb?`pruebas ${timingKeys()}`:smartweb?`clasificaciones ${timingKeys()}`:golazo?`páginas ${timingKeys()}`:zone4?`grupos ${timingKeys()}`:`evento ${esc(timingLink.eventId)}`;
-    return `<div class="ru-origin__state">${golazo?'Organizador':both||timingLinks.length>1?'Cronometraje':'Origen'}: <a href="${esc(timingUrl)}" target="_blank" rel="noopener">${wiclax?'Wiclax':kbwb?'KBWB':smartweb?'smartweb':golazo?'Golazo':zone4?'Zone4':'ACN Timing'} ↗</a>
+      :kbwb?`pruebas ${timingKeys()}`:smartweb?`clasificaciones ${timingKeys()}`:golazo?`páginas ${timingKeys()}`:zone4||fotofiniss?`grupos ${timingKeys()}`:raceresult?`concursos ${timingKeys()}`:chronoraceXco?`contexto ${esc(timingLink.ctx)}`:`evento ${esc(timingLink.eventId)}`;
+    return `<div class="ru-origin__state">${golazo?'Organizador':both||timingLinks.length>1?'Cronometraje':'Origen'}: <a href="${esc(timingUrl)}" target="_blank" rel="noopener">${wiclax?'Wiclax':kbwb?'KBWB':smartweb?'smartweb':golazo?'Golazo':zone4?'Zone4':chronoraceXco?'Chronorace':fotofiniss?'fotofiniss':raceresult?'RaceResult':'ACN Timing'} ↗</a>
       <span class="u-c-dim"> · ${timingDetail} · ${timingLink.syncEnabled?'recogida automática activa':'recogida desactivada'}</span></div>
     ${timingLink.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(timingLink.lastFetchError)}</div>`:''}`;
   }).join('');
@@ -373,6 +375,8 @@ function cxOriginHtml(link,timingLinks,lastDumpAt) {
 const cxAcnUrl=link=>`https://www.acn-timing.com/?lng=EN#/events/${link.eventId}/ctx/${link.ctx}/cms`;
 // Zone4: clave «<fecha>/<formato>/<grupo>»; enlaza la página de resultados de la primera oleada.
 const cxZone4Url=link=>{const [date,format]=String(Object.keys(link.categoryKeys||{})[0]||'').split('/');return date&&format?`https://zone4.ca/race/${date}/${format}/results/`:'https://zone4.ca/';};
+// Chronorace, visor UCI «xco» (Campeonatos de Europa UEC): el enlace guarda solo el contexto.
+const cxChronoraceXcoUrl=link=>`https://prod.chronorace.be/angular/results.html#/uci/event/${link.ctx}`;
 // Las ventanas CX son minutos relativos al final estimado de cada manga, no horas absolutas.
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
@@ -538,23 +542,19 @@ async function editRace(existing=null,section='identity',presetDate=null,{duplic
   }catch(error){ctx.showToast(error.message,'error');}
 }
 
-async function markCxRacePageIfMissing(slug) {
-  try {
-    const response=await fetch(`/ciclocross/${encodeURIComponent(slug)}/`,{method:'HEAD',cache:'no-store'});
-    if(response.ok||response.status!==404)return;
-    const {error}=await ctx.supabase.rpc('admin_mark_web_pages_dirty');
-    if(error)console.warn('No se pudo marcar la creación de páginas CX:',error.message||error);
-  }catch(error){console.warn('No se pudo comprobar la página de ciclocross; no se regenera:',error?.message||error);}
-}
-
 function raceForm(root,race,categories,handle,slugRaces=[]) {
   const saveId=race.id||crypto.randomUUID();
-  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',cxDurationFormatOptions(category),c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
+  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${select('tvStatus','Televisión',CX_TV_STATUS_OPTIONS,race.tvStatus||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',cxDurationFormatOptions(category),c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
   const form=root.querySelector('form');
   boxSection(form,'Identidad',[form.querySelector('.cx-grid')]);
   form.querySelector('h2').remove();
   boxSection(form,'Categorías',[form.querySelector('.cx-category-options'),form.querySelector('.cx-category-grid')]);
   wireLogoField(form);
+  // Los Campeonatos Nacionales no llevan logo: el campo se oculta con la
+  // clase CN y el valor guardado se conserva sin cambios.
+  const classSelect=form.querySelector('.cx-grid [name=class]'),logoWrap=form.querySelector('.cx-logo-field');
+  const syncLogoField=()=>{logoWrap.hidden=classSelect.value==='CN';};
+  classSelect.addEventListener('change',syncLogoField);syncLogoField();
   wireRaceColorField(form);
   attachCountryAutocomplete(form.querySelector('.cx-grid [name=countryCode]'));
   const updateDateBounds=()=>{
@@ -625,7 +625,6 @@ function raceForm(root,race,categories,handle,slugRaces=[]) {
     let allow=false;if(removed.length){allow=await confirmDialog({title:'Eliminar categorías',message:`Se eliminan ${removed.map(c=>c.category).join(', ')} y sus inscritos, resultados, TV y vídeos.`,confirmText:'Eliminar categorías'});if(!allow)return;}
     const id=await cxRpc(ctx.supabase,'cx_save_race',{p_race:payload,p_categories:selected,p_allow_category_removal:allow});
     ctx.showToast('Carrera guardada','success');
-    void markCxRacePageIfMissing(payload.slug);
     await refresh();
     if(!form.isConnected||!handle.isCurrent())return;
     handle.close();await editRace({id});

@@ -25,6 +25,14 @@ data class Team(
     val countryCode: String? = null,
     val selectionCode: String? = null,
 ) {
+    /** Selección nacional: en resultados se muestra como país, sin franjas. */
+    val isNationalSelection: Boolean
+        get() = teamKind == "selection" && selectionScope == "national"
+
+    /** Franjas en una tabla de resultados: chapa curada y no selección nacional. */
+    val hasResultBadge: Boolean
+        get() = hasVisibleBadge && !isNationalSelection
+
     /** La chapa solo se muestra con colores de equipación curados. */
     val hasVisibleBadge: Boolean
         get() {

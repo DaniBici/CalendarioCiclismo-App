@@ -6,7 +6,7 @@ import { formatDurationSeconds, hasValidTimeLimit } from '../services/race-prese
 // Datos compartidos por Resultados y Orden de Salida, incluidos sus refrescos.
 // Sin DOM: el build escribe el mismo HTML que el navegador (decimales con
 // tablas fijas, js/fixed-number.js; hora de salida en la zona del proceso).
-export function stageMetricsHtml(day, { hideNeutralStart = false } = {}) {
+export function stageMetricsHtml(day, { hideNeutralStart = false, timeZoneLabel = null } = {}) {
   const en = getLang() === 'en';
   const lang = en ? 'en' : 'es';
   // Mismo formato que el resto de la web: decimales del idioma y desnivel
@@ -18,7 +18,8 @@ export function stageMetricsHtml(day, { hideNeutralStart = false } = {}) {
   const route = start && sameStartFinish
     ? [[en ? 'Start and finish' : 'Salida y llegada', start]]
     : [start ? [en ? 'Start' : 'Salida', start] : null, finish ? [en ? 'Finish' : 'Llegada', finish] : null];
-  const neutralStart = day.neutralStartTimeUtc && !hideNeutralStart ? timeWithDay(formatTimeUser(day.neutralStartTimeUtc, day.dateKey)) : null;
+  const neutralTime = day.neutralStartTimeUtc && !hideNeutralStart ? timeWithDay(formatTimeUser(day.neutralStartTimeUtc, day.dateKey)) : null;
+  const neutralStart = neutralTime && timeZoneLabel ? `${neutralTime} ${timeZoneLabel}` : neutralTime;
   const metrics = [
     ...route,
     day.distanceKm ? [en ? 'Distance' : 'Distancia', `${fixedDecimal(day.distanceKm, { lang })} km`] : null,

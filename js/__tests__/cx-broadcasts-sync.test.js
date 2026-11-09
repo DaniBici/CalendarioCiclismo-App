@@ -322,7 +322,7 @@ describe('Sporza: livestreams de veldrijden', () => {
 
 // Base de datos en memoria con las sentencias que usa el sincronizador.
 function fakeDb({ raceRows, broadcastRows, conflictOnUpdate = false }) {
-  const state = { broadcasts: structuredClone(broadcastRows), logs: [], writes: 0, backup: null };
+  const state = { broadcasts: structuredClone(broadcastRows), logs: [], writes: 0, backup: null, tvStatus: {} };
   const clone = (row) => ({ ...row, startTimeUtc: row.startTimeUtc ? new Date(row.startTimeUtc) : null });
   return {
     state,
@@ -359,6 +359,10 @@ function fakeDb({ raceRows, broadcastRows, conflictOnUpdate = false }) {
           row[column] = params[Number(index) - 1];
         }
         state.writes += 1;
+        return { rows: [], rowCount: 1 };
+      }
+      if (/^UPDATE public\.cx_races SET "tvStatus" = 'confirmed_time'/.test(text)) {
+        state.tvStatus[params[0]] = 'confirmed_time';
         return { rows: [], rowCount: 1 };
       }
       if (/^INSERT INTO private\.cx_change_log/.test(text)) {
@@ -425,6 +429,7 @@ describe('pasada completa del sincronizador de ciclocross', () => {
     ]);
     expect(meulebeke.map((row) => row.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(db.state.logs).toHaveLength(2);
+    expect(db.state.tvStatus).toEqual({ dendermonde: 'confirmed_time', meulebeke: 'confirmed_time' });
 
     const again = await runCxBroadcasts({
       client: db, applySources: new Set(CX_SOURCES), collectors: collectors(), now: NOW,

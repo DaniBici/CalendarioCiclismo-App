@@ -91,6 +91,9 @@ struct TodayHighlightsBanner: View {
         .background(cardSurface)
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .ccCardShadow()
+        // En ventanas anchas, centrado y con ancho máximo.
+        .frame(maxWidth: AdaptiveLayoutPolicy.headerStripMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, cardHorizontalMargin)
         // Swipe horizontal manual para cambiar de slide. `highPriorityGesture`
         // garantiza que SwiftUI atienda primero el swipe antes que cualquier

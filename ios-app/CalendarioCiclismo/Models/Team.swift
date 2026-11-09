@@ -23,6 +23,12 @@ struct Team: Codable, Identifiable {
     var countryCode: String? = nil
     var selectionCode: String? = nil
 
+    /// Selección nacional: en resultados se muestra como país, sin franjas.
+    var isNationalSelection: Bool { teamKind == "selection" && selectionScope == "national" }
+
+    /// Franjas en una tabla de resultados: chapa curada y no selección nacional.
+    var hasResultBadge: Bool { hasVisibleBadge && !isNationalSelection }
+
     /// La chapa solo se considera disponible cuando los colores del maillot
     /// dejan de ser la paleta predeterminada del catálogo.
     var hasVisibleBadge: Bool {
@@ -97,6 +103,23 @@ struct Team: Codable, Identifiable {
         "mo": "Macao",
     ]
 
+    private static let nationalNamesEn: [String: String] = [
+        "ain": "Individual Neutral Athletes",
+        "gb": "Great Britain",
+    ]
+
+    /// Nombre de la selección de un país (código ISO-2 o de selección); nil si
+    /// no se reconoce. Espejo de `nationalSelectionName` en
+    /// `js/services/national-team-name.js`.
+    static func selectionName(_ code: String?, isEnglish: Bool) -> String? {
+        let key = (code ?? "").lowercased()
+        if let fixed = (isEnglish ? nationalNamesEn : nationalNamesEs)[key] { return fixed }
+        guard key.count == 2, key.allSatisfy({ $0.isASCII && $0.isLetter }),
+              let label = Locale(identifier: isEnglish ? "en" : "es").localizedString(forRegionCode: key.uppercased()),
+              label.uppercased() != key.uppercased() else { return nil }
+        return label
+    }
+
     /// Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
     /// («France»). En castellano se muestra el país en castellano a partir del
     /// código de la ficha («Francia»); en inglés, `name` sin cambio. Solo afecta
@@ -117,14 +140,8 @@ struct Team: Codable, Identifiable {
         countryCode: String?, selectionCode: String?, isEnglish: Bool
     ) -> String {
         guard !isEnglish, teamKind == "selection", selectionScope == "national" else { return name }
-        let code = ([countryCode, selectionCode].compactMap { $0 }.first { !$0.isEmpty } ?? "").lowercased()
-        var country = nationalNamesEs[code]
-        if country == nil, code.count == 2, code.allSatisfy({ $0.isASCII && $0.isLetter }),
-           let label = Locale(identifier: "es").localizedString(forRegionCode: code.uppercased()),
-           label.uppercased() != code.uppercased() {
-            country = label
-        }
-        guard let country else { return name }
+        let code = [countryCode, selectionCode].compactMap { $0 }.first { !$0.isEmpty }
+        guard let country = selectionName(code, isEnglish: false) else { return name }
         if let age = name.range(of: #"\bU\d{2}\b"#, options: [.regularExpression, .caseInsensitive]) {
             return "\(country) sub\(name[age].dropFirst())"
         }

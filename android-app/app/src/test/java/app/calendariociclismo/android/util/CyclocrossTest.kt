@@ -52,19 +52,19 @@ class CyclocrossTest {
         assertEquals("53:30", CxPresentation.resultRow(winner.copy(timeText = null, timeSeconds = 3210), java.util.Locale.UK).valueText)
     }
 
-    @Test fun `general previa se sustituye solo por publicacion que incluye la ronda actual`() {
+    @Test fun `general solo con resultados oficiales y publicacion que incluye la ronda actual`() {
         val scheme = json.parseToJsonElement("""{"categories":{"ME":{"mode":"time"},"WU":{"mode":"points","extras":{"derived":{"fromCategory":"ME"}}}}}""") as kotlinx.serialization.json.JsonObject
         val configured = race.copy(tournament = CxTournament("t", "X2O", slug = "x2o", pointsScheme = scheme), categories = race.categories.map { it.copy(resultsStatus = "official") })
         val rows = listOf(CxStanding("s", "t", "2026-27", "ME", 1, "Rider", timeSeconds = 90061), CxStanding("u", "t", "2026-27", "WU", 1, "Rider", points = 50.0))
         val prior = listOf(CxStandingState("ME", "ready", listOf("prior")), CxStandingState("WU", "ready", listOf("prior")))
         val before = CxDetail(configured, standings = rows, standingsState = prior)
-        assertEquals(listOf("ME", "WU"), CxPresentation.generalCategories(before))
+        assertTrue(CxPresentation.generalCategories(before).isEmpty())
         val after = before.copy(results = listOf(CxResult(1, race.id, "ME", rank = 1, riderDisplay = "Rider")))
         assertTrue(CxPresentation.generalCategories(after).isEmpty())
         val updated = after.copy(standingsState = listOf(CxStandingState("ME", "ready", listOf(race.id)), CxStandingState("WU", "manual", listOf(race.id))))
         assertEquals(listOf("ME", "WU"), CxPresentation.generalCategories(updated))
         assertTrue(CxPresentation.generalCategories(after.copy(standingsState = listOf(CxStandingState("ME", "needs_review", listOf(race.id))))).isEmpty())
-        assertEquals(listOf("ME", "WU"), CxPresentation.generalCategories(before.copy(standingsState = emptyList())))
+        assertTrue(CxPresentation.generalCategories(before.copy(standingsState = emptyList())).isEmpty())
         assertTrue(CxPresentation.generalCategories(after.copy(standingsState = emptyList())).isEmpty())
         assertFalse("WU" in CxPresentation.actualCategories(before))
     }

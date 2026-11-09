@@ -9,7 +9,7 @@ import {
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveRaceHintMatch, rtveVueltaExternalEventId, zonedTimeToUtc,
 } from '../../scripts/broadcasts-sync/broadcasts-sync-core.mjs';
 import {
-  adoptionCandidate, applyOne, applyRtveVueltaReplay, collectEitb, collectRtve,
+  adoptionCandidate, applyOne, applyRtveVueltaReplay, collectEitb, collectHbo, collectRtve,
   collectRtbf, collectRtveVueltaReplays, confirmTvStatus, loadRtveVueltaReplayCandidates,
   mergeManagedBroadcast, preferredRtveOneDayObservations, rtveOneDayExternalEventId, sameManagedState,
   scopedObservation, withMontoneraNote, withRtbfTransitionNote,
@@ -92,8 +92,20 @@ describe('sincronización oficial de emisiones', () => {
     expect(zonedTimeToUtc('2026-12-15', '14:30')).toBe('2026-12-15T13:30:00.000Z');
   });
 
-  it('falla de forma explícita si RTVE no devuelve ciclismo', async () => {
-    await expect(collectRtve(async () => '<html></html>')).rejects.toThrow(/RTVE no devolvió/);
+  it('falla de forma explícita si la guía de RTVE no es reconocible o no responde', async () => {
+    await expect(collectRtve(async () => '<html></html>')).rejects.toThrow(/RTVE no devolvió una guía reconocible/);
+    await expect(collectRtve(async () => { throw new Error('500 al consultar'); })).rejects.toThrow(/500 al consultar/);
+  });
+
+  it('HBO Max distingue una ventana sin ciclismo de un catálogo no reconocible', async () => {
+    const catalog = async () => fixture('hbo-cycling.html');
+    const diagnostics = [];
+    await expect(collectHbo(catalog, new Date('2026-11-20T12:00:00Z'), { diagnostics })).resolves.toEqual([]);
+    expect(diagnostics).toEqual([expect.objectContaining({ source: 'hbo_max', action: 'no_cycling_events' })]);
+    const inWindow = [];
+    await expect(collectHbo(catalog, new Date('2026-08-26T12:00:00Z'), { diagnostics: inWindow })).resolves.not.toEqual([]);
+    expect(inWindow).toEqual([]);
+    await expect(collectHbo(async () => '<html></html>')).rejects.toThrow(/no contiene eventos/);
   });
 
   it('extrae los directos de RTVE Play, descarta otros deportes y conserva la marca UTC', () => {
@@ -401,8 +413,10 @@ describe('sincronización oficial de emisiones', () => {
     const fetcher = async () => fixture('rtve-structured-tdp.html');
     await expect(collectRtve(fetcher, new Date('2026-08-25T12:00:00Z')))
       .resolves.toHaveLength(1);
-    await expect(collectRtve(fetcher, new Date('2026-08-30T12:00:00Z')))
-      .rejects.toThrow(/ventana -1\/\+8 días/);
+    const diagnostics = [];
+    await expect(collectRtve(fetcher, new Date('2026-08-30T12:00:00Z'), { diagnostics }))
+      .resolves.toEqual([]);
+    expect(diagnostics).toEqual([expect.objectContaining({ source: 'rtve', action: 'no_cycling_events' })]);
   });
 
   it('mantiene una emisión TDP y anota el relevo posterior a La 2 o La 1', () => {

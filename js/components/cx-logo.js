@@ -1,7 +1,10 @@
 import {cxUrl} from '../cx/editor-logic.js';
 
+// Los Campeonatos Nacionales (clase CN) nunca muestran logo, ni el propio ni
+// el del torneo: los que hubiera se ocultan sin borrarlos.
 export function cxLogoSources(race,tournament=race?.cx_tournaments) {
   const sources=[];
+  if(race?.class==='CN')return sources;
   for(const [value,source] of [[race?.logoUrl,'race'],[tournament?.logoUrl,'tournament']]) {
     try {
       const url=cxUrl(value?.trim());

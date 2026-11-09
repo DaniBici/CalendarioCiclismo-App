@@ -14,7 +14,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { countryCode } from '../uci-catalog/countries.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 import { acnCategories, acnTarget, resolveAcnContext } from './acn-cx-fetch.mjs';
 
 export const ACN_DISCOVERY_PAGES = Object.freeze(['https://hgcross.be/uitslagen/']);
@@ -109,7 +109,7 @@ async function discoverEvents(pages, { fetchText, fetchEvent }, window) {
 async function main() {
   if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
   const { Client } = await import('pg');
-  const client = new Client({ connectionString: databaseUrl(), ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false } });
+  const client = new Client({ connectionString: databaseUrl(), ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   await client.connect();
   const summary = { dryRun: DRY_RUN, candidates: 0, linked: [], skipped: [] };
   try {

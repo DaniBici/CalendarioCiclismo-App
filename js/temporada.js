@@ -2,131 +2,73 @@
 //  TEMPORADA — temporada.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
-         categoryBadge, setMeta, setMetaProperty, initPhTooltip,
-         bulkCacheRaces,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
-         needsFemaleMark, cleanFeminineName }
+import { supabase, setMeta, setMetaProperty, initPhTooltip, bulkCacheRaces,
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed }
          from './shared.js';
-import { isTourDelPorvenir } from './category-filter.js';
+import { S, _getFilteredData, tCountryName, temporadaCountries, temporadaListHtml } from './temporada-html.js';
 import { t, initI18n, getLang } from './i18n.js';
 import { readCalendarMonth } from './calendario-query.js';
 import { seasonCalendarYear } from './services/today-season.js';
-import { fetchAllRows, fetchAllRowsParallel } from './services/paged-query.js';
+import { fetchAllRowsParallel } from './services/paged-query.js';
 import { staleWhileRevalidate } from './services/local-cache.js';
-import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
+import { PROFILE_PROBE_COLUMN } from './stage/profile-availability.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
-import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, campUrl, campTitle, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
+import { openRaceDataModal } from './race-data-modal.js';
+import { isOnChampionshipsPage } from './campeonatos-config.js';
 
-// Fila sintética "Campeonatos Nacionales" (CN) — aparece en TODAS las categorías
-// porque se inyecta tras el filtro. Enlaza a la página de Modo Campeonatos, que
-// recoge las CN de su ventana; las de fuera se listan agrupadas por país.
-const CHAMPIONSHIPS_ITEM = {
-  id: '__championships__', _isChampionshipsLink: true,
-  name: CAMP.TITLE_ES, nameEn: CAMP.TITLE_EN, uciCategory: 'CN',
-  startDate: CAMP.RANGE_START, endDate: CAMP.RANGE_END, year: CAMP.YEAR,
-  countryCode: null, logoUrl: null, raceFormat: 'one_day', _days: [],
-};
 
-// Devuelve true si el color hex es blanco o muy claro (luminancia > 0.85)
-function isNearWhite(hex) {
-  if (!hex) return false;
-  const h = hex.replace('#', '');
-  if (h.length !== 3 && h.length !== 6) return false;
-  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
-  const r = parseInt(full.slice(0, 2), 16) / 255;
-  const g = parseInt(full.slice(2, 4), 16) / 255;
-  const b = parseInt(full.slice(4, 6), 16) / 255;
-  // Luminancia relativa (fórmula sRGB)
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return lum > 0.85;
-}
 
-// Color de paleta apagado para sustituir blancos en hover
-const WHITE_FALLBACK_COLOR = '#7a9cc4';
-
-function raceColor(colorHex) {
-  if (!colorHex) return 'var(--accent)';
-  return isNearWhite(colorHex) ? WHITE_FALLBACK_COLOR : colorHex;
-}
-
-function formatDateRange(days) {
-  if (!days.length) return '';
-  const sorted = [...days].sort((a, b) => (a.dateKey || '').localeCompare(b.dateKey || ''));
-  const first = sorted[0].dateKey;
-  const last  = sorted[sorted.length - 1].dateKey;
-  const MONTHS = t('months.short');
-  const fmt = key => {
-    const [, m, d] = key.split('-').map(Number);
-    return `${d} ${MONTHS[m-1]}`;
-  };
-  if (first === last) return fmt(first);
-  const [, m1] = first.split('-').map(Number);
-  const [, m2, d2] = last.split('-').map(Number);
-  return m1 === m2
-    ? `${first.split('-')[2].replace(/^0/, '')} – ${d2} ${MONTHS[m2-1]}`
-    : `${fmt(first)} – ${fmt(last)}`;
-}
 
 // ── Estado ───────────────────────────────────────────────────────
-let allRaces          = [];   // [{...raceData, id, _days:[{dateKey}]}]
-let allChallengeGroups = [];  // [{...groupData, id, _races:[raceObj]}]
-// Ids de los grupos desplegados: sobreviven a los repintados y a la vuelta desde una carrera.
 const _navOnLoad = JSON.parse(sessionStorage.getItem('cc_nav') || '{}');
-const expandedChallenges = new Set(_navOnLoad.from === 'temporada' ? _navOnLoad.expanded : []);
+S.expandedChallenges = new Set(_navOnLoad.from === 'temporada' ? _navOnLoad.expanded : []);
 // Año por defecto: el siguiente tras el cierre de la temporada de carretera
 // (services/today-season.js).
 const _now = new Date();
-let activeYear        = seasonCalendarYear(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
-window._icalYear = activeYear;
-let activeCat         = getPinnedFilter() || 'all';
-let activeCountry     = '';
+S.activeYear = seasonCalendarYear(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
+window._icalYear = S.activeYear;
+S.activeCat = getPinnedFilter() || 'all';
 
-// ── Lazy loading por mes ─────────────────────────────────────────
-let _loadedMonths  = new Set();  // meses con race_days cargados, e.g. "2026-04"
-let _daysByRace    = {};         // race_days acumulados: { raceId: [{id,dateKey,...}] }
-let _monthObserver = null;       // IntersectionObserver para carga lazy
 let _pendingMonth  = null;       // ?mes= / ?month=: mes al que se desplaza la primera pintura
 
 // ── Carga inicial ────────────────────────────────────────────────
 async function init() {
   // Leer año y filtro de categoría de la URL si vienen como parámetros
   const params = new URLSearchParams(location.search);
-  if (params.get('year')) activeYear = parseInt(params.get('year'));
-  if (params.get('cat'))  activeCat  = params.get('cat');
+  if (params.get('year')) S.activeYear = parseInt(params.get('year'));
+  if (params.get('cat'))  S.activeCat  = params.get('cat');
   // Mes de la URL (compartido con la subvista Mes): fija el año si no viene
   // ?year y desplaza la primera pintura a ese mes.
   const mesParam = readCalendarMonth(params);
   if (mesParam) {
     _pendingMonth = mesParam;
-    if (!params.get('year')) activeYear = Number(mesParam.slice(0, 4));
+    if (!params.get('year')) S.activeYear = Number(mesParam.slice(0, 4));
   }
-window._temporadaCat = activeCat;
+window._temporadaCat = S.activeCat;
 
   // Actualizar el label del nav con el año activo
   document.querySelectorAll('#navTemporadaLabel').forEach(el => {
-    el.textContent = activeYear;
+    el.textContent = S.activeYear;
   });
 
   // Poblar selector de años (rango fijo para evitar consulta extra)
   const currentYear = new Date().getFullYear();
   const years = [currentYear + 1, currentYear, currentYear - 1].filter(y => y >= 2026).sort((a, b) => b - a);
-  if (!years.includes(activeYear)) years.unshift(activeYear);
+  if (!years.includes(S.activeYear)) years.unshift(S.activeYear);
   years.sort((a, b) => b - a);
   const yearSel = document.getElementById('filterYear');
   years.forEach(y => {
     const opt = document.createElement('option');
     opt.value = y;
     opt.textContent = y;
-    if (y === activeYear) opt.selected = true;
+    if (y === S.activeYear) opt.selected = true;
     yearSel.appendChild(opt);
   });
 
   yearSel.addEventListener('change', async () => {
-    activeYear = parseInt(yearSel.value);
-  window._icalYear = activeYear;
-    document.querySelectorAll('#navTemporadaLabel').forEach(el => el.textContent = activeYear);
+    S.activeYear = parseInt(yearSel.value);
+  window._icalYear = S.activeYear;
+    document.querySelectorAll('#navTemporadaLabel').forEach(el => el.textContent = S.activeYear);
     await reloadYear();
   });
 
@@ -134,7 +76,7 @@ window._temporadaCat = activeCat;
   document.getElementById('filterMonth').addEventListener('change', function () {
     const m = this.value;
     if (!m) return;
-    const id = `mes-${activeYear}-${m}`;
+    const id = `mes-${S.activeYear}-${m}`;
     const el = document.getElementById(id);
     if (el) {
       const stickyH = document.querySelector('.temporada-filters')?.offsetHeight || 0;
@@ -150,23 +92,23 @@ window._temporadaCat = activeCat;
   // Sincronizar botones de filtro con el estado inicial (puede venir de URL o pin)
   const filterCats = document.getElementById('filterCats');
   filterCats.querySelectorAll('.tcat-btn').forEach(b => {
-    setPressed(b, b.dataset.cat === activeCat);
+    setPressed(b, b.dataset.cat === S.activeCat);
   });
-  renderFilterPins(filterCats, activeCat);
+  renderFilterPins(filterCats, S.activeCat);
 
   const onTempFilterEvent = e => {
     const res = handleFilterEvent(e);
     if (!res) return;
     if (res.type === 'pin') {
-      renderFilterPins(filterCats, activeCat);
+      renderFilterPins(filterCats, S.activeCat);
       return;
     }
-    activeCat = res.cat;
-    window._temporadaCat = activeCat;
+    S.activeCat = res.cat;
+    window._temporadaCat = S.activeCat;
     filterCats.querySelectorAll('.tcat-btn').forEach(b =>
-      setPressed(b, b.dataset.cat === activeCat)
+      setPressed(b, b.dataset.cat === S.activeCat)
     );
-    renderFilterPins(filterCats, activeCat);
+    renderFilterPins(filterCats, S.activeCat);
     render();
   };
   filterCats.addEventListener('click', onTempFilterEvent);
@@ -175,7 +117,7 @@ window._temporadaCat = activeCat;
   const filterCountrySel = document.getElementById('filterCountry');
   if (filterCountrySel) {
     filterCountrySel.addEventListener('change', () => {
-      activeCountry = filterCountrySel.value;
+      S.activeCountry = filterCountrySel.value;
       render();
     });
   }
@@ -187,7 +129,7 @@ window._temporadaCat = activeCat;
     const rdId   = el.dataset.rdid;
     const raceId = el.dataset.raceid;
     if (!rdId || !raceId) return;
-    const raceObj = allRaces.find(r => r.id === raceId);
+    const raceObj = S.allRaces.find(r => r.id === raceId);
     if (raceObj) openRaceDataModal(rdId, raceObj);
   });
 
@@ -201,9 +143,9 @@ window._temporadaCat = activeCat;
   document.getElementById('temporadaContent').addEventListener('click', e => {
     if (e.target.closest('.t-race:not(.t-race--challenge)')) {
       sessionStorage.setItem('cc_nav', JSON.stringify({
-        from: 'temporada', year: activeYear, cat: activeCat,
+        from: 'temporada', year: S.activeYear, cat: S.activeCat,
         scrollY: Math.round(window.scrollY),
-        expanded: [...expandedChallenges],
+        expanded: [...S.expandedChallenges],
       }));
     }
   });
@@ -212,198 +154,11 @@ window._temporadaCat = activeCat;
 }
 
 
-// ── Helpers de países ────────────────────────────────────────────
-const COUNTRY_LIST_T = [
-  // Regionales españolas (normalizadas a 'es' en el selector)
-  { code: 'es-an', name: 'Andalucía' },
-  { code: 'es-ar', name: 'Aragón' },
-  { code: 'es-as', name: 'Asturias' },
-  { code: 'es-cn', name: 'Canarias' },
-  { code: 'es-cb', name: 'Cantabria' },
-  { code: 'es-cm', name: 'Castilla-La Mancha' },
-  { code: 'es-cl', name: 'Castilla y León' },
-  { code: 'es-ct', name: 'Catalunya' },
-  { code: 'es-ce', name: 'Ceuta' },
-  { code: 'es-vc', name: 'Comunidad Valenciana' },
-  { code: 'es-ex', name: 'Extremadura' },
-  { code: 'es-ga', name: 'Galicia' },
-  { code: 'es-ib', name: 'Islas Baleares' },
-  { code: 'es-ri', name: 'La Rioja' },
-  { code: 'es-md', name: 'Madrid' },
-  { code: 'es-ml', name: 'Melilla' },
-  { code: 'es-mc', name: 'Murcia' },
-  { code: 'es-nc', name: 'Navarra' },
-  { code: 'es-pv', name: 'País Vasco' },
-  // A
-  { code: 'am', name: 'Armenia' },
-  { code: 'bi', name: 'Burundi' },
-  { code: 'bj', name: 'Benín' },
-  { code: 'hk', name: 'Hong Kong' },
-  { code: 'jm', name: 'Jamaica' },
-  { code: 'xk', name: 'Kosovo' },
-  { code: 'ad', name: 'Andorra' },
-  { code: 'ae', name: 'Emiratos Árabes Unidos' },
-  { code: 'al', name: 'Albania' },
-  { code: 'ao', name: 'Angola' },
-  { code: 'ar', name: 'Argentina' },
-  { code: 'at', name: 'Austria' },
-  { code: 'au', name: 'Australia' },
-  { code: 'az', name: 'Azerbaiyán' },
-  // B
-  { code: 'ba', name: 'Bosnia y Herzegovina' },
-  { code: 'bd', name: 'Bangladés' },
-  { code: 'be', name: 'Bélgica' },
-  { code: 'bf', name: 'Burkina Faso' },
-  { code: 'bg', name: 'Bulgaria' },
-  { code: 'bh', name: 'Baréin' },
-  { code: 'bo', name: 'Bolivia' },
-  { code: 'br', name: 'Brasil' },
-  { code: 'by', name: 'Bielorrusia' },
-  // C
-  { code: 'ca', name: 'Canadá' },
-  { code: 'cd', name: 'República Democrática del Congo' },
-  { code: 'ch', name: 'Suiza' },
-  { code: 'ci', name: 'Costa de Marfil' },
-  { code: 'cl', name: 'Chile' },
-  { code: 'cm', name: 'Camerún' },
-  { code: 'cn', name: 'China' },
-  { code: 'co', name: 'Colombia' },
-  { code: 'cr', name: 'Costa Rica' },
-  { code: 'cu', name: 'Cuba' },
-  { code: 'cv', name: 'Cabo Verde' },
-  { code: 'cy', name: 'Chipre' },
-  { code: 'cz', name: 'República Checa' },
-  // D
-  { code: 'de', name: 'Alemania' },
-  { code: 'dk', name: 'Dinamarca' },
-  { code: 'do', name: 'República Dominicana' },
-  { code: 'dz', name: 'Argelia' },
-  // E
-  { code: 'ec', name: 'Ecuador' },
-  { code: 'ee', name: 'Estonia' },
-  { code: 'eg', name: 'Egipto' },
-  { code: 'er', name: 'Eritrea' },
-  { code: 'es', name: 'España' },
-  { code: 'et', name: 'Etiopía' },
-  // F
-  { code: 'fi', name: 'Finlandia' },
-  { code: 'fr', name: 'Francia' },
-  // G
-  { code: 'gb', name: 'Gran Bretaña' },
-  { code: 'ge', name: 'Georgia' },
-  { code: 'gh', name: 'Ghana' },
-  { code: 'gr', name: 'Grecia' },
-  { code: 'gt', name: 'Guatemala' },
-  // H
-  { code: 'hr', name: 'Croacia' },
-  { code: 'hu', name: 'Hungría' },
-  // I
-  { code: 'id', name: 'Indonesia' },
-  { code: 'ie', name: 'Irlanda' },
-  { code: 'il', name: 'Israel' },
-  { code: 'in', name: 'India' },
-  { code: 'iq', name: 'Irak' },
-  { code: 'ir', name: 'Irán' },
-  { code: 'it', name: 'Italia' },
-  // J
-  { code: 'jo', name: 'Jordania' },
-  { code: 'jp', name: 'Japón' },
-  // K
-  { code: 'ke', name: 'Kenia' },
-  { code: 'kg', name: 'Kirguistán' },
-  { code: 'kp', name: 'Corea del Norte' },
-  { code: 'kr', name: 'Corea del Sur' },
-  { code: 'kw', name: 'Kuwait' },
-  { code: 'kz', name: 'Kazajistán' },
-  // L
-  { code: 'lb', name: 'Líbano' },
-  { code: 'li', name: 'Liechtenstein' },
-  { code: 'ls', name: 'Lesoto' },
-  { code: 'lt', name: 'Lituania' },
-  { code: 'lu', name: 'Luxemburgo' },
-  { code: 'lv', name: 'Letonia' },
-  // M
-  { code: 'ma', name: 'Marruecos' },
-  { code: 'md', name: 'Moldavia' },
-  { code: 'mk', name: 'Macedonia del Norte' },
-  { code: 'mn', name: 'Mongolia' },
-  { code: 'mt', name: 'Malta' },
-  { code: 'mu', name: 'Mauricio' },
-  { code: 'mx', name: 'México' },
-  { code: 'my', name: 'Malasia' },
-  // N
-  { code: 'na', name: 'Namibia' },
-  { code: 'ng', name: 'Nigeria' },
-  { code: 'ni', name: 'Nicaragua' },
-  { code: 'nl', name: 'Países Bajos' },
-  { code: 'no', name: 'Noruega' },
-  { code: 'nz', name: 'Nueva Zelanda' },
-  // O
-  { code: 'om', name: 'Omán' },
-  // P
-  { code: 'pa', name: 'Panamá' },
-  { code: 'pe', name: 'Perú' },
-  { code: 'ph', name: 'Filipinas' },
-  { code: 'pk', name: 'Pakistán' },
-  { code: 'pl', name: 'Polonia' },
-  { code: 'pt', name: 'Portugal' },
-  { code: 'py', name: 'Paraguay' },
-  // Q
-  { code: 'qa', name: 'Catar' },
-  // R
-  { code: 'ro', name: 'Rumanía' },
-  { code: 'rs', name: 'Serbia' },
-  { code: 'ru', name: 'Rusia' },
-  { code: 'rw', name: 'Ruanda' },
-  // S
-  { code: 'sa', name: 'Arabia Saudí' },
-  { code: 'sd', name: 'Sudán' },
-  { code: 'se', name: 'Suecia' },
-  { code: 'sg', name: 'Singapur' },
-  { code: 'si', name: 'Eslovenia' },
-  { code: 'sk', name: 'Eslovaquia' },
-  { code: 'sn', name: 'Senegal' },
-  { code: 'sv', name: 'El Salvador' },
-  { code: 'sx', name: 'San Martín' },
-  // T
-  { code: 'th', name: 'Tailandia' },
-  { code: 'tj', name: 'Tayikistán' },
-  { code: 'tm', name: 'Turkmenistán' },
-  { code: 'tn', name: 'Túnez' },
-  { code: 'tr', name: 'Turquía' },
-  { code: 'tw', name: 'Taiwán' },
-  { code: 'tz', name: 'Tanzania' },
-  // U
-  { code: 'ua', name: 'Ucrania' },
-  { code: 'ug', name: 'Uganda' },
-  { code: 'us', name: 'Estados Unidos' },
-  { code: 'uy', name: 'Uruguay' },
-  { code: 'uz', name: 'Uzbekistán' },
-  // V
-  { code: 've', name: 'Venezuela' },
-  { code: 'vn', name: 'Vietnam' },
-  // Z
-  { code: 'za', name: 'Sudáfrica' },
-  { code: 'zm', name: 'Zambia' },
-  { code: 'zw', name: 'Zimbabue' },
-];
-const COUNTRY_MAP_T = Object.fromEntries(COUNTRY_LIST_T.map(c => [c.code.toLowerCase(), c.name]));
-function tCountryName(code) {
-  if (!code) return code;
-  return COUNTRY_MAP_T[code.toLowerCase()] || code.toUpperCase();
-}
-function tNormalizeCC(code) {
-  if (!code) return '';
-  const c = code.toLowerCase();
-  return c.startsWith('es-') ? 'es' : c;
-}
 
 function updateTemporadaCountrySelector(races) {
   const sel = document.getElementById('filterCountry');
   if (!sel) return;
-  const codes = [...new Set(
-    races.map(r => tNormalizeCC(r.countryCode || '')).filter(Boolean)
-  )].sort((a, b) => tCountryName(a).localeCompare(tCountryName(b), 'es'));
+  const codes = temporadaCountries(races);
   const prev = sel.value;
   sel.innerHTML = `<option value="">${t('season.countryPlaceholder')}</option>`;
   codes.forEach(code => {
@@ -413,283 +168,7 @@ function updateTemporadaCountrySelector(races) {
     sel.appendChild(opt);
   });
   if (prev && codes.includes(prev)) sel.value = prev;
-  else if (prev) activeCountry = '';
-}
-
-// ── Helpers de carga lazy por mes ─────────────────────────────────
-
-// Devuelve un array de objetos { key: "YYYY-MM", start: "YYYY-MM-DD", end: "YYYY-MM-DD" }
-// para el mes centerMonth (0-based) ± radius meses, acotado al año dado
-function _monthRange(year, centerMonth, radius) {
-  const months = [];
-  for (let i = centerMonth - radius; i <= centerMonth + radius; i++) {
-    if (i < 0 || i > 11) continue;
-    const m = String(i + 1).padStart(2, '0');
-    const lastDay = new Date(year, i + 1, 0).getDate();
-    months.push({
-      key:   `${year}-${m}`,
-      start: `${year}-${m}-01`,
-      end:   `${year}-${m}-${String(lastDay).padStart(2, '0')}`
-    });
-  }
-  return months;
-}
-
-// Merge race_days (array of plain objects from Supabase) en el acumulador global
-function _mergeRaceDays(docs) {
-  docs.forEach(d => {
-    const raceId = d.raceId;
-    if (!raceId) return;
-    if (!_daysByRace[raceId]) _daysByRace[raceId] = [];
-    // Evitar duplicados
-    if (_daysByRace[raceId].some(existing => existing.id === d.id)) return;
-    _daysByRace[raceId].push(d);
-  });
-  // Actualizar _days en allRaces
-  allRaces.forEach(r => { r._days = _daysByRace[r.id] || []; });
-  // Actualizar _days en challenge groups
-  allChallengeGroups.forEach(cg => {
-    cg._races.forEach(r => { r._days = _daysByRace[r.id] || []; });
-  });
-}
-
-// Carga race_days de un mes concreto y re-renderiza su sección
-async function _loadMonth(monthKey) {
-  if (_loadedMonths.has(monthKey)) return;
-  _loadedMonths.add(monthKey);
-
-  const [year, m] = monthKey.split('-').map(Number);
-  const lastDay = new Date(year, m, 0).getDate();
-  const startKey = `${monthKey}-01`;
-  const endKey   = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
-
-  let rdData;
-  try {
-    rdData = await fetchPublishedDays(startKey, endKey, query => fetchAllRows(query, 1000));
-  } catch (error) {
-    // Sin datos: el mes se podrá volver a pedir al reaparecer en pantalla.
-    _loadedMonths.delete(monthKey);
-    console.error(error);
-    return;
-  }
-
-  _mergeRaceDays(rdData);
-
-  // Actualizar allRaces: incluir races que ahora tienen _days pero antes no
-  const racesById = {};
-  allRaces.forEach(r => { racesById[r.id] = true; });
-  // (races sin _days ya están incluidas si tienen startDate/endDate)
-
-  // Re-renderizar solo la sección del mes afectado
-  _rerenderMonth(monthKey);
-  // Un grupo desplegado muestra pruebas de otros meses: se repinta su fila.
-  _rerenderExpandedChallengeMonths(monthKey);
-}
-
-// Repinta los meses cuyo grupo desplegado incluye pruebas del mes recién cargado.
-function _rerenderExpandedChallengeMonths(loadedMonthKey) {
-  const months = new Set();
-  _getFilteredData().challengeGroups.forEach(cg => {
-    if (!expandedChallenges.has(cg.id)) return;
-    if (!cg._races.some(r => (r.startDate || '').slice(0, 7) === loadedMonthKey)) return;
-    const first = _firstDateKeyGroup(cg).slice(0, 7);
-    if (first !== loadedMonthKey) months.add(first);
-  });
-  months.forEach(month => _rerenderMonthKeepingFocus(month));
-}
-
-// Repinta un mes conservando el foco del botón de challenge que lo tuviera.
-function _rerenderMonthKeepingFocus(monthKey) {
-  const focused = document.activeElement?.closest?.('[data-cgid]');
-  const cgId = focused ? focused.dataset.cgid : null;
-  _rerenderMonth(monthKey);
-  if (cgId) document.querySelector(`.t-race--challenge[data-cgid="${CSS.escape(cgId)}"]`)?.focus();
-}
-
-// Re-renderiza el contenido de un mes concreto sin tocar el resto
-function _rerenderMonth(monthKey) {
-  const container = document.querySelector(`.temporada-races[data-month="${monthKey}"]`);
-  if (!container) return;
-
-  // Obtener items para este mes (misma lógica que render pero solo para este mes)
-  const monthItems = _getMonthItems(monthKey);
-  if (!monthItems.length) {
-    container.innerHTML = '';
-    return;
-  }
-  let html = '';
-  monthItems.forEach(item => {
-    const rowHtml = item.type === 'challenge'
-      ? renderChallengeGroup(item.data)
-      : renderRaceRow(item.data);
-    html += `<div data-sortkey="${item.sortKey}" data-endkey="${item.endKey}">${rowHtml}</div>`;
-  });
-  container.innerHTML = html;
-}
-
-// ── Filtros reutilizables (usados por render y _getMonthItems) ────
-const _EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RS','RU','SE','SI','SK','SM','TR','UA','VA','XK']);
-
-function _applyCategoryFilter(races) {
-  // CN fuera de la página de Campeonatos: mismas reglas que en Hoy y Mes.
-  const championships = races.filter(r => r.uciCategory === 'CN' && !isOnChampionshipsPage(r)
-    && (activeCat === 'all' || championshipMatchesCategoryFilter(r, activeCat)));
-  races = races.filter(r => r.uciCategory !== 'CN');
-  if (activeCat === 'pro') {
-    races = races.filter(r => r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
-  } else if (activeCat === 'uwt') {
-    races = races.filter(r => r.uciCategory === '1.UWT' || r.uciCategory === '2.UWT');
-  } else if (activeCat === 'wwt') {
-    races = races.filter(r => r.uciCategory === '1.WWT' || r.uciCategory === '2.WWT');
-  } else if (activeCat === 'male') {
-    races = races.filter(r => (r.gender === 'male' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
-  } else if (activeCat === 'female') {
-    races = races.filter(r => (r.gender === 'female' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
-  }
-  if (activeCat !== 'all') {
-    races = races.filter(r => {
-      if (r.uciCategory === 'WC' || r.uciCategory === 'CC') return /europa|mundo/i.test(r.name || '');
-      return true;
-    });
-  }
-  return [...races, ...championships];
-}
-
-function _applyCountryFilter(races) {
-  if (!activeCountry) return races;
-  return races.filter(r => tNormalizeCC(r.countryCode || '') === activeCountry);
-}
-
-function _applyCategoryFilterCG(challengeGroups) {
-  if (activeCat === 'male') return challengeGroups.filter(cg => cg.gender !== 'female' && cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  if (activeCat === 'female') return challengeGroups.filter(cg => cg.gender === 'female' && cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  if (activeCat === 'uwt' || activeCat === 'wwt') return [];
-  if (activeCat === 'pro') return challengeGroups.filter(cg => cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  return challengeGroups;
-}
-
-function _applyCountryFilterCG(challengeGroups) {
-  if (!activeCountry) return challengeGroups;
-  return challengeGroups.filter(cg => tNormalizeCC(cg.countryCode || '') === activeCountry);
-}
-
-// Nombre del campeonato sin la prueba: «Campeonato de Asia CRI femenino» →
-// «Campeonato de Asia»; «Asian Championships - Women's Elite ITT» → «Asian Championships».
-const championshipBaseName = name => (name || '').replace(/\s+(?:-\s|(?:CRI|CRE|línea|[Mm]en's|[Ww]omen's)\b).*$/, '');
-
-// Pruebas que se agrupan: campeonatos continentales, mundiales y nacionales, y las
-// que llevan «Panamericano» o «Juegos» en el nombre.
-const isGroupedEvent = race => ['CC', 'CN', 'WC'].includes(race.uciCategory)
-  || /\b(?:panamericanos?|juegos)\b/i.test(race.name || '');
-
-// Solo la prueba, para la fila bajo el grupo: «CRI femenina», «Línea sub23
-// masculina», «Women's Elite ITT». El nombre completo no cabe en el móvil y todas
-// las filas se verían iguales. El género concuerda con la modalidad.
-function championshipEventName(name) {
-  const event = name.slice(championshipBaseName(name).length).replace(/^\s+(?:-\s+)?/, '')
-    .replace('femenino', 'femenina').replace('masculino', 'masculina');
-  return event.charAt(0).toUpperCase() + event.slice(1);
-}
-
-// Campeonatos y Juegos visibles, agrupados como un challenge: una fila
-// desplegable con las fechas de la primera a la última prueba. Con una
-// sola prueba visible no se agrupa. Un país con pruebas a ambos lados de la
-// ventana de la página de Campeonatos forma un grupo por cada lado.
-function _buildChampionshipGroups(races) {
-  const byEvent = new Map();
-  races.forEach(race => {
-    if (!isGroupedEvent(race)) return;
-    const afterPage = race.uciCategory === 'CN' && (race.startDate || '').slice(5) > CAMP.QUERY_END.slice(5);
-    const key = `${race.year}-${race.uciCategory}-${championshipBaseName(race.name)}${afterPage ? '-2' : ''}`;
-    if (!byEvent.has(key)) byEvent.set(key, []);
-    byEvent.get(key).push(race);
-  });
-  return [...byEvent].filter(([, members]) => members.length > 1).map(([key, members]) => {
-    const [first] = members;
-    return {
-      id: key.normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase(),
-      name: championshipBaseName(raceName(first)),
-      gender: members.every(r => r.gender === first.gender) ? first.gender : null,
-      uciCategory: first.uciCategory,
-      countryCode: first.countryCode,
-      colorHex: first.colorHex,
-      logoUrl: first.logoUrl,
-      raceIds: members.map(r => r.id),
-      _races: members,
-      _isChampionship: true,
-    };
-  });
-}
-
-function _firstDateKey(race) {
-  // Prefer startDate for stable month assignment during lazy loading;
-  // avoids races shifting between months as race_days load incrementally.
-  if (race.startDate) return race.startDate;
-  if (race._days && race._days.length) return race._days.map(d => d.dateKey).sort()[0] || '9999-99-99';
-  return '9999-99-99';
-}
-function _firstDateKeyGroup(cg) {
-  // Prefer startDate for stable month assignment during lazy loading
-  const starts = cg._races.map(r => r.startDate).filter(Boolean).sort();
-  if (starts.length) return starts[0];
-  const allDays = cg._races.flatMap(r => r._days.map(d => d.dateKey));
-  if (allDays.length) return allDays.sort()[0];
-  return '9999-99-99';
-}
-function _lastDateKey(race) {
-  const dayKey = (race._days && race._days.length) ? (race._days.map(d => d.dateKey).sort().slice(-1)[0] || '') : '';
-  // Para clásicas de un día no usar endDate (puede tener dato erróneo en BD); basta con startDate
-  const dateKey = (race.raceFormat === 'one_day')
-    ? (race.startDate || '')
-    : (race.endDate || race.startDate || '');
-  return (dayKey > dateKey ? dayKey : dateKey) || '0000-00-00';
-}
-function _lastDateKeyGroup(cg) {
-  const allDays = cg._races.flatMap(r => r._days.map(d => d.dateKey));
-  const lastDayKey  = allDays.length ? allDays.sort().slice(-1)[0] : '';
-  const ends        = cg._races.map(r => r.endDate || r.startDate).filter(Boolean).sort();
-  const lastEndDate = ends.slice(-1)[0] || '';
-  return (lastDayKey > lastEndDate ? lastDayKey : lastEndDate) || '0000-00-00';
-}
-
-function _buildSortedItems(standaloneRaces, challengeGroups) {
-  const items = [
-    ...standaloneRaces.map(r => ({ type: 'race', data: r, sortKey: _firstDateKey(r), endKey: _lastDateKey(r), rankVal: categoryRank(r.uciCategory, r.name, r.countryCode) })),
-    ...challengeGroups.map(cg => ({ type: 'challenge', data: cg, sortKey: _firstDateKeyGroup(cg), endKey: _lastDateKeyGroup(cg), rankVal: categoryRank(cg.uciCategory || '1.1', cg.name, cg.countryCode) })),
-  ];
-  items.sort((a, b) => {
-    if (a.sortKey !== b.sortKey) return a.sortKey.localeCompare(b.sortKey);
-    if (a.rankVal !== b.rankVal) return a.rankVal - b.rankVal;
-    const genderVal = item => (item.data.gender === 'female') ? 1 : 0;
-    if (genderVal(a) !== genderVal(b)) return genderVal(a) - genderVal(b);
-    return 0;
-  });
-  return items;
-}
-
-function _getFilteredData() {
-  let races = allRaces.filter(r => (r.year || 0) === activeYear);
-  races = _applyCategoryFilter(races);
-  races = _applyCountryFilter(races);
-  let challengeGroups = allChallengeGroups.filter(cg => (cg.year || 0) === activeYear);
-  challengeGroups = _applyCategoryFilterCG(challengeGroups);
-  challengeGroups = _applyCountryFilterCG(challengeGroups);
-  challengeGroups = [...challengeGroups, ..._buildChampionshipGroups(races)];
-  const racesInChallenges = new Set(challengeGroups.flatMap(cg => (cg.raceIds || [])));
-  const standaloneRaces = races.filter(r => !racesInChallenges.has(r.id));
-  // Inyectar la fila de Campeonatos TRAS el filtro de categoría (así aparece en todas
-  // las pestañas). Gated por año y por filtro de país (no tiene país → solo en "todos").
-  if (activeYear === CAMP.YEAR && !activeCountry) {
-    standaloneRaces.push(CHAMPIONSHIPS_ITEM);
-  }
-  return { standaloneRaces, challengeGroups };
-}
-
-// Obtiene los items filtrados y ordenados para un mes concreto
-function _getMonthItems(monthKey) {
-  const { standaloneRaces, challengeGroups } = _getFilteredData();
-  const items = _buildSortedItems(standaloneRaces, challengeGroups);
-  return items.filter(item => item.sortKey.slice(0, 7) === monthKey);
+  else if (prev) S.activeCountry = '';
 }
 
 // ── Recarga datos al cambiar de año ──────────────────────────────
@@ -698,11 +177,10 @@ async function reloadYear() {
   const content = document.getElementById('temporadaContent');
   content.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.season')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
-  if (_monthObserver) { _monthObserver.disconnect(); _monthObserver = null; }
   await loadYear();
 }
 
-// ── Carga del año: carreras, jornadas de 3 meses (actual ±1) y challenges ──
+// ── Carga del año: carreras, todas sus jornadas y challenges ──
 // La respuesta de PostgREST tiene un tope de filas: carreras y jornadas se
 // paginan con orden estable. Se pinta desde la copia local y se revalida
 // contra la red.
@@ -710,66 +188,50 @@ const SEASON_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,r
 // Lo que leen renderRaceRow y hasModalData; el modal pide la jornada completa.
 const SEASON_DAY_COLUMNS = `id,raceId,dateKey,slug,slugEn,hasAssets,profileNotViewable,${PROFILE_PROBE_COLUMN},startLocation,distanceKm,primaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,notes`;
 
-// Un mes cabe en una página; la ventana inicial de tres meses, en dos.
-function fetchPublishedDays(startKey, endKey, fetchPages) {
-  return fetchPages(() => supabase.from('race_days').select(SEASON_DAY_COLUMNS)
-    .eq('editorialStatus', 'published').gte('dateKey', startKey).lte('dateKey', endKey).order('id'));
-}
+// De los textos solo importa si existen (hasModalData): la copia local no los guarda.
+const withoutTexts = day => ({ ...day, description: day.description ? '1' : null, notes: day.notes ? '1' : null });
 
-async function fetchSeasonBundle(year, startKey, endKey) {
+async function fetchSeasonBundle(year) {
   const [races, days, groups] = await Promise.all([
     fetchAllRowsParallel(() => supabase.from('races').select(SEASON_RACE_COLUMNS).eq('year', year).order('id')),
-    fetchPublishedDays(startKey, endKey, fetchAllRowsParallel),
+    fetchAllRowsParallel(() => supabase.from('race_days').select(SEASON_DAY_COLUMNS)
+      .eq('editorialStatus', 'published').gte('dateKey', `${year}-01-01`).lte('dateKey', `${year}-12-31`).order('id')),
     supabase.from('challenge_groups').select('*').then(({ data, error }) => {
       if (error) throw error;
       return data || [];
     }),
   ]);
-  return { races, days, groups };
+  return { races, days: days.map(withoutTexts), groups };
 }
 
-// Vuelca un lote en el estado. Las jornadas de meses cargados después (fuera
-// de la ventana inicial) se conservan al aplicar una revalidación.
-function applySeasonBundle({ races, days, groups }, initialMonths) {
-  const startKey = initialMonths[0].start;
-  const endKey = initialMonths[initialMonths.length - 1].end;
-  const keptDays = Object.values(_daysByRace).flat()
-    .filter(day => day.dateKey < startKey || day.dateKey > endKey);
-  const keptMonths = [..._loadedMonths].filter(key => !initialMonths.some(month => month.key === key));
-
+// Vuelca un lote en el estado.
+function applySeasonBundle({ races, days, groups }) {
   const raceCacheMap = {};
   races.forEach(r => { raceCacheMap[r.id] = r; });
   bulkCacheRaces(raceCacheMap);
 
-  _loadedMonths = new Set([...initialMonths.map(m => m.key), ...keptMonths]);
-  _daysByRace = {};
-  allRaces = [];
-  allChallengeGroups = [];
-  _mergeRaceDays([...days, ...keptDays]);
-  races.forEach(r => { r._days = _daysByRace[r.id] || []; });
+  const daysByRace = {};
+  days.forEach(day => {
+    if (day.raceId) (daysByRace[day.raceId] ||= []).push(day);
+  });
+  races.forEach(r => { r._days = daysByRace[r.id] || []; });
 
   // Incluir races con jornadas publicadas, con startDate/endDate definidos, o placeholders
-  allRaces = races.filter(r => r._days.length > 0 || r.startDate || r.isPlaceholder === true);
+  S.allRaces = races.filter(r => r._days.length > 0 || r.startDate || r.isPlaceholder === true);
 
   // Challenge_groups con las races que ya tenemos en memoria
-  allChallengeGroups = groups.map(d => {
+  S.allChallengeGroups = groups.map(d => {
     const raceIds = Array.isArray(d.raceIds) ? d.raceIds : [];
-    return { ...d, _races: allRaces.filter(r => raceIds.includes(r.id)) };
+    return { ...d, _races: S.allRaces.filter(r => raceIds.includes(r.id)) };
   }).filter(cg => cg._races.length > 0);
 }
 
 async function loadYear() {
-  const year = activeYear;
-  const todayMonth = new Date().getMonth();
-  const initialMonths = _monthRange(year, todayMonth, 1);
-  const startKey = initialMonths[0].start;
-  const endKey = initialMonths[initialMonths.length - 1].end;
-  _loadedMonths = new Set();
-  _daysByRace = {};
+  const year = S.activeYear;
   let painted = false;
-  await staleWhileRevalidate(`temporada:${year}:${startKey}`, () => fetchSeasonBundle(year, startKey, endKey), bundle => {
-    if (year !== activeYear) return;
-    applySeasonBundle(bundle, initialMonths);
+  await staleWhileRevalidate(`temporada:${year}`, () => fetchSeasonBundle(year), bundle => {
+    if (year !== S.activeYear) return;
+    applySeasonBundle(bundle);
     render({ refresh: painted });
     painted = true;
   });
@@ -783,7 +245,7 @@ function render({ refresh = false } = {}) {
   const keepScrollY = refresh ? window.scrollY : null;
 
   // Poblar selector de país con las carreras del año (antes del filtro de país)
-  updateTemporadaCountrySelector(allRaces.filter(r => (r.year || 0) === activeYear && !isOnChampionshipsPage(r)));
+  updateTemporadaCountrySelector(S.allRaces.filter(r => (r.year || 0) === S.activeYear && !isOnChampionshipsPage(r)));
 
   const { standaloneRaces, challengeGroups } = _getFilteredData();
 
@@ -792,59 +254,8 @@ function render({ refresh = false } = {}) {
     return;
   }
 
-  const items = _buildSortedItems(standaloneRaces, challengeGroups);
-
-  // Agrupar por mes
-  const byMonth = [];
-  let currentMonth = null;
-  items.forEach(item => {
-    const month = item.sortKey.slice(0, 7);
-    if (month !== currentMonth) {
-      currentMonth = month;
-      byMonth.push({ month, items: [] });
-    }
-    byMonth[byMonth.length - 1].items.push(item);
-  });
-
-  const MESES = t('months.long');
-
-  let html = '<div class="temporada-list">';
-
-  byMonth.forEach(({ month, items: monthItems }) => {
-    const [, m] = month.split('-').map(Number);
-    html += `<div class="temporada-month" id="mes-${month}">
-      <h3 class="temporada-month__title">${MESES[m - 1] || month}</h3>
-      <div class="temporada-races" data-month="${month}">`;
-
-    monthItems.forEach(item => {
-      const rowHtml = item.type === 'challenge'
-        ? renderChallengeGroup(item.data)
-        : renderRaceRow(item.data);
-      html += `<div data-sortkey="${item.sortKey}" data-endkey="${item.endKey}">${rowHtml}</div>`;
-    });
-
-    html += `</div></div>`;
-  });
-
-  html += '</div>';
+  const html = temporadaListHtml();
   content.innerHTML = html;
-
-  // ── IntersectionObserver para carga lazy de meses ────────────
-  if (_monthObserver) _monthObserver.disconnect();
-  _monthObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const monthKey = entry.target.dataset.month;
-      if (!monthKey || _loadedMonths.has(monthKey)) return;
-      _loadMonth(monthKey);
-    });
-  }, { rootMargin: '200px 0px' }); // pre-cargar 200px antes de que sea visible
-
-  content.querySelectorAll('.temporada-races[data-month]').forEach(el => {
-    if (!_loadedMonths.has(el.dataset.month)) {
-      _monthObserver.observe(el);
-    }
-  });
 
   // Altura de los filtros para el sticky de mes; la cabecera la aporta --site-header-h,
   // que vale 0 cuando la cabecera se desplaza con la página (móvil).
@@ -885,229 +296,42 @@ function render({ refresh = false } = {}) {
   _pendingMonth = null;
 
   if (savedScrollY !== null) {
-    // Precargar todos los meses con datos por encima del scroll guardado
-    // para que el layout sea estable antes de restaurar la posición
-    const allMonthEls = [...content.querySelectorAll('.temporada-races[data-month]')];
-    const pendingLoads = [];
-    for (const el of allMonthEls) {
-      const mk = el.dataset.month;
-      if (!mk || _loadedMonths.has(mk)) continue;
-      // Estimamos si el mes está por encima del scroll guardado
-      if (el.offsetTop < savedScrollY + window.innerHeight) {
-        pendingLoads.push(_loadMonth(mk));
-      }
-    }
-    const restoreScroll = () => window.scrollTo({ top: savedScrollY, behavior: 'instant' });
-    if (pendingLoads.length) {
-      Promise.all(pendingLoads).then(restoreScroll);
-    } else {
-      restoreScroll();
-    }
+    window.scrollTo({ top: savedScrollY, behavior: 'instant' });
   } else if (pendingMonth && document.getElementById(`mes-${pendingMonth}`)) {
-    // Precargar los meses anteriores para que el bloque no se desplace
-    // al rellenarse por encima.
-    const [py, pm] = pendingMonth.split('-').map(Number);
-    const pendingLoads = [];
-    for (let mi = 1; mi < pm; mi++) {
-      const mk = `${py}-${String(mi).padStart(2, '0')}`;
-      if (!_loadedMonths.has(mk)) pendingLoads.push(_loadMonth(mk));
-    }
-    const scrollToMonth = () => {
-      const el = document.getElementById(`mes-${pendingMonth}`);
-      if (!el) return;
-      const stickyH = document.querySelector('.temporada-filters')?.offsetHeight || 0;
-      const headerH = document.querySelector('.site-header')?.offsetHeight || 0;
-      const top = el.getBoundingClientRect().top + window.scrollY - headerH - stickyH - 8;
-      window.scrollTo({ top, behavior: 'instant' });
-    };
-    if (pendingLoads.length) {
-      Promise.all(pendingLoads).then(scrollToMonth);
-    } else {
-      scrollToMonth();
-    }
-  } else {
-    // Scroll inteligente al año en curso (comportamiento original)
+    const el = document.getElementById(`mes-${pendingMonth}`);
+    const stickyH = document.querySelector('.temporada-filters')?.offsetHeight || 0;
+    const headerH = document.querySelector('.site-header')?.offsetHeight || 0;
+    const top = el.getBoundingClientRect().top + window.scrollY - headerH - stickyH - 8;
+    window.scrollTo({ top, behavior: 'instant' });
+  } else if (S.activeYear === new Date().getFullYear()) {
+    // Al día de hoy, en el año en curso.
     const todayFull = new Date().toISOString().slice(0, 10);
-    const todayYear = new Date().getFullYear();
-    if (activeYear === todayYear) {
-      const header     = document.querySelector('.site-header');
-      const filters    = document.getElementById('temporadaFilters');
-      const monthTitle = document.querySelector('.temporada-month__title');
-      const isMobile   = window.innerWidth < 600;
-      const offset  = (header     ? header.offsetHeight     : 0)
-                    + (filters    ? filters.offsetHeight    : 0)
-                    + (monthTitle ? monthTitle.offsetHeight : 0)
-                    + (isMobile ? 4 : 8);
-
-      const allRows = [...content.querySelectorAll('[data-sortkey]')];
-      const target = allRows.find(el => (el.dataset.endkey || el.dataset.sortkey) >= todayFull);
-
-      const doScroll = (el, fallbackMonthId) => {
-        if (el) {
-          const top = el.getBoundingClientRect().top + window.scrollY - offset;
-          window.scrollTo({ top, behavior: 'smooth' });
-        } else if (fallbackMonthId) {
-          const mesEl = document.getElementById(fallbackMonthId);
-          if (mesEl) {
-            const top = mesEl.getBoundingClientRect().top + window.scrollY - offset;
-            window.scrollTo({ top, behavior: 'smooth' });
-          }
-        }
-      };
-
-      const targetMonthKey = target
-        ? (target.closest('.temporada-races[data-month]')?.dataset.month || todayFull.slice(0, 7))
-        : todayFull.slice(0, 7);
-      const [ty, tm] = targetMonthKey.split('-').map(Number);
-      const pendingLoads = [];
-      for (let mi = 1; mi < tm; mi++) {
-        const mk = `${ty}-${String(mi).padStart(2, '0')}`;
-        if (!_loadedMonths.has(mk)) pendingLoads.push(_loadMonth(mk));
-      }
-      if (pendingLoads.length) {
-        Promise.all(pendingLoads).then(() => doScroll(target, 'mes-' + todayFull.slice(0, 7)));
-      } else {
-        doScroll(target, 'mes-' + todayFull.slice(0, 7));
-      }
-    }
+    const header     = document.querySelector('.site-header');
+    const filters    = document.getElementById('temporadaFilters');
+    const monthTitle = document.querySelector('.temporada-month__title');
+    const isMobile   = window.innerWidth < 600;
+    const offset  = (header     ? header.offsetHeight     : 0)
+                  + (filters    ? filters.offsetHeight    : 0)
+                  + (monthTitle ? monthTitle.offsetHeight : 0)
+                  + (isMobile ? 4 : 8);
+    const target = [...content.querySelectorAll('[data-sortkey]')].find(el => (el.dataset.endkey || el.dataset.sortkey) >= todayFull)
+      || document.getElementById(`mes-${todayFull.slice(0, 7)}`);
+    if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
   }
 
-  updateSeoTemporada(activeYear);
+  updateSeoTemporada(S.activeYear);
   if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 }
 
-// ── Renderiza una carrera individual (fila estándar) ─────────────
-function renderRaceRow(race, name = raceName(race)) {
-  // Fila sintética de Campeonatos: enlaza a la página, badge CN, sin logo/país.
-  if (race._isChampionshipsLink) {
-    const dStr = formatDateRange([{ dateKey: CAMP.RANGE_START }, { dateKey: CAMP.RANGE_END }]);
-    return `<a class="t-race t-race--no-logo t-race--no-flag" href="${campUrl(getLang())}" style="--rc:var(--accent)">
-      <span class="t-race__name">${campTitle(getLang())}</span>
-      <span class="t-race__dates">${dStr}</span>
-      <span class="t-race__cat">${categoryBadge('CN')}</span></a>`;
-  }
-  const isOneDay = race.raceFormat === 'one_day';
-  const hasDays  = race._days && race._days.length > 0;
-
-  // Fechas: desde jornadas reales o desde startDate/endDate
-  let dateStr = '';
-  if (hasDays) {
-    dateStr = formatDateRange(race._days);
-  } else if (race.startDate) {
-    const fakeDays = [{ dateKey: race.startDate }];
-    if (race.endDate && race.endDate !== race.startDate) fakeDays.push({ dateKey: race.endDate });
-    dateStr = formatDateRange(fakeDays);
-  }
-
-  // Enlace solo si hay jornadas; para clásicas, además debe cumplir condición de clicabilidad
-  let href = null;
-  let modalRdId = null;
-  if (hasDays) {
-    const firstDay = [...race._days].sort((a, b) => a.dateKey.localeCompare(b.dateKey))[0];
-    if (isOneDay) {
-      const fdViewableProfile = hasRenderableElevationProfile(firstDay);
-      const rdClickable = !race.isNoClickable && (fdViewableProfile || firstDay.hasAssets === true);
-      if (rdClickable) {
-        href = jornadaUrl(firstDay);
-      } else if (!race.isCancelled && hasModalData(firstDay)) {
-        modalRdId = firstDay.id;
-      }
-    } else {
-      href = raceUrl(race);
-    }
-  }
-
-  const flag    = race.hideFlag ? '' : countryFlag(race.countryCode);
-  const cat     = race.uciCategory || '';
-  const isFemale = needsFemaleMark(race, activeCat);
-  const colorStyle = `--rc:${raceColor(race.colorHex)}`;
-  const isPlaceholder = !hasDays;
-  // Los Campeonatos Nacionales no llevan logo: sin hueco.
-  const noLogo = race.uciCategory === 'CN';
-  const rowClass = noLogo ? 't-race t-race--no-logo' : 't-race';
-
-  const inner = `
-    <span class="t-race__flag">${flag}</span>
-    ${noLogo ? '' : race.logoUrl
-      ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-      : '<span class="t-race__logo-empty"></span>'
-    }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
-    <span class="t-race__dates">${dateStr}</span>
-    ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
-  `;
-
-  if (href) {
-    return `<a class="${rowClass}" href="${href}" style="${colorStyle}"${race.isCancelled ? ' data-ph-tooltip="Carrera cancelada"' : ''} >${inner}</a>`;
-  }
-  // Abre el modal de datos: <button> real para que entre en el orden de
-  // tabulación y responda a Enter/Espacio (WCAG 2.1.1).
-  if (modalRdId) {
-    return `<button type="button" class="${rowClass} t-race--modal" style="${colorStyle}" data-rdid="${modalRdId}" data-raceid="${race.id}">${inner}</button>`;
-  }
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const phTooltip = race.isCancelled ? 'Carrera cancelada'
-    : (race.startDate && todayStr < race.startDate ? 'Por ahora sin información extra' : 'Sin información extra');
-  return `<div class="${rowClass} t-race--placeholder" style="${colorStyle}" data-ph-tooltip="${phTooltip}">${inner}</div>`;
-}
-
-// ── Renderiza un challenge group o un campeonato (fila desplegable) ───
-// La fila es un botón que despliega bajo ella las pruebas del grupo, igual que
-// las apps.
-const CHEVRON_SVG = '<svg class="t-race__chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>';
-
-function renderChallengeGroup(cg) {
-  // De la primera a la última prueba: las jornadas de otros meses pueden no estar cargadas.
-  const firstKey = _firstDateKeyGroup(cg);
-  const dateStr  = firstKey === '9999-99-99' ? ''
-    : formatDateRange([{ dateKey: firstKey }, { dateKey: _lastDateKeyGroup(cg) }]);
-  const cat        = cg.uciCategory || '1.1';
-  const flag       = countryFlag(cg.countryCode);
-  const color      = raceColor(cg.colorHex);
-  const colorStyle = `--rc:${color}`;
-  const expanded   = expandedChallenges.has(cg.id);
-  const panelId    = `cg-panel-${cg.id}`;
-
-  const showFemale = needsFemaleMark(cg, activeCat);
-  const displayName = cleanFeminineName(cg.name, activeCat);
-  const femaleSuffix = showFemale
-    ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
-    : '';
-
-  const noLogo = cat === 'CN';
-
-  const members = [...cg._races].sort((a, b) =>
-    _firstDateKey(a).localeCompare(_firstDateKey(b)) || raceName(a).localeCompare(raceName(b)));
-
-  return `<div class="t-challenge">
-    <button type="button" class="t-race t-race--challenge${noLogo ? ' t-race--no-logo' : ''}" style="${colorStyle}" data-cgid="${cg.id}" aria-expanded="${expanded}" aria-controls="${panelId}">
-      <span class="t-race__flag">${flag}</span>
-      ${noLogo ? '' : cg.logoUrl
-        ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-        : '<span class="t-race__logo-empty"></span>'
-      }
-      <span class="t-race__name t-race__name--group"><span class="t-race__name-text">${displayName}${femaleSuffix}</span>${CHEVRON_SVG}</span>
-      <span class="t-race__dates">${dateStr}</span>
-      ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
-    </button>
-    <div class="t-challenge__races" id="${panelId}"${expanded ? '' : ' hidden'}>
-      ${members.map(r => renderRaceRow(r, cg._isChampionship ? championshipEventName(raceName(r)) : undefined)).join('')}
-    </div>
-  </div>`;
-}
 
 // Despliega o pliega un grupo sin repintar la lista.
 function toggleChallenge(button) {
   const id = button.dataset.cgid;
-  const open = !expandedChallenges.has(id);
-  if (open) expandedChallenges.add(id); else expandedChallenges.delete(id);
+  const open = !S.expandedChallenges.has(id);
+  if (open) S.expandedChallenges.add(id); else S.expandedChallenges.delete(id);
   button.setAttribute('aria-expanded', String(open));
   const panel = document.getElementById(button.getAttribute('aria-controls'));
   if (panel) panel.hidden = !open;
-  if (!open) return;
-  // Las jornadas de los meses aún sin cargar dan enlace a sus pruebas.
-  const cg = _getFilteredData().challengeGroups.find(g => g.id === id);
-  if (cg) new Set(cg._races.map(r => (r.startDate || '').slice(0, 7)).filter(Boolean)).forEach(_loadMonth);
 }
 
 initPhTooltip();

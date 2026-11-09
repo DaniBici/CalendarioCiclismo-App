@@ -724,9 +724,10 @@ private fun MonthScheduleRaceRow(
     // Solo se atenúa la CARRERA cancelada (no se corre en absoluto). Una JORNADA
     // cancelada no: su aviso ya lo dice y su ficha sigue siendo accesible.
     val rowAlpha = if (race?.isCancelled == true) 0.5f else 1f
-    // Descanso y jornada sin información: se atenúa lo decorativo (logo,
-    // bandera, chevron) y el texto conserva su color.
-    val decorationAlpha = if (raceDay.isRestDay || raceDay.editorialStatus == "placeholder") 0.65f else 1f
+    // Descanso: se atenúa lo decorativo (logo, bandera, chevron) y el texto
+    // conserva su color. La jornada sin información (placeholder) no se
+    // atenúa: misma opacidad que el resto de fichas.
+    val decorationAlpha = if (raceDay.isRestDay) 0.65f else 1f
     val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
         activeFilter == Constants.CategoryFilter.WWT
     val displayName = race?.localizedName?.let {
@@ -760,7 +761,8 @@ private fun MonthScheduleRaceRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        RaceLogo(url = race?.logoUrl, size = 28.dp, modifier = Modifier.alpha(decorationAlpha))
+        RaceLogo(url = race?.logoUrl, size = 28.dp, modifier = Modifier.alpha(decorationAlpha),
+            placeholder = race != null && race.uciCategory != "CN")
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp),

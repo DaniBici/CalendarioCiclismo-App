@@ -1,4 +1,5 @@
 import { hasCustomTeamBadgeColors } from './team-badge.js';
+import { isNationalSelection } from './services/national-team-name.js';
 // Fondo y texto son una pareja editorial. Nunca se derivan del torso de una chapa.
 const color = value => typeof value === 'string' && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value.trim()) ? value.trim() : null;
 
@@ -84,6 +85,11 @@ export function splitStartlistTeams(rows, year) {
   }
   const ids = [...new Set(startlistTeams.map(row => row.teamId).filter(Boolean))];
   return { startlistTeams, teams: year && ids.length ? mergeTeamSeasons(teams, seasons, ids) : teams };
+}
+
+// Resultados: una selección nacional se muestra como país, sin franjas de equipación.
+export function resultTeamStripes(team) {
+  return isNationalSelection(team) ? '' : teamStripes(team);
 }
 
 export function teamStripes(team) {

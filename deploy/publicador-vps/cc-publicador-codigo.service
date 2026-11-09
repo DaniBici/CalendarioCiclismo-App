@@ -1,0 +1,11 @@
+[Unit]
+Description=Calendario Ciclismo - llevar a la web el código nuevo de main
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/publicador-vps.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/var/lib/cc-publicador/fuente/deploy/publicador-vps/desplegar-codigo.sh
+Nice=10
+TimeoutStartSec=10min

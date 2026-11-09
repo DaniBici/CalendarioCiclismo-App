@@ -39,7 +39,7 @@ function birthDate(value) {
 
 /** Preparación sin efectos. context procede del catálogo CX, nunca de carretera. */
 export function prepareCxResults(document, context, { status = 'provisional', category = null, officialUciResults = false } = {}) {
-  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb', 'golazo', 'zone4'].includes(document.source)
+  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb', 'golazo', 'zone4', 'chronorace_xco', 'fotofiniss', 'raceresult'].includes(document.source)
     || !Array.isArray(document.categories) || !['pending', 'provisional', 'official'].includes(status)
     || category != null && !CATEGORIES.includes(category)
     || officialUciResults && (document.source !== 'dataride' || status !== 'official')) throw new Error('Contrato CX, categoría, fuente o estado inválidos');
@@ -74,6 +74,20 @@ export function prepareCxResults(document, context, { status = 'provisional', ca
   if (document.source === 'zone4' && (!timing || timing.raceId !== race.id || timing.provider !== 'zone4'
     || document.categories.some(item => timing.categoryKeys?.[item.evidence?.zone4?.key] !== item.category))) {
     throw new Error('Correspondencia Zone4 no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'chronorace_xco' && (!timing || timing.raceId !== race.id || timing.provider !== 'chronorace_xco' || !timing.ctx
+    || document.categories.some(item => item.evidence?.chronoraceXco?.ctx !== timing.ctx || item.evidence?.chronoraceXco?.category !== item.category))) {
+    throw new Error('Correspondencia Chronorace xco no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'fotofiniss' && (!timing || timing.raceId !== race.id || timing.provider !== 'fotofiniss' || !timing.sourceUrl
+    || document.categories.some(item => item.evidence?.fotofiniss?.sourceUrl !== timing.sourceUrl
+      || timing.categoryKeys?.[item.evidence?.fotofiniss?.group] !== item.category))) {
+    throw new Error('Correspondencia fotofiniss no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'raceresult' && (!timing || timing.raceId !== race.id || timing.provider !== 'raceresult' || !timing.sourceUrl
+    || document.categories.some(item => item.evidence?.raceresult?.sourceUrl !== timing.sourceUrl
+      || timing.categoryKeys?.[item.evidence?.raceresult?.contest] !== item.category))) {
+    throw new Error('Correspondencia RaceResult no verificada en cx_race_timing_links');
   }
   // Golazo tiene su propio enlace, además del de cronometraje de la carrera.
   const golazo = context.golazoLink;

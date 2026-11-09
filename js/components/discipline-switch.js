@@ -40,6 +40,7 @@ export function roadPinButtonHtml(pinned) {
  *  de Carretera; `onPin` recibe el estado nuevo. */
 export function mountDisciplineSwitch(container, active, todayKey, onPin) {
   if (!container) return;
+  container.querySelector('.discipline-switch')?.remove();
   container.insertAdjacentHTML('afterbegin', disciplineSwitchHtml(active, todayKey));
   container.addEventListener('click', event => {
     if (!event.target.closest('button.discipline-switch__pin')) return;

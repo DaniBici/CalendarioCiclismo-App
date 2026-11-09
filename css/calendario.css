@@ -387,13 +387,11 @@ button.cal-race {
 a.cal-race:hover,
 button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 .cal-race--modal { cursor: pointer; }
-/* Estas filas se atenúan, pero la opacidad sobre TODA la fila arrastraba el
+/* El descanso se atenúa, pero la opacidad sobre TODA la fila arrastraba el
    texto por debajo de 4.5:1 (WCAG 1.4.3). Se atenúa lo decorativo —logo,
-   bandera, chevron— y el texto conserva su color, que ya pasa AA. */
+   bandera, chevron— y el texto conserva su color, que ya pasa AA. La jornada
+   sin información (placeholder) no se atenúa: misma opacidad que el resto. */
 .cal-race--ph { cursor: default; }
-.cal-race--ph .cal-race__logo,
-.cal-race--ph .cal-race__flag,
-.cal-race--ph .cal-race__chev,
 .cal-race--rest .cal-race__logo,
 .cal-race--rest .cal-race__flag,
 .cal-race--rest .cal-race__chev { opacity: 0.65; }
@@ -417,15 +415,20 @@ button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 }
 .cal-race__flag { flex: none; display: inline-flex; margin-top: 3px; }
 .cal-race__flag img { width: 17px; height: 13px; border-radius: var(--radius-sm); display: block; }
-/* Nombre completo: pasa a una segunda línea en lugar de cortarse. */
+/* Nombre en una línea con puntos suspensivos, como en Hoy y Últimos
+   resultados; el símbolo femenino y la nota de descanso o cancelación quedan
+   visibles a continuación. */
 .cal-race__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--fs-3);
   font-weight: 500;
   line-height: 1.25;
-  overflow-wrap: anywhere;
 }
-.cal-race__female { font-size: var(--fs-1); opacity: 0.7; }
-.cal-race__note { font-size: var(--fs-1); color: var(--text-muted); white-space: nowrap; }
+.cal-race__female { flex: none; font-size: var(--fs-1); opacity: 0.7; }
+.cal-race__note { flex: none; font-size: var(--fs-1); color: var(--text-muted); white-space: nowrap; }
 .cal-race__note--cancel { color: #d93025; }
 
 .cal-race__l2 {
@@ -443,9 +446,9 @@ button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 
 .cal-race--champ { background: var(--bg-card); }
 
-@media (min-width: 961px) {
+@media (min-width: 761px) {
   /* Como la agenda de Ciclocross: el día encima y sus carreras debajo, en dos
-     columnas. */
+     columnas desde 761 px, como Hoy. */
   .cal-mes-list .cal-day__races { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
 }
 

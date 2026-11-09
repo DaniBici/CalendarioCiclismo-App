@@ -5,7 +5,7 @@ import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl,c
 import {CX_ACTIVE_MONTHS,cxSeason,cxSeasonMonths,cxDateInSeason} from './season.js';
 import {cxCategoryTiming,cxRegulationMinutes} from './timing.js';
 import {isReviveBroadcast} from '../broadcast-priority.js';
-import {t} from '../i18n.js';
+import {t,getLang} from '../i18n.js';
 
 export {cxEscape as cxEsc};
 export {cxSeason,cxSeasonMonths};
@@ -45,13 +45,17 @@ function cxPrimaryCategory(categories=[]) {
 export function cxResultCategories(race,results) {
   return cxCategories(race).filter(c=>['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category)).map(c=>c.category);
 }
+// General de la ficha de carrera: solo cuando la manga que la alimenta tiene
+// resultados oficiales y la publicación ya incluye esta ronda. Antes no se
+// muestra la de la ronda anterior.
 export function cxGeneralCategories(race,standings,results,states=[]) {
   const published=cxResultCategories(race,results);
+  const official=new Set(cxCategories(race).filter(c=>c.resultsStatus==='official').map(c=>c.category));
   return CX_CATEGORIES.filter(code=>{
     if(!standings.some(row=>row.category===code))return false;
     const source=race.cx_tournaments?.pointsScheme?.categories?.[code]?.extras?.derived?.fromCategory||code;
-    const hasResults=published.includes(source),state=states.find(row=>row.category===code);
-    return state?['ready','manual'].includes(state.status)&&(!hasResults||(state.roundIds||[]).includes(race.id)):!hasResults;
+    const state=states.find(row=>row.category===code);
+    return published.includes(source)&&official.has(source)&&['ready','manual'].includes(state?.status)&&(state.roundIds||[]).includes(race.id);
   });
 }
 // General de la página de torneo: sin la condición de ronda de la ficha de
@@ -185,6 +189,10 @@ function cxCompareRaces(a,b,dateKey=null,useFeatured=true) {
   return featured||order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
 }
 // Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera.
+// En los Campeonatos del Mundo (CM) y Continentales (CC) se compite por selección
+// nacional: el equipo que se muestra es la selección del país del corredor, aunque
+// la ficha y el resultado conserven su equipo.
+export const cxCompetesBySelection=race=>race?.class==='CM'||race?.class==='CC';
 // Todos · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
 // X2O y HG Cross) · Pro (todo salvo las nacionales) · España (pruebas en España,
 // UCI o no).
@@ -214,21 +222,24 @@ export function cxRaceDates(race) {
 export function cxDayRaces(races,dateKey) {
   return races.filter(race=>cxRaceDates(race).includes(dateKey)).sort((a,b)=>cxCompareRaces(a,b,dateKey));
 }
-// Clave del orden por TV de Hoy: [0, hora] con hora (la primera del día), [1]
-// con TV sin hora y [2] sin TV. Cuenta las emisiones visibles en la región
-// (llegan ya filtradas) con URL válida que aplican a una categoría no
-// cancelada del día, con independencia de la hora actual: el orden no cambia
-// cuando el badge desaparece. Espejo de `agendaTVKey` (iOS y Android).
+// Clave del orden por TV de Hoy, con los niveles de carretera (tvTier de
+// js/services/today-agenda-order.js): [0, hora] con hora (la primera del día),
+// [1] con TV sin hora, [2] con TV pendiente (`tvStatus` 'pending', aunque
+// tenga emisiones sin hora) y [3] sin TV. Cuenta las emisiones visibles en la región (llegan ya filtradas) con URL
+// válida que aplican a una categoría no cancelada del día, con independencia de
+// la hora actual: el orden no cambia cuando el badge desaparece. Espejo de
+// `agendaTVKey` (iOS y Android).
 function cxAgendaTvKey(race,dateKey,visibleBroadcasts) {
   const codes=new Set(cxCategories(race,dateKey).filter(c=>!c.isCancelled).map(c=>c.category));
-  if(race.isCancelled||!codes.size)return [2,Infinity];
+  if(race.isCancelled||!codes.size)return [3,Infinity];
   const rows=(visibleBroadcasts||[]).filter(row=>{
     if(row.category&&!codes.has(row.category))return false;
     try{cxUrl(row.url,{optional:false});return true;}catch{return false;}
   });
-  if(!rows.length)return [2,Infinity];
   const times=rows.map(row=>Date.parse(row.startTimeUtc)).filter(Number.isFinite);
-  return times.length?[0,Math.min(...times)]:[1,Infinity];
+  if(times.length)return [0,Math.min(...times)];
+  if(race.tvStatus==='pending')return [2,Infinity];
+  return rows.length?[1,Infinity]:[3,Infinity];
 }
 // Fin estimado de la prueba en el día: la llegada más tardía de sus
 // categorías no canceladas con hora (duración reglamentaria verificada o
@@ -385,7 +396,8 @@ export function cxProgrammeOrder(race,categories) {
   const start=c=>{const ms=Date.parse(c.startTimeUtc);return Number.isFinite(ms)?ms:Infinity;};
   return [...categories].sort((a,b)=>cxCategoryDate(race,a).localeCompare(cxCategoryDate(race,b))||(start(a)===start(b)?0:start(a)<start(b)?-1:1));
 }
-// TV, Revive y vídeos de la ficha. Una categoría emite en directo mientras no
+// TV, Revive y vídeos de la ficha (`active`: queda alguna categoría en
+// directo). Una categoría emite en directo mientras no
 // esté cancelada, no tenga resultados y no haya concluido; Revive llega con
 // resultados o cancelación, con el criterio de carretera (isReviveBroadcast) o
 // Sporza, y sin repetir lo que sigue en directo por otra categoría. Sin
@@ -430,7 +442,7 @@ export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibl
     const title=row.category?t('cx.fullRace',{category:t(`cx.category.${row.category}`)}):t('cx.fullBroadcast');
     return [{id:row.id,raceId:row.raceId,category:row.category??null,title,titleEn:title,url:`https://www.youtube.com/watch?v=${id}`,sortOrder:row.sortOrder}];
   });
-  return {tv,revive,videos:[...media,...fullRaces],liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category)};
+  return {tv,revive,videos:[...media,...fullRaces],liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category),active:live.length>0};
 }
 // Badge de TV de la tarjeta de Agenda, entre las emisiones visibles en la
 // región del usuario (llegan ya filtradas). Muestra la hora de la primera
@@ -440,7 +452,7 @@ export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibl
 // alcanzarse la hora de otra posterior de una categoría aún en directo, a la
 // última que ha empezado. Sin horas, la primera por orden. Devuelve la fila
 // enlazada con `firstStartUtc` (hora de la primera) y `live`.
-export function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) {
+function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) {
   const categories=cxCategories(race,dateKey);
   if(race.isCancelled||!categories.length||!visibleBroadcasts?.length)return null;
   const results=categories.filter(c=>['official','provisional'].includes(c.resultsStatus)).map(c=>({category:c.category}));
@@ -452,6 +464,34 @@ export function cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at=new Date()) 
   const now=new Date(at).getTime(),live=time(first)<=now;
   const current=tv.filter(row=>time(row)<=now).reduce((best,row)=>!best||time(row)>=time(best)?row:best,null)||earliest(tv);
   return {...current,firstStartUtc:first.startTimeUtc??null,live};
+}
+// Estado de TV de la prueba (`cx_races.tvStatus`), con los valores de
+// `race_days.tvStatus`. En inglés `unavailable_es` cuenta como sin marcar, como
+// en carretera.
+export function cxTvStatus(race,lang=getLang()) {
+  const status=race?.tvStatus??null;
+  return status==='unavailable_es'&&lang==='en'?null:status;
+}
+// Estados sin emisión que la ficha y la tarjeta muestran como chip.
+export const CX_TV_STATUS_CHIPS=new Set(['none','unavailable_es','pending']);
+// Badge de TV de la tarjeta de Agenda con el criterio de Hoy de carretera
+// (tvBadgeHtml de js/today-agenda-html.js) mientras quede alguna categoría del
+// día en directo. `none`, `unavailable_es` y `pending` dan su chip aunque haya
+// emisiones ({status}); sin estado ni emisiones visibles, null. Con emisiones
+// visibles, la fila de cxAgendaBroadcast ({status,row,live}), en directo solo
+// con 'confirmed_time'. Con estado confirmado y sin emisiones, «TV» sin enlace
+// ({status,row:null}); con emisiones solo de otras regiones, null.
+export function cxAgendaTv(race,dateKey,visibleBroadcasts,allBroadcasts=visibleBroadcasts,at=new Date(),lang=getLang()) {
+  const categories=cxCategories(race,dateKey);
+  if(race.isCancelled||!categories.length)return null;
+  const results=categories.filter(c=>['official','provisional'].includes(c.resultsStatus)).map(c=>({category:c.category}));
+  const all=cxRaceMedia(race,categories,allBroadcasts||[],[],{results,at});
+  if(!all.active)return null;
+  const status=cxTvStatus(race,lang),row=cxAgendaBroadcast(race,dateKey,visibleBroadcasts,at);
+  if(!status&&!row)return null;
+  if(CX_TV_STATUS_CHIPS.has(status))return {status};
+  if(row)return {status,row,live:row.live&&status==='confirmed_time'};
+  return all.tv.length?null:{status,row:null,live:false};
 }
 // Badge de resumen de la tarjeta de Agenda: hay al menos un vídeo de YouTube
 // de la prueba aplicable a las categorías del día (sin categoría o de una de

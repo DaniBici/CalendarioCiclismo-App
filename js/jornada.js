@@ -15,7 +15,8 @@ import { t, getLang, initI18n } from './i18n.js';
 import { writeCalendarParams } from './calendario-query.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { STAGE_SIBLING_COLUMNS, buildInhouseResultsMatcher, hasCalendarForYear, stageSiblings } from './services/races.js';
-import { jornadaHtml, visitorTimeZoneLabel } from './jornada-html.js';
+import { jornadaHtml } from './jornada-html.js';
+import { visitorTimeZoneLabel } from './shared.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
 
 function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set()) {
@@ -896,9 +897,9 @@ function closeIcalModal() {
   if (_icalOverlay?.open) _icalOverlay.close();
 }
 
-// Escritorio con Puntos clave: las acciones van bajo ese panel; en el resto,
-// sobre el pie.
-const _sideActionsQuery = window.matchMedia('(min-width: 1024px)');
+// Con Puntos clave al lado del perfil (desde 761 px, css/app.css): las acciones
+// van bajo ese panel; en una columna, sobre el pie.
+const _sideActionsQuery = window.matchMedia('(min-width: 761px)');
 function placeIcalBar(bar) {
   const slot = document.querySelector('.stage-side__actions');
   const footer = document.querySelector('footer.site-footer');

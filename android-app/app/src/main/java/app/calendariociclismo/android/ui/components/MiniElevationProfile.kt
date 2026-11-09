@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
@@ -28,6 +29,7 @@ import app.calendariociclismo.android.data.model.ProfileWaypoint
 import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 private val SUMMIT_COLOR  = Color(0xFFC53030)
 /**
@@ -38,6 +40,8 @@ private val SUMMIT_COLOR  = Color(0xFFC53030)
 private val PENDING_LIGHT = Color(0xFF657185).copy(alpha = 0.30f)
 private val PENDING_DARK = Color(0xFF465568).copy(alpha = 0.50f)
 private const val TRAVERSED_ALPHA = 0.60f
+/** Separación perpendicular entre rayas del avance de CRI/CRE (web: 1 px cada 4 px). */
+private val HATCH_SPACING = 4.dp
 private val COLOR_SPRINT  = Color(0xFF0F9D58)
 private val COLOR_BONUS   = Color(0xFFF9AB00)
 private val COLOR_SPLIT   = Color(0xFF00838F)
@@ -149,6 +153,13 @@ fun MiniElevationProfile(
      * Tiene prioridad sobre el resto de reglas; null conserva el cálculo propio.
      */
     fixedProgress: Float? = null,
+    /**
+     * CRI/CRE en Hoy (`RaceLogic.profileUsesTimeHatch`): el avance es tiempo de
+     * la sesión, no distancia. La silueta queda gris entera y la parte
+     * transcurrida lleva rayas diagonales finas del color de la carrera
+     * (`.race-card__ep-hatch` de la web: 1 dp cada 4 dp, a 45°).
+     */
+    timeHatch: Boolean = false,
 ) {
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val adjustedTint = adjustedMiniProfileColor(tint, darkTheme = darkTheme)
@@ -272,7 +283,24 @@ fun MiniElevationProfile(
         // Silueta tenue y sin trazo: parte pendiente en gris y recorrida con
         // el color de la carrera recortada al avance (de izquierda a derecha).
         val traversed = adjustedTint.copy(alpha = TRAVERSED_ALPHA)
-        if (progress != null) {
+        if (progress != null && timeHatch) {
+            drawPath(fillPath, color = pendingColor)
+            val elapsedWidth = size.width * progress
+            if (elapsedWidth > 0f) {
+                clipPath(fillPath) {
+                    clipRect(left = 0f, top = 0f, right = elapsedWidth, bottom = size.height) {
+                        // Rayas «/» de 1 dp con 3 dp de hueco perpendicular.
+                        val step = HATCH_SPACING.toPx() * sqrt(2f)
+                        val strokeWidth = 1.dp.toPx()
+                        var x = -size.height
+                        while (x < elapsedWidth) {
+                            drawLine(adjustedTint, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth)
+                            x += step
+                        }
+                    }
+                }
+            }
+        } else if (progress != null) {
             drawPath(fillPath, color = pendingColor)
             clipRect(left = 0f, top = 0f, right = size.width * progress, bottom = size.height) {
                 drawPath(fillPath, color = traversed)

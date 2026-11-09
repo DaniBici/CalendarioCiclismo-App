@@ -52,18 +52,26 @@ enum RaceLogic {
 
     /// Avance (0…1) del miniperfil de la tarjeta de Hoy. Espejo de
     /// `profileProgress` (js/services/race-presentation.js): con resultados o
-    /// estado terminado, completo; crono en curso sin avance único (salidas
-    /// escalonadas); el resto, tiempo transcurrido entre salida real (o
-    /// neutralizada) y meta prevista.
+    /// estado terminado, completo; el resto, tiempo transcurrido entre salida
+    /// real (o neutralizada) y meta prevista. En CRI/CRE va de la salida del
+    /// primer corredor a la llegada del último: es tiempo de la sesión, no
+    /// distancia, y se pinta rayado (`profileUsesTimeHatch`).
     static func profileProgress(rd: RaceDay, hasInhouseResults: Bool, now: Date = Date()) -> Double {
         if rd.isCancelledDay || rd.isRestDay { return 0 }
         if hasInhouseResults || rd.raceStatus == "finished" { return 1 }
-        if rd.primaryType == "itt" || rd.primaryType == "ttt" { return 0 }
         let startRaw = rd.realStartTimeUtc.flatMap { $0.isEmpty ? nil : $0 } ?? rd.neutralStartTimeUtc
         guard let start = startRaw.flatMap(DateFormatting.parseISO),
               let finish = rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
               finish > start else { return 0 }
         return min(1, max(0, now.timeIntervalSince(start) / finish.timeIntervalSince(start)))
+    }
+
+    /// CRI/CRE sin resultados: el avance de `profileProgress` se pinta con
+    /// rayas diagonales (espejo de `profileUsesTimeHatch` de la web).
+    static func profileUsesTimeHatch(rd: RaceDay, hasInhouseResults: Bool) -> Bool {
+        (rd.primaryType == "itt" || rd.primaryType == "ttt")
+            && !rd.isCancelledDay && !rd.isRestDay
+            && !hasInhouseResults && rd.raceStatus != "finished"
     }
 
     /// Carreras referenciadas por las jornadas que no estaban incluidas en la

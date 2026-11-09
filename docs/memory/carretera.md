@@ -982,6 +982,13 @@ presentan el mercado el panel y la web.
   Llegan ni Se marchan.
 - Nombres de equipo: origen con `team_seasons` de la temporada en curso,
   destino con la de la temporada de mercado; un texto libre se muestra tal cual.
+- Franjas de equipo (lista y cabecera de la vista de equipo; iOS y Android con
+  `TransfersLogic.badgeSeason`): colores de la temporada de mercado con
+  `badgeVisible`; sin él, los de la temporada en curso del mismo `teamId`; sin
+  franjas si el equipo no tiene fila en la temporada en curso o si la fila del
+  mercado tiene `prevColorsHidden` (estructura con denominación sin confirmar,
+  casilla «Sin colores hasta confirmar la denominación» del editor de
+  temporada).
 - Solo se cargan filas con `season = MARKET_SEASON`: un `midSeason` guardado
   con el año en curso no se muestra.
 

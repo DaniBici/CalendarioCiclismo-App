@@ -28,12 +28,14 @@
         "scripts/__tests__/**/*.test.js",
         "scripts/**/*.{mjs,cjs,js}",
         "tools/**/*.mjs",
+        "tools/publicacion/cliente/*.js",
         "supabase/functions/**/index.ts"
       ],
       "project": [
         "js/**/*.{js,mjs}",
         "scripts/**/*.{mjs,cjs,js}",
         "tools/**/*.mjs",
+        "tools/publicacion/cliente/*.js",
         "supabase/functions/**/*.ts"
       ],
       "ignore": [

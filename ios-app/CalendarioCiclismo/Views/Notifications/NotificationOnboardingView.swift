@@ -105,6 +105,8 @@ struct NotificationOnboardingView: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             }
+            // En ventanas anchas, contenido y botones centrados con ancho máximo.
+            .frame(maxWidth: AdaptiveLayoutPolicy.onboardingWidth)
         }
         .accessibilityElement(children: .contain)
         .onAppear {

@@ -1,7 +1,9 @@
 import {readFileSync} from 'node:fs';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {collectCxAcnRace,collectCxGolazoRace,collectCxKbwbRace,collectCxRace,collectCxRoundBonuses,collectCxSmartwebRace,collectCxWiclaxRace,collectCxZone4Race,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
+import {collectCxAcnRace,collectCxChronoraceXcoRace,collectCxGolazoRace,collectCxKbwbRace,collectCxRace,collectCxRoundBonuses,collectCxFotofinissRace,collectCxRaceresultRace,collectCxSmartwebRace,collectCxWiclaxRace,collectCxZone4Race,cxMadridDate,promoteCxProvisionalResults,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
 import {applyCxResults,loadCxResultsContext} from '../results-fetchers/cx-results-upsert.mjs';
+import {parseFotofinissGroups} from '../results-fetchers/fotofiniss-cx-fetch.mjs';
+import {parseRaceresultList} from '../results-fetchers/raceresult-cx-fetch.mjs';
 import {finishAutomationRun,recordAutomationSourceRun,startAutomationRun} from '../automation-monitor.mjs';
 
 // Los colaboradores con E/S se sustituyen por dobles con interfaz: el contexto
@@ -471,6 +473,56 @@ describe('recogida CX desde Zone4',()=>{
   });
 });
 
+// Directo real del Europeo UEC 2025 (20251108_uec): la élite masculina terminada el domingo 9.
+function chronoraceXcoFixture(id='own-xco'){
+  const read=name=>JSON.parse(readFileSync(new URL(`./fixtures/chronorace-xco-uec-2025-${name}.json`,import.meta.url),'utf8'));
+  const {context}=fixture(id);context.link=null;
+  Object.assign(context.race,{seasonKey:'2025-26',seasonStartYear:2025,dateKey:'2025-11-08',endDateKey:'2025-11-09',timezone:'Europe/Brussels'});
+  Object.assign(context.categories[0],{dateKey:'2025-11-09',startTimeUtc:'2025-11-09T14:00:00Z'});
+  context.categories.push({...context.categories[0],category:'WJ',startTimeUtc:'2025-11-09T14:30:00Z'});
+  context.timingLink={raceId:id,provider:'chronorace_xco',ctx:'20251108_uec',categoryKeys:{},
+    syncEnabled:true,syncStartOffsetMinutes:-20,syncStopOffsetMinutes:180,syncIntervalMinutes:1};
+  const me=read('me'),wj=read('wj');wj.overview.Status='Running';
+  const urls=[];
+  const fetchJson=async url=>{urls.push(url);
+    if(url.includes('/dh?key=cms'))return read('tree');
+    const manga=url.endsWith('/ME')?me:wj;return url.includes('/overview/')?manga.overview:manga.registration;};
+  return {context,fetchJson,urls};
+}
+describe('recogida CX desde el visor UCI de Chronorace',()=>{
+  const at=new Date('2025-11-09T15:10:00Z');
+  it('importa oficial la manga terminada y deja pendiente la que sigue en curso',async()=>{
+    const {context,fetchJson,urls}=chronoraceXcoFixture();
+    const client=collectorClient([context]);
+    const value=await collectCxChronoraceXcoRace(client,context.race.id,{now:at,fetchJson});
+    expect(value).toMatchObject({provider:'chronorace_xco',rowsFound:27});
+    expect(value.pending).toEqual([{category:'WJ',reason:'Manga sin terminar en Chronorace (Running); se reintenta en la siguiente pasada'}]);
+    expect(urls.filter(url=>url.includes('/xco/'))).toHaveLength(4);
+    const [prepared]=client.ingests;
+    expect(prepared.status).toBe('official');
+    expect(prepared.imports[0].category).toBe('ME');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'chronorace_xco',dateKey:'2025-11-09',chronoraceXco:{ctx:'20251108_uec',category:'ME'},
+      officialReviewed:true,officialReviewSourceUrl:'https://prod.chronorace.be/angular/results.html#/uci/event/20251108_uec/CRO/CG21/xco/ME/ov'});
+  });
+  it('no sustituye oficiales de otra fuente, corrige las suyas y despacha desde collectCxRace',async()=>{
+    const official=chronoraceXcoFixture('official');
+    for(const manga of official.context.categories)Object.assign(manga,{resultsProvider:'dataride',resultsStatus:'official'});
+    const officialClient=collectorClient([official.context]);
+    const kept=await collectCxChronoraceXcoRace(officialClient,'official',{now:at,fetchJson:official.fetchJson});
+    expect(kept.skipped.map(item=>item.reason)).toEqual(Array(2).fill('Resultados oficiales de otra fuente; Chronorace no los sustituye'));
+    expect(official.urls).toHaveLength(0);expect(officialClient.ingests).toHaveLength(0);
+
+    const own=chronoraceXcoFixture('own');Object.assign(own.context.categories[0],{resultsProvider:'chronorace_xco',resultsStatus:'official'});
+    const ownClient=collectorClient([own.context]);
+    await collectCxChronoraceXcoRace(ownClient,'own',{now:at,fetchJson:own.fetchJson});
+    expect(ownClient.ingests.map(prepared=>[prepared.status,prepared.imports[0].category])).toEqual([['official','ME']]);
+
+    const only=chronoraceXcoFixture('only');const client=collectorClient([only.context]);let acn=0;
+    const value=await collectCxRace(client,'only',{now:at,fetchJson:only.fetchJson,fetchTables:async()=>{acn++;}});
+    expect(value).toMatchObject({provider:'chronorace_xco',rowsFound:27});expect(acn).toBe(0);
+  });
+});
+
 const SMARTWEB_URL='https://fccv.es/index.php/smartweb/inscripciones/clasificacion/35255';
 function smartwebFixture(id='own-smartweb'){
   const {context}=fixture(id);context.link=null;
@@ -528,6 +580,106 @@ describe('recogida CX desde smartweb',()=>{
 
     const only=smartwebFixture('only');const routed=smartwebClient([only.context],new Date(now.getTime()-5*60000).toISOString());
     expect(await collectCxRace(routed,'only',{now,fetchRace:only.fetchRace})).toMatchObject({provider:'smartweb',rowsChanged:1});
+  });
+});
+
+// Campeonato de Letonia 07-11-2026 en fotofiniss.lv: tabla W18 tras la salida 4 (vuelta más lenta 11:48).
+const FOTOFINISS_URL='https://fotofiniss.lv/sacensibas/latvijas-cempionats-velokrosa-cx-2026/rezultati';
+const fotofinissHtml=readFileSync(new URL('./fixtures/fotofiniss-lc-cx-2026-grupas.html',import.meta.url),'utf8');
+function fotofinissFixture(id='own-fotofiniss'){
+  const {context}=fixture(id);context.link=null;
+  Object.assign(context.race,{class:'CN',countryCode:'LV'});
+  Object.assign(context.categories[0],{category:'WJ',startTimeUtc:'2026-11-01T13:40:00Z'});
+  context.riders={men:[],women:[{id:'lange-lauma',firstName:'Lauma',lastName:'Lange',nationality:'LV',birthDate:'2009-12-04',verified:true}]};
+  context.timingLink={raceId:id,provider:'fotofiniss',sourceUrl:FOTOFINISS_URL,categoryKeys:{W18:'WJ'},
+    syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  return {context,fetchGroups:async()=>({resultsUrl:FOTOFINISS_URL,groups:parseFotofinissGroups(fotofinissHtml)})};
+}
+describe('recogida CX desde fotofiniss',()=>{
+  it('espera 1,5 veces la vuelta más lenta sin cambios y después importa provisional',async()=>{
+    const first=fotofinissFixture();const recent=smartwebClient([first.context],new Date(now.getTime()-5*60000).toISOString());
+    const waiting=await collectCxFotofinissRace(recent,first.context.race.id,{now,fetchGroups:first.fetchGroups});
+    expect(waiting).toMatchObject({provider:'fotofiniss',status:'ok',rowsChanged:0});
+    expect(waiting.pending).toEqual([{category:'WJ',reason:'Grupo fotofiniss en curso o modificado; se publica tras 18 min sin cambios'}]);
+    expect(recent.ingests).toHaveLength(0);
+
+    const second=fotofinissFixture();const stable=smartwebClient([second.context],new Date(now.getTime()-18*60000).toISOString());
+    const value=await collectCxFotofinissRace(stable,second.context.race.id,{now,fetchGroups:second.fetchGroups});
+    // Las tres juniors sin ficha en el doble quedan como avisos: la ingesta crea sus fichas.
+    expect(value).toMatchObject({provider:'fotofiniss',status:'partial',rowsFound:4,rowsChanged:4,reviews:[],warningCount:3});
+    const [prepared]=stable.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'fotofiniss',fotofiniss:{sourceUrl:FOTOFINISS_URL,group:'W18'}});
+    expect(prepared.imports[0].rows.map(row=>[row.rank,row.irm,row.globalRiderId,row.isoCode2])).toEqual([
+      [1,null,'lange-lauma','LV'],[2,'LAP',null,'LV'],[3,'LAP',null,'LV'],[4,'LAP',null,'LV']]);
+  });
+  it('sin Campeonato Nacional no deduce la nacionalidad y despacha desde collectCxRace',async()=>{
+    const open=fotofinissFixture('open');open.context.race.class='C2';
+    const client=smartwebClient([open.context],new Date(now.getTime()-18*60000).toISOString());
+    const value=await collectCxRace(client,'open',{now,fetchGroups:open.fetchGroups});
+    expect(value).toMatchObject({provider:'fotofiniss',rowsChanged:4});
+    expect(client.ingests[0].imports[0].rows.map(row=>row.isoCode2)).toEqual(['LV',null,null,null]);
+  });
+});
+
+// Campeonatos Panamericanos 08-11-2025 en RaceResult (evento 370461): listas finales de ME y MJ.
+const RACERESULT_URL='https://my.raceresult.com/370461/';
+const raceresultList=name=>parseRaceresultList(JSON.parse(readFileSync(new URL(`./fixtures/raceresult-panam-2025-${name}.json`,import.meta.url),'utf8'))).rows;
+function raceresultFixture(id='own-raceresult',{category='ME',contest='24',contestName='Elite Men',rows=raceresultList('me')}={}){
+  const {context}=fixture(id);context.link=null;
+  Object.assign(context.race,{class:'CC',countryCode:'US'});
+  Object.assign(context.categories[0],{category,startTimeUtc:category==='ME'?'2026-11-01T14:00:00Z':'2026-11-01T13:40:00Z'});
+  context.riders={men:[{id:'strohmeyer-andrew',firstName:'Andrew',lastName:'Strohmeyer',nationality:'US',birthDate:null,verified:true}],women:[]};
+  context.timingLink={raceId:id,provider:'raceresult',sourceUrl:RACERESULT_URL,categoryKeys:{[contest]:category},
+    syncEnabled:true,syncStartOffsetMinutes:-15,syncStopOffsetMinutes:720,syncIntervalMinutes:5};
+  const fetchContests=async()=>({eventUrl:RACERESULT_URL,eventName:'2025 Pan American Cyclocross Championships',eventOver:true,
+    contests:[{key:contest,contest,selector:null,contestName,listName:'03: Online Results|Overall Results',headline:`Overall Results ${contestName}`,rows}]});
+  return {context,fetchContests};
+}
+describe('recogida CX desde RaceResult',()=>{
+  it('espera 4 min sin cambios con todos los inscritos clasificados y después importa provisional',async()=>{
+    const first=raceresultFixture();const recent=smartwebClient([first.context],new Date(now.getTime()-2*60000).toISOString());
+    const waiting=await collectCxRaceresultRace(recent,first.context.race.id,{now,fetchContests:first.fetchContests});
+    expect(waiting).toMatchObject({provider:'raceresult',status:'ok',rowsChanged:0});
+    expect(waiting.pending).toEqual([{category:'ME',reason:'Concurso RaceResult en curso o modificado; se publica tras 4 min sin cambios'}]);
+    expect(recent.ingests).toHaveLength(0);
+
+    const second=raceresultFixture();const stable=smartwebClient([second.context],new Date(now.getTime()-5*60000).toISOString());
+    const value=await collectCxRaceresultRace(stable,second.context.race.id,{now,fetchContests:second.fetchContests});
+    expect(value).toMatchObject({provider:'raceresult',rowsFound:27,rowsChanged:27,reviews:[]});
+    const [prepared]=stable.ingests;
+    expect(prepared.status).toBe('provisional');
+    expect(prepared.imports[0].evidence).toMatchObject({inputSource:'raceresult',raceresult:{sourceUrl:RACERESULT_URL,contest:'24'}});
+    expect(prepared.imports[0].rows.slice(0,2).map(row=>[row.rank,row.globalRiderId,row.isoCode2,row.timeSeconds])).toEqual([
+      [1,'strohmeyer-andrew','US','3680'],[2,null,null,'3731']]);
+  });
+  it('con inscritos sin puesto ni estado espera 20 min, los deja fuera y despacha desde collectCxRace',async()=>{
+    const rows=raceresultList('mj').map(row=>row.place==='DNS'?{...row,place:''}:row);
+    const open=raceresultFixture('open',{category:'MJ',contest:'19',contestName:'Junior Men',rows});
+    const recent=smartwebClient([open.context],new Date(now.getTime()-5*60000).toISOString());
+    const waiting=await collectCxRace(recent,'open',{now,fetchContests:open.fetchContests});
+    expect(waiting.pending).toEqual([{category:'MJ',reason:'Concurso RaceResult en curso o modificado (3 inscritos sin puesto ni estado); se publica tras 20 min sin cambios'}]);
+    expect(recent.ingests).toHaveLength(0);
+
+    const again=raceresultFixture('open',{category:'MJ',contest:'19',contestName:'Junior Men',rows});
+    const stable=smartwebClient([again.context],new Date(now.getTime()-21*60000).toISOString());
+    const value=await collectCxRace(stable,'open',{now,fetchContests:again.fetchContests});
+    expect(value).toMatchObject({provider:'raceresult',status:'partial',rowsChanged:48});
+    expect(value.reviews).toEqual([{category:'MJ',reason:'3 inscritos sin puesto ni estado en RaceResult quedan fuera de la clasificación'}]);
+    expect(stable.ingests[0].imports[0].rows.filter(row=>row.irm==='DNS')).toEqual([]);
+  });
+  it('no sustituye una categoría oficial ni lee un concurso de otra categoría',async()=>{
+    const official=raceresultFixture('official');Object.assign(official.context.categories[0],{resultsProvider:'dataride',resultsStatus:'official'});
+    let fetched=false;
+    const value=await collectCxRaceresultRace(smartwebClient([official.context],now.toISOString()),'official',{now,fetchContests:async()=>{fetched=true;return {};}});
+    expect(fetched).toBe(false);
+    expect(value.skipped).toEqual([{category:'ME',reason:'Resultados ya oficiales; RaceResult no los sustituye'}]);
+
+    const wrong=raceresultFixture('wrong',{contestName:'Elite Women'});
+    const client=smartwebClient([wrong.context],new Date(now.getTime()-5*60000).toISOString());
+    const rejected=await collectCxRaceresultRace(client,'wrong',{now,fetchContests:wrong.fetchContests});
+    expect(rejected.reviews).toEqual([{category:'ME',reason:'RaceResult: Concurso 24 «Elite Women» no corresponde a ME'}]);
+    expect(client.ingests).toHaveLength(0);
   });
 });
 

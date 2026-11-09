@@ -9,6 +9,7 @@ import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
 import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
+export { hasModalData } from './stage/profile-availability.js';
 
 const STAGE_COLORS = {
   flat:            '#3dba6f',
@@ -199,21 +200,6 @@ function _close() {
  * Devuelve true si el race_day tiene datos suficientes para mostrar el modal.
  * rd debe incluir los campos de race_days (al menos un subconjunto con los campos de ruta).
  */
-export function hasModalData(rd) {
-  if (!rd) return false;
-  return !!(
-    rd.startLocation ||
-    rd.distanceKm ||
-    rd.primaryType ||
-    rd.neutralStartTimeUtc ||
-    rd.estimatedFinishTimeUtc ||
-    rd.hasAssets ||
-    (rd.tvStatus && rd.tvStatus !== 'none') ||
-    hasRenderableElevationProfile(rd) ||
-    rd.description ||
-    rd.notes
-  );
-}
 
 /**
  * Abre el modal con los datos de una jornada.

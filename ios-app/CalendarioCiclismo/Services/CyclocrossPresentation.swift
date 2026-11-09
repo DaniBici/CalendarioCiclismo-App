@@ -42,14 +42,36 @@ struct CxMediaSelection {
     /// Filas de TV en directo de la región del usuario: con «Todas», el resto
     /// lleva la etiqueta de región.
     let regionalIds: Set<String>
+    /// Estado de TV de la prueba que abre la sección aunque no haya emisiones:
+    /// `pending`, `none` o `unavailable_es` (este, solo en castellano), con
+    /// alguna categoría en directo. Nil en el resto.
+    var tvStatus: String? = nil
     var tvRows: [CxBroadcast] { tv.flatMap(\.rows) }
     /// Hay TV en directo, pero ninguna fila visible con el filtro actual.
     var showsRegionEmpty: Bool { showsLiveTV && tv.isEmpty }
+    /// Sección de TV: emisiones en directo de cualquier región o un estado de
+    /// TV sin emisión.
+    var showsTVSection: Bool { showsLiveTV || tvStatus != nil }
+    /// Línea atenuada de la sección sin emisiones en directo: rótulo del estado.
+    @MainActor var tvStatusText: String? { showsLiveTV ? nil : CyclocrossPresentation.tvStatusLabel(tvStatus) }
 }
 enum CxCategoryCardState { case time, awaiting, results, cancelled }
 
-/// Badge de TV de la tarjeta de Agenda: emisión enlazada, hora de la primera
-/// emisión del día y si el día ya está en directo.
+/// Badge de TV de la tarjeta de Agenda, con los casos del `TVBadge` de Hoy de
+/// carretera.
+enum CxAgendaTV {
+    /// `pending`, `none` o `unavailable_es`: chip del estado sin enlace,
+    /// aunque haya emisiones.
+    case status
+    /// Emisión visible de la región: hora de la primera o «En directo», con
+    /// enlace.
+    case broadcast(CxAgendaBroadcast)
+    /// TV confirmada sin ninguna emisión aplicable: «TV» sin enlace.
+    case coverage
+}
+
+/// Emisión del badge de TV de la tarjeta de Agenda: emisión enlazada, hora de
+/// la primera emisión del día y si el día ya está en directo.
 struct CxAgendaBroadcast {
     /// Emisión enlazada: la primera hasta que empieza otra posterior de una
     /// categoría aún en directo; después, la última que ha empezado.
@@ -137,6 +159,23 @@ enum CyclocrossPresentation {
     /// (CDM), más las pruebas de los torneos Copa del Mundo, Superprestige y X2O.
     /// El resto de carreras nacionales no hacen esperar: sus resultados llegan
     /// por la UCI más tarde o no se publican.
+    /// En los Campeonatos del Mundo (CM) y Continentales (CC) se compite por
+    /// selección nacional: el equipo que se muestra es la selección del país del
+    /// corredor, aunque la ficha y el resultado conserven su equipo. Espejo de
+    /// `cxCompetesBySelection` (web).
+    static func competesBySelection(_ race: CxRace) -> Bool { race.raceClass == "CM" || race.raceClass == "CC" }
+
+    /// Filas con la selección del país del corredor en lugar del equipo, sin franjas.
+    static func withSelections(_ rows: [UciResultsLogic.ResultRowVM]) -> [UciResultsLogic.ResultRowVM] {
+        rows.map { vm in
+            UciResultsLogic.ResultRowVM(
+                rank: vm.rank, rankBadge: vm.rankBadge, isOut: vm.isOut, riderName: vm.riderName, countryCode: vm.countryCode,
+                teamName: Team.selectionName(vm.countryCode, isEnglish: LocaleService.isEnglish) ?? "", team: nil,
+                uciPoints: vm.uciPoints, valueKind: vm.valueKind, valueText: vm.valueText, rowGap: vm.rowGap
+            )
+        }
+    }
+
     static func awaitsResults(_ race: CxRace) -> Bool {
         if ["CM", "CC", "CDM"].contains(race.raceClass) { return true }
         guard let tournament = race.tournament else { return false }
@@ -191,7 +230,12 @@ enum CyclocrossPresentation {
         default: code
         }
     }
-    static func logo(_ race: CxRace) -> String? { link(race.logoUrl)?.absoluteString ?? link(race.tournament?.logoUrl)?.absoluteString }
+    /// Logo propio o, si no, el del torneo. Los Campeonatos Nacionales (clase
+    /// CN) nunca muestran logo: los que hubiera se ocultan sin borrarlos.
+    static func logo(_ race: CxRace) -> String? {
+        guard race.raceClass != "CN" else { return nil }
+        return link(race.logoUrl)?.absoluteString ?? link(race.tournament?.logoUrl)?.absoluteString
+    }
     static func raceClass(_ code: String) -> String { code == "NAC" ? t("Nac", "Nat") : code }
     /// Nombre completo de la clase para la cabecera de la ficha: las siglas
     /// sin contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
@@ -553,52 +597,115 @@ enum CyclocrossPresentation {
         let sortedRevive = revive.enumerated().sorted { a, b in
             rank(a.element) == rank(b.element) ? a.offset < b.offset : rank(a.element) < rank(b.element)
         }.map(\.element)
-        return CxMediaSelection(tv: groups, revive: sortedRevive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty, regionalIds: regionalIds)
+        // Estado de TV sin emisión mientras quede alguna categoría en directo,
+        // como la sección de TV de la jornada de carretera.
+        let status = live.isEmpty ? nil : sectionTVStatus(detail.race.tvStatus)
+        return CxMediaSelection(tv: groups, revive: sortedRevive, hasHiddenTV: regional.count < tvRows.count, showsLiveTV: !tvRows.isEmpty,
+                                regionalIds: regionalIds, tvStatus: status)
+    }
+
+    /// Estados de TV que se muestran sin emisión: `pending`, `none` y
+    /// `unavailable_es`. Este último no se muestra en inglés, como en el
+    /// `TVBadge` de carretera.
+    private static func sectionTVStatus(_ status: String?) -> String? {
+        switch status {
+        case "pending", "none": return status
+        case "unavailable_es": return LocaleService.isEnglish ? nil : status
+        default: return nil
+        }
+    }
+
+    /// Rótulo de un estado de TV sin emisión, con los textos del `TVBadge` de
+    /// carretera; nil en el resto y con `unavailable_es` en inglés.
+    static func tvStatusLabel(_ status: String?) -> String? {
+        switch sectionTVStatus(status) {
+        case "pending": return t("Sin confirmar", "Unconfirmed")
+        case "none": return t("Sin TV", "No TV")
+        case "unavailable_es": return "No TV España"
+        default: return nil
+        }
     }
     // MARK: - Badges de la tarjeta de Agenda
 
-    /// Badge de TV de la tarjeta de Agenda, espejo de `cxAgendaBroadcast`
-    /// (`js/cx/presentation.js`). Cuenta solo las emisiones de la región del
-    /// usuario con URL válida que se aplican a las categorías del día. Hasta
-    /// que empieza la primera muestra su hora; desde entonces, «En directo»
-    /// mientras quede alguna categoría del día sin resultados, sin cancelar y
-    /// antes de su conclusión estimada; después, nil.
+    /// Emisión del badge de TV de la tarjeta de Agenda, espejo de
+    /// `cxAgendaBroadcast` (`js/cx/presentation.js`). Cuenta solo las
+    /// emisiones de la región del usuario con URL válida que se aplican a las
+    /// categorías del día: la hora de la primera y si ya ha empezado, mientras
+    /// quede alguna categoría del día sin resultados, sin cancelar y antes de
+    /// su conclusión estimada; después, nil. El estado de TV lo aplica
+    /// `agendaTV`.
     static func agendaBroadcast(race: CxRace, date: String, allowedGroups: Set<String>, at now: Date = Date()) -> CxAgendaBroadcast? {
         let categories = CyclocrossLogic.categories(on: date, race: race)
         guard !race.isCancelled, !categories.isEmpty else { return nil }
-        let visible = (race.broadcasts ?? [])
-            .filter { link($0.url) != nil && RaceLogic.broadcastMatchesRegion($0.country, allowedGroups: allowedGroups) }
-            .sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }
-        guard !visible.isEmpty else { return nil }
-        /// Filas que se aplican a las categorías aceptadas, sin repetir
-        /// categoría, URL, región y canal (criterio de la TV de la ficha).
-        func rows(_ accept: (CxCategory) -> Bool) -> [CxBroadcast] {
-            let codes = Set(categories.filter(accept).map(\.category))
-            guard !codes.isEmpty else { return [] }
-            var keys = Set<String>()
-            return visible.filter { row in
-                let code = row.category ?? ""
-                guard code.isEmpty || codes.contains(code) else { return false }
-                let country = row.country.flatMap { $0.isEmpty ? nil : $0 } ?? "ALL"
-                return keys.insert("\(code)|\(link(row.url)?.absoluteString ?? "")|\(country)|\(row.channel ?? "")").inserted
-            }
-        }
-        let tv = rows { category in
-            !category.isCancelled && !CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus)
-                && now < CyclocrossLogic.concludedAt(race: race, category: category)
-        }
+        let tv = agendaRows(race, categories: categories, allowedGroups: allowedGroups) { agendaLive(race, $0, at: now) }
         guard !tv.isEmpty else { return nil }
         func start(_ row: CxBroadcast) -> Date { CyclocrossLogic.instant(row.startTimeUtc) ?? .distantFuture }
         /// La que antes empieza; a igualdad, la primera por orden.
         func earliest(_ list: [CxBroadcast]) -> CxBroadcast? {
             list.reduce(nil) { best, row in best.map { start(row) < start($0) ? row : $0 } ?? row }
         }
-        guard let first = earliest(rows { !$0.isCancelled }) ?? earliest(tv) else { return nil }
+        guard let first = earliest(agendaRows(race, categories: categories, allowedGroups: allowedGroups) { !$0.isCancelled }) ?? earliest(tv) else { return nil }
         // Última emisión empezada de una categoría en directo; a igualdad de
         // hora, la última por orden.
         let started = tv.filter { start($0) <= now }
         let current = started.reduce(nil) { best, row in best.map { start(row) >= start($0) ? row : $0 } ?? row } ?? earliest(tv) ?? first
         return CxAgendaBroadcast(row: current, firstStartUtc: first.startTimeUtc, live: start(first) <= now)
+    }
+
+    /// Categoría en directo en la tarjeta: sin cancelar, sin resultados
+    /// publicados y antes de su conclusión estimada.
+    private static func agendaLive(_ race: CxRace, _ category: CxCategory, at now: Date) -> Bool {
+        !category.isCancelled && !CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus)
+            && now < CyclocrossLogic.concludedAt(race: race, category: category)
+    }
+
+    /// Emisiones con URL válida, de la región si `allowedGroups` no es nil, que
+    /// se aplican a las categorías aceptadas del día, por orden de publicación
+    /// y sin repetir categoría, URL, región y canal (criterio de la TV de la
+    /// ficha).
+    private static func agendaRows(_ race: CxRace, categories: [CxCategory], allowedGroups: Set<String>?,
+                                   accept: (CxCategory) -> Bool) -> [CxBroadcast] {
+        let codes = Set(categories.filter(accept).map(\.category))
+        guard !codes.isEmpty else { return [] }
+        var keys = Set<String>()
+        return (race.broadcasts ?? [])
+            .filter { row in
+                link(row.url) != nil && (allowedGroups.map { RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: $0) } ?? true)
+            }
+            .sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }
+            .filter { row in
+                let code = row.category ?? ""
+                guard code.isEmpty || codes.contains(code) else { return false }
+                let country = row.country.flatMap { $0.isEmpty ? nil : $0 } ?? "ALL"
+                return keys.insert("\(code)|\(link(row.url)?.absoluteString ?? "")|\(country)|\(row.channel ?? "")").inserted
+            }
+    }
+
+    /// Badge de TV de la tarjeta de Agenda con el estado de TV de la prueba,
+    /// espejo del `TVBadge` de Hoy de carretera. Solo mientras alguna
+    /// categoría del día siga en directo (`agendaLive`), en una prueba no
+    /// cancelada:
+    /// - `pending`, `none` y `unavailable_es`: chip del estado, sin enlace
+    ///   aunque haya emisiones. En inglés, `unavailable_es` no muestra badge,
+    ///   como en carretera.
+    /// - Emisión visible de la región (`agendaBroadcast`): hora o «En directo»
+    ///   con enlace; el `TVBadge` reserva «En directo» a `confirmed_time`.
+    /// - `confirmed_time` y `confirmed_notime` sin emisión aplicable a las
+    ///   categorías en directo: «TV» sin enlace. Si las hay, pero todas fuera
+    ///   de la región del usuario, sin badge.
+    /// - Sin estado ni emisión visible, sin badge.
+    static func agendaTV(race: CxRace, date: String, allowedGroups: Set<String>, at now: Date = Date()) -> CxAgendaTV? {
+        let categories = CyclocrossLogic.categories(on: date, race: race)
+        guard !race.isCancelled, categories.contains(where: { agendaLive(race, $0, at: now) }) else { return nil }
+        switch race.tvStatus {
+        case "pending", "none": return .status
+        case "unavailable_es": return LocaleService.isEnglish ? nil : .status
+        default: break
+        }
+        if let broadcast = agendaBroadcast(race: race, date: date, allowedGroups: allowedGroups, at: now) { return .broadcast(broadcast) }
+        guard ["confirmed_time", "confirmed_notime"].contains(race.tvStatus ?? "") else { return nil }
+        let blocked = !agendaRows(race, categories: categories, allowedGroups: nil) { agendaLive(race, $0, at: now) }.isEmpty
+        return blocked ? nil : .coverage
     }
 
     // MARK: - Orden de la agenda
@@ -621,20 +728,23 @@ enum CyclocrossPresentation {
         return keyed.sorted { ($0.tier, $0.time, $0.index) < ($1.tier, $1.time, $1.index) }.map { $0.race }
     }
 
-    /// Clave del orden por TV: 0 con hora (la primera del día), 1 con TV sin
-    /// hora y 2 sin TV. Cuenta las emisiones de la región con URL válida que
-    /// aplican a una categoría no cancelada del día, con independencia de la
-    /// hora actual: el orden no cambia cuando el badge desaparece.
+    /// Clave del orden por TV, espejo de `tvSortTier` de carretera: 0 con
+    /// emisión con hora (la primera del día); sin hora, 2 con TV `pending`
+    /// aunque haya emisiones, 1 con emisión y 3 el resto (también prueba
+    /// cancelada o sin categorías abiertas). Cuenta las emisiones de la región
+    /// con URL válida que aplican a una categoría no cancelada del día, con
+    /// independencia de la hora actual: el orden no cambia cuando el badge
+    /// desaparece.
     static func agendaTVKey(race: CxRace, date: String, allowedGroups: Set<String>) -> (tier: Int, time: Date) {
         let codes = Set(CyclocrossLogic.categories(on: date, race: race).filter { !$0.isCancelled }.map(\.category))
-        guard !race.isCancelled, !codes.isEmpty else { return (2, .distantFuture) }
+        guard !race.isCancelled, !codes.isEmpty else { return (3, .distantFuture) }
         let rows = (race.broadcasts ?? []).filter { row in
             link(row.url) != nil && RaceLogic.broadcastMatchesRegion(row.country, allowedGroups: allowedGroups)
                 && (row.category.map { $0.isEmpty || codes.contains($0) } ?? true)
         }
-        guard !rows.isEmpty else { return (2, .distantFuture) }
-        guard let first = rows.compactMap({ CyclocrossLogic.instant($0.startTimeUtc) }).min() else { return (1, .distantFuture) }
-        return (0, first)
+        if let first = rows.compactMap({ CyclocrossLogic.instant($0.startTimeUtc) }).min() { return (0, first) }
+        if race.tvStatus == "pending" { return (2, .distantFuture) }
+        return (rows.isEmpty ? 3 : 1, .distantFuture)
     }
 
     /// Fin estimado de la prueba en `date`: la llegada más tardía de sus

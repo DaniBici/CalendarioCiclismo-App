@@ -18,6 +18,9 @@ struct ImageRequest: Hashable, Sendable {
 @MainActor @Observable
 final class CachedImageState {
     private(set) var image: UIImage?
+    /// La descarga falló y no hay copia local: el llamante puede pintar un
+    /// hueco en lugar de dejarlo vacío.
+    private(set) var failed = false
     private var source: URL?
     private var generation = 0
     private let fetch: @MainActor (URL, Int) async throws -> UIImage
@@ -40,6 +43,7 @@ final class CachedImageState {
         if source != request.url {
             source = request.url
             image = request.url.flatMap(localImage)
+            failed = false
         }
         guard let url = request.url, !Task.isCancelled else { return }
         do {
@@ -48,19 +52,29 @@ final class CachedImageState {
             image = downloaded
         } catch {
             // Conservar el respaldo local; un cambio de URL o refresco reintenta.
+            if current == generation, image == nil, !Task.isCancelled { failed = true }
         }
     }
 }
 
 struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
-    let placeholder: Placeholder
+    /// Contenido sin imagen; recibe `true` si la descarga falló.
+    let placeholder: (Bool) -> Placeholder
     @State private var state: CachedImageState
 
     init(url: URL?, state: CachedImageState = CachedImageState(), @ViewBuilder placeholder: () -> Placeholder) {
         self.url = url
         _state = State(initialValue: state)
-        self.placeholder = placeholder()
+        let view = placeholder()
+        self.placeholder = { _ in view }
+    }
+
+    /// Variante que distingue la carga en curso del fallo.
+    init(url: URL?, state: CachedImageState = CachedImageState(), @ViewBuilder placeholder: @escaping (_ failed: Bool) -> Placeholder) {
+        self.url = url
+        _state = State(initialValue: state)
+        self.placeholder = placeholder
     }
 
     var body: some View {
@@ -69,7 +83,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
             if let image = state.image {
                 Image(uiImage: image).resizable()
             } else {
-                placeholder
+                placeholder(state.failed)
             }
         }
         .task(id: request) { await state.load(request) }

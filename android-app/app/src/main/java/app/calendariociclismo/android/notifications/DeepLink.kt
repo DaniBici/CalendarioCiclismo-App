@@ -29,12 +29,12 @@ sealed class DeepLink {
     data class CxTournamentSlug(val slug: String) : DeepLink()
 
     // Variantes por SLUG: las produce SOLO el App Link HTTPS de la web
-    // (`/competicion/<slug>/`, `/jornada/<slug>/`), donde el último segmento
-    // es un slug, no un id de Room. El handler resuelve el slug → id real
-    // contra Supabase antes de navegar (espejo de `load(slug:)` en iOS).
-    // Las push y el widget siguen usando Race/Stage con id directo.
-    data class RaceSlug(val slug: String) : DeepLink()
-    data class StageSlug(val slug: String) : DeepLink()
+    // (`/competicion/<slug>/` y `/jornada/<slug>/` con `slug`; `/en/race/<slug>/`
+    // y `/en/stage/<slug>/` con `slugEn`), donde el último segmento es un slug,
+    // no un id de Room. El handler resuelve el slug → id real contra Supabase
+    // antes de navegar. Las push y el widget siguen usando Race/Stage con id directo.
+    data class RaceSlug(val slug: String, val english: Boolean = false) : DeepLink()
+    data class StageSlug(val slug: String, val english: Boolean = false) : DeepLink()
 
     companion object {
         /** Pestañas válidas (igual que iOS). "search" se conserva por
@@ -51,6 +51,12 @@ sealed class DeepLink {
         private val CX_CATEGORY = Regex("^(ME|WE|MU|WU|MJ|WJ)$")
 
         private val RESULTS_STAGE_REGEX = Regex("^(\\d{1,3})([A-Z]?)$")
+
+        /** Hosts del App Link HTTPS, los del intent-filter `autoVerify`. */
+        private val WEB_HOSTS = setOf("calendariociclismo.app", "www.calendariociclismo.app")
+
+        /** Slug de página web (carreras, jornadas, pruebas y torneos CX). */
+        private val WEB_SLUG = Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
         private fun cxAnchorIsValid(anchor: String?): Boolean = anchor == null || VALID_CX_ANCHOR.matches(anchor)
 
@@ -141,31 +147,7 @@ sealed class DeepLink {
          */
         fun fromUri(uri: Uri?): DeepLink? {
             if (uri == null) return null
-            if (uri.scheme == "https") {
-                if (uri.host != "calendariociclismo.app" || uri.userInfo != null || uri.port !in listOf(-1, 443)) return null
-                val segments = uri.pathSegments
-                val english = segments.firstOrNull() == "en"
-                val path = if (english) segments.drop(1) else segments
-                val expected = if (english) "cyclocross" else "ciclocross"
-                if (path.firstOrNull() != expected || path.size !in 1..3) return null
-                if (path.size == 1) return Tab("cyclocross")
-                if (path.size == 3 && path[1] == if (english) "series" else "torneos") {
-                    // Página de serie: torneos/ en ES, series/ en EN.
-                    val tournamentSlug = path[2]
-                    if (!Regex("^[a-z0-9-]+$").matches(tournamentSlug)) return null
-                    return CxTournamentSlug(tournamentSlug)
-                }
-                val section = when {
-                    path.size == 2 -> uri.getQueryParameter("view")
-                    path[2] == if (english) "startlist" else "inscritos" -> "startlist"
-                    path[2] == if (english) "results" else "resultados" -> "results"
-                    else -> return null
-                }
-                val slug = path[1]
-                val anchor = cxWebAnchor(section, uri.fragment)
-                if (!Regex("^[a-z0-9-]+$").matches(slug) || !cxAnchorIsValid(anchor)) return null
-                return CxRaceSlug(slug, anchor)
-            }
+            if (uri.scheme == "https") return fromWebUri(uri)
             if (uri.scheme != "calendariociclismo") return null
             val host = uri.host ?: return null
             if (host.isEmpty()) return null
@@ -193,6 +175,61 @@ sealed class DeepLink {
                 // Forma corta: calendariociclismo://today → "today"
                 else -> parse(host)
             }
+        }
+
+        /**
+         * App Link HTTPS de la web (dominio y `www`), con las rutas del
+         * intent-filter `autoVerify` del manifest (las mismas de
+         * `/.well-known/apple-app-site-association`):
+         *   - `/` y `/en/` → pestaña inicial
+         *   - `/calendario/` y `/en/calendar/` → Calendario; `/mes.html` y
+         *     `/temporada.html` → Calendario en la subvista Mes o Temporada
+         *   - `/competicion/<slug>/` y `/jornada/<slug>/` → por `slug`;
+         *     `/en/race/<slug>/` y `/en/stage/<slug>/` → por `slugEn`
+         *   - `/ciclocross/` y `/en/cyclocross/` → pestaña, pruebas y torneos
+         * Una ruta nueva entra a la vez en el manifest y aquí: una ruta declarada
+         * que no se traduce abre la app sin destino.
+         */
+        private fun fromWebUri(uri: Uri): DeepLink? {
+            if (uri.host?.lowercase() !in WEB_HOSTS || uri.userInfo != null || uri.port !in listOf(-1, 443)) return null
+            val segments = uri.pathSegments
+            val english = segments.firstOrNull() == "en"
+            val path = if (english) segments.drop(1) else segments
+            if (path.isEmpty()) return Tab("today")
+            if (path.size == 1) {
+                if (path[0] == if (english) "calendar" else "calendario") return Tab("calendar")
+                if (!english && path[0] == "mes.html") return Tab("month")
+                if (!english && path[0] == "temporada.html") return Tab("season")
+            }
+            if (path.size == 2 && WEB_SLUG.matches(path[1])) {
+                when (path[0]) {
+                    if (english) "race" else "competicion" -> return RaceSlug(path[1], english)
+                    if (english) "stage" else "jornada" -> return StageSlug(path[1], english)
+                }
+            }
+            return fromCxWebPath(path, english, uri)
+        }
+
+        private fun fromCxWebPath(path: List<String>, english: Boolean, uri: Uri): DeepLink? {
+            val expected = if (english) "cyclocross" else "ciclocross"
+            if (path.firstOrNull() != expected || path.size !in 1..3) return null
+            if (path.size == 1) return Tab("cyclocross")
+            if (path.size == 3 && path[1] == if (english) "series" else "torneos") {
+                // Página de serie: torneos/ en ES, series/ en EN.
+                val tournamentSlug = path[2]
+                if (!WEB_SLUG.matches(tournamentSlug)) return null
+                return CxTournamentSlug(tournamentSlug)
+            }
+            val section = when {
+                path.size == 2 -> uri.getQueryParameter("view")
+                path[2] == if (english) "startlist" else "inscritos" -> "startlist"
+                path[2] == if (english) "results" else "resultados" -> "results"
+                else -> return null
+            }
+            val slug = path[1]
+            val anchor = cxWebAnchor(section, uri.fragment)
+            if (!WEB_SLUG.matches(slug) || !cxAnchorIsValid(anchor)) return null
+            return CxRaceSlug(slug, anchor)
         }
     }
 }

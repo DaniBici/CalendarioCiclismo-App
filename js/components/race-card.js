@@ -7,6 +7,8 @@
 // jornada de carretera (cifras, horario, perfil, resultados, activación)
 // están en stage-card.js.
 
+import { LOGO_ONERROR, logoPlaceholderHtml } from './logo-placeholder.js';
+
 function hexLuminance(hex) {
   if (!hex || !/^#[0-9a-fA-F]{3,6}$/.test(hex)) return null;
   const h = hex.replace('#', '');
@@ -24,18 +26,15 @@ export function safeCardColor(hex) {
   return '#' + darken(c.r) + darken(c.g) + darken(c.b);
 }
 
-// Contenedor de la tarjeta con el color de la carrera.
-export function createRaceCard(colorHex, extraClass = '', tag = 'div') {
-  const card = document.createElement(tag);
-  card.className = ['race-card', extraClass].filter(Boolean).join(' ');
-  card.style.setProperty('--card-color', safeCardColor(colorHex));
-  return card;
-}
-
-export function cardLogoHtml(logoUrl, flag, hideFlag) {
-  if (logoUrl) {
+// `placeholder`: sin logo (o si no carga), el hueco de la marca en lugar de
+// solo la bandera. Nunca en los Campeonatos Nacionales.
+export function cardLogoHtml(logoUrl, flag, hideFlag, placeholder = false) {
+  if (logoUrl || placeholder) {
+    const logo = logoUrl
+      ? `<img class="race-logo-img" src="${logoUrl}" alt="" loading="lazy" ${placeholder ? LOGO_ONERROR : `onerror="this.style.display='none'"`}>`
+      : logoPlaceholderHtml('race-logo-img');
     return `<div class="race-card__logo">
-         <img class="race-logo-img" src="${logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">
+         ${logo}
          ${hideFlag ? '' : `<span>${flag}</span>`}
        </div>`;
   }
@@ -57,14 +56,3 @@ export function raceCardHtml({ logo = '', name, sub = '', badges = '', meta = ''
     + `<div class="race-card__badges">${badges}</div>`
     + `</div>${metaBlock ?? `<div class="race-card__meta"><div class="race-card__meta-top">${meta}</div></div>`}`;
 }
-
-// Tarjeta sin página ni modal: tooltip al pasar el ratón y aviso al pulsar en
-// móvil (initPhTooltip de shared.js).
-export function setInfoTooltip(card, { message, name, flag, sub }) {
-  card.style.cursor = 'default';
-  card.dataset.phTooltip = message;
-  card.dataset.phName = name;
-  card.dataset.phFlag = flag;
-  if (sub) card.dataset.phSub = sub;
-}
-

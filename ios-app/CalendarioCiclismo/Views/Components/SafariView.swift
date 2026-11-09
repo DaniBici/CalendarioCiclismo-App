@@ -25,6 +25,8 @@ struct SafariSheet: ViewModifier {
                 if let url {
                     SafariView(url: url)
                         .ignoresSafeArea()
+                        // iPad: la web a tamaño de página, no de formulario.
+                        .presentationSizing(.page)
                 }
             }
     }

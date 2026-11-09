@@ -34,7 +34,7 @@ const ARROW_SVG = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none" xmln
 
 // Recorrido, distancia y horarios. Las horas llevan su instante en
 // <time datetime>, como en la jornada.
-function routeGridHtml(rd, race) {
+function routeGridHtml(rd, race, timeZoneLabel = null) {
   const isEn = getLang() === 'en';
   const startName  = rdLocation(rd, 'startLocation');
   const finishName = rdLocation(rd, 'finishLocation');
@@ -66,7 +66,7 @@ function routeGridHtml(rd, race) {
   const { startLabel, finishLabel } = startFinishLabels(rd, race);
   const startTip  = tzDiffers ? t('profile.startMadrid').replace('{time}', startTU?.tooltip ?? start) : startLabel;
   const finishTip = tzDiffers ? t('profile.finishMadrid').replace('{time}', finishTU?.tooltip ?? finish) : finishLabel;
-  const timeTag = (iso, text) => `<time datetime="${esc(iso)}">${text}</time>`;
+  const timeTag = (iso, text) => `<time datetime="${esc(iso)}">${timeZoneLabel ? `${text} ${timeZoneLabel}` : text}</time>`;
   let horariosHtml;
   if (start && finish) {
     horariosHtml = `<div class="route-block__place" data-tooltip="${startTip}">${timeTag(rd.neutralStartTimeUtc, start)}${startDay}</div>${ARROW_SVG}<div class="route-block__place" data-tooltip="${finishTip}">${timeTag(rd.estimatedFinishTimeUtc, finish)}${finishDay}</div>`;
@@ -89,7 +89,7 @@ function routeGridHtml(rd, race) {
           <div class="route-grid__body">${kmHtml}${elevHtml}${tipoHtml}</div>
         </div>
         <div class="route-grid__block">
-          <div class="route-grid__title" data-tooltip="${tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone')}">${t('stage.schedule')}</div>
+          <div class="route-grid__title" data-tooltip="${timeZoneLabel || (tzDiffers ? t('stage.yourTimezone') : t('stage.madridTimezone'))}">${t('stage.schedule')}</div>
           <div class="route-grid__body route-grid__body--route">${horariosHtml}</div>
         </div>
       </div>
@@ -99,7 +99,7 @@ function routeGridHtml(rd, race) {
 // Selector de etapas, cabecera de carrera, botones y rejilla, comunes a las
 // dos páginas. `view`: 'perfil' o 'mapa' (buildActionButtons omite el botón
 // de la propia vista).
-function stagePageHeadHtml({ rd, race, siblings, assets, view, urlBuilder }) {
+function stagePageHeadHtml({ rd, race, siblings, assets, view, urlBuilder, timeZoneLabel }) {
   const stageNavHtml = buildStageNav(siblings.filter(s => !s.isRestDay), rd.id, urlBuilder, raceUrl(race));
   // Margen superior (como en jornada, orden y resultados) para que el panel no
   // se pegue al separador inferior de la cabecera (.race-header).
@@ -107,7 +107,7 @@ function stagePageHeadHtml({ rd, race, siblings, assets, view, urlBuilder }) {
     race, rd, view, assets, hasStartlist: !!race.startlistImportedAt,
     style: 'margin:1.25rem auto 0.85rem', standalone: true,
   }) : '';
-  return `${stageNavHtml}${buildRaceHero(rd, race)}${actionButtonsHtml}${routeGridHtml(rd, race)}`;
+  return `${stageNavHtml}${buildRaceHero(rd, race)}${actionButtonsHtml}${routeGridHtml(rd, race, timeZoneLabel)}`;
 }
 
 /**
@@ -115,12 +115,12 @@ function stagePageHeadHtml({ rd, race, siblings, assets, view, urlBuilder }) {
  * stageProfileHtml(), con el gráfico vacío que dibuja mountStageProfile sobre
  * #pfeProfile; sin perfil que mostrar, el aviso de que no hay elevación.
  */
-export function perfilHtml({ rd, race, siblings = [], assets = [] }) {
-  const profile = stageProfileHtml(rd, race || {}, assets, { points: true });
+export function perfilHtml({ rd, race, siblings = [], assets = [], timeZoneLabel = null }) {
+  const profile = stageProfileHtml(rd, race || {}, assets, { points: true, timeZoneLabel });
   const profileHtml = profile
     ? `<div id="pfeProfile" class="${profile.className}">${profile.html}</div>`
     : stagePageNoticeHtml('profile.noElevation');
-  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'perfil', urlBuilder: perfilUrl })}${profileHtml}`;
+  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'perfil', urlBuilder: perfilUrl, timeZoneLabel })}${profileHtml}`;
 }
 
 const fmtInt = (v, sep = '.') => (v != null ? String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, sep) : '?');
@@ -166,6 +166,6 @@ function mapKeyPointsHtml(rd) {
  * HTML de #mapaEtapaContent: el contenedor del mapa va vacío (lo monta
  * mountRouteMap, con alto reservado en css/app.css) y debajo los puntos clave.
  */
-export function mapaHtml({ rd, race, siblings = [], assets = [] }) {
-  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'mapa', urlBuilder: mapaUrl })}<div class="cc-map-wrap" id="ccRouteMapWrap"></div>${mapKeyPointsHtml(rd)}`;
+export function mapaHtml({ rd, race, siblings = [], assets = [], timeZoneLabel = null }) {
+  return `${stagePageHeadHtml({ rd, race, siblings, assets, view: 'mapa', urlBuilder: mapaUrl, timeZoneLabel })}<div class="cc-map-wrap" id="ccRouteMapWrap"></div>${mapKeyPointsHtml(rd)}`;
 }

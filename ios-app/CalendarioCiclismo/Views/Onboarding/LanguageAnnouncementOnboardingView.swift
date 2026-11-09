@@ -84,6 +84,8 @@ struct LanguageAnnouncementOnboardingView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
+            // En ventanas anchas, contenido y botones centrados con ancho máximo.
+            .frame(maxWidth: AdaptiveLayoutPolicy.onboardingWidth)
         }
         .accessibilityElement(children: .contain)
         .onAppear {

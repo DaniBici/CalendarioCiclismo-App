@@ -28,6 +28,8 @@ struct WidgetEntryView: View {
         case .accessoryRectangular: RectangularView(entry: entry)
         case .systemSmall: SmallView(entry: entry)
         case .systemLarge: ListView(entry: entry, maxRows: 7, showsHeader: true)
+        // iPad: el alto del grande con el doble de ancho, en dos columnas.
+        case .systemExtraLarge: ListView(entry: entry, maxRows: 14, showsHeader: true, columns: 2)
         default: MediumView(entry: entry)
         }
     }
@@ -267,12 +269,15 @@ private struct CXSessionLine: View {
     }
 }
 
-// MARK: - Lista (mediano con varias carreras y grande)
+// MARK: - Lista (mediano con varias carreras, grande y extragrande)
 
 private struct ListView: View {
     let entry: WidgetEntry
     let maxRows: Int
     let showsHeader: Bool
+    /// Columnas de filas: 2 en el extragrande del iPad, que se llenan de
+    /// arriba abajo empezando por la izquierda.
+    var columns: Int = 1
 
     var body: some View {
         let text = entry.text
@@ -299,12 +304,19 @@ private struct ListView: View {
                 } else {
                     let rows = Array(day.items.prefix(maxRows))
                     if rows.count < maxRows && !showsHeader { Spacer(minLength: 0) }
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
-                        WidgetRow(item: item, now: entry.date, text: text)
-                            .padding(.vertical, showsHeader ? 5 : 3)
-                        if index < rows.count - 1 {
-                            Color.wDivider.frame(height: 0.5)
+                    if columns > 1 {
+                        let perColumn = max(1, (rows.count + columns - 1) / columns)
+                        HStack(alignment: .top, spacing: 14) {
+                            ForEach(0..<columns, id: \.self) { column in
+                                let slice = Array(rows.dropFirst(column * perColumn).prefix(perColumn))
+                                VStack(alignment: .leading, spacing: 0) {
+                                    rowStack(slice, text: text)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
                         }
+                    } else {
+                        rowStack(rows, text: text)
                     }
                     Spacer(minLength: 0)
                     if showsHeader, let next = day.next, rows.count < maxRows {
@@ -322,6 +334,16 @@ private struct ListView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    @ViewBuilder private func rowStack(_ rows: [WidgetItem], text: WidgetText) -> some View {
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
+            WidgetRow(item: item, now: entry.date, text: text)
+                .padding(.vertical, showsHeader ? 5 : 3)
+            if index < rows.count - 1 {
+                Color.wDivider.frame(height: 0.5)
+            }
+        }
     }
 
     private func dayTitle(_ text: WidgetText) -> String {

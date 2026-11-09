@@ -72,7 +72,7 @@ import java.time.YearMonth
 @OptIn(SupabaseInternal::class)
 class SupabaseService : CxRemote {
 
-    private val cxAgendaColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+    private val cxAgendaColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone,tvStatus," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
@@ -99,7 +99,8 @@ class SupabaseService : CxRemote {
             order("id", Order.ASCENDING)
         }.decodeList()
 
-    /** Columnas del índice: las de la agenda sin documentos ni emisiones. */
+    /** Columnas del índice: las de la agenda sin documentos, emisiones ni
+     *  estado de TV (el badge de TV necesita las emisiones del día). */
     private val cxIndexColumns = "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
@@ -405,11 +406,16 @@ class SupabaseService : CxRemote {
             limit(1)
         }.decodeSingle()
 
-    suspend fun raceBySlug(slug: String): Race =
-        client.from("races").select(columns = RACE_COLUMNS) {
-            filter { eq("slug", slug) }
+    /** Id por el slug de la página web: `slug` en español, `slugEn` en inglés. */
+    private suspend fun idByWebSlug(table: String, slug: String, english: Boolean): String? =
+        client.from(table).select(columns = Columns.list("id")) {
+            filter { eq(if (english) "slugEn" else "slug", slug) }
             limit(1)
-        }.decodeSingle()
+        }.decodeList<IdRow>().firstOrNull()?.id
+
+    /** Carrera de `/competicion/<slug>/` o `/en/race/<slug>/`. */
+    suspend fun raceIdByWebSlug(slug: String, english: Boolean): String? =
+        idByWebSlug("races", slug, english)
 
     suspend fun racesByIds(ids: List<String>): List<Race> =
         inChunks(ids, ID_CHUNK) { chunk ->
@@ -579,11 +585,9 @@ class SupabaseService : CxRemote {
         return all
     }
 
-    suspend fun raceDayBySlug(slug: String): RaceDay =
-        client.from("race_days").select {
-            filter { eq("slug", slug) }
-            limit(1)
-        }.decodeSingle()
+    /** Jornada de `/jornada/<slug>/` o `/en/stage/<slug>/`. */
+    suspend fun raceDayIdByWebSlug(slug: String, english: Boolean): String? =
+        idByWebSlug("race_days", slug, english)
 
     /** Siguiente fecha con jornadas publicadas después de [dateKey]. */
     suspend fun nextDateWithRaces(dateKey: String): String? {
@@ -933,6 +937,26 @@ class SupabaseService : CxRemote {
                 }
             }
         }.decodeList()
+
+    @Serializable
+    private data class StageDateEntry(val stageDate: String? = null)
+
+    /**
+     * Último día con clasificaciones del feed hasta [toKey] (incluido), con los
+     * filtros de [raceUciStagesFeed]. Ancla la ventana inicial de Últimos
+     * resultados: 14 días contados desde ese día, no desde hoy.
+     */
+    suspend fun latestResultsFeedDate(toKey: String): String? =
+        client.from("race_uci_stages").select(columns = Columns.raw("stageDate")) {
+            filter {
+                eq("keepForWeb", true)
+                gt("rowCount", 0)
+                isIn("classKind", listOf("stage", "gc"))
+                lte("stageDate", toKey)
+            }
+            order("stageDate", Order.DESCENDING)
+            limit(1)
+        }.decodeList<StageDateEntry>().firstOrNull()?.stageDate
 
     /**
      * Jornadas publicadas del rango para el feed (km/desnivel/

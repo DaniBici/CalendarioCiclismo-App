@@ -50,6 +50,8 @@ struct CxMapView: View {
                             }
                         }
                 }
+                // iPad: el mapa ampliado a tamaño de página.
+                .presentationSizing(.page)
             }
     }
 

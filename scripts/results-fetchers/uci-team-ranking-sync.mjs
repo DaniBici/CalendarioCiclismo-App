@@ -2,7 +2,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { recordAutomationSourceRun } from '../automation-monitor.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 /**
  * Sincroniza la instantánea vigente del ránking UCI de equipos.
@@ -511,6 +511,7 @@ async function main() {
     ssl: databaseUrl().includes('localhost')
       ? undefined
       : { rejectUnauthorized: false },
+    ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
   try {

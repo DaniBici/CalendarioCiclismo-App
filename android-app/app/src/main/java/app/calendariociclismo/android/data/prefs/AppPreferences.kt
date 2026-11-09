@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -11,9 +12,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import app.calendariociclismo.android.BuildConfig
 import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.ReviewPromptPolicy
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 
 /**
  * Wrapper tipado sobre DataStore Preferences.
@@ -83,7 +87,16 @@ class AppPreferences(private val context: Context) {
         val CALENDAR_SUBVIEW = stringPreferencesKey("calendar_subview")
     }
 
+    /**
+     * DataStore 1.1.1 lee sin bloqueo mientras otra corrutina escribe: si la
+     * primera escritura crea `cc_prefs.preferences_pb` entre la apertura fallida
+     * y su comprobación, la lectura lanza `FileNotFoundException` y cerraba la
+     * app en el primer arranque. Un error de E/S repite la lectura (el archivo ya
+     * existe); si persiste, valores por defecto en lugar de cerrar la app.
+     */
     private val data: Flow<Preferences> = context.dataStore.data
+        .retryWhen { cause, attempt -> cause is IOException && attempt < 3 }
+        .catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
 
     // ─── Offline ───
     val offlineEnabled: Flow<Boolean> = data.map { it[Keys.OFFLINE_ENABLED] ?: false }

@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 import { eventKindFromText, eventKindsConflict, ourEventKind } from './uci-event-kind.mjs';
 
 const args = process.argv.slice(2);
@@ -471,6 +471,7 @@ async function main() {
   const client = new Client({
     connectionString: databaseUrl(env),
     ssl: databaseUrl(env).includes('localhost') ? undefined : { rejectUnauthorized: false },
+    ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
 

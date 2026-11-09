@@ -141,6 +141,12 @@ struct RouteMapView: View {
     // Marcador seleccionado (tap) → muestra un callout con nombre + km +
     // categoría/altitud, igual que el popup de Leaflet en la web. nil = ninguno.
     @State private var selectedMarkerId: String?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// En ancho regular (iPad), Puntos clave va en un inspector lateral: la
+    /// hoja con alturas solo existe en ancho compacto y en iPad sería un
+    /// formulario modal sobre el mapa.
+    private var usesSidePanel: Bool { horizontalSizeClass == .regular }
 
     private enum LoadState: Equatable { case loading, ready, error }
 
@@ -231,13 +237,17 @@ struct RouteMapView: View {
         // zona superior difuminada y el mapa nítido (se notaba en dispositivo).
         .overlay(alignment: .top) { topBlurVeil }
         .safeAreaInset(edge: .top) { floatingHeader }
-        .sheet(isPresented: .constant(true)) {
+        .sheet(isPresented: .constant(!usesSidePanel)) {
             keyPointsSheet
                 .presentationDetents([.height(180), .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(true)
+        }
+        .inspector(isPresented: .constant(usesSidePanel)) {
+            keyPointsSheet
+                .inspectorColumnWidth(min: 300, ideal: 340, max: 420)
         }
     }
 

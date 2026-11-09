@@ -15,6 +15,7 @@ import { t, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
 import { stageProfileHtml } from './stage/profile.js';
+import { tvStatusChipHtml } from './services/race-presentation.js';
 
 function descriptionHtml(str) {
   if (!str) return '';
@@ -61,12 +62,6 @@ function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
  * desplazamiento ni en enero ni en julio (la del build EN, Etc/GMT); así su
  * HTML coincide con el generado y se conserva. En otra zona, ninguna.
  */
-export function visitorTimeZoneLabel() {
-  if (getLang() !== 'en') return null;
-  const year = new Date().getFullYear();
-  return [0, 6].every(month => !new Date(year, month, 1).getTimezoneOffset()) ? 'GMT' : null;
-}
-
 /**
  * HTML de #jornadaContent y si la jornada tiene clasificaciones propias.
  * `timeZoneLabel` («GMT»): el build de las páginas EN, que pinta las horas en
@@ -252,7 +247,7 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
     // Reutiliza el chip naranja de Hoy, también cuando hay un canal provisional.
     // En Jornada no lo sustituye el Live texto: ambos datos son complementarios.
     const pendingBadge = !hasReviveBroadcast && _tvStatus === 'pending'
-      ? `<span class="badge badge--pend"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> ${t('tv.status.pending')}</span>`
+      ? tvStatusChipHtml('pending', t('tv.status.pending'))
       : '';
     // Mismo panel que Puntos clave: título y acciones en la cabecera, emisoras
     // como filas separadas por filetes.

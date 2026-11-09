@@ -12,7 +12,6 @@ import { setRaceDaySaveInFlight, showToast, toTimestamp, validateSlug } from './
 import { loadSidebar } from './agenda.js';
 import { openEditor } from './jornada-editor.js';
 import { markdownFromEditor } from './jornada-fields.js';
-import { _markWebPagesDirtyIfMissing } from './races-view.js';
 
 // ── Guardar jornada ───────────────────────────────────────────────
 export async function saveRaceDay(status) {
@@ -420,13 +419,6 @@ export async function saveRaceDay(status) {
     loadSidebar();
     await openEditor(rdId); // usará _editorCache, 0 lecturas Firestore
     showToast(status === 'published' ? 'Publicado correctamente' : 'Borrador guardado', 'success', 3000);
-
-    // Crear las páginas estáticas solo si la URL canónica aún no existe. Las
-    // jornadas ya publicadas leen sus cambios en vivo desde Supabase y no deben
-    // reconstruir el artifact completo tras cada edición.
-    if (status === 'published' && slugVal) {
-      _markWebPagesDirtyIfMissing(slugVal);
-    }
 
   } catch (err) {
     console.error(err);

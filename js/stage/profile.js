@@ -1,7 +1,7 @@
 import { buildElevationProfileSVG, guideMarkerSVG } from './elevation-profile.js';
 import { buildSimplifiedGuide, hasSimplifiedGuide } from '../simplified-guide.js';
 import { hasRenderableElevationProfile } from './profile-availability.js';
-import { profileProgress } from '../services/race-presentation.js';
+import { profileProgress, profileUsesTimeHatch } from '../services/race-presentation.js';
 import { hasStageKeyPoints } from './key-points.js';
 import { profileSegmentStats } from './profile-segment.js';
 import { esc, rdLocation, formatTimeUser } from '../shared.js';
@@ -173,9 +173,10 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
   const sizePoints = () => {
     const panel = host.querySelector('.stage-key-panel');
     if (!panel) return;
-    const wide = host.clientWidth >= 850;
-    // La columna lateral (Puntos clave y, debajo, las acciones de la jornada)
-    // no supera el alto del perfil.
+    // Con Puntos clave al lado del perfil (rejilla de dos columnas, desde 761 px
+    // en css/app.css), la columna lateral (Puntos clave y, debajo, las acciones
+    // de la jornada) no supera el alto del perfil.
+    const wide = getComputedStyle(host).gridTemplateColumns.trim().split(/\s+/).length > 1;
     const actions = host.querySelector('.stage-side__actions');
     const actionsH = actions?.childElementCount ? actions.offsetHeight + 12 : 0;
     panel.style.maxHeight = wide ? `${host.querySelector('.stage-profile-panel').offsetHeight - actionsH}px` : '';
@@ -202,7 +203,8 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
       const width = Math.max(240, graphic.clientWidth);
       const result = buildElevationProfileSVG({ profile:day.elevationProfile, summits:day.profileSummits || [], waypoints:day.profileWaypoints || [],
         startLocation:rdLocation(day,'startLocation'), finishLocation:rdLocation(day,'finishLocation') || rdLocation(day,'startLocation'),
-        width, hidePointNames, height:graphicHeight(width), color:race.colorHex, lang:getLang(), progressFraction:temporal ? profileProgress(day) : null });
+        width, hidePointNames, height:graphicHeight(width), color:race.colorHex, lang:getLang(), progressFraction:temporal ? profileProgress(day) : null,
+        timeHatch:temporal && profileUsesTimeHatch(day) });
       graphic.innerHTML = result.svg; hoverData=result.hoverData;
       graphic.setAttribute('tabindex','0'); graphic.setAttribute('role','slider');
       graphic.setAttribute('aria-label', en ? 'Explore route distance and altitude' : 'Consultar distancia y altitud del recorrido');

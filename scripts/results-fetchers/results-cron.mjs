@@ -120,7 +120,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { hasPublishableResults } from './results-upsert.mjs';
 import { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES, MANUAL_OBSERVATION_PROVIDERS, isProgressiveResultSource } from './result-publication.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 export { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES };
 
 const args = process.argv.slice(2);
@@ -297,7 +297,7 @@ async function saveTopology(url, raceId, kind, data) {
   // válido y el siguiente runner volverá a descubrir la topología.
   try {
     const { default: pg } = await import('pg');
-    const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+    const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
     await client.connect();
     await client.query(
       `UPDATE public.race_uci_links
@@ -319,7 +319,7 @@ export function isProtectedInvalidRaceDeletion(error) {
 async function invalidatePublicationRead(url, raceId, provider, stageNumber) {
   if (!isProgressiveResultSource(provider)) return;
   const { default: pg } = await import('pg');
-  const client = new pg.Client({connectionString:url,ssl:{rejectUnauthorized:false}});
+  const client = new pg.Client({connectionString:url,ssl:{rejectUnauthorized:false},...PG_CONNECTION_LIMITS});
   await client.connect();
   try { await client.query('SELECT public.invalidate_result_observations($1,$2,$3)',[raceId,provider,stageNumber ?? null]); }
   finally { await client.end(); }
@@ -327,7 +327,7 @@ async function invalidatePublicationRead(url, raceId, provider, stageNumber) {
 
 async function deleteInvalidResultsRace(url, raceId, reason) {
   const { default: pg } = await import('pg');
-  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   const operationId = `auto-invalid-results-${raceId}-${Date.now()}`;
   await client.connect();
   try {
@@ -479,7 +479,7 @@ async function main() {
   if (!url) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
 
   const { default: pg } = await import('pg');
-  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   await client.connect();
   if (CONFIGURED && !DRY) await client.query('SELECT public.expire_result_updating()');
 

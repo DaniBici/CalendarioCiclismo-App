@@ -15,10 +15,13 @@ struct SupportIntroOnboardingView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         VStack(spacing: 0) {
+                    // Esquinas de icono de app (22,37 % del lado, continuas):
+                    // la imagen es cuadrada y en oscuro se veían las esquinas.
                     Image("SupportIconFriend")
                         .resizable()
                         .scaledToFit()
                         .frame(width: iconSize, height: iconSize)
+                        .clipShape(RoundedRectangle(cornerRadius: iconSize * 0.2237, style: .continuous))
                         .accessibilityHidden(true)
                         .padding(.bottom, 20)
 
@@ -61,6 +64,8 @@ struct SupportIntroOnboardingView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
+            // En ventanas anchas, contenido y botones centrados con ancho máximo.
+            .frame(maxWidth: AdaptiveLayoutPolicy.onboardingWidth)
         }
         .accessibilityElement(children: .contain)
         .onAppear {

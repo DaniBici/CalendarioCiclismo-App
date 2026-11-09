@@ -2,8 +2,9 @@
 // Paso de build «Prerender de resultados»
 // (docs/plans/contenido-generado-build.md, fase 2).
 //
-// Escribe en las páginas de resultados ES de `_site` (/resultados/<slug>/ y
-// /resultados/<slug>/<etapa>/) el contenido que pinta js/resultados.js, con el
+// Escribe en las páginas de resultados de `_site` (/resultados/<slug>/ y
+// /resultados/<slug>/<etapa>/; EN: /en/results/<slugEn>/ y
+// /en/results/<slugEn>/<etapa>/) el contenido que pinta js/resultados.js, con el
 // mismo código (js/resultados-html.js y js/header-html.js) importado en Node
 // con un entorno mínimo de navegador, como prerender-jornadas.mjs:
 //
@@ -15,10 +16,10 @@
 //
 // El <head> sigue siendo el de gen_og_pages.py.
 //
-//   node tools/site/prerender-resultados.mjs <_site> [--scope off|es] [--data datos.json] [--cache <dir>] [--max-reads <n>]
+//   node tools/site/prerender-resultados.mjs <_site> [--scope off|es|all] [--data datos.json] [--cache <dir>] [--max-reads <n>]
 //
 // - Ámbito: --scope o PRERENDER_RESULTADOS (por defecto off: no hace nada);
-//   es: páginas ES cerradas, es decir, con todas las clasificaciones de la
+//   all: también las EN; es: páginas ES cerradas, es decir, con todas las clasificaciones de la
 //   página oficiales y sin actualización en curso, de una carrera fuera de la
 //   ventana de sondeo (isNearToday, día de Madrid) y de una temporada con año
 //   no archivada. Esas páginas ya no sondean: la actualización automática no
@@ -41,14 +42,15 @@
 //   carrera con su firma (site_data.resultados_signature) y el HTML de cada
 //   página con su clave (código, firma y datos baratos de la página). Una
 //   página con la misma clave no se vuelve a pintar.
-// - Un proceso con TZ=Europe/Madrid: horas de Madrid, como un visitante
-//   peninsular (js/resultados.js usa la zona del visitante).
+// - Un proceso por idioma, uno tras otro y con la misma caché, en la zona de ese
+//   idioma (Europe/Madrid, Etc/GMT; js/resultados.js usa la del visitante). El
+//   segundo reutiliza los datos que leyó el primero.
 // - Vuelta atrás por página: sin datos, sin plantilla reconocible o con un
 //   error al pintar, la página queda como la dejó gen_og_pages.py y se cuenta.
 // - Falla (código 1) si genera menos del 99 % del ámbito (sin las páginas
 //   pendientes de relleno) o si una página generada incumple validatePage().
 //   Con GITHUB_OUTPUT, escribe `cache=changed` si hay que guardar la caché.
-import { spawnSync } from 'node:child_process';
+import { fork } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -57,7 +59,7 @@ import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js'
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { firstTechnicalGuide } from '../../js/services/races.js';
 import { isNearToday } from '../../js/services/refresh-window.js';
-import { readDump } from './prerender-jornadas.mjs';
+import { headerOptions, installBrowserEnv, readDump } from './prerender-jornadas.mjs';
 import { apiFetch, inFilter } from './prerender-inscritos.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -67,6 +69,12 @@ const NODE_FETCH = globalThis.fetch;
 const SCRIPT = fileURLToPath(import.meta.url);
 const ORIGIN = 'https://calendariociclismo.app';
 const TIME_ZONE = 'Europe/Madrid';
+// Páginas por idioma. La zona de `TIME_ZONE` es la del calendario de las
+// lecturas y la caché (site_data.py); `timeZone`, la de las horas de la página.
+const LANGS = {
+  es: { dir: 'resultados', canonBase: '/resultados/', timeZone: 'Europe/Madrid', timeZoneLabel: null, slug: race => race.slug },
+  en: { dir: 'en/results', canonBase: '/en/results/', timeZone: 'Etc/GMT', timeZoneLabel: 'GMT', slug: race => race.slugEn || race.slug },
+};
 const MIN_RATIO = 0.99;
 // Filas de la tabla escritas en el HTML: más que el alto de la pantalla del
 // móvil; el navegador añade el resto.
@@ -84,11 +92,11 @@ const ROTATION_DAYS = 28;
 const DAY_MS = 86400000;
 const API_IN_CHUNK = 100;
 
-const SCOPES = { off: false, es: true };
+const SCOPES = { off: [], es: ['es'], all: ['es', 'en'] };
 
 function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
-  if (!Object.hasOwn(SCOPES, scope)) throw new Error(`PRERENDER_RESULTADOS no admitido: «${scope}» (off o es)`);
+  if (!Object.hasOwn(SCOPES, scope)) throw new Error(`PRERENDER_RESULTADOS no admitido: «${scope}» (off, es o all)`);
   return scope;
 }
 
@@ -297,7 +305,7 @@ export function buildIndex(tables) {
  * lista (por dorsal o globalRiderId, como createResultsResolver), equipos de
  * esas fichas y de las filas, y sus temporadas del año de la carrera.
  */
-function raceData(tables, raceIds, index) {
+export function raceData(tables, raceIds, index) {
   const ridersByRace = groupBy(tables.resultados_riders || [], 'raceId');
   const teamsByRace = groupBy(tables.resultados_teams || [], 'raceId');
   const resultsByStage = groupBy(tables.resultados_results || [], 'stageRef');
@@ -337,7 +345,7 @@ function raceData(tables, raceIds, index) {
  * teamsForSeason: from(tabla).select(columnas).in(col, valores).eq(col, valor)
  * con las filas leídas (ya filtradas por RLS como la clave anónima).
  */
-function localClient(tables) {
+export function localClient(tables) {
   // Índices por columna, creados al primer `in` sobre ella (id, teamId).
   const indexes = new Map();
   const indexed = (table, column) => {
@@ -439,7 +447,7 @@ const OWN_ATTRS = /\sdata-prerendered="[^"]*"/g;
 const attr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /** Clave pedida por la ruta, como js/resultados.js: sin segmento, la última con datos. */
-function requestedFromPath(segment) {
+export function requestedFromPath(segment) {
   if (!segment) return { requestedKey: undefined, requestedStage: undefined, stageSuffixParam: '' };
   if (/^(prologo|prologue)$/i.test(segment)) return { requestedKey: '0', requestedStage: 0, stageSuffixParam: '' };
   const match = segment.match(/(?:etapa|stage)-(\d+)([a-z])?/i);
@@ -496,13 +504,6 @@ function composePage(source, { headerInner, html, fingerprint }) {
     + source.slice(close);
 }
 
-/** Atributos de la cabecera vacía: data-back y, si los hay, data-lang y data-active. */
-function headerOptions(source) {
-  const attrs = HEADER.exec(source)?.[1] || '';
-  const value = name => new RegExp(`\\s${name}="([^"]*)"`).exec(attrs)?.[1];
-  return { lang: value('data-lang') || 'es', hasBack: /\sdata-back(?=[\s=>]|$)/.test(attrs), active: value('data-active') || null };
-}
-
 const BAD_URL = /(?:^|[/?=&#])(?:undefined|null)(?:[/?#&]|$)/;
 
 /**
@@ -531,54 +532,10 @@ function validatePage(page, { rows, navHrefs }) {
 }
 
 // ── Pintado ────────────────────────────────────────────────────────────────
-function defineGlobals(values) {
-  for (const [name, value] of Object.entries(values)) {
-    Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
-  }
-}
 
-// Entorno mínimo para importar los módulos públicos: mismos CONFIG y dominio
-// EN que el js/config.js de CI; sin red. Copia del de prerender-jornadas.mjs
-// con la ruta de la página de resultados.
-function installBrowserEnv() {
-  const storage = () => {
-    const values = new Map();
-    return { getItem: key => (values.has(key) ? values.get(key) : null), setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
-  };
-  const element = () => ({
-    style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-    setAttribute() {}, getAttribute() { return null; }, appendChild() {}, addEventListener() {},
-    querySelector() { return null; }, querySelectorAll() { return []; },
-  });
-  class Observer { observe() {} disconnect() {} }
-  defineGlobals({
-    CONFIG: { basePath: '', webOrigin: ORIGIN, enDomain: '' },
-    EN_DOMAIN: '',
-    SUPABASE_URL: 'https://prerender.invalid',
-    SUPABASE_ANON_KEY: 'prerender',
-    localStorage: storage(),
-    sessionStorage: storage(),
-    location: new URL(`${ORIGIN}/resultados/`),
-    document: {
-      documentElement: { ...element(), lang: 'es' }, head: element(), body: element(), createElement: element,
-      querySelector: () => null, querySelectorAll: () => [], getElementById: () => null, addEventListener() {},
-    },
-    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-    addEventListener() {},
-    removeEventListener() {},
-    MutationObserver: Observer,
-    ResizeObserver: Observer,
-    IntersectionObserver: Observer,
-    requestAnimationFrame: callback => setTimeout(callback, 0),
-    cancelAnimationFrame: clearTimeout,
-    fetch: async url => { throw new Error(`Petición no permitida en el prerender: ${url}`); },
-  });
-  defineGlobals({ window: globalThis });
-}
-
-/** Páginas ES de resultados: /resultados/<slug>/ y /resultados/<slug>/<etapa>/. */
-function pageFiles(site) {
-  const base = join(site, 'resultados');
+/** Páginas de resultados del directorio `dir`: <dir>/<slug>/ y <dir>/<slug>/<etapa>/. */
+function pageFiles(site, dir) {
+  const base = join(site, dir);
   if (!existsSync(base)) return [];
   const files = [];
   for (const race of readdirSync(base, { withFileTypes: true })) {
@@ -596,13 +553,13 @@ function pageFiles(site) {
  * Página del ámbito: { race, stages, active, inputs } o { out: motivo }.
  * `inputs`: los datos baratos de la página, que entran en su clave.
  */
-function scopePage(html, index, source, file, site, now) {
+function scopePage(html, index, source, file, site, now, dir) {
   const raceId = RACE_META.exec(source)?.[1];
   const race = raceId ? index.races.get(raceId) : null;
   if (!race) return { out: 'sin carrera' };
   if (race.year == null || archived(race.year)) return { out: 'temporada archivada o sin año' };
   if (isNearToday(race.startDate, race.endDate, { now })) return { out: 'en ventana de sondeo' };
-  const segment = relative(join(site, 'resultados'), dirname(file)).split(sep)[1];
+  const segment = relative(join(site, dir), dirname(file)).split(sep)[1];
   const requested = requestedFromPath(segment);
   const stagesAll = index.stagesByRace.get(raceId) || [];
   const allRaceDays = index.daysByRace.get(raceId) || [];
@@ -625,7 +582,9 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
   const contextAssets = env.withRaceTechnicalGuide(inputs.assets, inputs.guide);
   const actionAssets = raceDayId ? contextAssets : env.withRaceTechnicalGuide([], inputs.guide);
   const isOneDay = race.raceFormat === 'one_day';
-  const resolver = html.createResultsResolver({ race, slRiders: data.riders, slTeamsRows: data.teams });
+  const { lang } = env;
+  const isEn = lang === 'en';
+  const resolver = html.createResultsResolver({ race, slRiders: data.riders, slTeamsRows: data.teams, isEn });
 
   // El navegador no toca el hueco del filtro con la etapa cancelada ni sin
   // filas: sin contenido ni huella.
@@ -633,64 +592,65 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
   let rows = 0;
   let filter = null;
   if (activeClass._cancelledStage) {
-    table = { html: html.cancelledNoticeHtml(false) };
+    table = { html: html.cancelledNoticeHtml(isEn) };
   } else {
     const list = data.results[activeClass.id];
     if (!list) return { missing: true };
     if (!list.length) {
-      table = { html: html.emptyClassificationHtml(false) };
+      table = { html: html.emptyClassificationHtml(isEn) };
     } else {
       const client = localClient(data.catalog);
       await html.enrichRiders(client, resolver, list.map(row => row.globalRiderId).filter(Boolean), env.now);
       await html.enrichOverrideTeams(client, resolver, list.map(row => row.teamId).filter(Boolean));
-      const classification = html.classificationHtml(list, activeClass, { race, raceDay, isOneDay, resolver, lang: 'es' });
+      const classification = html.classificationHtml(list, activeClass, { race, raceDay, isOneDay, resolver, lang });
       if (classification.ttt) return { out: 'CRE' };
       const limit = classification.rows.length > ROW_LIMIT ? ROW_LIMIT : null;
       rows = limit ?? classification.rows.length;
       table = { html: html.classificationTableHtml(classification, rows), rows: limit };
-      filter = html.teamFilterHtml(classification, '', false);
+      filter = html.teamFilterHtml(classification, '', isEn);
     }
   }
   const skeleton = html.resultsPageHtml({
     race, stages, active, raceDay, contextDay, contextAssets, actionAssets,
-    canonBase: '/resultados/', canonSlug: race.slug, isEn: false,
+    canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn,
   });
   const hasTabs = activeStages.length > 1;
   const bar = hasTabs || !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
-  const publication = html.publicationHtml(activeClass, { configByKind: active.configByKind, isOneDay, inBar: bar && !hasTabs, isEn: false, timeZone: TIME_ZONE, now: env.now.getTime() });
+  const publication = html.publicationHtml(activeClass, { configByKind: active.configByKind, isOneDay, inBar: bar && !hasTabs, isEn, timeZone: LANGS[lang].timeZone, now: env.now.getTime() });
   const slots = {
     status: bar ? { html: publication.status } : null,
     filter: bar && filter != null ? { html: filter } : null,
     publication: { html: publication.publication },
     table,
-    metrics: contextDay ? { html: env.stageMetricsHtml(contextDay) } : null,
+    metrics: contextDay ? { html: env.stageMetricsHtml(contextDay, { timeZoneLabel: LANGS[lang].timeZoneLabel }) } : null,
   };
   return { html: fillSlots(skeleton, slots, htmlFingerprint), fingerprint: htmlFingerprint(skeleton), rows };
 }
 
 /**
- * Recorre las páginas ES: compone desde la caché las que tienen la misma
+ * Recorre las páginas del idioma: compone desde la caché las que tienen la misma
  * clave y pinta el resto con los datos del volcado, de la caché o de la API.
  * `source`: { tables, state, readRaces? } (null: solo caché); `state.pending`,
  * las carreras pendientes de relleno; `readRaces`, las tablas de otras
  * carreras sin datos (por defecto, por la API). `limit`: carreras leídas por
  * build como máximo.
  */
-async function run(site, { source, cache, key, now, limit }) {
+async function run(site, { lang, source, cache, key, now, limit }) {
   const started = performance.now();
-  installBrowserEnv();
+  const { dir } = LANGS[lang];
+  installBrowserEnv(lang, dir);
   const load = file => import(pathToFileURL(join(ROOT, file)).href);
   const { initI18n } = await load('js/i18n.js');
   const { withRaceTechnicalGuide } = await load('js/shared.js');
   const { stageMetricsHtml } = await load('js/stage/context.js');
   const html = await load('js/resultados-html.js');
   await initI18n();
-  const env = { withRaceTechnicalGuide, stageMetricsHtml, now };
-  const navHrefs = PRIMARY_NAV_ITEMS.map(name => STRINGS.es[name].href);
+  const env = { lang, withRaceTechnicalGuide, stageMetricsHtml, now };
+  const navHrefs = PRIMARY_NAV_ITEMS.map(name => STRINGS[lang][name].href);
   const result = { pages: 0, scope: 0, generated: 0, rendered: 0, cached: 0, written: 0, apiRaces: 0,
     pending: 0, pendingRaces: 0, fallbacks: [], errors: [], bytes: [], out: {} };
   const skip = reason => { result.out[reason] = (result.out[reason] || 0) + 1; };
-  const files = pageFiles(site);
+  const files = pageFiles(site, dir);
   const write = (file, name, source, page, rows) => {
     result.generated++;
     result.bytes.push(Buffer.byteLength(page));
@@ -711,7 +671,7 @@ async function run(site, { source, cache, key, now, limit }) {
       result.scope++;
       const pageSource = readFileSync(file, 'utf8');
       const fragment = cache.fragment(entry.race, name);
-      const page = fragment == null ? null : composePage(pageSource, { html: fragment, fingerprint: entry.fingerprint, headerInner: headerHtml(headerOptions(pageSource)) });
+      const page = fragment == null ? null : composePage(pageSource, { html: fragment, fingerprint: entry.fingerprint, headerInner: headerHtml(headerOptions(pageSource, lang)) });
       if (!page || RACE_META.exec(pageSource)?.[1] !== entry.race) { result.fallbacks.push(`${name}: caché`); continue; }
       result.cached++;
       write(file, name, pageSource, page, entry.rows);
@@ -734,13 +694,15 @@ async function run(site, { source, cache, key, now, limit }) {
   const used = new Map();
 
   const pending = [];
-  const pages = {};
+  // La caché es común a los idiomas: lo del otro idioma se conserva tal cual.
+  const ownPage = name => name.startsWith(`${dir}${sep}`);
+  const pages = Object.fromEntries(Object.entries(cache.pages).filter(([name]) => !ownPage(name)));
   const fragments = new Map();
   for (const file of files) {
     result.pages++;
     const name = relative(site, file);
     const pageSource = readFileSync(file, 'utf8');
-    const scoped = scopePage(html, index, pageSource, file, site, now);
+    const scoped = scopePage(html, index, pageSource, file, site, now, dir);
     if (scoped.out) { skip(scoped.out); continue; }
     const raceId = scoped.race.id;
     if (!sigs[raceId]) { skip('fuera de las candidatas'); continue; }
@@ -798,7 +760,7 @@ async function run(site, { source, cache, key, now, limit }) {
       if (rendered.missing) { result.fallbacks.push(`${name}: sin datos`); continue; }
       result.rendered++;
     }
-    const page = composePage(pageSource, { ...rendered, headerInner: headerHtml(headerOptions(pageSource)) });
+    const page = composePage(pageSource, { ...rendered, headerInner: headerHtml(headerOptions(pageSource, lang)) });
     if (!page) { result.fallbacks.push(`${name}: plantilla`); continue; }
     write(file, name, pageSource, page, rendered.rows);
     pages[name] = { key: job.key, race: scoped.race.id, rows: rendered.rows, fingerprint: rendered.fingerprint };
@@ -814,7 +776,8 @@ async function run(site, { source, cache, key, now, limit }) {
     if (fresh.has(raceId)) {
       races[raceId] = { sig: sigs[raceId], fetched: madridDay(now) };
       const data = fresh.get(raceId);
-      const shown = used.get(raceId) || new Set();
+      const prior = cache.races[raceId]?.sig === sigs[raceId] ? cache.data(raceId) : null;
+      const shown = new Set([...(used.get(raceId) || []), ...Object.keys(prior?.results || {})]);
       data.results = Object.fromEntries(Object.entries(data.results).filter(([stageRef]) => shown.has(stageRef)));
     } else if (cache.races[raceId]?.sig === sigs[raceId]) {
       races[raceId] = cache.races[raceId];
@@ -824,8 +787,8 @@ async function run(site, { source, cache, key, now, limit }) {
   return { ...result, ms: performance.now() - started, cache: { races, pages, fresh, fragments } };
 }
 
-/** Escribe la caché nueva; devuelve si cambió algo. */
-function saveCache(dir, next) {
+/** Escribe la caché nueva; devuelve si cambió algo. `previous`: la caché cargada. */
+function saveCache(dir, next, previous) {
   const manifest = { format: CACHE_FORMAT, races: next.races, pages: next.pages };
   const manifestFile = join(dir, 'manifest.json');
   const text = JSON.stringify(manifest);
@@ -843,7 +806,7 @@ function saveCache(dir, next) {
   const byRace = new Map();
   for (const [name, entry] of Object.entries(next.pages)) {
     if (!byRace.has(entry.race)) byRace.set(entry.race, {});
-    byRace.get(entry.race)[name] = next.fragments.get(entry.race)?.[name] ?? null;
+    byRace.get(entry.race)[name] = next.fragments.get(entry.race)?.[name] ?? previous.fragment(entry.race, name);
   }
   for (const [raceId, fragments] of byRace) {
     const text = JSON.stringify(fragments);
@@ -858,7 +821,7 @@ function saveCache(dir, next) {
 }
 
 // ── Línea de órdenes ───────────────────────────────────────────────────────
-// Opciones con valor (--scope, --data, --cache, --max-reads) y la ruta del sitio.
+// Opciones con valor (--worker <idioma>, --scope, --data, --cache, --max-reads) y la ruta del sitio.
 function parseArgs(argv) {
   const args = { site: null, options: {} };
   for (let at = 0; at < argv.length; at++) {
@@ -870,9 +833,21 @@ function parseArgs(argv) {
 
 const seconds = ms => `${(ms / 1000).toFixed(2)} s`;
 
+/** Lanza un idioma en su zona; resuelve { code, changed }. Uno tras otro: comparten la caché. */
+function forkLanguage(lang, argv) {
+  return new Promise((done, fail) => {
+    const { GITHUB_OUTPUT: _output, ...env } = process.env;
+    const child = fork(SCRIPT, [...argv, '--worker', lang], { env: { ...env, TZ: LANGS[lang].timeZone } });
+    let changed = false;
+    child.on('message', message => { changed = !!message.changed; });
+    child.on('error', fail);
+    child.on('exit', code => done({ code: code ?? 1, changed }));
+  });
+}
+
 async function main(argv) {
   const { site, options } = parseArgs(argv);
-  if (!site) throw new Error('Uso: prerender-resultados.mjs <_site> [--scope off|es] [--data datos.json] [--cache <dir>] [--max-reads <n>]');
+  if (!site) throw new Error('Uso: prerender-resultados.mjs <_site> [--scope off|es|all] [--data datos.json] [--cache <dir>] [--max-reads <n>]');
   const scope = parseScope(options.scope ?? process.env.PRERENDER_RESULTADOS);
   const limit = Number(options['max-reads'] ?? RESULTADOS_MAX_READS);
   if (!Number.isInteger(limit) || limit < 0) throw new Error(`--max-reads no admitido: «${options['max-reads']}»`);
@@ -880,12 +855,18 @@ async function main(argv) {
     console.log('Prerender de resultados desactivado (PRERENDER_RESULTADOS=off)');
     return 0;
   }
-  // Horas y día de Madrid en todo el proceso (isNearToday, «Salida
-  // neutralizada»): se relanza con la zona si hace falta.
-  if (process.env.TZ !== TIME_ZONE) {
-    const child = spawnSync(process.execPath, [...process.execArgv, SCRIPT, ...argv], { stdio: 'inherit', env: { ...process.env, TZ: TIME_ZONE } });
-    return child.status ?? 1;
+  if (!options.worker) {
+    let code = 0;
+    let changed = false;
+    for (const lang of SCOPES[scope]) {
+      const outcome = await forkLanguage(lang, argv);
+      code ||= outcome.code;
+      changed ||= outcome.changed;
+    }
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `cache=${changed ? 'changed' : 'unchanged'}\n`);
+    return code;
   }
+  const lang = options.worker;
   const started = performance.now();
   const now = new Date();
   const cacheDir = options.cache ?? process.env.RESULTADOS_CACHE ?? null;
@@ -912,24 +893,24 @@ async function main(argv) {
     }
   }
   const loaded = performance.now();
-  const result = await run(resolve(site), { source, cache, key, now, limit });
+  const result = await run(resolve(site), { lang, source, cache, key, now, limit });
   const ratio = result.scope ? result.generated / result.scope : 1;
   const ok = ratio >= MIN_RATIO && !result.errors.length;
   let changed = false;
-  if (ok && result.cache && cacheDir) changed = saveCache(cacheDir, result.cache);
-  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `cache=${changed ? 'changed' : 'unchanged'}\n`);
+  if (ok && result.cache && cacheDir) changed = saveCache(cacheDir, result.cache, cache);
+  await new Promise(done => process.send({ changed }, done));
 
   const sizes = result.bytes.sort((a, b) => a - b);
   const kb = bytes => `${((bytes || 0) / 1024).toFixed(1)} KB`;
   const mb = (sizes.reduce((sum, bytes) => sum + bytes, 0) / 1048576).toFixed(1);
-  console.log(`  es: ${result.generated}/${result.scope} generadas (${result.rendered} pintadas, ${result.cached} desde la caché, `
+  console.log(`  ${lang}: ${result.generated}/${result.scope} generadas (${result.rendered} pintadas, ${result.cached} desde la caché, `
     + `${result.written} reescritas, ${result.pages} páginas), mediana ${kb(sizes[Math.floor(sizes.length / 2)])}, `
     + `máximo ${kb(sizes.at(-1))}, total ${mb} MB`
     + `${result.apiRaces ? `; ${result.apiRaces} carreras leídas ${source?.readRaces ? 'aparte del volcado' : 'por la API'}` : ''}`
     + `${result.pending ? `; ${result.pendingRaces} carreras pendientes de relleno` : ''}`);
   console.log(`  Fuera del ámbito: ${Object.entries(result.out).map(([reason, count]) => `${reason} ${count}`).join(', ') || 'ninguna'}`);
   for (const fallback of result.fallbacks.slice(0, 20)) console.log(`  Vuelta atrás: ${fallback}`);
-  console.log(`Prerender de resultados (${scope}): ${result.generated}/${result.scope} (${(ratio * 100).toFixed(1)} %), `
+  console.log(`Prerender de resultados (${lang}): ${result.generated}/${result.scope} (${(ratio * 100).toFixed(1)} %), `
     + `${result.fallbacks.length} con vuelta atrás, pendientes de relleno: ${result.pending}; datos (${origin}) ${seconds(loaded - started)}, `
     + `páginas ${seconds(result.ms)}, caché ${changed ? 'actualizada' : 'sin cambios'}, total ${seconds(performance.now() - started)}`);
   if (result.errors.length) console.log(`::error::Prerender de resultados: ${result.errors.length} páginas inválidas: ${result.errors.slice(0, 10).join(' | ')}`);

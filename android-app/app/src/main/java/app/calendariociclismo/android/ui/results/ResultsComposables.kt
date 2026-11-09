@@ -1114,7 +1114,7 @@ private fun ResultsRow(
                 if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode, height = 13.dp)
                 if (!showTeam) {
                     vm.team?.let { team ->
-                        if (team.hasVisibleBadge) TeamColorBands(team)
+                        if (team.hasResultBadge) TeamColorBands(team)
                     }
                 }
                 Text(
@@ -1133,7 +1133,7 @@ private fun ResultsRow(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     vm.team?.let { team ->
-                        if (team.hasVisibleBadge) TeamColorBands(team)
+                        if (team.hasResultBadge) TeamColorBands(team)
                     }
                     Text(
                         vm.teamName,
@@ -1239,7 +1239,7 @@ private fun ResultsTttTable(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     team.team?.let { teamModel ->
-                        if (teamModel.hasVisibleBadge) TeamColorBands(teamModel)
+                        if (teamModel.hasResultBadge) TeamColorBands(teamModel)
                     }
                     Text(
                         team.teamName.ifEmpty { "-" },

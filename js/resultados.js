@@ -32,7 +32,7 @@ import { stagePathLabel, stageSlugSegment, statusIcon, resultsStages, resultsAct
 
 import { supabase, setMeta, setMetaProperty, raceName as getRaceName, enBase, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          setRaceRobots, raceSearchName, deArticulo, seoLongDateWeekday, seoDayMonth,
-         embeddedId, orEqFilter, pickByPreference, esc } from './shared.js';
+         embeddedId, orEqFilter, pickByPreference, esc, visitorTimeZoneLabel } from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
 import { getLang, initI18n } from './i18n.js';
 
@@ -390,7 +390,7 @@ async function init(i18nReady = Promise.resolve()) {
   // Datos de la jornada: la hora de salida va en la zona del visitante; fuera
   // de la del build solo se sustituye esta lista.
   const metricsList = content.querySelector('.res-stage-data dl');
-  if (metricsList) updateResultsHtml(metricsList, stageMetricsHtml(contextDay));
+  if (metricsList) updateResultsHtml(metricsList, stageMetricsHtml(contextDay, { timeZoneLabel: visitorTimeZoneLabel() }));
   syncResultsRaceHeaderHeight(content.querySelector(':scope > .race-header'));
   syncStickyHeight('--res-tabs-h', content.querySelector('.res-tabs-bar'));
   if (contextDay) mountStageProfile(document.getElementById('resProfile'), { day:contextDay,race,assets:contextAssets,hidePointNames:true });
@@ -635,7 +635,7 @@ async function init(i18nReady = Promise.resolve()) {
         if(JSON.stringify([nextDay.elevationProfile,nextDay.profileSummits,nextDay.profileWaypoints,nextDay.distanceKm])!==JSON.stringify([contextDay?.elevationProfile,contextDay?.profileSummits,contextDay?.profileWaypoints,contextDay?.distanceKm])) mountStageProfile(document.getElementById('resProfile'),{day:nextDay,race,assets:contextAssets,hidePointNames:true});
         contextDay=nextDay;
         if(raceDayId) raceDay=nextDay;
-        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(contextDay));
+        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(contextDay,{timeZoneLabel:visitorTimeZoneLabel()}));
       }
       lastProbe = nextProbe;
     } catch { showPublication(displayedStage||activeClass,true); }

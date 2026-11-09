@@ -66,8 +66,19 @@ PARALLEL_FILES = 2000
 
 MODULE_SCRIPT = re.compile(rb"<script\b[^>]*\btype\s*=\s*[\"']module[\"'][^>]*>", re.I)
 SCRIPT_SRC = re.compile(rb"\bsrc\s*=\s*[\"']([^\"']+)[\"']", re.I)
-PRELOAD_LINK = re.compile(rb'<link rel="modulepreload" href="[^"]*">\n?')
+PRELOAD_LINK = re.compile(rb'<link rel="modulepreload"(?: fetchpriority="low")? href="[^"]*">\n?')
+# En una página con contenido generado el HTML ya es completo: con prioridad baja,
+# las precargas dejan de competir con el CSS y adelantan el primer pintado sin
+# retrasar el JS (medido en producción,
+# docs/informes/prototipo-publicacion-por-pagina-20261105.md). Las páginas que pinta
+# el JS las conservan con prioridad normal.
+GENERATED_CONTENT = b"data-prerendered="
 HEAD_END = re.compile(rb"</head>", re.I)
+HEAD_START = re.compile(rb"<head>", re.I)
+# Fundido entre páginas en el propio HTML: en la hoja de estilos no basta, porque si la de la página
+# de destino aún no está en caché, el navegador no sabe a tiempo que debe hacerlo.
+VIEW_TRANSITION_RULE = b"@view-transition{navigation:auto}"
+VIEW_TRANSITION_STYLE = b"<style>@media(prefers-reduced-motion:no-preference){" + VIEW_TRANSITION_RULE + b"}</style>"
 
 
 def references(content, suffix):
@@ -132,6 +143,14 @@ def module_entries(content, name):
     return entries
 
 
+def inject_view_transition(content):
+    """Añade la regla del fundido entre páginas al principio del <head>."""
+    head = HEAD_START.search(content)
+    if not head or VIEW_TRANSITION_RULE in content:
+        return content
+    return content[:head.end()] + VIEW_TRANSITION_STYLE + content[head.end():]
+
+
 def inject_preloads(content, name, preloads):
     """Sustituye las precargas de módulos del HTML por las de sus entradas."""
     content = PRELOAD_LINK.sub(b"", content)
@@ -142,7 +161,8 @@ def inject_preloads(content, name, preloads):
     head_end = HEAD_END.search(content)
     if not urls or not head_end:
         return content
-    links = b"".join(b'<link rel="modulepreload" href="' + url.encode("utf-8") + b'">\n' for url in urls)
+    priority = b' fetchpriority="low"' if GENERATED_CONTENT in content else b""
+    links = b"".join(b'<link rel="modulepreload"' + priority + b' href="' + url.encode("utf-8") + b'">\n' for url in urls)
     return content[:head_end.start()] + links + content[head_end.start():]
 
 
@@ -200,6 +220,8 @@ def version_files(site, names, version, preloads=None):
         with open(path, "rb") as handle:
             original = handle.read()
         updated = original
+        if suffix == ".html":
+            updated = inject_view_transition(updated)
         if preloads is not None and suffix == ".html":
             updated = inject_preloads(updated, name, preloads)
         updated = rewrite(updated, suffix, version)

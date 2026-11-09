@@ -84,6 +84,7 @@ import app.calendariociclismo.android.util.CyclocrossLogic
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.TeamNames
 import app.calendariociclismo.android.util.openExternalLink
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
@@ -274,6 +275,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         }
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.statusBars)) {
         val wideDetail = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
+        val videoColumns = AdaptiveLayoutPolicy.videoColumns(maxWidth.value, maxWidth > maxHeight, adaptiveInfo)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Sin indicador en línea durante el refresco periódico: insertarlo
             // como primer elemento desplazaba la clasificación cada minuto.
@@ -289,7 +291,8 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             val date = DateFormatting.formatDateLongContent(race.dateKey) + (race.endDateKey?.takeIf { it != race.dateKey }?.let { " – " + DateFormatting.formatDateLongContent(it) } ?: "")
                             RaceDayHeading(name = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name,
                                 logoUrl = CxPresentation.logo(race), countryCode = race.countryCode,
-                                categoryName = CxPresentation.className(race.raceClass, english), dateLabel = date, onBack = { nav.popBackStack() }, nameMaxLines = 1)
+                                categoryName = CxPresentation.className(race.raceClass, english), dateLabel = date, onBack = { nav.popBackStack() }, nameMaxLines = 1,
+                                logoPlaceholder = race.raceClass != "CN")
                             RaceDayLocation(race.venue ?: "")
                             race.tournament?.let { tournament ->
                                 val currentRound = round
@@ -409,6 +412,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             onOpenRace = { nav.navigate(Routes.cxRace(it.id, title = cxTitle(it))) },
                             locale = locale,
                             english = english,
+                            videoColumns = videoColumns,
                         )
                         }
                     }
@@ -480,6 +484,7 @@ private fun CxSelectedContent(
     onOpenRace: (CxRace) -> Unit,
     locale: Locale,
     english: Boolean,
+    videoColumns: Int,
 ) {
     // Catálogo CX indexado una vez por publicación, y filas memorizadas: la
     // recomposición (cambios de sección) no vuelve a casar cada fila contra
@@ -488,7 +493,7 @@ private fun CxSelectedContent(
     when {
         // El programa se compone aparte (CxProgrammeLayout).
         section == CxDetailSection.PROGRAMME -> Unit
-        section == CxDetailSection.VIDEOS -> CxVideosCard(CxPresentation.videos(detail))
+        section == CxDetailSection.VIDEOS -> CxVideosCard(CxPresentation.videos(detail), videoColumns)
         section == CxDetailSection.GENERAL -> {
             if (generalCategories.isEmpty()) {
                 Text(stringResource(R.string.cx_no_general))
@@ -523,7 +528,7 @@ private fun CxSelectedContent(
                 }
                 Spacer(Modifier.height(4.dp))
                 if (riders.isEmpty()) Text(stringResource(R.string.cx_no_startlist), style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else CxStartlistTable(riders, detail.teams)
+                else CxStartlistTable(riders, detail.teams, if (CxPresentation.competesBySelection(race)) english else null)
             }
         }
         section == CxDetailSection.RESULTS -> {
@@ -534,10 +539,13 @@ private fun CxSelectedContent(
                     Text(category.dateKey ?: race.dateKey, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(4.dp))
-                val resultRows = remember(rows, locale, teamMatcher) { CxPresentation.resultRows(rows, locale, teamMatcher) }
+                val bySelection = CxPresentation.competesBySelection(race)
+                val resultRows = remember(rows, locale, teamMatcher, bySelection) {
+                    CxPresentation.resultRows(rows, locale, teamMatcher).let { if (bySelection) CxPresentation.withSelections(it, english) else it }
+                }
                 ResultsClassificationTable(
                     resultRows,
-                    showTeam = rows.any { !it.teamName.isNullOrBlank() },
+                    showTeam = resultRows.any { it.teamName.isNotBlank() },
                     showUciPoints = rows.any { it.points != null },
                     valueHeader = stringResource(R.string.results_col_time),
                 )
@@ -553,45 +561,75 @@ private fun CxSelectedContent(
     }
 }
 
+/** Vídeos de la prueba en `columns` columnas (`AdaptiveLayoutPolicy.videoColumns`). */
 @Composable
-private fun CxVideosCard(videos: List<CxVideo>) {
+private fun CxVideosCard(videos: List<CxVideo>, columns: Int) {
     val context = LocalContext.current
     var offlineAlert by remember { mutableStateOf(false) }
+    val playable = remember(videos) {
+        videos.mapNotNull { video -> CxPresentation.youtubeVideoId(video.url)?.let { video to it } }
+    }
+    val onExternalLinkTap: (String) -> Unit = { url -> openExternalLink(context, url) { offlineAlert = true } }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        videos.forEach { video ->
-            val id = CxPresentation.youtubeVideoId(video.url) ?: return@forEach
-            SectionCard {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(LocaleHolder.t(video.title, video.titleEn?.takeIf { it.isNotBlank() } ?: video.title), style = CCText.S16, fontWeight = FontWeight.SemiBold)
-                    AndroidView(
-                        factory = { context -> WebView(context).apply {
-                            // Con WRAP_CONTENT el WebView adopta la altura del
-                            // contenido y el iframe al 100 % queda a 0 px.
-                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webChromeClient = WebChromeClient()
-                            loadDataWithBaseURL("https://calendariociclismo.app", """
-                                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-                                <style>html,body{margin:0;width:100%;height:100%;background:#000}iframe{width:100%;height:100%;border:0}</style>
-                                </head><body><iframe src="https://www.youtube-nocookie.com/embed/$id?playsinline=1"
-                                title="YouTube" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe></body></html>
-                            """.trimIndent(), "text/html", "UTF-8", null)
-                        } },
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                        onRelease = { it.destroy() },
-                    )
-                    BroadcastRow(
-                        Broadcast(id = video.id, raceDayId = video.raceId, channel = "YouTube", url = video.url, showInRevive = true),
-                        isRevive = true,
-                        hasResults = true,
-                        onExternalLinkTap = { url -> openExternalLink(context, url) { offlineAlert = true } },
-                    )
+        AdaptiveLayoutPolicy.rows(playable, columns).forEach { row ->
+            if (row.spansAllColumns) {
+                val (video, id) = row.items.first()
+                CxVideoCard(video, id, onExternalLinkTap, Modifier.fillMaxWidth())
+            } else {
+                // Misma altura para las tarjetas de la fila, con el enlace de
+                // YouTube al pie. Un vídeo suelto conserva el ancho de su
+                // columna, a la izquierda.
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    row.items.forEach { (video, id) ->
+                        CxVideoCard(video, id, onExternalLinkTap, Modifier.weight(1f).fillMaxHeight())
+                    }
+                    repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
     }
     if (offlineAlert) OfflineAccessDialog(OfflineAccessAlert.ExternalLinkOffline, onDismiss = { offlineAlert = false }, onEnableOffline = { offlineAlert = false })
+}
+
+@Composable
+private fun CxVideoCard(video: CxVideo, youtubeId: String, onExternalLinkTap: (String) -> Unit, modifier: Modifier) {
+    CCCard(modifier = modifier) {
+        Column(Modifier.fillMaxHeight().padding(14.dp)) {
+            Text(LocaleHolder.t(video.title, video.titleEn?.takeIf { it.isNotBlank() } ?: video.title), style = CCText.S16, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            AndroidView(
+                factory = { context -> WebView(context).apply {
+                    // Con WRAP_CONTENT el WebView adopta la altura del
+                    // contenido y el iframe al 100 % queda a 0 px.
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    webChromeClient = WebChromeClient()
+                    loadDataWithBaseURL("https://calendariociclismo.app", """
+                        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+                        <style>html,body{margin:0;width:100%;height:100%;background:#000}iframe{width:100%;height:100%;border:0}</style>
+                        </head><body><iframe src="https://www.youtube-nocookie.com/embed/$youtubeId?playsinline=1"
+                        title="YouTube" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe></body></html>
+                    """.trimIndent(), "text/html", "UTF-8", null)
+                } },
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                onRelease = { it.destroy() },
+            )
+            // Solo ocupa alto en una fila de varias columnas (alto acotado).
+            Spacer(Modifier.weight(1f))
+            BroadcastRow(
+                Broadcast(id = video.id, raceDayId = video.raceId, channel = "YouTube", url = video.url, showInRevive = true),
+                isRevive = true,
+                hasResults = true,
+                onExternalLinkTap = onExternalLinkTap,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
 }
 
 /** Fila de estado de publicación de una clasificación CX, idéntica a
@@ -684,12 +722,12 @@ private fun CxProgrammeLayout(
     val media = CxPresentation.programmeMedia(detail, allowedGroups, showAllTV, cxClock())
     // Apertura de carretera: aviso sin conexión y apps nativas.
     val openLink: (String) -> Unit = { url -> openExternalLink(context, url) { offlineAlert = true } }
-    val hasMedia = media.showsLiveTV || media.revive.isNotEmpty()
+    val hasMedia = media.showsTV || media.revive.isNotEmpty()
     val schedule: @Composable () -> Unit = {
         if (scheduled.isNotEmpty()) CxScheduleCard(detail, scheduled, onStartlist, onResults)
     }
     val mediaCards: @Composable () -> Unit = {
-        if (media.showsLiveTV) CxTVCard(race, media, showAllTV, onToggleTV, openLink)
+        if (media.showsTV) CxTVCard(race, media, showAllTV, onToggleTV, openLink)
         if (media.revive.isNotEmpty()) CxReviveCard(race, media.revive, openLink)
     }
     when {
@@ -761,13 +799,24 @@ private fun CxScheduleCard(detail: CxDetail, scheduled: List<CxCategory>, onStar
  * solo con filas de otras regiones, y filas a sangre separadas por filete, sin
  * huecos añadidos entre ellas. Dividida por categorías: emisiones comunes (sin
  * categoría) sin encabezado y un bloque por categoría en directo, en el orden
- * del programa.
+ * del programa. Estado de TV como en la jornada de carretera: «Sin confirmar»
+ * junto al título y, sin filas de emisión, el estado en texto atenuado.
  */
 @Composable
 private fun CxTVCard(race: CxRace, media: app.calendariociclismo.android.util.CxMediaSelection, showAllTV: Boolean, onToggleTV: () -> Unit, openLink: (String) -> Unit) {
+    val statusText = when {
+        media.showsLiveTV -> null
+        media.tvStatus == "none" -> stringResource(R.string.stage_broadcast_none)
+        media.tvStatus == "unavailable_es" -> stringResource(R.string.tv_badge_no_tv_spain)
+        media.tvStatus == "pending" -> stringResource(R.string.tv_badge_pending)
+        else -> null
+    }
     StagePanel {
         PanelHeader(
             title = stringResource(R.string.cx_tv),
+            titleExtra = {
+                if (media.tvStatus == "pending") TVBadge(tvStatus = "pending", broadcasts = emptyList())
+            },
             actions = {
                 if (media.hasHiddenTV) PanelTextAction(
                     label = stringResource(if (showAllTV) R.string.stage_broadcast_filter_region else R.string.stage_broadcast_filter_all),
@@ -780,6 +829,16 @@ private fun CxTVCard(race: CxRace, media: app.calendariociclismo.android.util.Cx
             headlineContent = {
                 Text(
                     text = stringResource(R.string.stage_broadcast_no_region),
+                    style = CCText.S14,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        if (statusText != null) ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = {
+                Text(
+                    text = statusText,
                     style = CCText.S14,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -853,12 +912,16 @@ private val CxStartlistTeamColumnMinWidth = 480.dp
  * Dorsales de una categoría con la superficie de tabla de Resultados:
  * Dorsal, Corredor y Equipo (franjas y nombre). En anchos estrechos el
  * equipo pasa a subtítulo bajo el corredor; sin equipo en ninguna fila no
- * hay columna de equipo.
+ * hay columna de equipo. Con `selectionEnglish` (Mundiales y Continentales)
+ * el equipo es la selección del país del corredor, sin franjas.
  */
 @Composable
-private fun CxStartlistTable(riders: List<CxStartlistRider>, teams: List<CxTeam>) {
+private fun CxStartlistTable(riders: List<CxStartlistRider>, teams: List<CxTeam>, selectionEnglish: Boolean? = null) {
     val byId = remember(teams) { teams.associateBy { it.id } }
-    val hasTeam = riders.any { it.teamId != null && it.teamId in byId }
+    val selections = remember(riders, selectionEnglish) {
+        selectionEnglish?.let { english -> riders.associate { it.id to TeamNames.selectionName(it.countryCode, english) } }
+    }
+    val hasTeam = if (selections != null) selections.values.any { it != null } else riders.any { it.teamId != null && it.teamId in byId }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val teamColumn = hasTeam && maxWidth >= CxStartlistTeamColumnMinWidth
         ResultsTableSurface {
@@ -873,8 +936,11 @@ private fun CxStartlistTable(riders: List<CxStartlistRider>, teams: List<CxTeam>
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             riders.forEachIndexed { index, rider ->
-                val cxTeam = rider.teamId?.let(byId::get)
-                CxStartlistRow(rider, cxTeam?.name, cxTeam?.roadTeam, teamColumn)
+                if (selections != null) CxStartlistRow(rider, selections[rider.id], null, teamColumn)
+                else {
+                    val cxTeam = rider.teamId?.let(byId::get)
+                    CxStartlistRow(rider, cxTeam?.name, cxTeam?.roadTeam, teamColumn)
+                }
                 if (index < riders.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }

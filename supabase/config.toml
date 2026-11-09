@@ -16,8 +16,5 @@ verify_jwt = false
 [functions.send-push]
 verify_jwt = false
 
-[functions.trigger-workflows]
-verify_jwt = false
-
 [functions.cx-calendar]
 verify_jwt = true

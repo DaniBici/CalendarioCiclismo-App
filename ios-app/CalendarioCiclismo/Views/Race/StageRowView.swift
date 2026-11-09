@@ -53,10 +53,15 @@ struct StageRowView: View {
                     .padding(.top, 12)
                     .padding(.bottom, showsMiniProfile ? 8 : 12)
 
+                // En una fila de dos tarjetas estiradas al alto de la más
+                // alta, el miniperfil queda anclado al pie.
+                Spacer(minLength: 0)
+
                 if showsMiniProfile, let profile = rd.elevationProfile {
                     miniProfileBand(profile)
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         // La jornada cancelada NO se atenúa: su aviso ya lo dice y su ficha
         // (recorrido, perfil, documentación) sigue siendo accesible. Paridad

@@ -5,8 +5,8 @@ import {
   HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
   RTVE_LIVES_URL, RTVE_VUELTA_SCHEDULE_URL, RTVE_VUELTA_VIDEOS_URL,
   contentHash, dateKeyInZone, fold,
-  desiredBroadcasts, hboSharedEventVariants, matchObservation, newBroadcastRow, normalizedObservation, placeBroadcasts, parseHboCatalog,
-  parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveRaceHintMatch,
+  desiredBroadcasts, hboSharedEventVariants, matchObservation, newBroadcastRow, normalizedObservation, placeBroadcasts, hboCatalogEvents, parseHboCatalog,
+  parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveGuideHasProgramming, rtveRaceHintMatch,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveVueltaExternalEventId,
 } from './broadcasts-sync-core.mjs';
 import {
@@ -28,6 +28,7 @@ import {
 } from './rai.mjs';
 export { collectRai } from './rai.mjs';
 import { collectLequipe, LEQUIPE_GUIDE_URL } from './lequipe.mjs';
+import { PG_CONNECTION_LIMITS } from '../db/env.mjs';
 export { collectLequipe } from './lequipe.mjs';
 
 const ROLLBACK_ID = process.argv.find((arg) => arg.startsWith('--rollback='))?.split('=')[1] || null;
@@ -56,11 +57,14 @@ async function fetchHtml(url) {
   return response.text();
 }
 
-export async function collectHbo(fetcher = fetchHtml) {
-  const today = dateKeyInZone();
+export async function collectHbo(fetcher = fetchHtml, now = new Date(), { diagnostics = [] } = {}) {
+  const today = dateKeyInZone(now);
   const minDate = new Date(`${today}T00:00:00Z`); minDate.setUTCDate(minDate.getUTCDate() - 1);
   const maxDate = new Date(`${today}T00:00:00Z`); maxDate.setUTCDate(maxDate.getUTCDate() + 8);
-  const catalog = parseHboCatalog(await fetcher(HBO_SOURCE_URL)).filter((event) => {
+  const html = await fetcher(HBO_SOURCE_URL);
+  invariant(hboCatalogEvents(html).length > 0,
+    'El catálogo de HBO Max no contiene eventos: contrato de página modificado o catálogo vacío');
+  const catalog = parseHboCatalog(html).filter((event) => {
     const date = new Date(`${event.dateKey}T00:00:00Z`);
     return date >= minDate && date <= maxDate;
   });
@@ -70,11 +74,15 @@ export async function collectHbo(fetcher = fetchHtml) {
     if (!startTimeUtc) continue;
     observations.push(normalizedObservation({ ...event, startTimeUtc }));
   }
-  invariant(observations.length > 0, 'HBO Max no devolvió emisiones utilizables en la ventana -1/+8 días');
+  // Una ventana sin ciclismo es el estado normal fuera de temporada; un evento
+  // de la ventana sin hora utilizable sí es un fallo de la fuente.
+  invariant(observations.length > 0 || catalog.length === 0,
+    'HBO Max no devolvió emisiones utilizables en la ventana -1/+8 días');
+  if (catalog.length === 0) diagnostics.push({ source: 'hbo_max', action: 'no_cycling_events', sourceUrl: HBO_SOURCE_URL });
   return observations;
 }
 
-export async function collectRtve(fetcher = fetchHtml, now = new Date()) {
+export async function collectRtve(fetcher = fetchHtml, now = new Date(), { diagnostics = [] } = {}) {
   const source = RTVE_SOURCE_URLS[0];
   const today = dateKeyInZone(now);
   const minDate = new Date(`${today}T00:00:00Z`); minDate.setUTCDate(minDate.getUTCDate() - 1);
@@ -131,7 +139,13 @@ export async function collectRtve(fetcher = fetchHtml, now = new Date()) {
       return date >= minDate && date <= maxDate;
     })
     .map(normalizedObservation);
-  invariant(observations.length > 0, 'RTVE no devolvió emisiones de ciclismo en la ventana -1/+8 días');
+  if (observations.length === 0) {
+    // Una ventana sin ciclismo es el estado normal fuera de temporada; una guía
+    // inaccesible o con el contrato modificado sí es un fallo de la fuente.
+    if (guideResult.status === 'rejected') throw guideResult.reason;
+    invariant(rtveGuideHasProgramming(guideResult.value), 'RTVE no devolvió una guía reconocible');
+    diagnostics.push({ source: 'rtve', action: 'no_cycling_events', sourceUrl: source.url });
+  }
   return observations;
 }
 
@@ -263,6 +277,7 @@ async function withClient(callback) {
     connectionString: process.env.BROADCASTS_DATABASE_URL || process.env.DATABASE_URL,
     ssl: (process.env.BROADCASTS_DATABASE_URL || process.env.DATABASE_URL)?.includes('localhost')
       ? undefined : { rejectUnauthorized: false },
+    ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
   try { return await callback(client); } finally { await client.end(); }
@@ -927,11 +942,11 @@ export async function run({ client = null, collectors = {} } = {}) {
   const failures = [];
   const diagnostics = [];
   if (SOURCES.has('hbo_max')) {
-    try { observations.push(...await (collectors.hbo || collectHbo)()); }
+    try { observations.push(...await (collectors.hbo ? collectors.hbo() : collectHbo(fetchHtml, new Date(), { diagnostics }))); }
     catch (error) { failures.push({ source: 'hbo_max', sourceUrl: HBO_SOURCE_URL, error }); }
   }
   if (SOURCES.has('rtve')) {
-    try { observations.push(...await (collectors.rtve || collectRtve)()); }
+    try { observations.push(...await (collectors.rtve ? collectors.rtve() : collectRtve(fetchHtml, new Date(), { diagnostics }))); }
     catch (error) { failures.push({ source: 'rtve', sourceUrl: RTVE_SOURCE_URLS[0].url, error }); }
   }
   if (SOURCES.has('eitb')) {

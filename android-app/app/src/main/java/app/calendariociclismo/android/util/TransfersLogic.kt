@@ -78,9 +78,14 @@ object TransfersLogic {
      *    anuncie el kit.
      *  - Sin publicar y SIN identidad anterior (equipo nacido este año) → null
      *    (sin franjas).
+     *  - Sin publicar y con [TeamSeason.prevColorsHidden] (denominación sin
+     *    confirmar) → null (sin franjas).
      */
-    fun badgeSeason(season: TeamSeason, prev: Map<String, TeamSeason>): TeamSeason? =
-        if (season.badgeVisible) season else prev[season.teamId]
+    fun badgeSeason(season: TeamSeason, prev: Map<String, TeamSeason>): TeamSeason? = when {
+        season.badgeVisible -> season
+        season.prevColorsHidden -> null
+        else -> prev[season.teamId]
+    }
 
     /**
      * Equipo que alimenta las franjas de maillot (`TeamColorBands`) de una

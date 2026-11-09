@@ -136,6 +136,10 @@ data class CxRace(
     val websiteUrl: String? = null,
     val timezone: String? = null,
     val isCancelled: Boolean = false,
+    /** Estado de TV de la prueba (`confirmed_time`, `confirmed_notime`,
+     *  `pending`, `none`, `unavailable_es`), semántica de `race_days`; null
+     *  sin información o en cachés anteriores a la columna. */
+    val tvStatus: String? = null,
     val assets: List<CxAsset> = emptyList(),
     @SerialName("cx_tournaments") val tournament: CxTournament? = null,
     @SerialName("cx_race_categories") val categories: List<CxCategory> = emptyList(),

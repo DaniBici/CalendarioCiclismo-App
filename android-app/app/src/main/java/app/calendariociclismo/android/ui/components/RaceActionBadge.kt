@@ -33,18 +33,19 @@ import app.calendariociclismo.android.ui.theme.neutralLinkBadgeColor
  * Etiqueta de acción de las tarjetas (Dorsales, Orden de salida, accesos de
  * ciclocross). `primaryAction` es la etiqueta neutra de enlace (texto
  * principal sobre gris al 8 %); `neutral`, la informativa (texto atenuado). El
- * acento queda solo para la selección (`selected`). Con la etiqueta vacía se
- * muestra solo el icono.
+ * acento queda solo para la selección (`selected`). Con `showLabel = false` se
+ * muestra solo el icono, a la misma altura, y `label` queda como descripción de
+ * accesibilidad.
  */
 @Composable
-fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false) {
+fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, showLabel: Boolean = true) {
     val primary = MaterialTheme.colorScheme.primary
     val colors = when {
         primaryAction -> neutralLinkBadgeColor()
         neutral -> neutralBadgeColor()
         else -> BadgeColor(primary.copy(alpha = if (selected == true) 0.18f else 0.10f), primary)
     }
-    val showsText = label.isNotEmpty()
+    val showsText = showLabel && label.isNotEmpty()
     CCBadgeSurface(
         colors = colors,
         onClick = onClick,
@@ -57,8 +58,16 @@ fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Mod
         enabled = enabled,
         horizontalPadding = if (showsText) 8.dp else 6.dp,
     ) {
-        if (icon != null) Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
-        if (showsText) Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, color = colors.foreground)
+        if (showsText) {
+            if (icon != null) Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+            Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, color = colors.foreground)
+        } else if (icon != null) {
+            // El texto vacío conserva la altura de las etiquetas vecinas.
+            Box(contentAlignment = Alignment.Center) {
+                Text("", style = CCText.S12)
+                Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+            }
+        }
     }
 }
 

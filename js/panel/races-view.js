@@ -322,39 +322,6 @@ function closeEditRaceModal() {
   closeDrawer(1);
 }
 
-// Marca que hay páginas estáticas pendientes de crear solo cuando la URL
-// canónica de la jornada todavía responde 404. Una página ya creada se hidrata
-// con los datos vivos de Supabase y no necesita reconstruir el artifact.
-//
-// DEBOUNCE EN EL SERVIDOR (migración 121): antes esto programaba un setTimeout(8s)
-// en el navegador que, al vencer, disparaba los workflows. Era frágil — si tras
-// guardar se cambiaba de jornada, se cerraba el editor, se recargaba o la pestaña
-// pasaba a segundo plano (el navegador congela sus timers), el dispatch NUNCA salía
-// y la página quedaba en 404 hasta el cron diario (bug cazado con la Clásica
-// Castilla y León 2026). Y no colapsaba ráfagas entre guardados espaciados: una
-// sesión de edición llegaba a disparar ~15 runs de og-pages en 30 min.
-//
-// La comprobación es conservadora: solo un 404 confirmado marca la cola. Un
-// error de red o una respuesta distinta no dispara nada, porque una edición de
-// una jornada existente nunca debe provocar una regeneración por defecto.
-//
-// Fire-and-forget y NON-BLOCKING: el guardado ya terminó cuando se llama.
-export async function _markWebPagesDirtyIfMissing(slug) {
-  try {
-    const pageUrl = `${CONFIG.basePath}/jornada/${encodeURIComponent(slug)}/`;
-    const response = await fetch(pageUrl, { method: 'HEAD', cache: 'no-store' });
-    if (response.ok) return;
-    if (response.status !== 404) {
-      console.warn(`No se comprobó la página de jornada (${response.status}); no se regenera.`);
-      return;
-    }
-    const { error } = await supabase.rpc('admin_mark_web_pages_dirty');
-    if (error) console.warn('No se pudo marcar la creación de páginas:', error.message || error);
-  } catch (err) {
-    console.warn('No se pudo comprobar la página de jornada; no se regenera:', err?.message || err);
-  }
-}
-
 // Auto-formato al cambiar categoría en editar carrera (cableado por apertura
 // del drawer en wireRaceEditor; antes era un listener a nivel de módulo que
 // petaba al cargar cuando #er-uci ya no vive en el HTML estático).

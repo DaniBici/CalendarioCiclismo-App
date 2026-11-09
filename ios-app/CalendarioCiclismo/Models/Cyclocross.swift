@@ -185,11 +185,15 @@ struct CxRace: Codable, Sendable, Identifiable {
     /// Vídeos de la prueba en la consulta de la agenda (badge de resumen de la
     /// tarjeta). Nil en la ficha, que los lee aparte, y en cachés anteriores.
     var videos: [CxVideo]? = nil
+    /// Estado de TV de la prueba, con la semántica de `race_days."tvStatus"`:
+    /// `confirmed_time`, `confirmed_notime`, `pending`, `none` o
+    /// `unavailable_es`. Nil sin información y en cachés anteriores.
+    var tvStatus: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, nameEn, slug, slugEn, seasonKey, dateKey, endDateKey
         case raceClass = "class"
-        case countryCode, venue, tournamentId, colorHex, logoUrl, websiteUrl, timezone, isCancelled
+        case countryCode, venue, tournamentId, colorHex, logoUrl, websiteUrl, timezone, isCancelled, tvStatus
         case assets
         case tournament = "cx_tournaments"
         case categories = "cx_race_categories"

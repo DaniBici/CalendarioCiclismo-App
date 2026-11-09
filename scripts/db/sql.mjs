@@ -13,8 +13,12 @@
 // defecto, solo la última, como execute_sql).
 // Salida: JSON compacto por stdout. Código 1 ante error. Aviso por stderr si la
 // credencial caduca en menos de EXPIRY_WARNING_DAYS días (VALID UNTIL).
+// El SQL que empieza por «-- Volcado» (tools/site/*.sql y sus copias) se lee por
+// filas en vez de montar el JSON en el servidor, con la misma salida
+// (volcado-filas.mjs).
 import { readFileSync } from 'node:fs';
 import { withClient } from './env.mjs';
+import { escribirVolcado, esVolcadoWeb, planVolcado } from './volcado-filas.mjs';
 
 export const EXPIRY_WARNING_DAYS = 30;
 
@@ -70,10 +74,12 @@ async function main() {
   if ((options.readOnly || options.rollback) && hasTransactionControl(query)) {
     throw new Error('El SQL contiene control de transacción (BEGIN/COMMIT/…): con --read-only o --rollback se confirmaría. Retirarlo antes, p. ej. grep -vxiE "BEGIN;|COMMIT;".');
   }
+  const volcado = esVolcadoWeb(query) && !options.rollback && !options.all ? planVolcado(query) : null;
   const output = await withClient(async client => {
     const { rows } = await client.query('SELECT rolvaliduntil FROM pg_catalog.pg_roles WHERE rolname = current_user');
     const warning = expiryWarning(rows[0]?.rolvaliduntil);
     if (warning) console.error(warning);
+    if (volcado) return escribirVolcado(client, volcado, process.stdout);
     if (!options.readOnly && !options.rollback) return pickRows(await client.query(query), options.all);
     await client.query(options.readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
     try {
@@ -83,7 +89,7 @@ async function main() {
       await client.query('ROLLBACK');
     }
   });
-  process.stdout.write(`${JSON.stringify(output)}\n`);
+  if (!volcado) process.stdout.write(`${JSON.stringify(output)}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

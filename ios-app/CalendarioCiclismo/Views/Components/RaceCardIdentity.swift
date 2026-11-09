@@ -4,16 +4,18 @@ struct RaceCardIdentity<Title: View, Details: View>: View {
     let logoUrl: String?
     var countryCode: String? = nil
     var stackedFlag = false
+    /// Sin logo, hueco de la marca (no en los Campeonatos Nacionales).
+    var logoPlaceholder = false
     @ViewBuilder var title: () -> Title
     @ViewBuilder var details: () -> Details
     var body: some View {
         HStack(alignment: stackedFlag ? .top : .center, spacing: 10) {
             if stackedFlag {
                 VStack(spacing: 3) {
-                    RaceLogo(logoUrl, size: 32).frame(width: 32, height: 32)
+                    RaceLogo(logoUrl, size: 32, placeholder: logoPlaceholder).frame(width: 32, height: 32)
                     CountryFlag(countryCode: countryCode).frame(height: 16)
                 }.frame(width: 36)
-            } else { RaceLogo(logoUrl, size: 36) }
+            } else { RaceLogo(logoUrl, size: 36, placeholder: logoPlaceholder) }
             VStack(alignment: .leading, spacing: 3) { title(); details() }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -44,7 +46,11 @@ struct RaceActionLabel: View {
         Group {
             if let icon {
                 if label.isEmpty {
-                    Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.iconOnly)
+                    // El texto oculto conserva la altura de las etiquetas vecinas.
+                    ZStack {
+                        Text(" ").hidden()
+                        Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.iconOnly)
+                    }
                 } else {
                     Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.titleAndIcon)
                 }

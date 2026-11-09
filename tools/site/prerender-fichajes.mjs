@@ -139,7 +139,7 @@ export function validatePage(page, { navHrefs, teams, feed }) {
   const main = page.slice(page.search(MAIN_OPEN), page.indexOf('</main>'));
   // Sin marcadores de la capa de carga (js/page-loading.js) ni bloque estático.
   if (/class="(?:loading|static-prerender)[ "]/.test(main)) errors.push('marcador de carga o bloque estático en <main>');
-  const cards = main.match(/<button class="tr-team-card"/g)?.length || 0;
+  const cards = main.match(/<a class="tr-team-card"/g)?.length || 0;
   if (!teams || cards !== teams) errors.push(`${cards} equipos pintados de ${teams}`);
   if (feed && !main.includes('class="tr-feed-day"')) errors.push('feed sin movimientos');
   return errors;

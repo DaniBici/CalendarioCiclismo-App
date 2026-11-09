@@ -267,7 +267,7 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         app.calendariociclismo.android.ui.components.RaceCompetitionIdentity(race.localizedName, race.logoUrl, race.countryCode, race.hideFlag,
-            RaceLogic.shouldShowFemaleIndicator(race), onBack)
+            RaceLogic.shouldShowFemaleIndicator(race), logoPlaceholder = race.uciCategory != "CN", onBack = onBack)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,

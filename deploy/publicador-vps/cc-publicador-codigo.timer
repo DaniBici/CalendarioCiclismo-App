@@ -1,0 +1,11 @@
+[Unit]
+Description=Calendario Ciclismo - comprobar cada 2 minutos si hay código nuevo en main
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/publicador-vps.md
+
+[Timer]
+OnCalendar=*-*-* *:00/2:15
+AccuracySec=5s
+Unit=cc-publicador-codigo.service
+
+[Install]
+WantedBy=timers.target

@@ -51,24 +51,33 @@
             android:windowSoftInputMode="adjustResize">
 
             <!-- ── Deep links HTTPS (App Links verificados) ─────
-                 Requiere /.well-known/assetlinks.json en calendariociclismo.app
-                 con el SHA-256 del keystore de release. -->
+                 Requiere /.well-known/assetlinks.json con el SHA-256 del
+                 keystore de release en los dos hosts y sin redirección: en
+                 Android 8 a 11 un host sin verificar anula la verificación de
+                 todos. Mismas rutas que /.well-known/apple-app-site-association;
+                 cada ruta nueva entra también en DeepLink.fromUri, o la app se
+                 abre sin destino. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
                       android:host="calendariociclismo.app" />
-                <data android:pathPattern="/competicion/.*" />
-                <data android:pathPattern="/jornada/.*" />
+                <data android:host="www.calendariociclismo.app" />
+                <data android:pathPattern="/" />
+                <data android:pathPattern="/en/" />
+                <data android:pathPattern="/calendario/" />
+                <data android:pathPattern="/en/calendar/" />
+                <data android:pathPattern="/mes.html" />
+                <data android:pathPattern="/temporada.html" />
+                <data android:pathPattern="/competicion/..*" />
+                <data android:pathPattern="/en/race/..*" />
+                <data android:pathPattern="/jornada/..*" />
+                <data android:pathPattern="/en/stage/..*" />
                 <data android:pathPattern="/ciclocross/.*" />
                 <data android:pathPattern="/ciclocross/" />
                 <data android:pathPattern="/en/cyclocross/.*" />
                 <data android:pathPattern="/en/cyclocross/" />
-                <data android:pathPattern="/mes.html" />
-                <data android:pathPattern="/temporada.html" />
-                <data android:pathPattern="/buscar.html" />
-                <data android:pathPattern="/" />
             </intent-filter>
 
             <!-- ── Scheme custom `calendariociclismo://` ─────────

@@ -65,9 +65,8 @@ object RaceLogic {
     /**
      * Avance (0…1) del miniperfil de la tarjeta de Hoy. Espejo de
      * `profileProgress` (js/services/race-presentation.js): con resultados o
-     * estado terminado, completo; crono en curso sin avance único (salidas
-     * escalonadas); el resto, tiempo transcurrido entre salida real (o
-     * neutralizada) y meta prevista.
+     * estado terminado, completo; el resto, tiempo transcurrido entre salida
+     * real (o neutralizada) y meta prevista.
      */
     fun profileProgress(
         rd: RaceDay,
@@ -76,7 +75,8 @@ object RaceLogic {
     ): Float {
         if (rd.isCancelledDay || rd.isRestDay) return 0f
         if (hasInhouseResults || rd.raceStatus == "finished") return 1f
-        if (rd.primaryType == "itt" || rd.primaryType == "ttt") return 0f
+        // CRI/CRE: de la salida del primer corredor a la llegada del último. Es
+        // tiempo de la sesión, no distancia, y se pinta rayado (profileUsesTimeHatch).
         val startRaw = rd.realStartTimeUtc?.takeIf { it.isNotEmpty() } ?: rd.neutralStartTimeUtc
         val start = startRaw?.let { DateFormatting.parseIso(it) } ?: return 0f
         val finish = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it) } ?: return 0f
@@ -85,6 +85,13 @@ object RaceLogic {
         val total = (finish.toEpochMilli() - start.toEpochMilli()).toDouble()
         return (elapsed / total).coerceIn(0.0, 1.0).toFloat()
     }
+
+    /** CRI/CRE sin resultados: el avance de [profileProgress] se pinta con rayas
+     *  diagonales (espejo de `profileUsesTimeHatch` de la web). */
+    fun profileUsesTimeHatch(rd: RaceDay, hasInhouseResults: Boolean): Boolean =
+        (rd.primaryType == "itt" || rd.primaryType == "ttt") &&
+            !rd.isCancelledDay && !rd.isRestDay &&
+            !hasInhouseResults && rd.raceStatus != "finished"
 
     /** Carreras referenciadas por jornadas que no estaban en la consulta por
      * solapamiento de fechas del mes. */

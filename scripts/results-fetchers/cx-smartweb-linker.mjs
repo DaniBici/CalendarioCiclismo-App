@@ -15,7 +15,7 @@
  *   node scripts/results-fetchers/cx-smartweb-linker.mjs [--dry-run] [--limit 8]
  */
 import { fileURLToPath } from 'node:url';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 import { parseSmartwebIndex, smartwebIndexUrl } from './smartweb-cx-fetch.mjs';
 
 const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
@@ -33,8 +33,10 @@ const SYNC_STOP_OFFSET_MINUTES = 2160;
 // Las pruebas alojadas en rfec.com (Castilla-La Mancha) publican además
 // «JUNIOR FEM.», «SUB23 FEM.» y «SUB23-FEM.», a veces junto al rótulo
 // autonómico y con la misma tabla. «ELITE FEM.» no entra: excluye a las Sub-23
-// de la manga conjunta, que rfec.com publica como «FEM ELITE-SUB23».
-export const SMARTWEB_LABELS = Object.freeze({ ME: ['ELITE-SUB23'], WE: ['FEM ELITE-SUB23'], MJ: ['JUNIOR'], WJ: ['FEM JUNIOR', 'JUNIOR FEM.'],
+// de la manga conjunta, que rfec.com publica como «FEM ELITE-SUB23». Castilla y
+// León (fedciclismocyl.com) usa «ELITE/SUB23», «ELITE SUB 23 FEM» y «JUNIOR FEM».
+export const SMARTWEB_LABELS = Object.freeze({ ME: ['ELITE-SUB23', 'ELITE/SUB23'], WE: ['FEM ELITE-SUB23', 'ELITE SUB 23 FEM'], MJ: ['JUNIOR'],
+  WJ: ['FEM JUNIOR', 'JUNIOR FEM.', 'JUNIOR FEM'],
   MU: ['SUB23'], WU: ['FEM SUB23', 'SUB23 FEM.', 'SUB23-FEM.'] });
 
 /**
@@ -74,7 +76,7 @@ async function loadCandidateRaces(client) {
 async function main() {
   if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
   const { Client } = await import('pg');
-  const client = new Client({ connectionString: databaseUrl(), ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false } });
+  const client = new Client({ connectionString: databaseUrl(), ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   await client.connect();
   const summary = { dryRun: DRY_RUN, candidates: 0, linked: [], skipped: [] };
   try {

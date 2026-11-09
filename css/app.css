@@ -24,11 +24,18 @@
      Generales
        600 / 601    móvil: navegación inferior, controles compactos; cabecera
                     de carrera, orden de salida y tabla de resultados compactos
-       760 / 761    tarjetas en una columna / rejilla de dos columnas de Hoy
-                    (COMPACT_VIEWPORT_QUERY en js/shared.js)
-       899 / 900    ficha de resultados con columna lateral de 280px
+       760 / 761    una columna / dos columnas o columna lateral en todas las
+                    pantallas (COMPACT_VIEWPORT_QUERY en js/viewport-query.js):
+                    Hoy, Últimos resultados, Fichajes, Dorsales, Competición,
+                    calendario mensual, programa y torneo CX, vídeos CX,
+                    Campeonatos Nacionales; ficha de resultados, orden de
+                    salida, jornada y perfil con lateral de 280px; ránking UCI
+                    con la leyenda a la izquierda
+       899 / 900    junto a la lateral, tabla compacta (equipo bajo el
+                    corredor; orden de salida sin dorsal) / tabla completa
        1099 / 1100  escritorio: nombres de día completos, ficha de resultados
-                    fija y columna lateral de 320px
+                    fija y columna lateral de 320px; equipos de Fichajes a
+                    cuatro columnas
        701, 1200    margen de página (--page-gutter: 24px y 32px)
      De componente
        420          cabecera: acciones solo con icono
@@ -36,8 +43,7 @@
                     ránking UCI compacto
        600 / 601    tabla de resultados sin / con columna Equipo
        768          explicaciones del ránking UCI solo al pulsar (táctil)
-       961          últimos resultados a dos columnas
-       1024         perfil de etapa con lista de puntos lateral
+       1024         jornada y perfil: lateral de Puntos clave de 330px
    ═══════════════════════════════════════════════════════════════════════ */
 
 @import url('tokens.css');
@@ -1392,7 +1398,9 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   /* Conserva la elevación heredada: homogénea con el resto de la lista. */
 }
 .race-card--rest-day:hover, .race-card--placeholder:hover { background: var(--bg-card); }
-.race-card__flag { font-size: var(--fs-6); line-height: 1; }
+/* Solo bandera (Campeonatos Nacionales): la columna conserva el ancho del logo
+   (32 px) y el nombre arranca a la misma altura que en las demás tarjetas. */
+.race-card__flag { font-size: var(--fs-6); line-height: 1; width: 32px; flex: none; text-align: center; }
 .race-card__main { min-width: 0; }
 .race-card__name {
   font-family: var(--font-display);
@@ -1645,11 +1653,45 @@ a.badge { min-height: 24px; }
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
+/* Hueco de logotipo (js/components/logo-placeholder.js): la marca de la
+   cabecera en --text-dim sobre el relleno neutro, al tamaño del logo que
+   sustituye. Carreras sin logo o con un logo que no carga; nunca en los
+   Campeonatos Nacionales. */
+.logo-ph {
+  --logo-ph-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 74.7 32.3'%3E%3Cg transform='translate(0.65 1.15)' fill='none' stroke='%23000' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='0.5' y='3' width='27' height='27' rx='3'/%3E%3Cline x1='8' y1='0' x2='8' y2='6'/%3E%3Cline x1='20' y1='0' x2='20' y2='6'/%3E%3Cline x1='0.5' y1='12' x2='27.5' y2='12'/%3E%3Ccircle cx='46.25' cy='23.25' r='5.25'/%3E%3Ccircle cx='65.75' cy='23.25' r='5.25'/%3E%3Ccircle cx='60.5' cy='4.5' r='1.5'/%3E%3Cpath d='M56,23.25 L56,18 L51.5,13.5 L57.5,9 L60.5,13.5 L63.5,13.5'/%3E%3C/g%3E%3C/svg%3E");
+  display: inline-block;
+  position: relative;
+  flex: none;
+  background: var(--hover-bg);
+  border-radius: var(--radius-sm);
+}
+.logo-ph::after {
+  content: '';
+  position: absolute;
+  inset: 14%;
+  background: var(--text-dim);
+  -webkit-mask: var(--logo-ph-mark) center / contain no-repeat;
+  mask: var(--logo-ph-mark) center / contain no-repeat;
+}
+span.race-header__logo.logo-ph { width: 2.5rem; }
 /* Silueta del miniperfil tenue: el nombre de la carrera pesa más que la banda.
    La parte recorrida conserva el color de la carrera con algo más de opacidad. */
 .race-card__elevation path:first-of-type { fill-opacity: 0.3; }
 html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
 .race-card__elevation path:last-of-type { fill-opacity: 0.6; }
+/* CRI/CRE en Hoy: el avance es tiempo de la sesión, no distancia. Silueta gris
+   entera y rayas diagonales finas del color de la carrera hasta el avance. */
+.race-card__elevation--time path:last-of-type { fill-opacity: 0.3; }
+html.dark .race-card__elevation--time path:last-of-type { fill-opacity: 0.5; }
+.race-card__ep-hatch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(-45deg, var(--ep-hatch-color) 0 1px, transparent 1px 4px);
+  -webkit-mask: var(--ep-mask) 0 0 / 100% 100% no-repeat;
+  mask: var(--ep-mask) 0 0 / 100% 100% no-repeat;
+  clip-path: inset(0 calc(100% - var(--ep-progress, 0%)) 0 0);
+}
 /* Miniperfil (components/race-card.js): banda inferior de ancho completo;
    km y desnivel fluyen en el subtítulo. */
 .race-card__profile {
@@ -1671,6 +1713,8 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
 .race-card__schedule>span { color: var(--text-muted); font-size: var(--fs-2); }
 .race-card__schedule>strong { font-size: var(--fs-4); }
 .race-card__metrics { display: contents; }
+/* Lo que depende de la región en una página publicada: no cuenta para la disposición. */
+.race-card__tv, .race-card__revive { display: contents; }
 /* Sin logo ni bandera (etapas de Competición), datos y horario ocupan toda la
    fila. */
 .race-card:not(:has(>.race-card__logo,>.race-card__flag)) {
@@ -1734,6 +1778,9 @@ html.dark .race-card__elevation path:first-of-type { fill-opacity: 0.5; }
      columnas de Hoy (761 px) y que COMPACT_VIEWPORT_QUERY (js/shared.js). */
   .race-card { grid-template-columns: auto 1fr; row-gap: 0.3rem; }
   .race-card__logo, .race-card__flag { grid-row: 1 / span 2; align-self: center; }
+  /* Solo bandera (Campeonatos Nacionales, sin logo): arriba, junto a la
+     primera línea del nombre, como en las apps. */
+  .race-card__flag { align-self: start; }
   /* El estado horario ocupa la derecha del bloque de texto. El perfil conserva
      una banda inferior completa y no interviene en su centrado vertical. */
   .race-card__main { grid-row: 1; grid-column: 2; padding-right: 4rem; }
@@ -2464,8 +2511,13 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   margin-block: 20px;
 }
 /* Gráfico del perfil aún sin dibujar (jornadas generadas en el build): el
-   mismo alto que le dará js/stage/profile.js, máx(264, mín(400, ancho × 0,4)). */
+   mismo alto que le dará js/stage/profile.js, máx(264, mín(400, ancho × 0,4)).
+   Con la columna lateral, el ancho es el del contenedor menos la lateral y la
+   separación (280 + 24 px; desde 1024 px, 330 + 24 px). */
 .stage-profile-graphic:empty { height: clamp(264px, 40cqi, 400px); }
+@media (min-width: 761px) {
+  .stage-profile-layout--points .stage-profile-graphic:empty { height: clamp(264px, calc((100cqi - 304px) * .4), 400px); }
+}
 @media (min-width: 1024px) {
   .stage-profile-layout--points .stage-profile-graphic:empty { height: clamp(264px, calc((100cqi - 354px) * .4), 400px); }
 }
@@ -2597,8 +2649,8 @@ button.stage-key-row { cursor: pointer; }
 .stage-key-row--foot { padding-block: 4px; font-size: var(--fs-1); color: var(--text-dim); }
 .stage-key-foot-mark { display: inline-block; width: 20px; }
 /* Datos del perfil: columna lateral de las jornadas sin puntos clave. */
-/* En pantallas estrechas el perfil queda solo, como antes. */
-@media (max-width: 1023px) { .stage-side--summary { display: none; } }
+/* En una columna el perfil queda solo, como antes. */
+@media (max-width: 760px) { .stage-side--summary { display: none; } }
 .stage-summary { margin: 0; }
 .stage-summary__row {
   display: flex;
@@ -2644,10 +2696,16 @@ button.stage-key-row { cursor: pointer; }
   .stage-nav__race { display: none; }
 }
 
+@media (min-width: 761px) {
+  /* Perfil y Puntos clave lado a lado desde 761 px, con la lateral de 280 px
+     (330 px desde 1024 px). Con Puntos clave al lado, Televisión (una emisión)
+     y Descripción toman el ancho del panel de perfil. */
+  .stage-profile-layout--points { grid-template-columns: minmax(0,1fr) 280px; align-items: start; }
+  #jornadaContent:has(.stage-profile-layout--points) :is(.tv-panel--single, .stage-text-panel) { width: calc(100% - 280px - 24px); }
+}
+
 @media (min-width: 1024px) {
-  .stage-profile-layout--points { grid-template-columns: minmax(0,1fr) 330px; align-items: start; }
-  /* Con Puntos clave al lado, Televisión (una emisión) y Descripción toman el
-     ancho del panel de perfil. */
+  .stage-profile-layout--points { grid-template-columns: minmax(0,1fr) 330px; }
   #jornadaContent:has(.stage-profile-layout--points) :is(.tv-panel--single, .stage-text-panel) { width: calc(100% - 330px - 24px); }
 }
 
@@ -2675,7 +2733,8 @@ button.stage-key-row { cursor: pointer; }
 .startlist-disclaimer + .startlist-disclaimer { margin-top: 0.5rem; }
 .startlist-disclaimer--provisional { color: var(--text); font-style: normal; }
 .startlist-disclaimer--provisional strong { color: var(--accent-text); }
-/* Rejilla de equipos: tantas columnas de ≥300px como quepan. */
+/* Rejilla de equipos: una columna hasta 760 px; desde 761 px, tantas columnas
+   de ≥300px como quepan (dos en el iPad en vertical). */
 .startlist-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr));
@@ -2934,6 +2993,10 @@ button.stage-key-row { cursor: pointer; }
   background: var(--bg-subtle, rgba(0,0,0,0.06));
   border-radius: var(--radius-sm);
   vertical-align: 1px;
+}
+
+@media (max-width: 760px) {
+  .startlist-grid { grid-template-columns: minmax(0,1fr); }
 }
 
 @media (max-width: 600px) {

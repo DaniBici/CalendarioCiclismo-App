@@ -10,6 +10,7 @@ import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { firstTechnicalGuide } from './services/races.js';
+import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
 
@@ -130,6 +131,17 @@ const _SEO_WEEKDAYS = {
 };
 
 function _seoLang() { return getLang() === 'en' ? 'en' : 'es'; }
+
+/**
+ * «GMT» en las páginas EN para un visitante en una zona sin desplazamiento en
+ * todo el año: el build pinta esas páginas en esa zona, con la etiqueta, y el
+ * visitante conserva el mismo HTML. En cualquier otro caso, null.
+ */
+export function visitorTimeZoneLabel() {
+  if (getLang() !== 'en') return null;
+  const year = new Date().getFullYear();
+  return [0, 6].every(month => !new Date(year, month, 1).getTimezoneOffset()) ? 'GMT' : null;
+}
 
 // dateKey "YYYY-MM-DD" → {y, mIdx, d, dow} en hora local mediodía (sin saltos de TZ).
 function _seoParts(dateKey) {
@@ -748,26 +760,6 @@ export function announce(msg) {
   requestAnimationFrame(() => { el.textContent = msg; });
 }
 
-// Hace operable con teclado un contenedor que solo reacciona al ratón.
-// Las tarjetas son grids con enlaces anidados (badges), así que no pueden
-// envolverse en <a>/<button> sin romper el layout ni anidar enlaces: se usa
-// el mismo patrón role="button" + Enter/Espacio que ya llevan las filas
-// desplegables de resultados (WCAG 2.1.1 y 4.1.2).
-export function makeCardActivatable(el, { label, onActivate, role = 'button', href = null } = {}) {
-  if (!el || typeof onActivate !== 'function') return;
-  el.setAttribute('role', role);
-  el.setAttribute('tabindex', '0');
-  if (label) el.setAttribute('aria-label', label);
-  if (href) el.dataset.href = href;
-  el.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
-    // Enter/Espacio dentro de un badge o enlace anidado es cosa suya.
-    if (e.target !== el && e.target.closest('a, button')) return;
-    e.preventDefault();
-    onActivate(e);
-  });
-}
-
 // El símbolo ♀ solo: un lector lo lee «signo femenino» o lo calla del todo.
 // El texto oculto lo dice; el glifo queda decorativo (WCAG 1.1.1 y 1.4.1).
 export function femaleMark({ style = '', cls = '' } = {}) {
@@ -784,162 +776,13 @@ if (typeof window !== 'undefined') {
 }
 
 // ── Modal móvil para data-ph-tooltip ────────────────────────────
-// Ancho a partir del cual las tarjetas usan la composición móvil y los avisos
-// de «sin información» se abren al pulsar en vez de al pasar el ratón. Mismo
-// valor que el breakpoint de tarjetas de css/app.css.
-const COMPACT_VIEWPORT_QUERY = '(max-width: 760px)';
-
-export function openPhBanner(el) {
-  const msg     = el.dataset.phMsg || el.dataset.phTooltip || '';
-  // flagHtml: HTML del <img> de countryFlag() — se inyecta sin escaping
-  const flagHtml = el.dataset.phFlag
-    || el.querySelector('.t-race__flag')?.innerHTML?.trim()
-    || '';
-  const name = el.dataset.phName
-    || el.querySelector('.t-race__name')?.textContent?.trim()
-    || '';
-  const sub  = el.dataset.phSub || [
-    el.querySelector('.t-race__dates')?.textContent?.trim(),
-    el.querySelector('.t-race__cat')?.textContent?.trim(),
-  ].filter(Boolean).join(' · ');
-
-  const barContent = name
-    ? `<div class="ph-banner__header-text"><span class="ph-banner__name">${flagHtml ? flagHtml + '\u00a0' : ''}${esc(name)}</span>${sub ? `<div class="ph-banner__sub">${esc(sub)}</div>` : ''}</div>`
-    : `<span class="ph-banner__name">${esc(msg)}</span>`;
-  const bodyHTML = name ? `<div class="ph-banner__body"><p>${esc(msg)}</p></div>` : '';
-
-  let b = document.getElementById('ph-banner');
-  if (!b) { b = document.createElement('div'); b.id = 'ph-banner'; document.body.appendChild(b); }
-  b.innerHTML = `<div id="ph-banner-box"><div class="ph-banner__bar">${barContent}<button aria-label="Cerrar">&#215;</button></div>${bodyHTML}</div>`;
-  b.style.display = 'flex';
-  // Close: botón × o click en el overlay (funciona aunque initPhTooltip no esté activo)
-  b.onclick = e => { if (e.target === b || e.target.closest('#ph-banner button')) b.style.display = 'none'; };
-}
-
-// ── Tooltip (desktop) / Modal (móvil) para data-ph-tooltip ──────
-let _phTooltipWired = false; // guard: en /calendario/ pueden inicializar las dos subvistas
-export function initPhTooltip({ skipMobileMes = false } = {}) {
-  if (_phTooltipWired) return;
-  _phTooltipWired = true;
-  const isMobile = () => window.matchMedia(COMPACT_VIEWPORT_QUERY).matches;
-
-  // Desktop: tooltip al hover
-  document.addEventListener('mouseover', e => {
-    if (isMobile()) return;
-    const el = e.target.closest('[data-ph-tooltip]');
-    let tip = document.getElementById('ph-tooltip');
-    if (el) {
-      if (!tip) {
-        tip = document.createElement('div');
-        tip.id = 'ph-tooltip';
-        document.body.appendChild(tip);
-      }
-      tip.textContent = el.dataset.phTooltip;
-      tip.style.display = 'block';
-    } else if (tip) {
-      tip.style.display = 'none';
-    }
-  });
-  document.addEventListener('mousemove', e => {
-    if (isMobile()) return;
-    if (!e.target.closest('[data-ph-tooltip]')) return;
-    const tip = document.getElementById('ph-tooltip');
-    if (tip) {
-      tip.style.left = (e.clientX + 14) + 'px';
-      tip.style.top  = (e.clientY + 14) + 'px';
-    }
-  });
-
-  // Móvil: modal centrado al pulsar
-  document.addEventListener('click', e => {
-    if (!isMobile()) return;
-    const banner = document.getElementById('ph-banner');
-    if (e.target.closest('#ph-banner button')) {
-      if (banner) banner.style.display = 'none';
-      return;
-    }
-    if (banner && e.target === banner) {
-      banner.style.display = 'none';
-      return;
-    }
-    const el = e.target.closest('[data-ph-tooltip]');
-    if (el && el.classList.contains('tcat-btn')) return;
-    if (!el) {
-      if (banner) banner.style.display = 'none';
-      return;
-    }
-    if (skipMobileMes && (el.closest('.month-grid') || el.closest('.temporada-filters'))) return;
-    // Los enlaces y botones de la tarjeta (TV, inscritos…) conservan su acción.
-    const control = e.target.closest('a, button');
-    if (control && control !== el && el.contains(control)) return;
-    if (el.tagName !== 'A') e.preventDefault();
-    openPhBanner(el);
-  });
-
-  // El tooltip solo existía para el ratón: con teclado no había forma de
-  // leerlo (WCAG 1.4.13). Con el foco se muestra anclado al elemento, y
-  // Escape lo cierra sin mover el foco.
-  document.addEventListener('focusin', e => {
-    const el = e.target.closest?.('[data-ph-tooltip]');
-    const tip = document.getElementById('ph-tooltip');
-    if (!el) { if (tip) tip.style.display = 'none'; return; }
-    if (isMobile()) return;
-    _showPhTooltipFor(el);
-  });
-  document.addEventListener('focusout', () => {
-    const tip = document.getElementById('ph-tooltip');
-    if (tip) tip.style.display = 'none';
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    const tip = document.getElementById('ph-tooltip');
-    if (tip && tip.style.display === 'block') tip.style.display = 'none';
-  });
-
-  // Los filtros existen ya al cargar; el resto se cablea al repintar.
-  wirePhDescriptions();
-}
-
-// El tooltip visual no lo ve un lector de pantalla. Se copia el texto a un
-// nodo oculto enlazado con aria-describedby, que sí se anuncia al enfocar.
-export function wirePhDescriptions(root = document) {
-  let n = 0;
-  root.querySelectorAll('[data-ph-tooltip]').forEach(el => {
-    if (el.getAttribute('aria-describedby')) return;
-    const txt = el.dataset.phTooltip;
-    if (!txt) return;
-    const id = 'phd-' + (++_phDescSeq);
-    const desc = document.createElement('span');
-    desc.id = id;
-    desc.className = 'sr-only';
-    desc.textContent = txt;
-    el.appendChild(desc);
-    el.setAttribute('aria-describedby', id);
-    n++;
-  });
-  return n;
-}
-let _phDescSeq = 0;
-
-// Muestra el tooltip anclado bajo el elemento (no bajo el puntero).
-function _showPhTooltipFor(el) {
-  let tip = document.getElementById('ph-tooltip');
-  if (!tip) {
-    tip = document.createElement('div');
-    tip.id = 'ph-tooltip';
-    document.body.appendChild(tip);
-  }
-  tip.textContent = el.dataset.phTooltip || '';
-  tip.style.display = 'block';
-  const r = el.getBoundingClientRect();
-  tip.style.left = r.left + 'px';
-  tip.style.top  = (r.bottom + 8) + 'px';
-}
+export { initPhTooltip, openPhBanner, wirePhDescriptions } from './ph-tooltip.js';
 
 // ── Filtro fijado (chincheta) ──────────────────────────────────────
 // Pin global compartido entre Hoy, Mes y Temporada. Persistido en
 // localStorage. `null` cuando el usuario no ha fijado ninguno.
-const PIN_STORAGE_KEY = 'cc_default_filter';
+/** @public tools/publicacion/familia-calendario.mjs lo usa como miembro del módulo cargado con import(). */
+export const PIN_STORAGE_KEY = 'cc_default_filter';
 const VALID_PIN_CATS  = ['pro', 'uwt', 'wwt', 'male', 'female'];
 
 export function getPinnedFilter(storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
@@ -1563,9 +1406,11 @@ export function buildRaceHeader({
   const flag = countryFlag(countryCode != null ? countryCode : r.countryCode || '');
   const showFlag = !hideFlag;
   // `logoHtml`: un logo propio (ficha CX, con fuente de respaldo) en lugar del de la carrera.
+  // Sin logo (o si no carga), el hueco de la marca; nunca en los Nacionales.
+  const national = r.uciCategory === 'CN';
   const logoHtml = logoOverride ?? (r.logoUrl
-    ? `<img class="race-header__logo" src="${r.logoUrl}" alt="${esc(name)}" loading="lazy" onerror="this.style.display='none'">`
-    : '');
+    ? `<img class="race-header__logo" src="${r.logoUrl}" alt="${esc(name)}" loading="lazy" ${national ? `onerror="this.style.display='none'"` : LOGO_ONERROR}>`
+    : (national || !r.id ? '' : logoPlaceholderHtml('race-header__logo')));
 
   // Resolución del enlace del nombre: explícito → o competición (no one_day) → o sin enlace
   const href = nameHref !== undefined

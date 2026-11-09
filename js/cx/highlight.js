@@ -7,7 +7,10 @@ export function cxHighlightSlide(highlight,race,lang='es') {
   if(highlight.targetType!=='cxRace'||!race||race.id!==highlight.cxRaceId||!cxDateInSeason(race.seasonKey,race.dateKey)||(race.endDateKey&&!cxDateInSeason(race.seasonKey,race.endDateKey)))return null;
   const title=lang==='en'?(highlight.customTitleEn||highlight.customTitle):(highlight.customTitle);
   const detail=lang==='en'?(highlight.customDetailEn||highlight.customDetail):highlight.customDetail;
-  return {href:cxRaceUrl(race,lang),logoUrl:cxLogoSources({...race,logoUrl:highlight.customLogo||race.logoUrl})[0]?.url||null,
+  // El logo personalizado del cintillo se respeta; sin él, el de la carrera o
+  // su torneo (ninguno en los Campeonatos Nacionales).
+  const customLogo=highlight.customLogo?cxLogoSources({logoUrl:highlight.customLogo})[0]?.url:null;
+  return {href:cxRaceUrl(race,lang),logoUrl:customLogo||cxLogoSources(race)[0]?.url||null,
     name:cxEsc(title||cxRaceName(race,lang)),detail:detail?cxEsc(detail):null,date:race.dateKey};
 }
 

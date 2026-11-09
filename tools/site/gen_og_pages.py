@@ -226,7 +226,7 @@ SITE_FOOTER_HTML = (
     '<footer class="site-footer">'
     '<p>&copy; 2026 Calendario Ciclismo - Ideado y editado por '
     '<a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> '
-    '- <a href="/privacidad.html">Privacidad</a></p>'
+    '- <a href="/privacidad.html">Privacidad</a> - <a href="/terminos.html">T&eacute;rminos</a></p>'
     '</footer>'
 )
 
@@ -234,7 +234,7 @@ SITE_FOOTER_HTML_EN = (
     '<footer class="site-footer">'
     '<p>&copy; 2026 Calendario Ciclismo - Created and edited by '
     '<a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> '
-    '- <a href="/en/privacy/">Privacy</a></p>'
+    '- <a href="/en/privacy/">Privacy</a> - <a href="/en/terms/">Terms</a></p>'
     '</footer>'
 )
 

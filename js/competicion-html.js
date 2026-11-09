@@ -14,7 +14,7 @@
 //  paintCompetitionCard().
 // ─────────────────────────────────────────────────────────────────
 
-import { todayRaceState, profileProgress, resultsTrophyHtml, tvIconHtml } from './services/race-presentation.js';
+import { todayRaceState, resultsTrophyHtml, tvIconHtml } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
 import { formatTimeUser, resolveTypeBadges, jornadaUrl, rdLocation, startOrderUrl, buildRaceHeader, extractYouTubeId,
          esc, seoShortDate, seoShortMonth } from './shared.js';
@@ -46,11 +46,12 @@ function formatDateRange(startDk, endDk) {
   return `${sd} ${mon(sm)} – ${ed} ${mon(em)}`;
 }
 
-// Miniperfil de la jornada (banda inferior), o null si no tiene. Sigue el
-// avance de la carrera salvo en contrarreloj; con resultados queda completo.
+// Miniperfil de la jornada (banda inferior), o null si no tiene. Completo con
+// el color de la carrera en cualquier estado, como en las apps: el avance
+// temporal se pinta en Hoy y en la jornada.
 function sparkline(rd, color) {
   return rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
-    ? buildElevationSparkline(rd.elevationProfile, profileProgress(rd), rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? [])
+    ? buildElevationSparkline(rd.elevationProfile, 1, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? [])
     : null;
 }
 
@@ -75,7 +76,8 @@ function resultsActionsHtml(rd) {
 }
 
 /**
- * Piezas de la tarjeta que dependen del momento, de la zona o de la región:
+ * Piezas de la tarjeta que dependen del momento, de la zona o de la región,
+ * y el miniperfil, que no va en el HTML:
  * { finished, badges, meta, profile, tooltip } (profile null sin miniperfil;
  * tooltip, el aviso de una jornada sin página ni datos).
  */

@@ -17,9 +17,28 @@ const NAMES_ES = {
   mo: 'Macao',
 };
 
-let regionNamesEs = null;
+const NAMES_EN = {
+  ain: 'Individual Neutral Athletes',
+  gb: 'Great Britain',
+};
 
-function isNationalSelection(team) {
+let regionNamesEs = null;
+let regionNamesEn = null;
+
+/** Nombre de la selección de un país (código ISO-2 o de selección); null si no se reconoce. */
+export function nationalSelectionName(code, isEn) {
+  const key = String(code || '').toLowerCase();
+  let country = (isEn ? NAMES_EN : NAMES_ES)[key] || null;
+  if (!country && /^[a-z]{2}$/.test(key) && typeof Intl.DisplayNames === 'function') {
+    const names = isEn ? (regionNamesEn ||= new Intl.DisplayNames(['en'], { type: 'region' }))
+      : (regionNamesEs ||= new Intl.DisplayNames(['es'], { type: 'region' }));
+    const label = names.of(key.toUpperCase());
+    if (label && label !== key.toUpperCase()) country = label;
+  }
+  return country;
+}
+
+export function isNationalSelection(team) {
   return team?.teamKind === 'selection' && team?.selectionScope === 'national';
 }
 
@@ -27,13 +46,7 @@ function isNationalSelection(team) {
 // categoría de edad («Canada U23» → «Canadá sub23»).
 export function localizedTeamName(name, team, isEn) {
   if (isEn || !isNationalSelection(team)) return name;
-  const code = String(team.countryCode || team.selectionCode || '').toLowerCase();
-  let country = NAMES_ES[code] || null;
-  if (!country && /^[a-z]{2}$/.test(code) && typeof Intl.DisplayNames === 'function') {
-    regionNamesEs ||= new Intl.DisplayNames(['es'], { type: 'region' });
-    const label = regionNamesEs.of(code.toUpperCase());
-    if (label && label !== code.toUpperCase()) country = label;
-  }
+  const country = nationalSelectionName(team.countryCode || team.selectionCode, false);
   if (!country) return name;
   const age = /\bU(\d{2})\b/i.exec(name || '');
   return age ? `${country} sub${age[1]}` : country;

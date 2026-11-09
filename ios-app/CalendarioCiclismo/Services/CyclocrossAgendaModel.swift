@@ -663,13 +663,22 @@ final class CxResultsFeedModel {
     /// Numeración n/total de las pruebas de la temporada por id de carrera:
     /// la misma fuente que la tarjeta de Hoy de Ciclocross.
     private(set) var rounds: [String: CxRound] = [:]
-    /// Ventana mostrada, como el feed de carretera: 14 días hasta hoy;
-    /// «Cargar más» la amplía otros 14.
+    /// Ventana mostrada, como el feed de carretera: 14 días contados desde el
+    /// último día con resultados (como mucho, hoy), para que un periodo sin
+    /// pruebas no deje la lista vacía; «Cargar más» la amplía otros 14.
     static let windowDays = 14
-    private(set) var windowStart: String = ""
+    /// Ampliaciones de «Cargar más» sobre la ventana inicial.
+    private var extraWindows = 0
+    var windowStart: String {
+        Self.windowStart(days: days, today: today, extraWindows: extraWindows)
+    }
     var visibleDays: [CxResultsFeedDay] { days.filter { $0.date >= windowStart } }
     var canLoadMore: Bool { days.contains { $0.date < windowStart } }
-    func loadMore() { windowStart = Self.shift(windowStart, by: -Self.windowDays) }
+    func loadMore() { extraWindows += 1 }
+    static func windowStart(days: [CxResultsFeedDay], today: String, extraWindows: Int = 0) -> String {
+        let anchor = days.map(\.date).filter { $0 <= today }.max() ?? today
+        return shift(anchor, by: -(windowDays - 1) - extraWindows * windowDays)
+    }
     private static func shift(_ key: String, by days: Int) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -685,7 +694,6 @@ final class CxResultsFeedModel {
         self.repo = repo
         self.todayOverride = today
         season = Self.season(of: today ?? CyclocrossAgendaModel.todayKey())
-        windowStart = Self.shift(today ?? CyclocrossAgendaModel.todayKey(), by: -(Self.windowDays - 1))
     }
 
     private static func season(of date: String) -> String {
@@ -707,6 +715,7 @@ final class CxResultsFeedModel {
         season = current
         cache = [:]
         days = []
+        extraWindows = 0
         rounds = [:]
         hasLoaded = false
         error = nil

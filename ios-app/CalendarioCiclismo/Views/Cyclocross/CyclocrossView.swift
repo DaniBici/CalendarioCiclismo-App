@@ -286,6 +286,9 @@ struct CyclocrossView: View {
             .opacity(model.canGoToNextDay ? 1 : 0.3)
             .accessibilityLabel(CyclocrossPresentation.t("Día siguiente", "Next day"))
         }
+        // En ventanas anchas, los siete días juntos y centrados bajo el cintillo.
+        .frame(maxWidth: AdaptiveLayoutPolicy.headerStripMaxWidth)
+        .frame(maxWidth: .infinity)
         .foregroundStyle(Color.accentColor)
         .background(AppTheme.headerBackground)
     }
@@ -541,15 +544,46 @@ struct CyclocrossView: View {
         }
     }
 
-    /// Lista del torneo: cada día encima de sus pruebas.
+    /// Filas de la lista del torneo: un día por fila o, en pantalla ancha, dos
+    /// días por fila (izquierda y derecha), como la web desde 761 px.
+    private var agendaGroupRows: [AdaptiveGridRow<AgendaGroup>] {
+        let columns = AdaptiveLayoutPolicy.feedColumns(
+            width: max(0, contentWidth - 32),
+            isRegular: horizontalSizeClass == .regular
+        )
+        return AdaptiveLayoutPolicy.rows(agendaGroups, columns: columns)
+    }
+
+    /// Día del torneo: la fecha encima de sus pruebas, en una columna.
+    private func agendaGroupView(_ group: AgendaGroup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let header = group.header { agendaRow(header) }
+            ForEach(group.rows) { row in agendaRow(row) }
+        }
+    }
+
+    /// Lista del torneo: cada día encima de sus pruebas; en pantalla ancha,
+    /// los días se reparten en dos columnas.
     private func agendaList(proxy: ScrollViewProxy) -> some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
-                ForEach(agendaGroups) { group in
-                    if let header = group.header {
-                        agendaRow(header).id(header.id)
+            LazyVStack(spacing: 16) {
+                ForEach(agendaGroupRows) { row in
+                    if row.spansAllColumns {
+                        agendaGroupView(row.items[0]).id(row.id)
+                    } else {
+                        HStack(alignment: .top, spacing: 10) {
+                            ForEach(row.items) { group in
+                                agendaGroupView(group)
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
+                            // Un día suelto ocupa media fila a la izquierda,
+                            // como la web.
+                            if row.items.count < 2 {
+                                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                            }
+                        }
+                        .id(row.id)
                     }
-                    raceGrid(group.rows)
                 }
             }.scrollTargetLayout().padding(.horizontal).padding(.top, 8).padding(.bottom)
         }
@@ -559,8 +593,10 @@ struct CyclocrossView: View {
         }
         .onChange(of: model.jumpDate) { _, date in
             guard let date else { return }
-            let id = model.rows.first { $0.id == "day:" + date }?.id
-                ?? model.rows.first?.id
+            // Fila que contiene el día (en dos columnas, puede ir a la derecha).
+            let rows = agendaGroupRows
+            let id = rows.first { row in row.items.contains { $0.header?.id == "day:" + date } }?.id
+                ?? rows.first?.id
             model.jumpDate = nil
             Task {
                 await Task.yield()
@@ -663,8 +699,9 @@ struct CyclocrossView: View {
     private var headerBrand: some View {
         if showsSettings {
             // Firma de Hoy de carretera: el toque lleva al día de hoy. Con el
-            // conmutador «CX | Ruta», solo los símbolos.
-            CCHeaderBrandView(showsTitle: onSelectRoad == nil)
+            // conmutador «CX | Ruta», solo los símbolos salvo en ancho regular,
+            // donde caben la firma y el conmutador.
+            CCHeaderBrandView(showsTitle: onSelectRoad == nil || horizontalSizeClass == .regular)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     Haptics.play(.navigation)
@@ -782,7 +819,6 @@ struct CyclocrossView: View {
             // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
             Text(DateFormatting.formatDateLabel(date)).ccFont(.s13, weight: .semibold).foregroundStyle(AppTheme.textMuted)
                 .frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader)
-                .padding(.top, tournament != nil && row.id != model.rows.first?.id ? 6 : 0)
         case .race(let race, let date): CxRaceCard(race: race, date: date, now: now, round: model.rounds[race.id], showTournamentLink: tournament == nil, disableTap: isHorizontalSwipe, onPlaceholder: { placeholderRace = $0 })
         }
     }
@@ -806,10 +842,28 @@ struct CxRaceCard: View {
     private var metaDot: some View { Text("·").ccFont(.s12).foregroundStyle(AppTheme.textMuted).accessibilityHidden(true) }
     private var categories: [CxCategory] { CyclocrossLogic.categories(on: date, race: race) }
     @State private var region = RegionService.shared
-    /// Badge de TV: hora de la primera emisión del día o «En directo», con
-    /// enlace a la emisión vigente; desaparece al concluir las categorías.
-    private var broadcast: CxAgendaBroadcast? {
-        CyclocrossPresentation.agendaBroadcast(race: race, date: date, allowedGroups: region.allowedBroadcastGroups, at: now)
+    /// Badge de TV: estado de TV de la prueba o hora de la primera emisión del
+    /// día («En directo» con `confirmed_time`), con enlace a la emisión
+    /// vigente; desaparece al concluir las categorías.
+    private var tv: CxAgendaTV? {
+        CyclocrossPresentation.agendaTV(race: race, date: date, allowedGroups: region.allowedBroadcastGroups, at: now)
+    }
+    /// Emisiones que recibe el `TVBadge` de carretera: ninguna con un estado
+    /// sin TV (chip sin enlace); la vigente con la hora de la primera del día;
+    /// y, con TV confirmada sin emisión, una sin enlace ni hora («TV»).
+    private func badgeBroadcasts(_ tv: CxAgendaTV) -> [Broadcast] {
+        switch tv {
+        case .status:
+            return []
+        case .coverage:
+            return [Broadcast(id: race.id, raceDayId: race.id, channel: nil, startTimeUtc: nil, url: nil,
+                              note: nil, sortOrder: nil, showInRevive: false, country: nil)]
+        case .broadcast(let broadcast):
+            return [Broadcast(
+                id: broadcast.row.id, raceDayId: race.id, channel: broadcast.row.channel,
+                startTimeUtc: broadcast.firstStartUtc, url: CyclocrossPresentation.link(broadcast.row.url)?.absoluteString,
+                note: nil, sortOrder: broadcast.row.sortOrder, showInRevive: false, country: broadcast.row.country)]
+        }
     }
     /// Badge de resumen: hay un vídeo aplicable al día; solo en tarjetas que
     /// abren la ficha.
@@ -841,7 +895,8 @@ struct CxRaceCard: View {
             if placeholder {
                 Button { onPlaceholder?(race) } label: { cardView.contentShape(Rectangle()) }.buttonStyle(.plain)
             } else {
-                NavigationLink(value: CxDestination(raceId: race.id, title: CyclocrossPresentation.name(race))) { cardView.contentShape(Rectangle()) }.buttonStyle(.plain)
+                // La card abre siempre la jornada (Programa), también con resultados.
+                NavigationLink(value: CxDestination(raceId: race.id, anchor: "programme", title: CyclocrossPresentation.name(race))) { cardView.contentShape(Rectangle()) }.buttonStyle(.plain)
             }
         }
         .disabled(disableTap)
@@ -849,7 +904,8 @@ struct CxRaceCard: View {
     private var cardView: some View {
         CCCard {
             HStack(spacing: 10) {
-            RaceCardIdentity(logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode, stackedFlag: true) {
+            RaceCardIdentity(logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode, stackedFlag: true,
+                             logoPlaceholder: race.raceClass != "CN") {
                 VStack(alignment: .leading, spacing: 3) {
                     // Paridad web: nombre y hamburguesa de torneo en la
                     // primera línea.
@@ -922,29 +978,37 @@ struct CxRaceCard: View {
     }
     /// Fila de badges de la web (`.race-card__badges`): clase, TV, Resumen y Dorsales.
     /// Las tres etiquetas tienen la misma altura: la fila no varía con o sin
-    /// TV y dorsales.
+    /// TV y dorsales. Una sola línea: si no cabe, Resumen y Dorsales pierden
+    /// primero el icono y después el texto.
     private var badgesRow: some View {
+        ViewThatFits(in: .horizontal) {
+            badgesLine(showIcon: true, showLabel: true)
+            badgesLine(showIcon: false, showLabel: true)
+            badgesLine(showIcon: true, showLabel: false)
+        }
+        .padding(.top, 3)
+    }
+    private func badgesLine(showIcon: Bool, showLabel: Bool) -> some View {
         HStack(spacing: 6) {
             CategoryBadge(category: CyclocrossPresentation.raceClass(race.raceClass)).fixedSize()
-            if let broadcast {
-                // Badge de Hoy de carretera con una única emisión: la hora de
-                // la primera del día (o «En directo» desde que empieza) y el
+            if let tv {
+                // Badge de Hoy de carretera con el estado de TV de la prueba y,
+                // como mucho, una emisión: la hora de la primera del día (o
+                // «En directo» desde que empieza, con `confirmed_time`) y el
                 // enlace a la emisión vigente.
-                TVBadge(tvStatus: "confirmed_time", broadcasts: [Broadcast(
-                    id: broadcast.row.id, raceDayId: race.id, channel: broadcast.row.channel,
-                    startTimeUtc: broadcast.firstStartUtc, url: CyclocrossPresentation.link(broadcast.row.url)?.absoluteString,
-                    note: nil, sortOrder: broadcast.row.sortOrder, showInRevive: false, country: broadcast.row.country)])
+                TVBadge(tvStatus: race.tvStatus, broadcasts: badgeBroadcasts(tv))
                     .fixedSize()
             }
             if hasSummary {
                 NavigationLink(value: CxDestination(raceId: race.id, anchor: "videos", title: CyclocrossPresentation.name(race))) {
-                    RaceActionLabel(label: CyclocrossPresentation.t("Resumen", "Summary"), icon: "tv")
+                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Resumen", "Summary") : "", icon: showIcon ? "tv" : nil)
                 }
                 .buttonStyle(CxBadgeLinkStyle()).fixedSize()
+                .accessibilityLabel(CyclocrossPresentation.t("Resumen", "Summary"))
             }
             if let startlistCategory {
                 NavigationLink(value: CxDestination(raceId: race.id, anchor: "inscritos-" + startlistCategory.category, title: CyclocrossPresentation.name(race))) {
-                    RaceActionLabel(label: CyclocrossPresentation.t("Dorsales", "Startlist"), icon: LogoCyclistIcon.name)
+                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Dorsales", "Startlist") : "", icon: showIcon ? LogoCyclistIcon.name : nil)
                 }
                 // Estilo propio (como las cajas de categoría): el enlace
                 // interior prevalece sobre el de la tarjeta.
@@ -952,7 +1016,6 @@ struct CxRaceCard: View {
                 .accessibilityLabel(CyclocrossPresentation.t("Dorsales", "Startlist") + ": " + CyclocrossPresentation.category(startlistCategory.category))
             }
         }
-        .padding(.top, 3)
     }
     var body: some View {
         cardLink.accessibilityHint(placeholder

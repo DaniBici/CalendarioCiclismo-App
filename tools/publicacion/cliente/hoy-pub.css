@@ -1,0 +1,6 @@
+/* Hoy de carretera antes del primer pintado. */
+@import '../../../css/app.css';
+/* Altos con la fuente definitiva: la de reserva los deja 1 y 2 px más bajos y las tarjetas
+   se moverían al llegar. */
+.date-pill { height: 2.8113rem; }
+.agenda-date { min-height: 1.0625rem; }

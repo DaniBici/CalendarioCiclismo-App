@@ -18,7 +18,7 @@ with params as (
 )
 select
   (select coalesce(jsonb_agg(jsonb_build_object('teamId', s."teamId", 'name', s.name, 'category', s.category,
-            'gender', s.gender, 'badgeVisible', s."badgeVisible", 'continuityDoubt', s."continuityDoubt",
+            'gender', s.gender, 'badgeVisible', s."badgeVisible", 'continuityDoubt', s."continuityDoubt", 'prevColorsHidden', s."prevColorsHidden",
             'headerBg', s."headerBg", 'headerText', s."headerText", 'badgeTorsoCenter', s."badgeTorsoCenter",
             'badgeTorsoSides', s."badgeTorsoSides", 'badgeInnerCircle', s."badgeInnerCircle",
             'badgeShorts', s."badgeShorts") order by s."teamId", s.id), '[]'::jsonb)

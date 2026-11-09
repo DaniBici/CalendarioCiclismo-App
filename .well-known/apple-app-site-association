@@ -1,0 +1,29 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "67VKJ7LF55.app.calendariociclismo"
+        ],
+        "components": [
+          { "/": "/", "comment": "Portada: pestaña inicial" },
+          { "/": "/en/" },
+          { "/": "/calendario/", "comment": "Calendario, también desde las páginas antiguas de mes y temporada" },
+          { "/": "/en/calendar/" },
+          { "/": "/mes.html" },
+          { "/": "/temporada.html" },
+          { "/": "/competicion/?*", "comment": "Ficha de carrera por slug" },
+          { "/": "/en/race/?*" },
+          { "/": "/jornada/?*", "comment": "Jornada por slug" },
+          { "/": "/en/stage/?*" },
+          { "/": "/ciclocross/torneos/", "exclude": true, "comment": "Sin página: el resto de torneos/<slug> sí" },
+          { "/": "/en/cyclocross/series/", "exclude": true },
+          { "/": "/ciclocross", "comment": "Ciclocross: pestaña, pruebas con inscritos y resultados, y torneos" },
+          { "/": "/ciclocross/*" },
+          { "/": "/en/cyclocross" },
+          { "/": "/en/cyclocross/*" }
+        ]
+      }
+    ]
+  }
+}

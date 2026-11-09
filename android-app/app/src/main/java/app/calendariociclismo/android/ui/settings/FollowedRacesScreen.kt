@@ -179,7 +179,7 @@ fun FollowedRacesScreen(navController: NavController) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            RaceLogo(url = race.logoUrl, size = 36.dp)
+                            RaceLogo(url = race.logoUrl, size = 36.dp, placeholder = race.uciCategory != "CN")
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = race.localizedName,

@@ -8,23 +8,29 @@
 // dependencias
 // (docs/runbooks/pages-build-selectivo.md).
 //
-//   node tools/site/check-prerender-parity.mjs --data datos.json --work <dir> \
+//   node tools/site/check-prerender-parity.mjs --data datos.json --site-data site.json --work <dir> \
 //     [--page jornada|inscritos|resultados|perfil|mapa|orden|fichajes|cx|torneo|competicion] [--lang es|en] [--timezone <zona>] [--count 20] [--seed <n>] \
 //     [--slugs a,b] [--since AAAA-MM-DD] [--chrome <ruta>]
 //   node tools/site/check-prerender-parity.mjs --work <dir> --reuse 1 [--page inscritos] [--lang en] [--timezone <zona>]
 //
-// 1. Compone <dir>/_site como CI: fuentes públicas, js/config.js del checkout
-//    principal y las páginas publicadas elegidas del tipo (--page, jornada por
-//    defecto) y del idioma (calendariociclismo.app/jornada/<slug>/,
-//    /en/stage/<slugEn>/, /inscritos/<slug>/, /en/startlist/<slugEn>/,
-//    /resultados/<slug>/[<etapa>/], /perfil/<slug>/, /mapa/<slug>/ u
-//    /orden-salida/<slug>/, HTML de gen_og_pages.py). --slugs lleva los slugs
-//    de las páginas de ese idioma (en resultados, con la etapa:
-//    giro-de-italia-2026/etapa-10). En fichajes, una página por idioma: las
-//    fuentes del checkout (fichajes/index.html y en/transfers/index.html). En
-//    cx, /ciclocross/<slug>/ y sus secciones inscritos/ y resultados/ (EN:
-//    /en/cyclocross/<slugEn>/, startlist/, results/); en torneo,
-//    /ciclocross/torneos/<slug>/ (EN: /en/cyclocross/series/<slug>/).
+// 1. Compone <dir>/_site como el build de Pages (también el sitio base del
+//    VPS, tools/publicacion/vps/base.sh): fuentes públicas, el contenido de
+//    js/config.js del checkout principal y las páginas elegidas del tipo
+//    (--page, jornada por defecto) y del idioma: jornada/<slug>/,
+//    en/stage/<slugEn>/, inscritos/<slug>/, en/startlist/<slugEn>/,
+//    resultados/<slug>/[<etapa>/], perfil/<slug>/, mapa/<slug>/,
+//    orden-salida/<slug>/, competicion/<slug>/... Su HTML base sale de
+//    gen_og_pages.py con la familia del tipo, ejecutado en <dir>/plantillas
+//    sobre el volcado --site-data (tools/site/site-data.sql, convertido con
+//    site_data.py --from-sql en <dir>/pages-data). Las páginas publicadas no
+//    sirven: desde el corte al VPS llevan los paquetes /a/ del publicador.
+//    --slugs lleva los slugs de las páginas de ese idioma (en resultados, con
+//    la etapa: giro-de-italia-2026/etapa-10). En fichajes, una página por
+//    idioma: las fuentes del checkout (fichajes/index.html y
+//    en/transfers/index.html), sin --site-data. En cx, ciclocross/<slug>/ y
+//    sus secciones inscritos/ y resultados/ (EN: en/cyclocross/<slugEn>/,
+//    startlist/, results/); en torneo, ciclocross/torneos/<slug>/ (EN:
+//    en/cyclocross/series/<slug>/).
 // 2. Ejecuta el prerender del tipo (prerender-jornadas.mjs,
 //    prerender-inscritos.mjs, prerender-resultados.mjs,
 //    prerender-auxiliares.mjs con su tipo, prerender-fichajes.mjs o
@@ -50,16 +56,16 @@
 // salida en la zona del navegador y puede sustituirse.
 // `datos.json`: volcado del .sql del prerender del tipo, tomado justo antes; el
 // navegador lee los datos vigentes y un cambio intermedio se ve como repintado.
+// `site.json`: volcado de tools/site/site-data.sql, del mismo momento.
 import { execFileSync, spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
+import { basename, dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readDump } from './prerender-jornadas.mjs';
 import { candidateRaces } from './prerender-resultados.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const ORIGIN = 'https://calendariociclismo.app';
 const SOURCES = ['index.html', 'js', 'css', 'fonts', 'flags', 'i18n', 'favicon.ico', 'favicon.svg', 'favicon-16x16.png',
   'favicon-32x32.png', 'favicon-96x96.png', 'apple-touch-icon.png', 'manifest.json'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -70,11 +76,13 @@ const VIEWPORTS = {
     userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36' },
   escritorio: { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false, userAgent: null },
 };
-// Por tipo de página: prerender, slugs del volcado, selector del aviso de
-// error, si la huella depende de la zona y, por idioma, directorio,
-// contenedor, zona del build y configuración regional del navegador.
+// Por tipo de página: familia de gen_og_pages.py, prerender, slugs del
+// volcado, selector del aviso de error, si la huella depende de la zona y, por
+// idioma, directorio, contenedor, zona del build y configuración regional del
+// navegador.
 const PAGES = {
   jornada: {
+    family: 'stages',
     script: 'tools/site/prerender-jornadas.mjs',
     slugs: (data, lang) => data.days.filter(day => day.slug).map(day => (lang === 'en' ? day.slugEn || day.slug : day.slug)),
     failed: '.empty-state',
@@ -85,6 +93,7 @@ const PAGES = {
     },
   },
   inscritos: {
+    family: 'extras',
     script: 'tools/site/prerender-inscritos.mjs',
     slugs: (data, lang) => data.races.map(race => (lang === 'en' ? race.slugEn : race.slug)).filter(Boolean),
     failed: '.startlist-empty',
@@ -95,6 +104,7 @@ const PAGES = {
     },
   },
   resultados: {
+    family: 'results',
     script: 'tools/site/prerender-resultados.mjs',
     slugs: resultPaths,
     // Error de carga (init) o de lectura de filas; «sin datos» es contenido.
@@ -111,35 +121,49 @@ const PAGES = {
     args: data => ['--max-reads', String(candidateRaces(data.races, data.resultados_stages).length)],
     langs: {
       es: { dir: 'resultados', container: 'resultsContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'es' },
+      en: { dir: 'en/results', container: 'resultsContent', timeZone: 'Etc/GMT', locale: 'en-GB', scope: 'all' },
     },
   },
-  // Perfil, mapa y orden de salida (prerender-auxiliares.mjs, solo ES): el
-  // volcado es el de prerender-auxiliares.sql y el ámbito, el tipo.
+  // Perfil, mapa y orden de salida (prerender-auxiliares.mjs): el volcado es el
+  // de prerender-auxiliares.sql y el ámbito, el tipo en ES y `all` en EN.
   perfil: {
+    family: 'extras',
     script: 'tools/site/prerender-auxiliares.mjs',
-    slugs: data => data.days.filter(day => day.slug && day.elevationProfile && !day.profileNotViewable).map(day => day.slug),
+    slugs: (data, lang) => data.days.filter(day => day.slug && day.elevationProfile && !day.profileNotViewable).map(day => daySlug(day, lang)),
     failed: '.pfe-loading',
     zoned: true,
-    langs: { es: { dir: 'perfil', container: 'perfilEtapaContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'perfil' } },
+    langs: {
+      es: { dir: 'perfil', container: 'perfilEtapaContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'perfil' },
+      en: { dir: 'en/profile', container: 'perfilEtapaContent', timeZone: 'Etc/GMT', locale: 'en-GB', scope: 'all' },
+    },
   },
   mapa: {
+    family: 'extras',
     script: 'tools/site/prerender-auxiliares.mjs',
-    slugs: data => data.days.filter(day => day.slug && day.routeGpxUrl).map(day => day.slug),
+    slugs: (data, lang) => data.days.filter(day => day.slug && day.routeGpxUrl).map(day => daySlug(day, lang)),
     failed: '.pfe-loading',
     zoned: true,
-    langs: { es: { dir: 'mapa', container: 'mapaEtapaContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'mapa' } },
+    langs: {
+      es: { dir: 'mapa', container: 'mapaEtapaContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'mapa' },
+      en: { dir: 'en/route-map', container: 'mapaEtapaContent', timeZone: 'Etc/GMT', locale: 'en-GB', scope: 'all' },
+    },
   },
   orden: {
+    family: 'extras',
     script: 'tools/site/prerender-auxiliares.mjs',
-    slugs: data => data.days.filter(day => day.slug && day.startOrderImportedAt).map(day => day.slug),
+    slugs: (data, lang) => data.days.filter(day => day.slug && day.startOrderImportedAt).map(day => daySlug(day, lang)),
     failed: '.startlist-empty',
     zoned: true,
-    langs: { es: { dir: 'orden-salida', container: 'startOrderContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'orden' } },
+    langs: {
+      es: { dir: 'orden-salida', container: 'startOrderContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'orden' },
+      en: { dir: 'en/start-order', container: 'startOrderContent', timeZone: 'Etc/GMT', locale: 'en-GB', scope: 'all' },
+    },
   },
   // Carreras CX (prerender-cx.mjs): esqueleto, sección de la URL, panel de la
   // categoría visible y columna lateral, cada uno con su huella. Programa y
   // columna lateral dependen de la zona; fuera de la del build se repintan.
   cx: {
+    family: 'cx',
     script: 'tools/site/prerender-cx.mjs',
     slugs: (data, lang) => data.races.filter(race => lang === 'es' || race.class !== 'NAC').flatMap(race => {
       const slug = lang === 'en' ? race.slugEn || race.slug : race.slug;
@@ -159,6 +183,7 @@ const PAGES = {
   // Torneos CX (prerender-cx.mjs): esqueleto y lista con la huella de su
   // versión sin estado de categorías ni insignias, que no depende de la zona.
   torneo: {
+    family: 'cx',
     script: 'tools/site/prerender-cx.mjs',
     slugs: data => data.tournaments.map(tournament => tournament.slug).filter(Boolean),
     failed: '#cxAgendaError:not(:empty)',
@@ -173,6 +198,7 @@ const PAGES = {
   // sin las piezas del momento de cada tarjeta; no depende de la zona. El
   // volcado es el de prerender-jornadas.sql.
   competicion: {
+    family: 'races',
     script: 'tools/site/prerender-competicion.mjs',
     slugs: (data, lang) => data.races.map(race => (lang === 'en' ? race.slugEn || race.slug : race.slug)).filter(Boolean),
     failed: '.empty-state__title',
@@ -203,7 +229,7 @@ const PAGES = {
 // Rutas de resultados de las carreras candidatas del volcado
 // (prerender-resultados.sql) con todas sus clasificaciones oficiales: la de la
 // carrera y una por etapa (prólogo, etapa-N), sin las CRE.
-function resultPaths(data) {
+function resultPaths(data, lang) {
   const official = new Map();
   for (const stage of data.resultados_stages) {
     official.set(stage.raceId, (official.get(stage.raceId) ?? true) && stage.publicationStatus === 'official' && !stage.updating);
@@ -212,16 +238,19 @@ function resultPaths(data) {
   const paths = [];
   for (const raceId of candidateRaces(data.races, data.resultados_stages)) {
     const race = races.get(raceId);
-    if (!race.slug || !official.get(raceId)) continue;
-    paths.push(race.slug);
+    const slug = lang === 'en' ? race.slugEn || race.slug : race.slug;
+    if (!slug || !official.get(raceId)) continue;
+    paths.push(slug);
     if (race.raceFormat === 'one_day') continue;
     for (const day of data.race_days) {
       if (day.raceId !== raceId || day.isRestDay || day.stageNumber == null || day.primaryType === 'ttt') continue;
-      paths.push(`${race.slug}/${day.stageNumber === 0 ? 'prologo' : `etapa-${day.stageNumber}`}`);
+      const segment = day.stageNumber === 0 ? (lang === 'en' ? 'prologue' : 'prologo') : `${lang === 'en' ? 'stage' : 'etapa'}-${day.stageNumber}`;
+      paths.push(`${slug}/${segment}`);
     }
   }
   return [...new Set(paths)];
 }
+const daySlug = (day, lang) => (lang === 'en' ? day.slugEn || day.slug : day.slug);
 const pagePath = slug => slug.split('/').map(encodeURIComponent).join('/');
 // Ruta de la página de `slug` en `dir`; sin slug (fichajes), la del directorio.
 const pageUrl = (dir, slug) => `/${dir}/${slug ? `${pagePath(slug)}/` : ''}`;
@@ -253,16 +282,39 @@ function shuffled(items, seed) {
   return list;
 }
 
-async function composeSite(site, data, options, page, lang) {
+// HTML base de la familia, como el bloque og-<familia> del build
+// (build_generated.py): gen_og_pages.py en <work>/plantillas con el volcado
+// compartido. La clave no es válida: una consulta que el volcado no resuelva
+// falla en lugar de leer la API.
+function generateTemplates(work, family, siteData, dir) {
+  const pagesData = join(work, 'pages-data');
+  const templates = join(work, 'plantillas');
+  for (const path of [pagesData, templates]) rmSync(path, { recursive: true, force: true });
+  mkdirSync(templates, { recursive: true });
+  run('python3', [join(ROOT, 'tools/site/site_data.py'), pagesData, '--from-sql', resolve(siteData)]);
+  execFileSync('python3', [join(ROOT, 'tools/site/gen_og_pages.py'), '--family', family], {
+    cwd: templates, stdio: ['ignore', 'ignore', 'inherit'],
+    env: { ...process.env, PAGES_DATA: pagesData, SUPABASE_ANON_KEY: 'local' },
+  });
+  const generated = existsSync(join(templates, dir))
+    ? readdirSync(join(templates, dir), { recursive: true }).filter(name => basename(name) === 'index.html').length : 0;
+  console.log(`  Build local (gen_og_pages.py --family ${family}): ${generated} páginas en ${dir}/`);
+  return templates;
+}
+
+function composeSite(site, work, data, options, page, lang) {
   rmSync(site, { recursive: true, force: true });
   mkdirSync(site, { recursive: true });
-  for (const source of SOURCES) {
-    cpSync(join(ROOT, source), join(site, source), { recursive: true, filter: path => !path.split(sep).includes('__tests__') });
-  }
   const main = dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).trim());
   const config = join(main, 'js/config.js');
   if (!existsSync(config)) throw new Error(`Falta ${config}: la página necesita la configuración pública de Supabase`);
-  cpSync(config, join(site, 'js/config.js'));
+  // js/config.js del checkout (puede ser un enlace al del principal) no se
+  // copia: se escribe el contenido del principal.
+  const ownConfig = join(ROOT, 'js/config.js');
+  for (const source of SOURCES) {
+    cpSync(join(ROOT, source), join(site, source), { recursive: true, filter: path => path !== ownConfig && !path.split(sep).includes('__tests__') });
+  }
+  writeFileSync(join(site, 'js/config.js'), readFileSync(config));
   if (page.single) {
     // Las fuentes de todos los idiomas: el ámbito all las genera juntas.
     for (const { dir } of Object.values(page.langs)) {
@@ -271,6 +323,7 @@ async function composeSite(site, data, options, page, lang) {
     }
     return [''];
   }
+  const templates = generateTemplates(work, page.family, options['site-data'], lang.dir);
   const slugs = options.slugs
     ? options.slugs.split(',').map(slug => slug.trim()).filter(Boolean)
     : shuffled(page.slugs(data, options.lang).sort(), Number(options.seed));
@@ -278,13 +331,13 @@ async function composeSite(site, data, options, page, lang) {
   const pages = [];
   for (const slug of slugs) {
     if (pages.length === wanted) break;
-    const response = await fetch(`${ORIGIN}${pageUrl(lang.dir, slug)}`);
-    if (!response.ok) {
-      console.log(`  ${slug}: ${response.status} en producción, se descarta`);
+    const template = join(templates, lang.dir, slug, 'index.html');
+    if (!existsSync(template)) {
+      console.log(`  ${slug}: sin página en el build local, se descarta`);
       continue;
     }
     mkdirSync(join(site, lang.dir, slug), { recursive: true });
-    writeFileSync(join(site, lang.dir, slug, 'index.html'), await response.text());
+    cpSync(template, join(site, lang.dir, slug, 'index.html'));
     pages.push(slug);
   }
   return pages;
@@ -438,12 +491,15 @@ async function checkPage(tab, url, { lang, keep, container, failed }) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (!options.work || (!options.data && !options.reuse)) {
-    throw new Error('Uso: check-prerender-parity.mjs --data datos.json --work <dir> [--page jornada|inscritos|resultados|perfil|mapa|orden|fichajes|cx|torneo|competicion] [--lang es|en] [--timezone zona] [--count 20] [--seed n] [--slugs a,b] [--since AAAA-MM-DD] [--chrome ruta] | --work <dir> --reuse 1 [--page inscritos] [--lang en] [--timezone zona]');
+    throw new Error('Uso: check-prerender-parity.mjs --data datos.json --site-data site.json --work <dir> [--page jornada|inscritos|resultados|perfil|mapa|orden|fichajes|cx|torneo|competicion] [--lang es|en] [--timezone zona] [--count 20] [--seed n] [--slugs a,b] [--since AAAA-MM-DD] [--chrome ruta] | --work <dir> --reuse 1 [--page inscritos] [--lang en] [--timezone zona]');
   }
   const page = PAGES[options.page];
   if (!page) throw new Error(`Tipo de página no admitido: «${options.page}» (jornada, inscritos, resultados, perfil, mapa, orden, fichajes, cx, torneo o competicion)`);
   const lang = page.langs[options.lang];
   if (!lang) throw new Error(`Idioma no admitido: «${options.lang}» (es o en)`);
+  if (!options.reuse && !page.single && !options['site-data']) {
+    throw new Error('Falta --site-data: volcado de tools/site/site-data.sql (node scripts/db/sql.mjs --read-only --file tools/site/site-data.sql > site.json)');
+  }
   const timeZone = options.timezone || lang.timeZone;
   const keep = !page.zoned || timeZone === lang.timeZone;
   options.seed ??= String(Date.now() % 1e6);
@@ -463,7 +519,7 @@ async function main(argv) {
   } else {
     console.log(`Componiendo ${site} (${options.page}, ${options.lang}, semilla ${options.seed})`);
     const data = readDump(options.data);
-    slugs = await composeSite(site, data, options, page, lang);
+    slugs = composeSite(site, work, data, options, page, lang);
     run(process.execPath, [join(ROOT, page.script), site, '--scope', lang.scope, '--data', resolve(options.data),
       ...(options.since ? ['--since', options.since] : []), ...(page.args?.(data) ?? [])]);
     if (page.slots) {

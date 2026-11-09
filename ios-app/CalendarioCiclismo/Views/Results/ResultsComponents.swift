@@ -996,7 +996,7 @@ private struct ResultsRowView: View {
                     if !vm.countryCode.isEmpty {
                         CountryFlag(countryCode: vm.countryCode, width: 17.33)
                     }
-                    if !showTeam, let team = vm.team, team.hasVisibleBadge {
+                    if !showTeam, let team = vm.team, team.hasResultBadge {
                         TeamColorBands(team: team)
                     }
                     Text(vm.riderName.isEmpty ? "-" : vm.riderName)
@@ -1007,7 +1007,7 @@ private struct ResultsRowView: View {
                 // Equipo como subtítulo (en filas de corredor; oculto en pestaña Equipos).
                 if showTeam, !vm.teamName.isEmpty {
                     HStack(spacing: 5) {
-                        if let team = vm.team, team.hasVisibleBadge {
+                        if let team = vm.team, team.hasResultBadge {
                             TeamColorBands(team: team)
                         }
                         Text(vm.teamName)
@@ -1117,7 +1117,7 @@ private struct ResultsTttTable: View {
                             .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
 
                         HStack(spacing: 5) {
-                            if let t = team.team, t.hasVisibleBadge {
+                            if let t = team.team, t.hasResultBadge {
                                 TeamColorBands(team: t)
                             }
                             Text(team.teamName.isEmpty ? "-" : team.teamName)

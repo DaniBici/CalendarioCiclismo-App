@@ -1,0 +1,7 @@
+/* Hojas del calendario en una sola, antes del primer pintado. */
+@import '../../../css/app.css';
+@import '../../../css/calendario.css';
+/* Altura del selector con la fuente definitiva: el navegador no la recalcula al llegar la
+   fuente si las opciones ya están en el HTML. */
+.temporada-select { min-height: calc(1.3077em + 2 * 0.3rem); }
+#filterCats .tcat-btn { min-height: calc(1.3077em + 2 * 0.32rem); }

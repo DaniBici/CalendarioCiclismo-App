@@ -56,10 +56,10 @@
   line-height: 1.35;
 }
 
-/* En móvil las filas del feed son algo más densas para que el selector y el
-   inicio de la parrilla de equipos asomen en la primera pantalla, sin
-   sacrificar la lectura a una línea. */
-@media (max-width: 768px) {
+/* En una columna (hasta 760 px) las filas del feed son algo más densas para
+   que el selector y el inicio de la parrilla de equipos asomen en la primera
+   pantalla, sin sacrificar la lectura a una línea. */
+@media (max-width: 760px) {
   .tr-row {
     gap: 0.45rem;
     padding: 0.38rem 0.55rem;
@@ -226,7 +226,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   min-width:0; min-height:54px; padding:10px 12px; text-align:left;
   background:var(--bg-card); color:var(--text);
   border:0; border-radius: var(--radius); box-shadow: var(--card-shadow);
-  font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer;
+  font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer; text-decoration:none;
 }
 .tr-team-card:hover { background:var(--bg-card-hover); }
 /* Franjas de maillot (las de Resultados) delante del nombre del equipo. */
@@ -234,7 +234,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-card__label { min-width:0; }
 .tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }
 .tr-team-chevron { flex:none; font-size: var(--fs-5); }
-@media (max-width:1100px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:1099px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px) { .tr-team-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:360px) { .tr-team-grid { grid-template-columns:1fr; } }
 
@@ -274,7 +274,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-header__name { font-size: var(--fs-5); overflow-wrap:anywhere; }
 .tr-team-header__cat { color:inherit; font-weight:600; }
 #trTeamView { margin-inline:auto; }
-.tr-team-sections { columns:350px 2; column-gap:24px; padding-top:1.75rem; }
+.tr-team-sections { column-count:2; column-gap:24px; padding-top:1.75rem; }
 .tr-team-sections>section { min-width:0; margin-top:0; }
 .tr-team-sections>section:not([hidden]) ~ section { padding-top:1.75rem; }
 .tr-team-sections .tr-section-title { break-after:avoid; margin-top:0; }
@@ -294,7 +294,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }
 
 /* Fichajes y Renovaciones: paneles como Puntos clave (cabecera y filas con
-   filete). Por debajo de 900 px se ve uno, elegido con los botones. */
+   filete). Por debajo de 761 px se ve uno, elegido con los botones. */
 .tr-feed-column { display:none; min-width:0; overflow:hidden; background:var(--bg-card); box-shadow:var(--card-shadow); border-radius:var(--radius); }
 .tr-feed-column--active { display:block; }
 .tr-feed-title { display:none; align-items:center; min-height:48px; margin:0; padding:10px 12px; border-bottom:1px solid var(--border); color:var(--text); font: 600 var(--fs-4) var(--font-display); }
@@ -310,9 +310,10 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
-/* Desde 900 px, lado a lado (columnas de 414 px): sin «renueva con», solo los
-   equipos de nombre más largo truncan; desde 996 px no trunca ninguna fila. */
-@media(min-width:900px) {
+/* Desde 761 px, lado a lado, como la rejilla de Hoy (columnas de 345 px a
+   761 px, 374 px a 820 px y 414 px a 900 px): los equipos de nombre largo
+   truncan con puntos suspensivos; desde 996 px no trunca ninguna fila. */
+@media(min-width:761px) {
   #trFeedBtns { display:none; }
   #trFeed { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
   .tr-feed-column { display:block; }

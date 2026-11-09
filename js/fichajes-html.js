@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────
-//  FICHAJES — mercado preparado y HTML de su portada, sin DOM
+//  FICHAJES — mercado preparado y HTML de su portada y sus equipos, sin DOM
 //  Lo usan js/fichajes.js (pintado en el navegador) y el paso de build que
 //  escribe /fichajes/ y /en/transfers/ (tools/site/prerender-fichajes.mjs).
 //  El marcado no puede depender del dispositivo, del ancho de pantalla, de
@@ -24,15 +24,16 @@ const FEED_MAX_ITEMS = 60;
 const FEED_CATEGORY_RANK = { WT: 0, PT: 1, WWT: 2, PRW: 3, PTW: 3 };
 
 // Género de la tabla riders_* por división (para la plantilla "continúan").
-export const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
+const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
 
 // Columnas de las lecturas del mercado, comunes al navegador y al build.
-export const SEASON_COLUMNS = 'teamId, name, category, gender, badgeVisible, continuityDoubt, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts';
+export const SEASON_COLUMNS = 'teamId, name, category, gender, badgeVisible, continuityDoubt, prevColorsHidden, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts';
 export const PREV_SEASON_COLUMNS = 'teamId, name, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts';
 export const RIDER_COLUMNS = 'id, firstName, lastName, nationality, contractUntil';
+export const ROSTER_COLUMNS = 'id, firstName, lastName, nationality, currentTeamId';
 
 // Destino de un fin de contrato sin equipo conocido (transfer con toTeamName='?').
-export const UNKNOWN_DEST = '?';
+const UNKNOWN_DEST = '?';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -46,7 +47,7 @@ function teamSlug(name) {
     .replace(/^-+|-+$/g, '') || 'equipo';
 }
 
-export function riderName(r) {
+function riderName(r) {
   if (!r) return '';
   return `${r.firstName || ''} ${r.lastName || ''}`.trim();
 }
@@ -125,8 +126,9 @@ export function buildMarket({ seasons, prevSeasons, transfers, extraTeams }) {
     teamNameById,
     teamNamePrev,
     // Colores de la temporada EN CURSO (2026) por equipo: los "antiguos", que se
-    // muestran mientras la chapa 2027 está oculta. Un equipo NUEVO (nacido en
-    // 2027) no tiene fila 2026 → sin entrada aquí → la chapa queda vacía (mig. 129).
+    // muestran mientras la chapa 2027 está oculta, salvo con prevColorsHidden.
+    // Un equipo NUEVO (nacido en 2027) no tiene fila 2026 → sin entrada aquí →
+    // la chapa queda vacía (mig. 129).
     prevColorsByTeamId: new Map(prevSeasons.map(s => [s.teamId, s])),
     transfers,
     slugToTeamId,
@@ -136,7 +138,7 @@ export function buildMarket({ seasons, prevSeasons, transfers, extraTeams }) {
 
 // `side`: 'from' → nombre de la temporada en curso (el equipo que el corredor
 // deja); 'to' → nombre de la temporada del mercado (con el que va a correr).
-export function teamLabel(market, teamId, freeText, side = 'to') {
+function teamLabel(market, teamId, freeText, side = 'to') {
   if (!teamId) return freeText || t('transfers.unknownTeam');
   const primary = side === 'from' ? market.teamNamePrev : market.teamNameById;
   const fallback = side === 'from' ? market.teamNameById : market.teamNamePrev;
@@ -150,31 +152,48 @@ export function hasTeamView(market, teamId) {
 }
 
 // href de la vista de equipo con el param bilingüe `?team=<slug>`.
-export function teamHref(market, teamId) {
+function teamHref(market, teamId) {
   return `?team=${esc(market.teamIdToSlug.get(teamId) || teamId)}`;
+}
+
+// Género de la plantilla de un equipo: el de su temporada o el de su división.
+export function rosterGender(market, teamId) {
+  const season = market.seasonsByTeamId.get(teamId);
+  return season?.gender || DIVISION_GENDER[season?.category] || null;
+}
+
+// Plantilla a partir de las afiliaciones regulares del equipo y sus fichas (la
+// `riderGender` de la afiliación decide la tabla). El contrato es el año de
+// dateTo de la afiliación (31-dic del año de fin), no riders_*.contractUntil.
+export function rosterFromRows(affRows, men, women) {
+  const affYear = (d) => { if (!d) return null; const y = parseInt(String(d).slice(0, 4), 10); return isNaN(y) ? null : y; };
+  const contractByRider = new Map(affRows.map(a => [a.riderId, affYear(a.dateTo)]));
+  return [...men, ...women]
+    .map(r => ({ ...r, contractUntil: contractByRider.get(r.id) ?? null }))
+    .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
 }
 
 // ── Piezas de fila ────────────────────────────────────────────────
 // Bandera sin estilo en línea (tamaño y recorte en `.tr-row__flag > img`,
 // css/fichajes.css) y diferida: el feed lleva hasta 120 filas en listas con
 // desplazamiento propio.
-export function flagHtml(code) {
+function flagHtml(code) {
   if (!code) return '';
   const c = code.toLowerCase();
   return `<img src="${flagIconUrl(c)}" alt="${esc(c)}" loading="lazy">`;
 }
 
-export function rumorChip() {
+function rumorChip() {
   return `<span class="tr-chip tr-chip--rumor">${esc(t('transfers.rumor'))}</span>`;
 }
 
-export function doubtChip() {
+function doubtChip() {
   return `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.doubt'))}</span>`;
 }
 
 // Año centinela para contrato VITALICIO (dateTo 9999-12-31): se pinta ∞.
 const LIFETIME_YEAR = 9999;
-export function contractBit(year) {
+function contractBit(year) {
   if (!year) return '';
   const label = year === LIFETIME_YEAR ? '∞' : t('transfers.until', { year });
   return `<span class="tr-contract"${year === LIFETIME_YEAR ? ' title="Vitalicio"' : ''}>${esc(label)}</span>`;
@@ -302,7 +321,7 @@ function feedHtml(market, feed) {
   return `<div class="tr-feed-list">${html}</div>`;
 }
 
-// Fichajes y Renovaciones: las dos columnas (por debajo de 900 px se ve la
+// Fichajes y Renovaciones: las dos columnas (por debajo de 761 px se ve la
 // activa, elegida con los botones de feedButtonsHtml).
 export function feedColumnsHtml(market, activeFeed) {
   return [
@@ -329,9 +348,12 @@ export function divisionTeams(market, div) {
 }
 
 // Franjas de maillot de Resultados; sin colores publicados de la temporada,
-// los de la anterior.
-export function marketStripesHtml(market, season) {
-  const source = season?.badgeVisible === true ? season : market.prevColorsByTeamId.get(season?.teamId);
+// los de la anterior, salvo con prevColorsHidden (denominación sin confirmar):
+// sin franjas.
+function marketStripesHtml(market, season) {
+  const source = season?.badgeVisible === true
+    ? season
+    : season?.prevColorsHidden === true ? null : market.prevColorsByTeamId.get(season?.teamId);
   return source ? teamStripes(source) : '';
 }
 
@@ -347,22 +369,222 @@ export function teamGridHtml(market, div) {
     return `<div class="tr-empty">${esc(t('transfers.teamsEmpty'))}</div>`;
   }
   return teams.map(s => `
-    <button class="tr-team-card" data-team="${esc(s.teamId)}" data-key="${esc(s.teamId)}">
+    <a class="tr-team-card" href="${teamHref(market, s.teamId)}" data-team="${esc(s.teamId)}" data-key="${esc(s.teamId)}">
       <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
         <span class="tr-team-card__name">${marketStripesHtml(market, s)}${esc(s.name)}</span>
         ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
       </span><span class="tr-team-chevron" aria-hidden="true">›</span>
-    </button>`).join('');
+    </a>`).join('');
+}
+
+// ── Vista de equipo ───────────────────────────────────────────────
+// `linkTeamId`: si se pasa Y ese equipo tiene ficha en el mercado (fila en
+// team_seasons 2027 de una de las cuatro divisiones), la FILA ENTERA del corredor enlaza a la vista de ese
+// equipo — un fichaje que LLEGA enlaza al equipo del que VENÍA; uno que se
+// MARCHA, al equipo AL QUE VA (decisión Dani 2026-07-20). No hay ficha pública
+// de corredor (retirada), así que el destino del enlace es siempre un equipo.
+// Sin destino enlazable (retirada, fin de contrato, equipo fuera de las 4
+// divisiones) la fila queda como texto plano. `key`: un movimiento nuevo entra
+// sin rehacer las demás filas (js/dom-patch.js).
+function personRowHtml(market, { key, flagCode, name, detail = '', contract = null, isRumor = false, isDoubt = false, linkTeamId = null }) {
+  // El año de contrato y el estado (rumor/duda) van como BADGES al final de la
+  // fila, no en el texto.
+  const inner = `
+    <span class="tr-row__flag">${flagHtml(flagCode)}</span>
+    <span class="tr-row__body"><strong>${esc(name)}</strong>${detail ? ` ${detail}` : ''}</span>
+    ${contractBit(contract)}
+    ${isDoubt ? doubtChip() : isRumor ? rumorChip() : ''}`;
+  if (linkTeamId && hasTeamView(market, linkTeamId)) {
+    // href con el param bilingüe `?team=<slug>` (el mismo que escribe openTeam);
+    // el clic normal se intercepta y navega in-page.
+    return `<a class="tr-row tr-row--team tr-row--link" href="${teamHref(market, linkTeamId)}" data-team="${esc(linkTeamId)}" data-key="${esc(key)}">${inner}</a>`;
+  }
+  return `<div class="tr-row tr-row--team" data-key="${esc(key)}">${inner}</div>`;
+}
+
+// Cada sección solo existe si tiene contenido (una categoría vacía no se pinta,
+// título incluido).
+function teamSectionHtml(sectionId, contentId, title, rows) {
+  if (!rows) return '';
+  return `
+      <section id="${sectionId}">
+        <h3 class="tr-section-title">${esc(title)}</h3>
+        <div id="${contentId}">${rows}</div>
+      </section>`;
+}
+
+/**
+ * HTML completo de #trTeamView: continúan, en duda, terminan contrato, llegan y
+ * se marchan, de una vez. `roster`: rosterFromRows() del equipo; con
+ * `rosterError`, «continúan» lleva el aviso y las demás secciones se pintan.
+ */
+export function teamViewHtml(market, teamId, roster, { rosterError = false } = {}) {
+  const season = market.seasonsByTeamId.get(teamId);
+  // Movimientos del equipo. Llegan (fichajes): primero los CONFIRMADOS, luego
+  // los rumores; dentro de cada grupo, alfabético por apellido.
+  const arrivalLastName = (x) => `${x.rider?.lastName || ''} ${x.rider?.firstName || ''}`.toLowerCase();
+  // Un fichaje efectivo a mitad de temporada se muestra en el feed, pero no
+  // como llegada/salida del mercado siguiente. Su afiliación contractual sí
+  // puede aparecer en la situación de plantilla ("continúan").
+  const marketTransfers = market.transfers.filter(x => !x.midSeason);
+  const arrivals = marketTransfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId)
+    .sort((a, b) => {
+      const ra = a.status === 'rumor' ? 1 : 0, rb = b.status === 'rumor' ? 1 : 0;
+      if (ra !== rb) return ra - rb;   // confirmados (0) antes que rumores (1)
+      return arrivalLastName(a).localeCompare(arrivalLastName(b), 'es', { sensitivity: 'base' });
+    });
+  // Salidas del equipo. Un "fin de contrato sin destino" (transfer con
+  // toTeamName='?' y sin toTeamId) NO es marcharse a otro equipo → va a su
+  // propia sección "Terminan contrato". El resto (fichaje con destino conocido
+  // o retirada) sigue en "Se marchan".
+  const allDepartures = marketTransfers.filter(x =>
+    (x.type === 'transfer' || x.type === 'retirement') && x.fromTeamId === teamId);
+  const isContractEnd = (x) => x.type === 'transfer' && !x.toTeamId && x.toTeamName === UNKNOWN_DEST;
+  // Terminan contrato: alfabético por apellido.
+  const lastNameKey = (x) => `${x.rider?.lastName || ''} ${x.rider?.firstName || ''}`.toLowerCase();
+  const contractEnds = allDepartures.filter(isContractEnd)
+    .sort((a, b) => lastNameKey(a).localeCompare(lastNameKey(b), 'es', { sensitivity: 'base' }));
+  // Se marchan: por categoría del equipo de destino (WT→WWT→PT→PRW→resto), luego
+  // alfabético por nombre del equipo de destino; los retiros al final.
+  const CAT_RANK = { WT: 0, WWT: 1, PT: 2, PRW: 3 };
+  const depSortKey = (x) => {
+    if (x.type === 'retirement') return { retire: 1, cat: 99, team: '' };
+    const cat = market.seasonsByTeamId.get(x.toTeamId)?.category;
+    return { retire: 0, cat: (cat in CAT_RANK ? CAT_RANK[cat] : 90), team: teamLabel(market, x.toTeamId, x.toTeamName) };
+  };
+  const departures = allDepartures.filter(x => !isContractEnd(x))
+    .sort((a, b) => {
+      const ka = depSortKey(a), kb = depSortKey(b);
+      if (ka.retire !== kb.retire) return ka.retire - kb.retire;
+      if (ka.cat !== kb.cat) return ka.cat - kb.cat;
+      return ka.team.localeCompare(kb.team, 'es', { sensitivity: 'base' });
+    });
+  // Renovaciones: las EN DUDA van a su propia sección; el resto (confirmada o
+  // rumoreada) sigue anotando el contrato de quien continúa.
+  const renewalsByRider = new Map();
+  const doubtsByRider = new Map();
+  marketTransfers.filter(x => x.type === 'renewal' && x.toTeamId === teamId)
+    .forEach(x => {
+      const bucket = x.status === 'doubt' ? doubtsByRider : renewalsByRider;
+      if (!bucket.has(x.riderId)) bucket.set(x.riderId, x);
+    });
+
+  // Llegan: rumores con badge.
+  const arrivalRows = arrivals.map(x => personRowHtml(market, {
+    key: x.id,
+    flagCode: x.rider?.nationality,
+    name: riderName(x.rider) || x.riderId,
+    detail: `<span class="tr-dim">· ${esc(teamLabel(market, x.fromTeamId, x.fromTeamName, 'from'))}</span>`,
+    contract: x.contractUntil,
+    isRumor: x.status === 'rumor',
+    linkTeamId: x.fromTeamId,   // llega → enlaza al equipo del que VENÍA
+  })).join('');
+
+  // Terminan contrato: acaban su contrato sin equipo conocido (sin destino).
+  const contractEndRows = contractEnds.map(x => personRowHtml(market, {
+    key: x.id,
+    flagCode: x.rider?.nationality,
+    name: riderName(x.rider) || x.riderId,
+    isRumor: x.status === 'rumor',
+  })).join('');
+
+  // Se marchan: fichaje a otro equipo (destino) o retirada, rumores con badge.
+  const departureRows = departures.map(x => personRowHtml(market, {
+    key: x.id,
+    flagCode: x.rider?.nationality,
+    name: riderName(x.rider) || x.riderId,
+    detail: x.type === 'retirement'
+      ? `<span class="tr-dim">· ${esc(t('transfers.retired'))}</span>`
+      : `<span class="tr-dim">· ${esc(teamLabel(market, x.toTeamId, x.toTeamName))}</span>`,
+    isRumor: x.status === 'rumor',
+    // Se marcha → enlaza al equipo AL QUE VA (una retirada no tiene destino).
+    linkTeamId: x.type === 'retirement' ? null : x.toTeamId,
+  })).join('');
+
+  let stayingRows = '';
+  let doubtfulRows = '';
+  if (rosterError) {
+    stayingRows = `<div class="tr-empty">${esc(t('transfers.loadError'))}</div>`;
+  } else {
+    // Continúan: los del squad 2027 que YA estaban en el equipo en la temporada
+    // en curso (currentTeamId = equipo) — es lo que separa "continúa" de "llega de
+    // fuera" (un fichaje también tiene afiliación 2027, pero su currentTeamId es
+    // otro equipo, así que va a "Llegan", no aquí). MENOS los que tienen salida
+    // registrada y MENOS los que están en duda (sección propia). Contrato: el de
+    // la renovación registrada gana al de la ficha; una duda NO lo toca.
+    // "gone" = toda salida registrada (fichaje, retirada Y fin de contrato):
+    // ninguno de ellos continúa.
+    const gone = new Set(allDepartures.map(x => x.riderId));
+    // Orden: por año de contrato DESC (2030 → 2029 → … → sin año al final) y,
+    // como segundo factor, el APELLIDO. El contrato efectivo = el de la
+    // renovación registrada, o el de la ficha (afiliación 2027).
+    const contractOf = (r) => (renewalsByRider.get(r.id)?.contractUntil) || r.contractUntil || null;
+    const lastNameFirst = (r) => `${r.lastName || ''} ${r.firstName || ''}`.toLowerCase();
+    stayingRows = roster
+      .filter(r => r.currentTeamId === teamId && !gone.has(r.id) && !doubtsByRider.has(r.id))
+      .sort((a, b) => {
+        const ya = contractOf(a), yb = contractOf(b);
+        if (ya !== yb) return (yb || 0) - (ya || 0);   // año mayor primero; sin año (0) al final
+        return lastNameFirst(a).localeCompare(lastNameFirst(b), 'es', { sensitivity: 'base' });
+      })
+      .map(r => {
+        const renewal = renewalsByRider.get(r.id);
+        return personRowHtml(market, {
+          key: r.id,
+          flagCode: r.nationality,
+          name: riderName(r),
+          contract: renewal?.contractUntil || r.contractUntil,
+          isRumor: renewal?.status === 'rumor',
+        });
+      }).join('');
+
+    // En duda: los de la plantilla con renovación en duda. La ficha manda
+    // para el nombre/bandera; si el corredor ya no está en la plantilla
+    // (fichado en enero, ficha ya movida) se cae a la del movimiento.
+    const byId = new Map(roster.map(r => [r.id, r]));
+    // Sin badge "Duda": ya están bajo la sección "En duda".
+    doubtfulRows = [...doubtsByRider.values()]
+      .filter(x => !gone.has(x.riderId))
+      .map(x => ({ x, r: byId.get(x.riderId) || x.rider }))
+      .sort((a, b) => riderName(a.r).localeCompare(riderName(b.r), 'es', { sensitivity: 'base' }))
+      .map(({ x, r }) => personRowHtml(market, {
+        key: x.id,
+        flagCode: r?.nationality,
+        name: riderName(r) || x.riderId,
+        contract: r?.contractUntil,
+      })).join('');
+  }
+
+  const sections = teamSectionHtml('trSecStaying', 'trStaying', t('transfers.staying'), stayingRows)
+    + teamSectionHtml('trSecDoubtful', 'trDoubtful', t('transfers.doubtful'), doubtfulRows)
+    + teamSectionHtml('trSecContractEnds', 'trContractEnds', t('transfers.contractEnds'), contractEndRows)
+    + teamSectionHtml('trSecArrivals', 'trArrivals', t('transfers.arrivals'), arrivalRows)
+    + teamSectionHtml('trSecDepartures', 'trDepartures', t('transfers.departures'), departureRows);
+
+  return `
+    <div class="tr-team-header">
+      <div class="tr-team-header__text">
+        <h2 class="tr-team-header__name">${marketStripesHtml(market, season)}${esc(season.name)}</h2>
+        <span class="tr-team-header__cat">${esc(season.category || '')} · ${SEASON}</span>
+      </div>
+    </div>
+    ${season.continuityDoubt
+      ? `<div class="tr-team-notice">${esc(t('transfers.teamDoubtNotice', { season: SEASON }))}</div>`
+      : ''}
+    <div class="tr-team-sections">${sections || `
+      <div id="trTeamEmpty" class="tr-empty">${esc(t('transfers.teamEmpty'))}</div>`}
+    </div>`;
 }
 
 /**
  * HTML de #transfersContent: portada del mercado (feed y equipos de la
- * división `activeDiv`) y el contenedor vacío de la vista de equipo.
+ * división `activeDiv`) y la vista de equipo, vacía u ocupada por `teamHtml`
+ * (teamViewHtml) con la portada oculta.
  */
-export function marketHomeHtml(market, { activeDiv = 'WT', activeFeed = 'signings' } = {}) {
+export function marketHomeHtml(market, { activeDiv = 'WT', activeFeed = 'signings', teamHtml = null } = {}) {
   return `
     <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
-    <div id="trHome">
+    <div id="trHome"${teamHtml ? ' hidden' : ''}>
       <section class="tr-home-feed" aria-label="${esc(t('transfers.feedTitle'))}">
         <div class="tr-div-btns" id="trFeedBtns">${feedButtonsHtml(activeFeed)}</div>
         <div class="tr-home-scroll" id="trFeed">${feedColumnsHtml(market, activeFeed)}</div>
@@ -373,5 +595,5 @@ export function marketHomeHtml(market, { activeDiv = 'WT', activeFeed = 'signing
         <div class="tr-home-scroll tr-team-grid" id="trTeamGrid">${teamGridHtml(market, activeDiv)}</div>
       </section>
     </div>
-    <div id="trTeamView" hidden></div>`;
+    <div id="trTeamView"${teamHtml ? '' : ' hidden'}>${teamHtml || ''}</div>`;
 }

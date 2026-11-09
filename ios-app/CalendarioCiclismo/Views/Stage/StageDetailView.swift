@@ -104,6 +104,8 @@ struct RaceDayHeading: View {
     let dateLabel: String
     /// Líneas máximas del nombre (3 en carretera, 1 en ciclocross).
     var nameLineLimit = 3
+    /// Sin logo, hueco de la marca (no en los Campeonatos Nacionales).
+    var logoPlaceholder = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Carrera
@@ -111,7 +113,7 @@ struct RaceDayHeading: View {
                 // Logo y bandera arriba aunque el nombre ocupe varias líneas,
                 // como en las tarjetas de Hoy de Ciclocross.
                 HStack(alignment: .top, spacing: 8) {
-                    RaceLogo(logoUrl, size: 32)
+                    RaceLogo(logoUrl, size: 32, placeholder: logoPlaceholder)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .top, spacing: 4) {
                             // Override puramente cosmético: si la jornada
@@ -235,7 +237,8 @@ struct StageInfoHeader: View {
             RaceDayHeading(name: race?.localizedName, logoUrl: race?.logoUrl, countryCode: raceDay.countryCode ?? race?.countryCode,
                            showFlag: race?.hideFlag != true || raceDay.countryCode != nil,
                            categoryName: RaceLogic.uciCategoryName(race?.uciCategory),
-                           stageLabel: raceDay.stageLabel, dateLabel: DateFormatting.formatDateLongContent(raceDay.dateKey))
+                           stageLabel: raceDay.stageLabel, dateLabel: DateFormatting.formatDateLongContent(raceDay.dateKey),
+                           logoPlaceholder: race != nil && race?.uciCategory != "CN")
 
             // Recorrido
             if let route = raceDay.routeDescription {
@@ -1970,6 +1973,8 @@ private struct QuickLookSheet: ViewModifier {
             if let url {
                 QuickLookPreview(url: url)
                     .ignoresSafeArea()
+                    // iPad: el documento a tamaño de página, no de formulario.
+                    .presentationSizing(.page)
             }
         }
     }

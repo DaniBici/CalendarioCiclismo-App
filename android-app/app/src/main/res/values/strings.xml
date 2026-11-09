@@ -490,6 +490,7 @@
     <string name="results_feed_heading">Resultados</string>
     <string name="results_feed_latest">Últimos resultados</string>
     <string name="uci_ranking_tab">Ránking UCI</string>
+    <string name="uci_ranking_title">Ránking</string>
     <string name="results_tab_road">Carretera</string>
     <string name="results_feed_cx_empty">No hay resultados de ciclocross en esta temporada</string>
     <string name="results_feed_cx_empty_period">No hay resultados de ciclocross en este periodo</string>

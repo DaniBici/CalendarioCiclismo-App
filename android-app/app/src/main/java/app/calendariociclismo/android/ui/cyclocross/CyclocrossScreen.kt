@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.layoutId
 import app.calendariociclismo.android.ui.today.HighlightsBannerState
 import app.calendariociclismo.android.ui.today.TodayHighlightsBanner
@@ -56,6 +57,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Settings
@@ -66,6 +68,7 @@ import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.TvOff
 import app.calendariociclismo.android.util.CxCategoryCardState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -120,36 +123,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private sealed class AgendaRow(val key: String) {
-    class Day(val date: String) : AgendaRow("day:$date")
-    class Race(val race: CxRace, val date: String) : AgendaRow("race:$date:${race.id}")
+/** Prueba de la agenda en uno de sus días. */
+private class AgendaRace(val race: CxRace, val date: String) {
+    val key get() = "race:$date:${race.id}"
 }
 
-private fun agendaLayoutRows(rows: List<AgendaRow>, columns: Int): List<List<AgendaRow>> {
-    if (columns <= 1) return rows.map(::listOf)
-    val result = mutableListOf<List<AgendaRow>>()
-    val pending = mutableListOf<AgendaRow.Race>()
-    fun flush() {
-        if (pending.isNotEmpty()) {
-            result += pending.toList()
-            pending.clear()
-        }
-    }
-    rows.forEach { row ->
-        when (row) {
-            is AgendaRow.Race -> {
-                if (pending.isNotEmpty() && pending.first().date != row.date) flush()
-                pending += row
-                if (pending.size == columns) flush()
-            }
-            else -> {
-                flush()
-                result += listOf(row)
-            }
-        }
-    }
-    flush()
-    return result
+/** Día de la página de torneo: la fecha y sus pruebas. */
+private class AgendaDay(val date: String, val races: List<AgendaRace>) {
+    val key get() = "day:$date"
 }
 
 @Composable
@@ -241,19 +222,18 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     val filter = state.filter
     var pendingDefault by remember { mutableStateOf<CxAgendaFilter?>(null) }
     // Página de torneo: todas sus pruebas de la temporada, agrupadas por día.
-    val rows = if (tournamentId == null) emptyList() else buildList {
+    val days = if (tournamentId == null) emptyList() else buildList {
         for (month in CyclocrossLogic.months(season)) {
             val monthRaces = state.cache[month]?.data ?: continue
             val races = monthRaces.filter { it.tournamentId == tournamentId }
             val dates = races.flatMap { CyclocrossLogic.dates(it) }.distinct().sorted().filter { it.startsWith(month.toString()) }
             for (date in dates) {
-                add(AgendaRow.Day(date))
-                for (race in CyclocrossLogic.racesOn(races, date, state.featured)) add(AgendaRow.Race(race, date))
+                add(AgendaDay(date, CyclocrossLogic.racesOn(races, date, state.featured).map { AgendaRace(it, date) }))
             }
         }
     }
     val roundTotal = tournamentId?.let { id ->
-        CxPresentation.tournamentRoundTotal(id, rows.filterIsInstance<AgendaRow.Race>().map { it.race }, state.rounds)
+        CxPresentation.tournamentRoundTotal(id, days.flatMap { day -> day.races.map { it.race } }, state.rounds)
     } ?: 0
     LaunchedEffect(tournamentId) {
         if (tournamentId != null) state.open(selectedSeason ?: season)
@@ -537,7 +517,7 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             }
             // Torneo: pantalla de carga completa (sin perfil inferior) mientras
             // llega la primera tanda de carreras.
-            if (state.busy && !state.isRefreshing && rows.isEmpty()) {
+            if (state.busy && !state.isRefreshing && days.isEmpty()) {
                 RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, modifier = Modifier.weight(1f), title = LocaleHolder.t("Ciclocross", "Cyclocross"))
             } else PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
@@ -545,24 +525,33 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                 modifier = Modifier.weight(1f),
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // Un día por fila o, en pantalla ancha, dos días por fila
+                    // (izquierda y derecha), como la web desde 761 px.
                     val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
-                    val layoutRows = remember(rows, columns) { agendaLayoutRows(rows, columns) }
-                    LaunchedEffect(state.jumpDate, layoutRows) {
+                    val dayRows = remember(days, columns) { days.chunked(columns) }
+                    LaunchedEffect(state.jumpDate, dayRows) {
                         state.jumpDate?.let { date ->
-                            val index = layoutRows.indexOfFirst { group ->
-                                group.any { it.key == "day:$date" }
+                            val index = dayRows.indexOfFirst { row ->
+                                row.any { it.date == date }
                             }.takeIf { it >= 0 } ?: 0
                             list.scrollToItem(index)
                             state.consumeJump()
                         }
                     }
-                    LazyColumn(modifier = Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
-                            when (val first = group.first()) {
-                                // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
-                                is AgendaRow.Day -> Text(DateFormatting.formatDateLabel(first.date), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = if (first.key != rows.firstOrNull()?.key) 6.dp else 0.dp).semantics { heading() })
-                                is AgendaRow.Race -> CxRaceRow(group.filterIsInstance<AgendaRow.Race>(), columns, clock, state.rounds, showTournamentLink = false,
-                                    openTournament = {}, openRace = { race, category -> nav.navigate(Routes.cxRace(race.id, category, cxTitle(race))) })
+                    LazyColumn(modifier = Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(dayRows, key = { row -> row.joinToString("|") { it.key } }) { row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                row.forEach { day ->
+                                    CxTournamentDay(day, clock, state.rounds, Modifier.weight(1f)) { race, category ->
+                                        nav.navigate(Routes.cxRace(race.id, category, cxTitle(race)))
+                                    }
+                                }
+                                // Un día suelto ocupa media fila a la izquierda, como la web.
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }
@@ -589,11 +578,30 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     }
 }
 
+/** Día de la página de torneo: la fecha encima de sus pruebas, en una columna. */
+@Composable
+private fun CxTournamentDay(
+    day: AgendaDay,
+    clock: Instant,
+    rounds: Map<String, CxRound>,
+    modifier: Modifier,
+    openRace: (CxRace, String?) -> Unit,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
+        Text(DateFormatting.formatDateLabel(day.date), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.semantics { heading() })
+        day.races.forEach { row ->
+            CxRaceCard(row.race, row.date, clock, round = rounds[row.race.id], showTournamentLink = false,
+                openTournament = {}) { category -> openRace(row.race, category) }
+        }
+    }
+}
+
 /** Fila de la rejilla: una tarjeta por columna; los huecos conservan su ancho.
  *  Con `centersSingle` (Hoy), una prueba única ocupa media anchura y va centrada. */
 @Composable
 private fun CxRaceRow(
-    group: List<AgendaRow.Race>,
+    group: List<AgendaRace>,
     columns: Int,
     clock: Instant,
     rounds: Map<String, CxRound>,
@@ -686,13 +694,13 @@ private fun CxDayAgenda(
                 else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                     val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
                     val layoutRows = remember(dayRaces, dateKey, columns) {
-                        agendaLayoutRows(dayRaces.map { AgendaRow.Race(it, dateKey) }, columns)
+                        dayRaces.map { AgendaRace(it, dateKey) }.chunked(columns)
                     }
                     // Cada día empieza arriba.
                     val dayList = remember(dateKey) { LazyListState() }
                     LazyColumn(modifier = Modifier.fillMaxSize(), state = dayList, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
-                            CxRaceRow(group.filterIsInstance<AgendaRow.Race>(), columns, clock, state.rounds, showTournamentLink = true,
+                            CxRaceRow(group, columns, clock, state.rounds, showTournamentLink = true,
                                 openTournament = openTournament, openRace = openRace, centersSingle = true)
                         }
                     }
@@ -783,11 +791,12 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
     // Prueba sin ningún horario asociado: los indicadores pasan a badges.
     val badges = CxPresentation.usesCategoryBadges(race, categories, clock)
     CCCard(modifier = Modifier.fillMaxSize()) {
-        // Card entera clicable (patrón de Hoy): cualquier zona abre la ficha;
-        // los botones internos (categorías, torneo) conservan su acción.
-        Column(Modifier.fillMaxSize().clickable(role = Role.Button) { if (openRace) open(null) else showPlaceholder = true }) {
+        // Card entera clicable (patrón de Hoy): cualquier zona abre la jornada
+        // (Programa), también con resultados; los botones internos
+        // (categorías, torneo) conservan su acción.
+        Column(Modifier.fillMaxSize().clickable(role = Role.Button) { if (openRace) open("programme") else showPlaceholder = true }) {
             Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, title = {
+                RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, logoPlaceholder = race.raceClass != "CN", title = {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         // Paridad web: nombre y hamburguesa de torneo en la
                         // primera línea, torneo · ronda · sede en la segunda y
@@ -929,47 +938,86 @@ internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instan
  * ([CxPresentation.agendaVideo]) y Dorsales
  * ([CxPresentation.agendaStartlistCategory], solo en tarjetas que abren la
  * ficha). Se reevalúa con el reloj de la vista. Una sola línea: la tarjeta
- * conserva la altura única.
+ * conserva la altura única. Si la fila no cabe (tarjeta estrecha, texto
+ * ampliado), Resumen y Dorsales pierden primero el icono y después el texto.
  */
 @Composable
 private fun CxCardBadges(race: CxRace, date: String, clock: Instant, english: Boolean, onSummary: (() -> Unit)?, onStartlist: ((String) -> Unit)?) {
-    val tv = CxPresentation.agendaBroadcast(race, date, CxPresentation.regionBroadcasts(race.broadcasts, RegionDetector.allowedBroadcastGroups()), clock)
+    val tv = CxPresentation.agendaBroadcast(race, date, RegionDetector.allowedBroadcastGroups(), clock)
     val hasSummary = onSummary != null && CxPresentation.agendaVideo(race, date, RegionDetector.allowedBroadcastGroups()) != null
     val startlist = onStartlist?.let { CxPresentation.agendaStartlistCategory(race, date, clock) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
-        tv?.let { CxAgendaTVBadge(it) }
-        if (hasSummary && onSummary != null) RaceActionBadge(
-            label = stringResource(R.string.cx_summary_badge),
-            icon = Icons.Filled.Tv,
-            primaryAction = true,
-            onClick = onSummary,
-        )
-        if (startlist != null && onStartlist != null) RaceActionBadge(
-            label = stringResource(R.string.today_startlist_badge),
-            icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
-            primaryAction = true,
-            onClick = { onStartlist(startlist.category) },
-        )
+    val row: @Composable (showIcon: Boolean, showLabel: Boolean) -> Unit = { showIcon, showLabel ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
+            tv?.let { CxAgendaTVBadge(it) }
+            if (hasSummary && onSummary != null) RaceActionBadge(
+                label = stringResource(R.string.cx_summary_badge),
+                icon = Icons.Filled.Tv.takeIf { showIcon },
+                primaryAction = true,
+                onClick = onSummary,
+                showLabel = showLabel,
+            )
+            if (startlist != null && onStartlist != null) RaceActionBadge(
+                label = stringResource(R.string.today_startlist_badge),
+                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist).takeIf { showIcon },
+                primaryAction = true,
+                onClick = { onStartlist(startlist.category) },
+                showLabel = showLabel,
+            )
+        }
+    }
+    FirstFittingVariant {
+        row(true, true)
+        row(false, true)
+        row(true, false)
     }
 }
 
-/** Badge de TV de la tarjeta con la superficie y los colores del de Hoy de
- *  carretera: hora de la primera emisión, «En directo» o «TV». */
+/**
+ * Coloca el primer hijo que cabe en el ancho disponible o, si no cabe ninguno,
+ * el último. Sin `SubcomposeLayout`, porque la fila de dos tarjetas mide con
+ * intrínsecas (`IntrinsicSize.Min`).
+ */
+@Composable
+private fun FirstFittingVariant(content: @Composable () -> Unit) {
+    Layout(content = content) { measurables, constraints ->
+        val natural = constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity)
+        var chosen: Placeable? = null
+        for (measurable in measurables) {
+            chosen = measurable.measure(natural)
+            if (chosen.width <= constraints.maxWidth) break
+        }
+        layout(minOf(chosen?.width ?: 0, constraints.maxWidth), chosen?.height ?: 0) {
+            chosen?.placeRelative(0, 0)
+        }
+    }
+}
+
+/** Badge de TV de la tarjeta con la superficie, los textos y los colores del
+ *  `TVBadge` de Hoy de carretera: chip de estado («Sin TV», «No TV España»,
+ *  «Sin confirmar») sin enlace; con emisión, hora de la primera, «En directo»
+ *  o «TV»; con cobertura confirmada sin canal, «TV» sin enlace. */
 @Composable
 private fun CxAgendaTVBadge(tv: CxAgendaTV) {
     val context = LocalContext.current
-    val colors = tvStatusBadgeColor(status = "confirmed_time", hasBroadcasts = true, isTvLive = tv.live)
+    // Emisión o cobertura confirmada: etiqueta neutra de enlace, como el
+    // badge de carretera con emisiones.
+    val hasTV = !tv.statusChip
+    val colors = tvStatusBadgeColor(status = tv.tvStatus, hasBroadcasts = hasTV, isTvLive = tv.live)
     val label = when {
         tv.live -> stringResource(R.string.tv_badge_live)
+        tv.tvStatus == "none" -> stringResource(R.string.tv_badge_no_tv)
+        tv.tvStatus == "unavailable_es" -> stringResource(R.string.tv_badge_no_tv_spain)
+        tv.tvStatus == "pending" -> stringResource(R.string.tv_badge_pending)
         else -> tv.firstStartUtc?.let(DateFormatting::formatTimeLocal) ?: stringResource(R.string.tv_badge_tv)
     }
+    val icon = if (hasTV || tv.tvStatus == "pending") Icons.Filled.Tv else Icons.Filled.TvOff
     CCBadgeSurface(
         colors = colors,
-        onClick = { openExternalUrl(context, tv.url) },
-        modifier = Modifier.semantics { contentDescription = listOfNotNull(tv.broadcast.channel, label).joinToString(", ") },
+        onClick = tv.url?.let { url -> { openExternalUrl(context, url) } },
+        modifier = Modifier.semantics { contentDescription = listOfNotNull(tv.broadcast?.channel, label).joinToString(", ") },
     ) {
-        Icon(Icons.Filled.Tv, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+        Icon(icon, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(12.dp))
         Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, color = colors.foreground, maxLines = 1)
     }
 }

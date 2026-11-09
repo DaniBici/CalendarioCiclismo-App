@@ -317,44 +317,15 @@ class MainActivity : ComponentActivity() {
      * Parsea el Intent para extraer un DeepLink. Soporta:
      *   - Extra `EXTRA_DEEP_LINK` (enviado por FCM service)
      *   - Scheme custom `calendariociclismo://` (widget "Hoy en el ciclismo")
-     *   - Android App Links HTTPS con path `/competicion/{slug}`, `/jornada/{slug}`,
-     *     etc. (convertimos a `race/{slug}` o `stage/{slug}` — los ViewModels
-     *     resuelven el slug contra Supabase).
+     *   - Android App Links HTTPS de la web (portada, Calendario, competición y
+     *     jornada por slug, ciclocross). Rutas en `DeepLink.fromUri`.
      */
     private fun parseIntent(intent: Intent?): DeepLink? {
         if (intent == null) return null
         intent.getStringExtra(EXTRA_DEEP_LINK)?.let { raw ->
             return DeepLink.parse(raw)
         }
-        val data = intent.data ?: return null
-        DeepLink.fromUri(data)?.let { return it }
-        // Scheme custom del widget — delega a DeepLink.fromUri.
-        if (data.scheme == "calendariociclismo") {
-            return null
-        }
-        if (data.scheme != "https" || data.host != "calendariociclismo.app") return null
-        val segments = data.pathSegments
-        return when {
-            // Raíz `/` → pestaña inicial (Hoy o, mientras está oculta, Ciclocross).
-            segments.isEmpty() -> DeepLink.Tab("today")
-            // Páginas raíz de la web (mes.html, temporada.html, buscar.html) → tab equivalente.
-            segments.size == 1 -> when (segments[0]) {
-                "mes.html" -> DeepLink.Tab("month")
-                "temporada.html" -> DeepLink.Tab("season")
-                else -> null
-            }
-            else -> {
-                // El último segmento del App Link HTTPS es un SLUG (no un id de
-                // Room): `/competicion/<slug>/`, `/jornada/<slug>/`. Se emite una
-                // variante por-slug que el handler resuelve a id antes de navegar.
-                val slug = segments[1]
-                when (segments[0]) {
-                    "competicion" -> DeepLink.RaceSlug(slug)
-                    "jornada" -> DeepLink.StageSlug(slug)
-                    else -> null
-                }
-            }
-        }
+        return DeepLink.fromUri(intent.data)
     }
 
     private suspend fun handleDeepLink(
@@ -387,18 +358,18 @@ class MainActivity : ComponentActivity() {
                     navController.navigate(route) { launchSingleTop = true }
                 }
             }
-            // App Link HTTPS (`/competicion/<slug>/`, `/jornada/<slug>/`): el
-            // segmento es un SLUG, no un id de Room. La resolución slug → id va
+            // App Link HTTPS (`/competicion/<slug>/`, `/jornada/<slug>/` y sus
+            // equivalentes `/en/race/`, `/en/stage/` con `slugEn`): el segmento
+            // es un SLUG, no un id de Room. La resolución slug → id va
             // a Supabase (suspende), así que se ejecuta en `lifecycleScope` —NO
             // en el LaunchedEffect que invoca esto, porque ese se cancela en
             // cuanto se limpia `pendingDeepLink` y abortaría la query a medias.
-            // Espejo de `load(slug:)` en iOS. Si el slug no existe, caer a la
-            // pestaña inicial.
+            // Si el slug no existe, caer a la pestaña inicial.
             is DeepLink.RaceSlug -> resolveSlugAndNavigate(navController) {
-                raceIdForSlug(link.slug)?.let { Routes.race(it) }
+                raceIdForSlug(link.slug, link.english)?.let { Routes.race(it) }
             }
             is DeepLink.StageSlug -> resolveSlugAndNavigate(navController) {
-                raceDayIdForSlug(link.slug)?.let { Routes.stage(it) }
+                raceDayIdForSlug(link.slug, link.english)?.let { Routes.stage(it) }
             }
             is DeepLink.Startlist -> navController.navigate(Routes.startlist(link.id))
             is DeepLink.StartOrder -> navController.navigate(Routes.startOrder(link.id))

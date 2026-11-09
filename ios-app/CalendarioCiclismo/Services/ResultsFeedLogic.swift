@@ -88,10 +88,12 @@ enum ResultsFeedLogic {
         DateFormatting.dayOffset(from: dateKey, by: n) ?? dateKey
     }
 
-    /// Inicio de la ventana inicial: hoy − (windowDays − 1), nunca antes del
-    /// arranque de temporada.
-    static func initialFromKey(todayKey: String = DateFormatting.todayKey()) -> String {
-        let from = addDays(todayKey, -(windowDays - 1))
+    /// Inicio de la ventana inicial: último día con resultados − (windowDays −
+    /// 1), nunca antes del arranque de temporada. Sin ese día (aún sin
+    /// consultar), se cuenta desde hoy. Contar desde el último día con
+    /// resultados evita una lista vacía en un periodo sin carreras.
+    static func initialFromKey(anchorKey: String = DateFormatting.todayKey()) -> String {
+        let from = addDays(anchorKey, -(windowDays - 1))
         return from < seasonStart ? seasonStart : from
     }
 

@@ -15,7 +15,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "5.1.8"
+    MARKETING_VERSION: "5.1.11"
     CURRENT_PROJECT_VERSION: 1508
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
     STRING_CATALOG_GENERATE_SYMBOLS: YES
@@ -83,6 +83,14 @@ targets:
           - GoogleSans-Medium.ttf
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # iPad: las cuatro orientaciones. iPadOS 26 redimensiona las ventanas
+        # libremente; la interfaz depende del ancho del contenedor y de la
+        # size class (`AdaptiveLayoutPolicy`), no del dispositivo.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
           NSExceptionDomains:
@@ -98,6 +106,10 @@ targets:
         aps-environment: $(APS_ENVIRONMENT)
         com.apple.security.application-groups:
           - group.app.calendariociclismo
+        # Enlaces universales: /.well-known/apple-app-site-association en ambos dominios.
+        com.apple.developer.associated-domains:
+          - applinks:calendariociclismo.app
+          - applinks:www.calendariociclismo.app
     capabilities:
       push-notifications: true
     settings:
@@ -106,16 +118,20 @@ targets:
         DEVELOPMENT_TEAM: 67VKJ7LF55
         CODE_SIGN_STYLE: Automatic
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
-        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        # Mac con Apple silicon: la app de iPad se ofrece en el Mac App Store
+        # («Diseñada para iPad») y Xcode muestra el destino «My Mac (Designed
+        # for iPad)» para probarla. Disponibilidad: App Store Connect →
+        # Precios y disponibilidad.
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "YES"
         SUPPORTS_MACCATALYST: "NO"
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconFounder AppIconFriend"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: "5.1.8"
+        MARKETING_VERSION: "5.1.11"
         CURRENT_PROJECT_VERSION: 1508
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -153,7 +169,7 @@ targets:
         DEVELOPMENT_TEAM: 67VKJ7LF55
         CODE_SIGN_STYLE: Automatic
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SWIFT_VERSION: "6.0"
 
@@ -185,7 +201,7 @@ targets:
         DEVELOPMENT_TEAM: 67VKJ7LF55
         CODE_SIGN_STYLE: Automatic
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_ENTITLEMENTS: CalendarioCiclismoWidgetExtension.entitlements

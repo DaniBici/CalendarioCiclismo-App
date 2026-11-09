@@ -12,15 +12,16 @@
 //  zona ni la región.
 // ─────────────────────────────────────────────────────────────────
 
-import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml} from './services/race-presentation.js';
+import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
 import {countryFlag,categoryBadge,buildRaceHeader,formatDateLabel,filterBroadcastsByRegion,seoShortMonth} from './shared.js';
 import {t,getLang,getLocale} from './i18n.js';
 import {cxListedInAgenda,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxRacePageUrl,cxAgendaBroadcast,cxAgendaVideo,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRacePlaceholder,cxPlaceholderMessage} from './cx/presentation.js';
+import {cxEsc as esc,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxRacePageUrl,cxAgendaTv,CX_TV_STATUS_CHIPS,cxAgendaVideo,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRacePlaceholder,cxPlaceholderMessage} from './cx/presentation.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
 import {cxTvEmbedAttrs} from './cx/tv-modal.js';
+import {logoPlaceholderHtml} from './components/logo-placeholder.js';
 
 // Estado vacío con la presentación de Hoy en Carretera (icono + texto).
 export const CX_EMPTY_ICON_HTML='<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
@@ -47,15 +48,19 @@ export function cxCardScheduleHtml(race,c,open) {
   if(phase==='cancelled')return `<svg class="cx-category-cross" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${esc(t('stage.cancelled'))}"><path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>`;
   return `<strong class="cx-category-hour"${time?'':` title="${esc(t('stage.noSchedule'))}"`}>${esc(time||'-')}</strong>`;
 }
-// Badge de TV de la Agenda (cxAgendaBroadcast): hora de la primera emisión
-// del día en la región del usuario y «En directo» desde que empieza hasta que
-// concluyen todas las categorías; enlaza a la última emisión ya iniciada, que
-// se abre en el modal de TV cuando es embebible.
+// Badge de TV de la Agenda (cxAgendaTv), el de Hoy de carretera: chip del
+// estado sin emisión (Sin TV, No TV España, Sin confirmar); o la hora de la
+// primera emisión del día en la región del usuario, «En directo» con TV
+// confirmada con hora desde que empieza hasta que concluyen todas las
+// categorías, o «TV» sin hora. Enlaza a la última emisión ya iniciada, que se
+// abre en el modal de TV cuando es embebible; sin emisión, «TV» sin enlace.
 function tvBadgeHtml(race,date) {
-  const row=cxAgendaBroadcast(race,date,filterBroadcastsByRegion(race.cx_broadcasts||[]));
-  if(!row)return '';
-  const label=row.live?t('tv.live'):row.firstStartUtc?cxTime(row.firstStartUtc,getLocale()):'TV';
-  return `<a class="badge badge--tv badge--tv-link${row.live?' badge--tv--live':''}" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(row.channel||'')}"${cxTvEmbedAttrs(row)}>${tvIconHtml} ${esc(label)}</a>`;
+  const all=race.cx_broadcasts||[],tv=cxAgendaTv(race,date,filterBroadcastsByRegion(all),all);
+  if(!tv)return '';
+  if(CX_TV_STATUS_CHIPS.has(tv.status))return tvStatusChipHtml(tv.status,esc(t(`tv.status.${tv.status}`)));
+  if(!tv.row)return `<span class="badge badge--tv">${tvIconHtml} TV</span>`;
+  const {row}=tv,label=tv.live?t('tv.live'):row.firstStartUtc?cxTime(row.firstStartUtc,getLocale()):'TV';
+  return `<a class="badge badge--tv badge--tv-link${tv.live?' badge--tv--live':''}" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(row.channel||'')}"${cxTvEmbedAttrs(row)}>${tvIconHtml} ${esc(label)}</a>`;
 }
 // Badge de resumen: vídeos de YouTube de la prueba, incluidas las emisiones
 // que ya son vídeo; abre la vista de vídeos de la ficha. Solo en tarjetas que
@@ -92,7 +97,11 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
   // lista: card placeholder de Hoy, no enlaza a la carrera ni a sus categorías
   // y abre el aviso de información (tooltip/modal).
   const placeholder=cxRacePlaceholder(race),open=!placeholder;
-  const href=open?`<a href="${esc(url)}">`:'<span>',hrefEnd=open?'</a>':'</span>';
+  // La card (nombre y toque en cualquier zona) abre siempre la jornada
+  // (Programa), también con resultados; las categorías y las insignias
+  // conservan su destino.
+  const jornada=cxRacePageUrl(race,lang,'programme');
+  const href=open?`<a href="${esc(jornada)}">`:'<span>',hrefEnd=open?'</a>':'</span>';
   const categories=cxCategories(race,date),badges=cxUsesCategoryBadges(race,date);
   const tournament=race.cx_tournaments,tournamentUrl=tournament&&!inTournament?cxTournamentUrl(tournament,lang):null;
   const round=cxRoundBadge(rounds?.get(race.id));
@@ -120,7 +129,13 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
     return `<span class="cx-category-cell"${open?` data-cx-timing="${esc(key)}"`:''}><${open?'a':'span'} class="cx-category-box"${boxAttrs}>${c.category}</${open?'a':'span'}><span class="cx-category-state">${dynamic||!open?cxCardScheduleHtml(race,c,open):''}</span></span>`;
   }).join('')}</div>`;
   // Logo con el de su torneo de respaldo; sin ninguno, el hueco se oculta.
-  const logo=cxLogoHtml(race,tournament,{onUnavailable:"this.closest('.race-card__logo').classList.add('race-card__logo--without-logo')"});
+  // Sin logo (o si ninguno carga), el hueco de la marca; los Nacionales
+  // quedan solo con la bandera.
+  const national=race.class==='CN';
+  const logo=cxLogoHtml(race,tournament,{onUnavailable:national
+    ?"this.closest('.race-card__logo').classList.add('race-card__logo--without-logo')"
+    :"var s=document.createElement('span');s.className='race-logo-img logo-ph';s.setAttribute('aria-hidden','true');this.replaceWith(s)"})
+    ||(national?'':logoPlaceholderHtml('race-logo-img'));
   // Estructura común de components/race-card.js; la columna derecha son las
   // categorías con su horario o su resultado.
   const inner=raceCardHtml({
@@ -130,7 +145,7 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
     badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span><span class="cx-card-badges" data-cx-badges="${esc(`${race.id}:${date}`)}">${dynamic?cxCardBadgesHtml(race,date,open):''}</span>`,
     metaBlock:categoriesHtml,
   });
-  return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(url)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
+  return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(jornada)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
 }
 
 /**

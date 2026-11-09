@@ -20,10 +20,16 @@ data class CxTVRow(val broadcast: CxBroadcast, val url: String, val foreign: Boo
 data class CxTVGroup(val category: String?, val rows: List<CxTVRow>)
 /**
  * Medios de la ficha: `tv` son los bloques a pintar (región o todas),
- * `showsLiveTV` indica que hay TV en directo de cualquier región y
- * `hasHiddenTV` que alguna fila es de otra región.
+ * `showsLiveTV` indica que hay TV en directo de cualquier región,
+ * `hasHiddenTV` que alguna fila es de otra región y `tvStatus` el estado
+ * `pending`, `none` o `unavailable_es` de la prueba mientras quede alguna
+ * categoría en directo (null en el resto de casos y, en inglés, con
+ * `unavailable_es`).
  */
-data class CxMediaSelection(val tv: List<CxTVGroup>, val revive: List<CxReplayLink>, val hasHiddenTV: Boolean, val showsLiveTV: Boolean)
+data class CxMediaSelection(val tv: List<CxTVGroup>, val revive: List<CxReplayLink>, val hasHiddenTV: Boolean, val showsLiveTV: Boolean, val tvStatus: String? = null) {
+    /** La sección TV se muestra: emisiones en directo o estado de TV aplicable. */
+    val showsTV: Boolean get() = showsLiveTV || tvStatus != null
+}
 /** Estado de una categoría (sin código: la carrera sin categorías) para los medios. */
 data class CxMediaUnit(val code: String?, val cancelled: Boolean, val hasResults: Boolean, val concluded: Boolean) {
     val live: Boolean get() = !cancelled && !hasResults && !concluded
@@ -32,11 +38,23 @@ data class CxMediaUnit(val code: String?, val cancelled: Boolean, val hasResults
 }
 enum class CxCategoryCardState { TIME, AWAITING, RESULTS, CANCELLED }
 /**
- * Badge de TV de la tarjeta de la agenda: emisión enlazada ([broadcast] y su
- * [url] validada), hora de la primera emisión del día ([firstStartUtc]) y
- * estado en directo ([live]). Espejo de `cxAgendaBroadcast` (web).
+ * Badge de TV de la tarjeta de la agenda, espejo de `cxAgendaBroadcast` (web)
+ * con la regla del `TVBadge` de carretera. [tvStatus] es el estado de TV de la
+ * prueba. Con emisión: [broadcast] enlazada y su [url] validada, hora de la
+ * primera emisión del día ([firstStartUtc]) y estado en directo ([live]). Sin
+ * emisión: chip de estado ([statusChip]) o «TV» de cobertura confirmada sin
+ * canal, ambos sin enlace.
  */
-data class CxAgendaTV(val broadcast: CxBroadcast, val url: String, val firstStartUtc: String?, val live: Boolean)
+data class CxAgendaTV(
+    val tvStatus: String?,
+    val broadcast: CxBroadcast? = null,
+    val url: String? = null,
+    val firstStartUtc: String? = null,
+    val live: Boolean = false,
+) {
+    /** «Sin TV», «No TV España» o «Sin confirmar»: prioridad sobre las emisiones. */
+    val statusChip: Boolean get() = tvStatus in CxPresentation.TV_STATUS_CHIPS
+}
 
 /**
  * Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera:
@@ -91,6 +109,17 @@ object CxPresentation {
      * El resto de carreras nacionales no hacen esperar: sus resultados llegan
      * por la UCI más tarde o no se publican.
      */
+    /**
+     * En los Campeonatos del Mundo (CM) y Continentales (CC) se compite por selección
+     * nacional: el equipo que se muestra es la selección del país del corredor, aunque la
+     * ficha y el resultado conserven su equipo. Espejo de `cxCompetesBySelection` (web).
+     */
+    fun competesBySelection(race: CxRace): Boolean = race.raceClass == "CM" || race.raceClass == "CC"
+
+    /** Filas con la selección del país del corredor en lugar del equipo, sin franjas. */
+    fun withSelections(rows: List<UciResultsLogic.ResultRowVM>, isEnglish: Boolean): List<UciResultsLogic.ResultRowVM> =
+        rows.map { it.copy(teamName = TeamNames.selectionName(it.countryCode, isEnglish).orEmpty(), team = null) }
+
     fun awaitsResults(race: CxRace): Boolean {
         if (race.raceClass in listOf("CM", "CC", "CDM")) return true
         val tournament = race.tournament ?: return false
@@ -199,7 +228,10 @@ object CxPresentation {
     fun tournamentRoundTotal(tournamentId: String, races: List<CxRace>, rounds: Map<String, CxRound>): Int =
         races.asSequence().filter { it.tournamentId == tournamentId }
             .mapNotNull { rounds[it.id]?.total }.maxOrNull() ?: 0
-    fun logo(race: CxRace): String? = link(race.logoUrl) ?: link(race.tournament?.logoUrl)
+    /** Logo propio o, si no, el del torneo. Los Campeonatos Nacionales (clase
+     *  CN) nunca muestran logo: los que hubiera se ocultan sin borrarlos. */
+    fun logo(race: CxRace): String? =
+        if (race.raceClass == "CN") null else link(race.logoUrl) ?: link(race.tournament?.logoUrl)
     fun raceClass(code: String, english: Boolean): String = if (code == "NAC") if (english) "Nat" else "Nac" else code
     /** Nombre completo de la clase para la cabecera de la ficha: las siglas sin
      *  contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
@@ -224,25 +256,28 @@ object CxPresentation {
         detail.race.categories.any { it.category == code && it.resultsStatus in listOf("official", "provisional") }
             && detail.results.any { it.category == code }
     }
+    /** General de la ficha: solo con la manga que la alimenta en oficial y la ronda ya incluida en la publicación. */
     fun generalCategories(detail: CxDetail): List<String> = CyclocrossLogic.categories.filter { code ->
         if (detail.standings.none { it.category == code }) return@filter false
         val extras = (configured(detail.race)?.get(code) as? JsonObject)?.get("extras") as? JsonObject
         val derived = extras?.get("derived") as? JsonObject
         val source = (derived?.get("fromCategory") as? JsonPrimitive)?.content ?: code
-        val hasResults = source in resultCategories(detail)
+        val official = detail.race.categories.any { it.category == source && it.resultsStatus == "official" }
         val state = detail.standingsState.firstOrNull { it.category == code }
-        if (state == null) !hasResults else state.status in listOf("ready", "manual") && (!hasResults || detail.race.id in state.roundIds)
+        source in resultCategories(detail) && official && state != null
+            && state.status in listOf("ready", "manual") && detail.race.id in state.roundIds
     }
     private fun hasScheduledProgramme(detail: CxDetail): Boolean {
         val actual = actualCategories(detail).toSet()
         return detail.race.categories.any { it.category in actual && it.startTimeUtc != null }
     }
     /**
-     * Hay TV en directo (de cualquier región) o Revive: la pestaña Programa
-     * aparece aunque ninguna categoría tenga horario, como en la web.
+     * Hay sección TV (emisiones en directo de cualquier región o estado de TV
+     * aplicable) o Revive: la pestaña Programa aparece aunque ninguna
+     * categoría tenga horario, como en la web.
      */
     fun hasProgrammeMedia(detail: CxDetail, allowedGroups: Set<String>, at: Instant = Instant.now()): Boolean =
-        programmeMedia(detail, allowedGroups, at = at).let { it.showsLiveTV || it.revive.isNotEmpty() }
+        programmeMedia(detail, allowedGroups, at = at).let { it.showsTV || it.revive.isNotEmpty() }
     /** `hasMedia`: resultado de [hasProgrammeMedia] para la región y el momento de la vista. */
     fun detailSections(detail: CxDetail, hasMedia: Boolean = false): List<CxDetailSection> {
         val hasStartlist = detail.startlist.isNotEmpty()
@@ -442,37 +477,71 @@ object CxPresentation {
     fun regionBroadcasts(rows: List<CxBroadcast>, allowedGroups: Set<String>): List<CxBroadcast> =
         rows.filter { RaceLogic.broadcastMatchesRegion(it.country, allowedGroups) }
 
+    /** Estados de TV que el badge muestra como chip sin enlace, con prioridad
+     *  sobre las emisiones (`TVBadge` de carretera). */
+    val TV_STATUS_CHIPS = setOf("none", "unavailable_es", "pending")
+    private val TV_STATUS_CONFIRMED = setOf("confirmed_time", "confirmed_notime")
+
+    /** Estado de TV mostrado como chip; en inglés `unavailable_es` no se
+     *  muestra, como en el `TVBadge` de carretera. */
+    private fun tvStatusChip(status: String?, english: Boolean): String? =
+        status?.takeIf { it in TV_STATUS_CHIPS && !(english && it == "unavailable_es") }
+
     /**
-     * Badge de TV de la tarjeta de la agenda entre las emisiones [visible] (ya
-     * filtradas por región) que aplican a las categorías de [dateKey]. Muestra
-     * la hora de la primera emisión del día hasta que empieza; desde entonces,
-     * «En directo» mientras quede alguna categoría del día en directo (sin
-     * resultados, sin cancelación y antes de [concludedAt]). Después no hay
-     * badge. El enlace va a la primera emisión y, al alcanzarse la hora de
-     * otra posterior de una categoría aún en directo, a la última que ha
-     * empezado. Sin horas, la primera por orden. Espejo de `cxAgendaBroadcast`.
+     * Badge de TV de la tarjeta de la agenda para [dateKey], con la regla del
+     * `TVBadge` de carretera. Solo se evalúa mientras quede alguna categoría
+     * del día en directo (sin resultados, sin cancelación y antes de
+     * [concludedAt]); después no hay badge.
+     *
+     * - `none`, `unavailable_es` y `pending`: chip de estado sin enlace,
+     *   aunque haya emisiones. En inglés, `unavailable_es` no muestra badge.
+     * - Emisiones de la región ([allowedGroups]) con URL válida aplicables a
+     *   las categorías en directo: hora de la primera emisión del día (o «TV»
+     *   sin hora); «En directo» solo con `confirmed_time` y la primera emisión
+     *   empezada. El enlace va a la primera emisión y, al alcanzarse la hora
+     *   de otra posterior de una categoría aún en directo, a la última que ha
+     *   empezado. Sin horas, la primera por orden.
+     * - `confirmed_time`/`confirmed_notime` sin ninguna emisión aplicable de
+     *   ninguna región: «TV» sin enlace (cobertura sin canal aún). Con
+     *   emisiones aplicables, todas de otra región: sin badge.
+     *
+     * Espejo de `cxAgendaBroadcast` (web).
      */
-    fun agendaBroadcast(race: CxRace, dateKey: String, visible: List<CxBroadcast>, at: Instant): CxAgendaTV? {
+    fun agendaBroadcast(
+        race: CxRace,
+        dateKey: String,
+        allowedGroups: Set<String>,
+        at: Instant,
+        english: Boolean = LocaleHolder.current.language == "en",
+    ): CxAgendaTV? {
         val categories = CyclocrossLogic.categoriesOn(race, dateKey)
-        if (race.isCancelled || categories.isEmpty() || visible.isEmpty()) return null
-        val rows = visible.mapNotNull { row -> link(row.url)?.let { row to it } }
-            .sortedWith(compareBy<Pair<CxBroadcast, String>> { it.first.sortOrder }.thenBy { it.first.id })
-        fun rowsFor(codes: Set<String>) = rows
-            .filter { (row) -> codes.isNotEmpty() && (row.category.isNullOrEmpty() || row.category in codes) }
-            .distinctBy { (row, url) -> listOf(row.category.orEmpty(), url, row.country ?: "ALL", row.channel.orEmpty()) }
+        if (race.isCancelled || categories.isEmpty()) return null
         val open = categories.filterNot { it.isCancelled }
         val live = open.filter { category ->
             category.resultsStatus !in listOf("official", "provisional") && concludedAt(race, category)?.let { at < it } != false
         }
-        val tv = rowsFor(live.map { it.category }.toSet())
-        if (tv.isEmpty()) return null
+        if (live.isEmpty()) return null
+        if (race.tvStatus in TV_STATUS_CHIPS) return tvStatusChip(race.tvStatus, english)?.let { CxAgendaTV(it) }
+        val linked = race.broadcasts.mapNotNull { row -> link(row.url)?.let { row to it } }
+            .sortedWith(compareBy<Pair<CxBroadcast, String>> { it.first.sortOrder }.thenBy { it.first.id })
+        val rows = linked.filter { (row) -> RaceLogic.broadcastMatchesRegion(row.country, allowedGroups) }
+        fun rowsFor(source: List<Pair<CxBroadcast, String>>, codes: Set<String>) = source
+            .filter { (row) -> codes.isNotEmpty() && (row.category.isNullOrEmpty() || row.category in codes) }
+            .distinctBy { (row, url) -> listOf(row.category.orEmpty(), url, row.country ?: "ALL", row.channel.orEmpty()) }
+        val liveCodes = live.map { it.category }.toSet()
+        val tv = rowsFor(rows, liveCodes)
+        if (tv.isEmpty()) {
+            val confirmedWithoutChannel = race.tvStatus in TV_STATUS_CONFIRMED && rowsFor(linked, liveCodes).isEmpty()
+            return if (confirmedWithoutChannel) CxAgendaTV(race.tvStatus) else null
+        }
         fun time(row: CxBroadcast): Instant = CyclocrossLogic.parseInstant(row.startTimeUtc) ?: Instant.MAX
         fun earliest(list: List<Pair<CxBroadcast, String>>) = list.minByOrNull { time(it.first) }
-        val first = earliest(rowsFor(open.map { it.category }.toSet())) ?: earliest(tv)!!
+        val first = earliest(rowsFor(rows, open.map { it.category }.toSet())) ?: earliest(tv)!!
         val started = tv.filter { time(it.first) <= at }
         // A igualdad de hora, la posterior en el orden (criterio de la web).
         val current = started.lastOrNull { time(it.first) == started.maxOf { row -> time(row.first) } } ?: earliest(tv)!!
-        return CxAgendaTV(current.first, current.second, first.first.startTimeUtc, time(first.first) <= at)
+        val showLive = race.tvStatus == "confirmed_time" && time(first.first) <= at
+        return CxAgendaTV(race.tvStatus, current.first, current.second, first.first.startTimeUtc, showLive)
     }
 
     /**
@@ -494,19 +563,21 @@ object CxPresentation {
     }
 
     /**
-     * Clave del orden por TV: 0 con hora (la primera del día), 1 con TV sin
-     * hora y 2 sin TV. Cuenta las emisiones de la región con URL válida que
-     * aplican a una categoría no cancelada del día, con independencia de la
-     * hora actual: el orden no cambia cuando el badge desaparece.
+     * Clave del orden por TV: 0 con emisión con hora (la primera del día), 1
+     * con emisión sin hora, 2 con TV pendiente (`pending`) y 3 el resto. Cuenta
+     * las emisiones de la región con URL válida que aplican a una categoría no
+     * cancelada del día, con independencia de la hora actual: el orden no
+     * cambia cuando el badge desaparece. Espejo de `cxAgendaTvKey` (web).
      */
     fun agendaTvKey(race: CxRace, date: String, allowedGroups: Set<String>): Pair<Int, Instant> {
         val codes = CyclocrossLogic.categoriesOn(race, date).filterNot { it.isCancelled }.map { it.category }.toSet()
-        if (race.isCancelled || codes.isEmpty()) return 2 to Instant.MAX
+        if (race.isCancelled || codes.isEmpty()) return 3 to Instant.MAX
         val rows = regionBroadcasts(race.broadcasts, allowedGroups)
             .filter { link(it.url) != null && (it.category.isNullOrEmpty() || it.category in codes) }
-        if (rows.isEmpty()) return 2 to Instant.MAX
-        val first = rows.mapNotNull { CyclocrossLogic.parseInstant(it.startTimeUtc) }.minOrNull() ?: return 1 to Instant.MAX
-        return 0 to first
+        rows.mapNotNull { CyclocrossLogic.parseInstant(it.startTimeUtc) }.minOrNull()?.let { return 0 to it }
+        // Como tvTier de carretera: «pendiente» antes que la emisión sin hora.
+        if (race.tvStatus == "pending") return 2 to Instant.MAX
+        return (if (rows.isNotEmpty()) 1 else 3) to Instant.MAX
     }
 
     /** Fin estimado de la prueba en [date]: la llegada más tardía de sus
@@ -558,9 +629,17 @@ object CxPresentation {
      * aplican a alguna categoría en directo, de todas las regiones, y la vista
      * pinta `tv` sin volver a filtrar. Revive toma las filas de la región con
      * resultados o cancelación y el criterio de carretera (o Sporza), sin
-     * repetir las que siguen en directo por otra categoría.
+     * repetir las que siguen en directo por otra categoría. El estado de TV
+     * `pending`, `none` o `unavailable_es` (este, no en inglés) se conserva
+     * mientras quede alguna categoría en directo.
      */
-    fun programmeMedia(detail: CxDetail, allowedGroups: Set<String>, showAll: Boolean = false, at: Instant = Instant.now()): CxMediaSelection {
+    fun programmeMedia(
+        detail: CxDetail,
+        allowedGroups: Set<String>,
+        showAll: Boolean = false,
+        at: Instant = Instant.now(),
+        english: Boolean = LocaleHolder.current.language == "en",
+    ): CxMediaSelection {
         val units = mediaUnits(detail, at)
         fun applies(row: CxBroadcast, unit: CxMediaUnit) = row.category.isNullOrEmpty() || row.category == unit.code
         val rows = detail.broadcasts.mapNotNull { row -> link(row.url)?.let { row to it } }
@@ -590,6 +669,7 @@ object CxPresentation {
         // en el orden del programa; la vista encabeza cada bloque.
         val order = buildMap { units.forEachIndexed { index, unit -> unit.code?.let { putIfAbsent(it, index) } } }
         val sortedRevive = revive.sortedBy { link -> link.category?.let(order::get) ?: -1 }
-        return CxMediaSelection(groups, sortedRevive, hasHiddenTV = tv.any { it.foreign }, showsLiveTV = tv.isNotEmpty())
+        val tvStatus = tvStatusChip(detail.race.tvStatus, english)?.takeIf { live.isNotEmpty() }
+        return CxMediaSelection(groups, sortedRevive, hasHiddenTV = tv.any { it.foreign }, showsLiveTV = tv.isNotEmpty(), tvStatus = tvStatus)
     }
 }

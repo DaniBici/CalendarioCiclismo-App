@@ -8,23 +8,28 @@
 //  (js/html-fingerprint.js): el esqueleto (cabecera, documentos, barras de
 //  secciones y categorías, contenedores vacíos), el contenido de cada sección
 //  y la columna lateral de resultados, dorsales y general. El build llena la
-//  sección de la URL y su columna lateral. El marcado de cada hueco no puede
+//  sección de la URL, todos sus paneles de categoría y su columna lateral: la
+//  categoría va en el fragmento (#WE), que no llega al servidor, y el script
+//  en línea de la página (tools/site/prerender-cx.mjs) la muestra antes del
+//  primer pintado. El marcado de cada hueco no puede
 //  depender del dispositivo, del ancho de pantalla ni de localStorage. Programa
 //  (horas, TV en directo, región) y columna lateral (horas) dependen de la zona
 //  y del momento: fuera de la zona del build se repintan solo esos huecos.
 // ─────────────────────────────────────────────────────────────────
 
-import {startlistCyclistHtml,resultsTrophyHtml} from './services/race-presentation.js';
+import {startlistCyclistHtml,resultsTrophyHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {buildRaceHeader,findMatchingTeam,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDate,seoLongDateWeekday} from './shared.js';
 import {t,getLang,getLocale} from './i18n.js';
 import {cxIsHidden} from './services/cx-data.js';
-import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank} from './cx/presentation.js';
+import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxTvStatus,CX_TV_STATUS_CHIPS,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank,cxCompetesBySelection} from './cx/presentation.js';
+import {nationalSelectionName} from './services/national-team-name.js';
 import {cxStandingsTableHtml} from './cx/standings-table.js';
 import {teamStripes} from './team-appearance.js';
 import {cxUrl,cxYouTubeVideoId} from './cx/editor-logic.js';
 import {cxTvEmbedAttrs} from './cx/tv-modal.js';
 import {flagIconUrl} from './flag-url.js';
+import {logoPlaceholderHtml} from './components/logo-placeholder.js';
 
 const safeLink=url=>{try{return cxUrl(url);}catch{return null;}};
 
@@ -60,25 +65,39 @@ function docsStrip(race,assets=[]) {
     cxDocBtn(pick('map'),t('assets.map'),'map')].filter(Boolean).join('');
   return buttons?`<section class="jornada-section cx-race-docs"><div class="asset-links-wrap"><div class="asset-links">${buttons}</div></div></section>`:'';
 }
-function table(rows,header,value,teamList,lang) {
-  const hasTeam=rows.some(row=>String(row.teamName||'').trim());
+// Equipo de la fila: la selección del país en Mundiales y Continentales, sin franjas;
+// en el resto, el equipo con sus franjas.
+function resultTeamHtml(row,teamList,lang,bySelection) {
+  if(bySelection){const name=nationalSelectionName(row.isoCode2,lang==='en');return name?esc(name):'';}
+  if(!String(row.teamName||'').trim())return '';
+  const team=findMatchingTeam(row.teamName,teamList);
+  return `${team?teamStripes(team):''}${esc(row.teamName)}`;
+}
+function table(rows,header,value,teamList,lang,bySelection=false) {
+  const teamCells=new Map(rows.map(row=>[row,resultTeamHtml(row,teamList,lang,bySelection)]));
+  const hasTeam=[...teamCells.values()].some(Boolean);
   const values=new Map(rows.map(row=>[row,value(row)]));
   // Las vueltas perdidas necesitan una columna de tiempo más ancha en móvil
   // para no partirse en dos líneas y descuadrar la altura de la fila.
   const hasLaps=[...values.values()].some(html=>html.includes('class="res-lap"'));
   return `<div class="res-table-wrap"><table class="so-table res-table${hasLaps?' res-table--laps':''}"><thead><tr><th class="so-th res-th--rank">#</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}<th class="so-th res-th--result">${esc(header)}</th></tr></thead><tbody>${[...rows].sort(cxRankSort).map(row=>{
-    const team=findMatchingTeam(row.teamName,teamList),badge=team?teamStripes(team):'',rank=cxResultRank(row,lang);
-    return `<tr class="so-row"><td class="so-td res-td--rank">${typeof rank==='number'?rank:`<span class="res-rank-dnf">${esc(rank)}</span>`}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${row.teamName?`<span class="res-rider-team">${badge}${esc(row.teamName)}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${row.teamName?`<span class="res-team-cell">${badge}${esc(row.teamName)}</span>`:''}</td>`:''}<td class="so-td res-td--result">${values.get(row)}</td></tr>`;
+    const teamHtml=teamCells.get(row),rank=cxResultRank(row,lang);
+    return `<tr class="so-row"><td class="so-td res-td--rank">${typeof rank==='number'?rank:`<span class="res-rank-dnf">${esc(rank)}</span>`}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${teamHtml?`<span class="res-rider-team">${teamHtml}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${teamHtml?`<span class="res-team-cell">${teamHtml}</span>`:''}</td>`:''}<td class="so-td res-td--result">${values.get(row)}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
-function startlist(rows,teams) {
+function startlist(rows,teams,lang,bySelection=false) {
   if(!rows.length)return `<p class="cx-empty">${t('cx.noStartlist')}</p>`;
   // Misma tabla que Resultados: Dorsal, Corredor y Equipo; en móvil el equipo
-  // pasa a subtítulo bajo el corredor.
-  const hasTeam=rows.some(r=>teams.has(r.teamId));
+  // pasa a subtítulo bajo el corredor. En Mundiales y Continentales, la selección.
+  const teamOf=r=>{
+    if(bySelection){const name=nationalSelectionName(r.countryCode,lang==='en');return name?esc(name):'';}
+    const team=teams.get(r.teamId);return team?`${teamStripes(team)}${esc(team.name)}`:'';
+  };
+  const teamCells=new Map(rows.map(r=>[r,teamOf(r)]));
+  const hasTeam=[...teamCells.values()].some(Boolean);
   return `<div class="res-table-wrap"><table class="so-table res-table cx-startlist-table"><thead><tr><th class="so-th res-th--rank">${t('cx.bibShort')}</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}</tr></thead><tbody>${[...rows].sort((a,b)=>a.sortOrder-b.sortOrder).map(r=>{
-    const team=teams.get(r.teamId),teamHtml=team?`${teamStripes(team)}${esc(team.name)}`:'';
-    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(r.bib||'')}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(r.countryCode)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(`${r.firstName} ${r.lastName}`)}</span>${team?`<span class="res-rider-team">${teamHtml}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${team?`<span class="res-team-cell">${teamHtml}</span>`:''}</td>`:''}</tr>`;
+    const teamHtml=teamCells.get(r);
+    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(r.bib||'')}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(r.countryCode)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(`${r.firstName} ${r.lastName}`)}</span>${teamHtml?`<span class="res-rider-team">${teamHtml}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${teamHtml?`<span class="res-team-cell">${teamHtml}</span>`:''}</td>`:''}</tr>`;
   }).join('')}</tbody></table></div>`;
 }
 function tvEntry(row,hidden,locale,revive=false) {
@@ -103,14 +122,20 @@ function videoMedia(rows,lang) {
 }
 // TV de la jornada CX en el cajón de carretera, dividida por
 // categorías: emisiones comunes (sin categoría) sin encabezado y un bloque
-// por categoría en directo, en el orden del programa.
-function tvGroups(broadcasts,categories,locale) {
-  if(!broadcasts.length)return '';
+// por categoría en directo, en el orden del programa. Como en la jornada de
+// carretera, mientras quede alguna categoría en directo (`active`) el estado
+// 'pending' añade el chip «Sin confirmar» junto al título y, sin emisiones,
+// 'pending', 'none' y 'unavailable_es' muestran la sección con su etiqueta.
+function tvGroups(broadcasts,categories,locale,{status=null,active=false}={}) {
+  const chip=active&&CX_TV_STATUS_CHIPS.has(status)?status:null;
+  if(!broadcasts.length&&!chip)return '';
   const mine=new Set(filterBroadcastsByRegion(broadcasts)),hasHidden=mine.size<broadcasts.length;
   const group=(label,rows)=>rows.length?`<div class="cx-tv-group"${rows.some(row=>mine.has(row))?'':' data-cx-regional-hidden hidden'}>${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="tv-panel__list">${rows.map(row=>tvEntry(row,!mine.has(row),locale)).join('')}</div></div>`:'';
   const html=group('',broadcasts.filter(row=>!row.category))+categories.map(c=>group(t(`cx.category.${c.category}`),broadcasts.filter(row=>row.category===c.category))).join('');
-  if(!html)return '';
-  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><h2>${t('cx.tv')}</h2>${hasHidden?`<div class="tv-panel__actions"><button type="button" class="stage-key-toggle" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button></div>`:''}</header>${!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html}</section>`;
+  if(!html&&!chip)return '';
+  const pending=chip==='pending'?tvStatusChipHtml('pending',esc(t('tv.status.pending'))):'';
+  const statusRow=!html?`<div class="tv-panel__list"><div class="info-row"><span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${esc(t(`tv.status.${chip}`))}</span></div></div>`:'';
+  return `<section class="tv-panel cx-media-section"><header class="stage-profile-heading"><div class="tv-panel__title"><h2>${t('cx.tv')}</h2>${pending}</div>${hasHidden?`<div class="tv-panel__actions"><button type="button" class="stage-key-toggle" data-cx-tv-filter="mine" aria-pressed="false">${t('tv.filterAll')}</button></div>`:''}</header>${html&&!mine.size?`<p class="cx-empty" data-cx-no-region>${t('tv.noTvRegion')}</p>`:''}${html||statusRow}</section>`;
 }
 function mapImageUrl(assets) {
   const url=safeLink(assets.find(asset=>asset.type==='map'&&asset.url)?.url);
@@ -134,7 +159,7 @@ function scheduledCategories(race,categories) {
 // derecha; en móvil, el orden es horarios, mapa y TV.
 function programme(model) {
   const {race,categories,results,multiDate,docAssets:assets,lang,locale,media}=model;
-  const extra=tvGroups(media.tv,media.liveCategories,locale)+reviveMedia(media.revive,cxProgrammeOrder(race,categories),locale);
+  const extra=tvGroups(media.tv,media.liveCategories,locale,{status:cxTvStatus(race,lang),active:media.active})+reviveMedia(media.revive,cxProgrammeOrder(race,categories),locale);
   const scheduled=scheduledCategories(race,categories);
   const rows=scheduled.map(c=>{
     const cancelled=race.isCancelled||c.isCancelled,hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
@@ -166,7 +191,7 @@ export function cxRaceModel(race,{broadcasts,videos,inscritos,results,teamRows,r
   const videoRows=[...new Map(media.videos.filter(row=>cxYouTubeVideoId(row.url)).map(row=>[cxYouTubeVideoId(row.url),row])).values()];
   // La TV vive en el programa: sin horarios, la sección se muestra igualmente
   // cuando hay emisiones.
-  const hasMedia=media.tv.length>0||media.revive.length>0;
+  const hasMedia=media.tv.length>0||media.revive.length>0||(media.active&&CX_TV_STATUS_CHIPS.has(cxTvStatus(race,lang)));
   // Sin programa, dorsales, resultados ni TV, una carrera con vídeos abre Vídeos.
   const defaultPage=publishedCategories.length?'results':hasProgramme?'programme':hasStartlist?'startlist':hasMedia?'programme':videoRows.length?'videos':'programme';
   const multiDate=new Set(categories.map(c=>cxCategoryDate(race,c))).size>1;
@@ -196,14 +221,16 @@ export function cxRaceSelection(model,{pathname,search='',hash=''}) {
   return {page,tabsPage,selected,legacyGeneral};
 }
 
+// Categorías que conserva el enlace a cada sección: las que existen en el destino.
+const carriedCodes=(model,key)=>key==='general'?model.generalCategories:key==='results'?model.publishedCategories:key==='startlist'?model.categories.map(c=>c.category):[];
+
 // Enlace de una pestaña de sección: conserva la categoría al alternar entre
 // inscritos, resultados y general cuando existe en el destino (una general
 // derivada lleva a su origen).
 export function cxRaceSectionHref(model,key,{page,selected}) {
-  const {race,lang,tournament,categories,generalCategories,publishedCategories}=model;
+  const {race,lang,tournament}=model;
   const carried=page==='general'&&key!=='general'?cxGeneralSourceCategory(tournament,selected.category):selected.category;
-  const targetCodes=key==='general'?generalCategories:key==='results'?publishedCategories:key==='startlist'?categories.map(c=>c.category):[];
-  return cxRacePageUrl(race,lang,key,['results','startlist','general'].includes(page)&&targetCodes.includes(carried)?carried:'');
+  return cxRacePageUrl(race,lang,key,['results','startlist','general'].includes(page)&&carriedCodes(model,key).includes(carried)?carried:'');
 }
 
 // Atributo class con la marca de activo y aria-current en el enlace activo.
@@ -231,7 +258,7 @@ export function cxRaceContextHtml(model,{selected}) {
 const hasContext=({race,categories,docAssets})=>!!mapImageUrl(docAssets)||scheduledCategories(race,categories).length>0;
 
 // Paneles por categoría de resultados, general y dorsales: atributo de cada
-// panel. Cada panel es un hueco; el build llena solo el de la categoría visible.
+// panel. Cada panel es un hueco; el build llena todos los de la sección de la URL.
 export const CX_PANEL_ATTRIBUTES={results:'data-cx-classification-content',general:'data-cx-general',startlist:'data-cx-startlist-category'};
 // Categorías con panel en cada sección.
 const panelCodes=(model,key)=>key==='general'?model.generalCategories:model.categories.map(c=>c.category);
@@ -247,7 +274,7 @@ export function cxRacePanelHtml(model,key,code) {
     // resultsStatus=provisional mientras se completa la revisión interna.
     const source=String(c.resultsSourceUrl||'').toLowerCase(),inputSource=String(c.resultsEvidence?.inputSource||'').toLowerCase();
     const status=source.includes('dataride.uci.ch')||inputSource==='dataride'||cxCategoryDate(race,c)<todayKey||c.resultsStatus==='official'?'official':'provisional';
-    return `${publicationHtml(status,lang)}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList,lang)}`;
+    return `${publicationHtml(status,lang)}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList,lang,cxCompetesBySelection(race))}`;
   }
   if(key==='general') {
     const roundHeader=(raceId,index)=>{
@@ -258,7 +285,7 @@ export function cxRacePanelHtml(model,key,code) {
     const rows=standings.filter(s=>s.category===code),state=states.find(row=>row.category===code);
     return `${publicationHtml('official',lang)}${cxStandingsTableHtml({rows,state,mode:cxStandingMode(tournament,code,rows),lang,locale,teamList,roundHeader})}`;
   }
-  return startlist(inscritos.filter(row=>row.category===code),teams);
+  return startlist(inscritos.filter(row=>row.category===code),teams,lang,cxCompetesBySelection(race));
 }
 
 /**
@@ -308,12 +335,14 @@ export function cxRaceSkeletonHtml(model,sel,section=()=>({inner:''})) {
   // propia en la carrera (WU de la Copa del Mundo).
   const generalNavigation=generalCategories.length?`<nav class="res-stages cx-classification-nav cx-category-nav" data-cx-general-nav aria-label="${esc(t('cx.standings'))}"${page==='general'?'':' hidden'}><div class="res-stages__inner">${generalCategories.map(code=>`<a ${activeClass('res-stage-btn',code===selected.category,'res-stage-btn--active')} data-cx-general-classification="${code}" href="#${code}" aria-label="${esc(t(`cx.category.${code}`))}">${code}</a>`).join('')}</div></nav>`:'';
   // Selector de secciones oculto cuando solo hay una disponible, como en las apps.
-  const sectionNavigation=sectionTabs.length>1?`<div class="res-tabs-bar cx-section-nav"><nav class="res-tabs" aria-label="${esc(cxRaceName(race,lang))}"><div class="res-tabs__scroll"><div class="res-tabs__inner">${sectionTabs.map(([key,label])=>`<a ${activeClass('res-tab',key===page,'res-tab--active')} data-cx-section-link="${key}" href="${esc(cxRaceSectionHref(model,key,sel))}">${esc(label)}</a>`).join('')}</div></div></nav></div>`:'';
+  // `data-cx-carry`: categorías que conserva el enlace, para el script en línea.
+  const carry=key=>{const codes=carriedCodes(model,key);return codes.length?` data-cx-carry="${codes.join(' ')}"`:'';};
+  const sectionNavigation=sectionTabs.length>1?`<div class="res-tabs-bar cx-section-nav"><nav class="res-tabs" aria-label="${esc(cxRaceName(race,lang))}"><div class="res-tabs__scroll"><div class="res-tabs__inner">${sectionTabs.map(([key,label])=>`<a ${activeClass('res-tab',key===page,'res-tab--active')} data-cx-section-link="${key}"${carry(key)} href="${esc(cxRaceSectionHref(model,key,sel))}">${esc(label)}</a>`).join('')}</div></div></nav></div>`:'';
   const capitalizeDate=value=>value?value.charAt(0).toLocaleUpperCase(lang)+value.slice(1):value;
   const headerDate=race.dateKey?capitalizeDate(seoLongDateWeekday(race.dateKey,lang))+(race.endDateKey&&race.endDateKey!==race.dateKey?` – ${capitalizeDate(seoLongDateWeekday(race.endDateKey,lang))}`:''):'';
   const roundLabel=cxRoundLabel(rounds?.get(race.id));
   const headerDetail=[cxClassName(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
-  const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},logoHtml:cxLogoHtml(race,tournament,{className:'race-header__logo'}),nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
+  const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},logoHtml:cxLogoHtml(race,tournament,{className:'race-header__logo',onUnavailable:race.class==='CN'?'':"var s=document.createElement('span');s.className='race-header__logo logo-ph';s.setAttribute('aria-hidden','true');this.replaceWith(s)"})||(race.class==='CN'?'':logoPlaceholderHtml('race-header__logo')),nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
   const containers=SECTIONS.map(([key,cls])=>filled(`<div${cls} data-cx-section="${key}"${key===page?'':' hidden'}>`,'</div>',section(key))).join('');
   return `${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div>${containers}`;
 }
@@ -326,17 +355,22 @@ export function cxRacePageHtml(model,sel) {
   })}));
 }
 
+const prerenderedPanels=new WeakMap();
 /**
- * Ficha generada en el build: la sección de la URL, el panel de la categoría
- * visible y la columna lateral llenos, cada hueco con la huella
- * (`fingerprint(html)`) del HTML que pinta el navegador para él; el resto de
- * paneles y secciones, vacíos. Devuelve { html, fingerprint } del esqueleto.
+ * Ficha generada en el build: la sección de la URL, todos sus paneles de
+ * categoría (visible el de `sel`, la categoría por defecto) y la columna
+ * lateral llenos, cada hueco con la huella (`fingerprint(html)`) del HTML que
+ * pinta el navegador para él; el resto de secciones, vacías. Devuelve
+ * { html, fingerprint } del esqueleto.
  * @public tools/site/prerender-cx.mjs lo usa como miembro del módulo cargado con import().
  */
 export function cxRacePrerenderedHtml(model,sel,fingerprint) {
   const slot=html=>({inner:html,prerendered:fingerprint(html)});
+  // La raíz y su sección comparten paneles: uno por modelo, sección y categoría.
+  const panels=prerenderedPanels.get(model)||prerenderedPanels.set(model,new Map()).get(model);
+  const panel=code=>{const key=`${sel.page}|${code}`;if(!panels.has(key))panels.set(key,slot(cxRacePanelHtml(model,sel.page,code)));return panels.get(key);};
   const slots={
-    panel:code=>code===sel.selected.category?slot(cxRacePanelHtml(model,sel.page,code)):{inner:''},
+    panel,
     context:()=>slot(cxRaceContextHtml(model,sel)),
   };
   const section=key=>key!==sel.page?{inner:''}

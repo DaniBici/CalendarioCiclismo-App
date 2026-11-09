@@ -26,7 +26,7 @@ struct FollowedRacesView: View {
                 List {
                     ForEach(races) { race in
                         HStack(spacing: 12) {
-                            RaceLogo(race.logoUrl, size: 36)
+                            RaceLogo(race.logoUrl, size: 36, placeholder: race.uciCategory != "CN")
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(race.localizedName)
                                     .ccFont(.s14)
@@ -108,7 +108,7 @@ struct FollowedCxRacesView: View {
                 List {
                     ForEach(races) { race in
                         HStack(spacing: 12) {
-                            RaceLogo(CyclocrossPresentation.logo(race), size: 36)
+                            RaceLogo(CyclocrossPresentation.logo(race), size: 36, placeholder: race.raceClass != "CN")
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(CyclocrossPresentation.name(race))
                                     .ccFont(.s14)

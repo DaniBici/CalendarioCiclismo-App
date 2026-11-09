@@ -110,14 +110,14 @@ final class CyclocrossTests: XCTestCase {
     }
 
     @MainActor
-    func testGeneralUsesPriorPublicationBeforeResultsAndRequiresCurrentRoundAfterResults() throws {
+    func testGeneralRequiresOfficialResultsAndCurrentRound() throws {
         let race = try JSONDecoder().decode(CxRace.self, from: Data(fixture.replacingOccurrences(of: "\"pending\"", with: "\"official\"")
             .replacingOccurrences(of: "\"cx_race_categories\":", with: #""cx_tournaments":{"id":"t","name":"X2O","slug":"x2o","pointsScheme":{"categories":{"ME":{"mode":"time"},"WU":{"mode":"points","extras":{"derived":{"fromCategory":"ME"}}}}}},"cx_race_categories":"#).utf8))
         let result = try JSONDecoder().decode(CxResult.self, from: Data(#"{"id":1,"raceId":"test","category":"ME","riderDisplay":"Rider","rank":1,"sortOrder":0}"#.utf8))
         let rows = try JSONDecoder().decode([CxStanding].self, from: Data(#"[{"id":"s","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":1,"riderDisplay":"Rider","timeSeconds":90061},{"id":"u","tournamentId":"t","seasonKey":"2026-27","category":"WU","rank":1,"riderDisplay":"Rider","points":50}]"#.utf8))
         let prior = [CxStandingState(category: "ME", status: "ready", roundIds: ["prior"]), CxStandingState(category: "WU", status: "ready", roundIds: ["prior"])]
         var before = CxDetail(race: race, startlist: [], results: [], broadcasts: [], videos: [], teams: [], standings: rows, standingsState: prior)
-        XCTAssertEqual(CxDetailSelection.generalCategories(before), ["ME", "WU"])
+        XCTAssertTrue(CxDetailSelection.generalCategories(before).isEmpty)
         var after = CxDetail(race: race, startlist: [], results: [result], broadcasts: [], videos: [], teams: [], standings: rows, standingsState: prior)
         XCTAssertTrue(CxDetailSelection.generalCategories(after).isEmpty)
         after.standingsState = [CxStandingState(category: "ME", status: "ready", roundIds: [race.id]), CxStandingState(category: "WU", status: "manual", roundIds: [race.id])]
@@ -125,7 +125,7 @@ final class CyclocrossTests: XCTestCase {
         after.standingsState = [CxStandingState(category: "ME", status: "needs_review", roundIds: [race.id])]
         XCTAssertTrue(CxDetailSelection.generalCategories(after).isEmpty)
         before.standingsState = nil
-        XCTAssertEqual(CxDetailSelection.generalCategories(before), ["ME", "WU"])
+        XCTAssertTrue(CxDetailSelection.generalCategories(before).isEmpty)
         after.standingsState = nil
         XCTAssertTrue(CxDetailSelection.generalCategories(after).isEmpty)
         XCTAssertFalse(CxDetailSelection.actualCategories(before).contains("WU"))

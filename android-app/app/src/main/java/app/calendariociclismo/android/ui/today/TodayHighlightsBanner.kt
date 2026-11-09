@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.TodayHighlight
@@ -315,14 +316,18 @@ private fun BannerCarousel(
 
     // Tarjeta neutra (ElevatedCard de Material 3) con el radio de superficie y
     // la elevación común; sin tinte de carrera ni filete. Margen lateral
-    // propio: el padre no aporta padding.
+    // propio: el padre no aporta padding. En ventanas anchas, centrada y con
+    // ancho máximo.
     ElevatedCard(
         shape = RoundedCornerShape(CCRadius.Surface),
         colors = CardDefaults.elevatedCardColors(containerColor = bannerBackground),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = CC_CARD_ELEVATION),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = AdaptiveLayoutPolicy.HEADER_STRIP_MAX_DP.dp)
+            .fillMaxWidth(),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalPager(

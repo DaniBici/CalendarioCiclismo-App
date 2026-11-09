@@ -16,7 +16,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { createCxDataRideClient } from './cx-dataride-results.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => {
@@ -109,7 +109,7 @@ async function main() {
   if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
   const { Client } = await import('pg');
   const client = new Client({ connectionString: databaseUrl(),
-    ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false } });
+    ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   await client.connect();
   const dataRide = createCxDataRideClient();
   const summary = { dryRun: DRY_RUN, candidates: 0, linked: [], skipped: [] };

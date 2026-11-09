@@ -308,8 +308,9 @@ struct TodayView: View {
     }
 
     private var todayLogo: some View {
-        // Con el conmutador «CX | Ruta», solo los símbolos.
-        CCHeaderBrandView(showsTitle: onSelectCyclocross == nil)
+        // Con el conmutador «CX | Ruta», solo los símbolos salvo en ancho
+        // regular, donde caben la firma y el conmutador.
+        CCHeaderBrandView(showsTitle: onSelectCyclocross == nil || horizontalSizeClass == .regular)
             .contentShape(Rectangle())
             .onTapGesture {
                 Haptics.play(.navigation)
@@ -456,6 +457,9 @@ struct TodayView: View {
             .accessibilityIdentifier(AccessibilityID.nextDayButton)
             .accessibilityInputLabels([localeService.t("Día siguiente", "Next day"), localeService.t("Siguiente", "Next"), localeService.t("Mañana", "Tomorrow")])
         }
+        // En ventanas anchas, los siete días juntos y centrados bajo el cintillo.
+        .frame(maxWidth: AdaptiveLayoutPolicy.headerStripMaxWidth)
+        .frame(maxWidth: .infinity)
         .foregroundStyle(Color.accentColor)
         .background(AppTheme.headerBackground)
     }
@@ -630,15 +634,18 @@ struct TodayView: View {
                         raceItemView(item: row.items[0])
                             .frame(maxWidth: .infinity, alignment: .top)
                     } else {
+                        // Misma altura para las tarjetas de la fila: la fila
+                        // toma el alto de la más alta.
                         HStack(alignment: .top, spacing: 8) {
                             ForEach(row.items) { item in
                                 raceItemView(item: item)
-                                    .frame(maxWidth: .infinity, alignment: .top)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             }
                             if row.items.count < columns {
-                                Color.clear.frame(maxWidth: .infinity)
+                                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
                             }
                         }
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

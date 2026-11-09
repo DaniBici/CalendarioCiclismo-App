@@ -50,6 +50,10 @@ final class NotificationManager: NSObject {
         case cxRaceSlug(String, anchor: String?)
         // Página de serie web: /ciclocross/torneos/<slug>/ y /en/cyclocross/series/<slug>.
         case cxTournamentSlug(String)
+        // Enlace universal de carretera: /competicion/<slug>/ y /jornada/<slug>/ (`slug`)
+        // o /en/race/<slug>/ y /en/stage/<slug>/ (`slugEn`).
+        case raceSlug(String, english: Bool)
+        case stageSlug(String, english: Bool)
         /// Resultados nativos de una jornada (copa del widget): etapa nil = final
         /// o última clasificación; sufijo A/B de doble sector.
         case results(raceId: String, stageNumber: Int?, stageSuffix: String?)
@@ -129,11 +133,13 @@ final class NotificationManager: NSObject {
         ///   - `calendariociclismo://results/{raceId}/{etapa}` → `.results(...)`
         ///   - `calendariociclismo://tab/{name}`      → `.tab(index)`
         ///   - `calendariociclismo://{tabName}`       → `.tab(index)` (forma corta)
+        ///   - `https://calendariociclismo.app/...` (y `www.`): enlaces universales,
+        ///     con las rutas de `/.well-known/apple-app-site-association`.
         ///
         /// Se reconstruye la forma que espera `parse(_:)` para reutilizar el
         /// parser existente y mantener una única fuente de verdad.
         static func fromURL(_ url: URL) -> DeepLink? {
-            if url.scheme == "https" { return fromCxWebURL(url) }
+            if url.scheme == "https" { return fromWebURL(url) }
             guard url.scheme == "calendariociclismo" else { return nil }
             // `URL.host` es el primer segmento tras `://`; el resto va en
             // `pathComponents` (el primero es siempre "/").
@@ -181,18 +187,36 @@ final class NotificationManager: NSObject {
             default: return fragment
             }
         }
-        private static func fromCxWebURL(_ url: URL) -> DeepLink? {
-            guard url.host?.lowercased() == "calendariociclismo.app", url.user == nil,
-                  url.password == nil, url.port == nil || url.port == 443 else { return nil }
+        private static func validWebSlug(_ value: String) -> Bool {
+            value.range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil
+        }
+        /// Enlace universal: portada, Calendario (también las páginas antiguas de
+        /// mes y temporada), competición y jornada por slug, y ciclocross. Las
+        /// demás rutas no figuran en la asociación y las abre el navegador.
+        private static func fromWebURL(_ url: URL) -> DeepLink? {
+            guard let host = url.host?.lowercased(),
+                  host == "calendariociclismo.app" || host == "www.calendariociclismo.app",
+                  url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return nil }
             let segments = url.pathComponents.filter { $0 != "/" }
             let english = segments.first == "en"
-            let prefix = english ? ["en", "cyclocross"] : ["ciclocross"]
-            guard Array(segments.prefix(prefix.count)) == prefix else { return nil }
-            let rest = Array(segments.dropFirst(prefix.count))
+            let path = english ? Array(segments.dropFirst()) : segments
+            if path.isEmpty { return parse("today") }
+            if path.count == 1, path[0] == (english ? "calendar" : "calendario")
+                || (!english && (path[0] == "mes.html" || path[0] == "temporada.html")) {
+                return parse("calendar")
+            }
+            if path.count == 2, validWebSlug(path[1]) {
+                if path[0] == (english ? "race" : "competicion") { return .raceSlug(path[1], english: english) }
+                if path[0] == (english ? "stage" : "jornada") { return .stageSlug(path[1], english: english) }
+            }
+            return fromCxWebPath(path, english: english, url: url)
+        }
+        private static func fromCxWebPath(_ path: [String], english: Bool, url: URL) -> DeepLink? {
+            guard path.first == (english ? "cyclocross" : "ciclocross") else { return nil }
+            let rest = Array(path.dropFirst())
             if rest.isEmpty { return .tab(3) }
             // Página de serie: torneos/ en ES, series/ en EN.
-            if rest.count == 2, rest[0] == (english ? "series" : "torneos"),
-               rest[1].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil {
+            if rest.count == 2, rest[0] == (english ? "series" : "torneos"), validWebSlug(rest[1]) {
                 return .cxTournamentSlug(rest[1])
             }
             let section: String?
@@ -203,8 +227,7 @@ final class NotificationManager: NSObject {
             default: return nil
             }
             let anchor = cxWebAnchor(section: section, fragment: url.fragment)
-            guard rest[0].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil,
-                  anchor == nil || validCxAnchor(anchor!) else { return nil }
+            guard validWebSlug(rest[0]), anchor == nil || validCxAnchor(anchor!) else { return nil }
             return .cxRaceSlug(rest[0], anchor: anchor)
         }
     }

@@ -668,10 +668,11 @@ private struct MonthScheduleRaceRow: View {
         !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
     }
 
-    /// Descanso y jornada sin información: se atenúa lo decorativo (logo,
-    /// bandera, chevron) y el texto conserva su color.
+    /// Descanso: se atenúa lo decorativo (logo, bandera, chevron) y el texto
+    /// conserva su color. La jornada sin información (placeholder) no se
+    /// atenúa: misma opacidad que el resto de fichas.
     private var dimsDecoration: Bool {
-        raceDay.isRestDay || raceDay.editorialStatus == "placeholder"
+        raceDay.isRestDay
     }
 
     /// Tipo CRI/CRE: la misma etiqueta de color que en Hoy.
@@ -683,7 +684,7 @@ private struct MonthScheduleRaceRow: View {
     var body: some View {
         CCCard {
             HStack(spacing: 10) {
-                RaceLogo(race?.logoUrl, size: 28)
+                RaceLogo(race?.logoUrl, size: 28, placeholder: race != nil && race?.uciCategory != "CN")
                     .opacity(dimsDecoration ? 0.65 : 1)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -744,11 +745,10 @@ private struct MonthScheduleRaceRow: View {
         .accessibilityLabel(scheduleRaceAccessibilityLabel)
     }
 
-    /// Nombre completo (pasa a otra línea en lugar de cortarse), con el
-    /// símbolo femenino y el aviso de descanso o cancelación a continuación.
+    /// Nombre en una línea, con puntos suspensivos si no cabe; el símbolo
+    /// femenino y el aviso de descanso o cancelación quedan siempre visibles
+    /// a continuación.
     private var nameLine: some View {
-        let name = Text(displayRaceName)
-            .foregroundStyle(raceDay.isRestDay ? AppTheme.textMuted : AppTheme.textPrimary)
         let female = Text(showFemaleIndicator ? " ♀" : "").foregroundStyle(AppTheme.green)
         let note: Text
         if raceDay.isRestDay {
@@ -758,9 +758,15 @@ private struct MonthScheduleRaceRow: View {
         } else {
             note = Text("")
         }
-        return Text("\(name)\(female)\(note)")
-            .ccFont(.s14, weight: .medium)
-            .fixedSize(horizontal: false, vertical: true)
+        return HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(displayRaceName)
+                .foregroundStyle(raceDay.isRestDay ? AppTheme.textMuted : AppTheme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Text("\(female)\(note)")
+                .fixedSize()
+        }
+        .ccFont(.s14, weight: .medium)
     }
 
     private var scheduleRaceAccessibilityLabel: String {

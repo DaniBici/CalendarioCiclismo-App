@@ -1,6 +1,8 @@
 import { cxDateInSeason } from '../../js/cx/season.js';
 import { cxCategoryTiming } from '../../js/cx/timing.js';
 import { smartwebIndexUrl, smartwebLabel } from './smartweb-cx-fetch.mjs';
+import { fotofinissLabel, fotofinissResultsUrl } from './fotofiniss-cx-fetch.mjs';
+import { raceresultEventUrl, raceresultKey } from './raceresult-cx-fetch.mjs';
 
 const CATEGORIES=new Set(['ME','WE','MU','WU','MJ','WJ']);
 const MADRID_DATE=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -25,8 +27,8 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
     &&cxDateInSeason(race.seasonKey,manga.dateKey||race.dateKey);}catch{}
   if(!validSeason||race.editorialStatus!=='published'||race.isCancelled||manga.isCancelled||!CATEGORIES.has(manga.category)
     ||manga.raceId!==race.id||(manga.dateKey||race.dateKey)<race.dateKey||(manga.dateKey||race.dateKey)>(race.endDateKey||race.dateKey))return skip('Carrera/manga fuera de alcance');
-  const acnLink=link?.provider==='acn',wiclaxLink=link?.provider==='wiclax',kbwbLink=link?.provider==='kbwb',smartwebLink=link?.provider==='smartweb',golazoLink=link?.provider==='golazo',zone4Link=link?.provider==='zone4';
-  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':wiclaxLink?'Enlace Wiclax CX inválido':kbwbLink?'Enlace KBWB CX inválido':smartwebLink?'Enlace smartweb CX inválido':golazoLink?'Enlace Golazo CX inválido':zone4Link?'Enlace Zone4 CX inválido':'Enlace DataRide CX inválido',true);
+  const acnLink=link?.provider==='acn',wiclaxLink=link?.provider==='wiclax',kbwbLink=link?.provider==='kbwb',smartwebLink=link?.provider==='smartweb',golazoLink=link?.provider==='golazo',zone4Link=link?.provider==='zone4',chronoraceXcoLink=link?.provider==='chronorace_xco',fotofinissLink=link?.provider==='fotofiniss',raceresultLink=link?.provider==='raceresult';
+  if(!link||link.raceId!==race.id)return skip(acnLink?'Enlace ACN CX inválido':wiclaxLink?'Enlace Wiclax CX inválido':kbwbLink?'Enlace KBWB CX inválido':smartwebLink?'Enlace smartweb CX inválido':golazoLink?'Enlace Golazo CX inválido':zone4Link?'Enlace Zone4 CX inválido':chronoraceXcoLink?'Enlace Chronorace xco CX inválido':fotofinissLink?'Enlace fotofiniss CX inválido':raceresultLink?'Enlace RaceResult CX inválido':'Enlace DataRide CX inválido',true);
   if(acnLink){
     if(!/^[1-9]\d{5,19}$/.test(String(link.eventId??''))||!link.ctx)return skip('Enlace ACN CX inválido',true);
   }else if(wiclaxLink){
@@ -44,6 +46,16 @@ export function cxSyncDecision(race,manga,link,{now=new Date(),manual=false}={})
   }else if(zone4Link){
     const keys=Object.keys(link.categoryKeys||{});
     if(!keys.length||keys.some(key=>!/^\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}\/\S.*$/.test(key)))return skip('Enlace Zone4 CX inválido',true);
+  }else if(chronoraceXcoLink){
+    if(!/^\d{8}_[a-z0-9]{2,20}$/.test(String(link.ctx??''))||Object.keys(link.categoryKeys||{}).length)return skip('Enlace Chronorace xco CX inválido',true);
+  }else if(fotofinissLink){
+    let resultsUrl=null;try{resultsUrl=fotofinissResultsUrl(link.sourceUrl);}catch{}
+    const keys=Object.keys(link.categoryKeys||{});
+    if(resultsUrl!==link.sourceUrl||!keys.length||keys.some(key=>key!==fotofinissLabel(key)))return skip('Enlace fotofiniss CX inválido',true);
+  }else if(raceresultLink){
+    let eventUrl=null;try{eventUrl=raceresultEventUrl(link.sourceUrl);}catch{}
+    const keys=Object.keys(link.categoryKeys||{});const validKey=key=>{try{return raceresultKey(key).key===key;}catch{return false;}};
+    if(eventUrl!==link.sourceUrl||!keys.length||!keys.every(validKey))return skip('Enlace RaceResult CX inválido',true);
   }else if(link.disciplineId!==3||!Number.isSafeInteger(link.competitionId)||link.competitionId<=0
     ||!Number.isSafeInteger(link.seasonId)||link.seasonId<=0)return skip('Enlace DataRide CX inválido',true);
   if(manga.resultsLockedAt)return skip('Resultados protegidos por revisión administrativa');

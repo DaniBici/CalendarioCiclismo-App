@@ -816,6 +816,7 @@ private fun RaceCard(
             ) {
                 RaceIdentityColumn(
                     logoUrl = race?.logoUrl,
+                    placeholder = race != null && race.uciCategory != "CN",
                     countryCode = if (race?.hideFlag != true || rd.countryCode != null) {
                         rd.countryCode ?: race?.countryCode
                     } else null,
@@ -937,6 +938,7 @@ private fun RaceCard(
                         waypoints = rd.profileWaypoints ?: emptyList(),
                         primaryType = rd.primaryType,
                         fixedProgress = RaceLogic.profileProgress(rd, hasInhouseResults = isFinishedMode, now = now),
+                        timeHatch = RaceLogic.profileUsesTimeHatch(rd, hasInhouseResults = isFinishedMode),
                     )
                 }
             }
@@ -1064,15 +1066,16 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
 /** Columna izquierda: logotipo en caja de lista con la bandera debajo; sin
  *  logotipo, solo la bandera (`cardLogoHtml` de la web). */
 @Composable
-private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?) {
-    val hasLogo = !logoUrl.isNullOrBlank()
+private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?, placeholder: Boolean = false) {
+    // Sin logo, el hueco de la marca salvo en los Campeonatos Nacionales.
+    val hasLogo = !logoUrl.isNullOrBlank() || placeholder
     if (!hasLogo && countryCode == null) return
     Column(
         modifier = Modifier.width(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (hasLogo) RaceLogo(logoUrl, size = 32.dp)
+        if (hasLogo) RaceLogo(logoUrl, size = 32.dp, placeholder = placeholder)
         if (countryCode != null) CountryFlag(countryCode = countryCode)
     }
 }

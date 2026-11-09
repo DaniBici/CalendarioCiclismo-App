@@ -1,0 +1,41 @@
+[Unit]
+Description=Calendario Ciclismo - publicación de la web por página
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/publicador-vps.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=cc-publicador
+Group=cc-publicador
+WorkingDirectory=/var/lib/cc-publicador/fuente
+EnvironmentFile=/etc/calendario-ciclismo/publicador.env
+Environment=CC_GZ=1
+Environment=CC_DATOS_MISMO_ORIGEN=1
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+ExecStart=/usr/bin/node --no-warnings tools/publicacion/servicio.mjs --trabajo /var/lib/cc-publicador/trabajo --salida /var/lib/cc-publicador/arbol --base /var/lib/cc-publicador/base --fuente /var/lib/cc-publicador/fuente
+Restart=always
+RestartSec=10
+# La primera pasada lee y pinta toda la web: unos 4 minutos.
+TimeoutStartSec=15min
+TimeoutStopSec=30s
+WatchdogSec=10min
+# La biblioteca y los workers van primero.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=150%
+CPUWeight=20
+MemoryHigh=2600M
+MemoryMax=3G
+TasksMax=128
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/cc-publicador
+
+[Install]
+WantedBy=multi-user.target

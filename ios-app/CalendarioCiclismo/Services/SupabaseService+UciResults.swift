@@ -600,6 +600,24 @@ extension SupabaseService {
         }
     }
 
+    /// Último día con clasificaciones del feed hasta `toKey` (incluido), con
+    /// los filtros de `raceUciStagesFeed`. Ancla la ventana inicial de
+    /// Últimos resultados (`ResultsFeedLogic.initialFromKey`).
+    func latestResultsFeedDate(onOrBefore toKey: String) async throws -> String? {
+        struct Row: Decodable { let stageDate: String? }
+        let rows: [Row] = try await client.from("race_uci_stages")
+            .select("stageDate")
+            .eq("keepForWeb", value: true)
+            .gt("rowCount", value: 0)
+            .in("classKind", values: ["stage", "gc"])
+            .lte("stageDate", value: toKey)
+            .order("stageDate", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.stageDate
+    }
+
     /// Jornadas publicadas del rango del feed (km/desnivel/tipos/hora de las
     /// filas in-house, vía raceDayId). Del perfil solo se pide el desnivel
     /// positivo (`raceDayFeedColumns`), que es lo único que muestra la fila.

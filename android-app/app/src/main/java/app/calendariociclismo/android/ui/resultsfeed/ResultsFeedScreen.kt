@@ -121,7 +121,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
 /** Ventana del feed: 14 días por página (espejo de WINDOW_DAYS en
- *  resultados-feed.js); "Cargar más" amplía hacia atrás hasta SEASON_START. */
+ *  resultados-feed.js), contados desde el último día con resultados;
+ *  "Cargar más" amplía hacia atrás hasta SEASON_START. */
 private const val WINDOW_DAYS = 14
 private const val SEASON_START = "2026-01-01"
 
@@ -165,6 +166,8 @@ fun ResultsFeedScreen(navController: NavController) {
         val initial = DateFormatting.dayOffset(todayKey, -(WINDOW_DAYS - 1)) ?: todayKey
         mutableStateOf(maxOf(initial, SEASON_START))
     }
+    // La ventana inicial ya cuenta desde el último día con resultados.
+    var windowAnchored by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf<FeedState>(FeedState.Loading) }
     var loadingMore by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -196,7 +199,25 @@ fun ResultsFeedScreen(navController: NavController) {
         if (state !is FeedState.Ready) state = FeedState.Loading
         try {
             // Fecha de hoy en cada lectura: la pantalla puede cruzar la medianoche.
-            val entries = app.repository.loadResultsFeedWindow(fromKey, DateFormatting.todayKey())
+            val today = DateFormatting.todayKey()
+            // Primera carga: 14 días contados desde el último día con
+            // resultados, no desde hoy, para que un periodo sin carreras no
+            // deje la lista vacía. Si la consulta falla, la ventana cuenta
+            // desde hoy y la siguiente carga lo reintenta. Nunca la acorta.
+            if (!windowAnchored) {
+                val last = try {
+                    app.repository.latestResultsFeedDate(today).also { windowAnchored = true }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    null
+                }
+                if (last != null) {
+                    val anchored = DateFormatting.dayOffset(minOf(last, today), -(WINDOW_DAYS - 1))
+                    if (anchored != null) fromKey = minOf(fromKey, maxOf(anchored, SEASON_START))
+                }
+            }
+            val entries = app.repository.loadResultsFeedWindow(fromKey, today)
             currentCoroutineContext().ensureActive()
             // Commit único: el repositorio ya entrega ganadores y líderes resueltos.
             state = FeedState.Ready(entries)
@@ -289,7 +310,8 @@ fun ResultsFeedScreen(navController: NavController) {
 
     Scaffold(
         topBar = {
-            // Título nativo de la sección, como Ciclocross y Fichajes.
+            // Título nativo de la sección, como Ciclocross y Fichajes:
+            // «Ránking» con el ránking UCI, que no es un resultado.
             TopAppBar(
                 title = {
                     Row(
@@ -298,7 +320,9 @@ fun ResultsFeedScreen(navController: NavController) {
                     ) {
                         CCHeaderMark()
                         Text(
-                            text = stringResource(R.string.tab_results),
+                            text = stringResource(
+                                if (activeSection == ResultsSection.RANKING) R.string.uci_ranking_title else R.string.tab_results
+                            ),
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                         )
@@ -857,13 +881,14 @@ private fun FeedEntryRow(
     val flagCc = if (!race.hideFlag || entry.rd?.countryCode != null) entry.rd?.countryCode ?: race.countryCode else null
     FeedRowFrame(
         logoUrl = race.logoUrl,
+        logoPlaceholder = race.uciCategory != "CN",
         flagCountryCode = flagCc,
         alignTop = entry.isFeatured,
         onClick = onClick,
         modifier = modifier,
     ) {
-        // Nombre completo con el peso de los títulos de Hoy (16
-        // seminegrita): pasa a una segunda línea en lugar de cortarse.
+        // Nombre con el peso de los títulos de Hoy (16 seminegrita), en una
+        // línea con puntos suspensivos; el símbolo femenino queda visible.
         Row(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -873,6 +898,8 @@ private fun FeedEntryRow(
                 modifier = Modifier.weight(1f, fill = false),
                 style = CCText.S16,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (RaceLogic.shouldShowFemaleIndicator(race)) {
                 Text(
@@ -989,6 +1016,8 @@ internal fun FeedDayHeader(date: String, isFirst: Boolean) {
 @Composable
 internal fun FeedRowFrame(
     logoUrl: String?,
+    /** Sin logo, el hueco de la marca (no en los Campeonatos Nacionales). */
+    logoPlaceholder: Boolean = false,
     flagCountryCode: String?,
     alignTop: Boolean,
     onClick: () -> Unit,
@@ -1008,12 +1037,16 @@ internal fun FeedRowFrame(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Columna izquierda: logo de carrera + bandera debajo (como la web).
+            // Columna del logo (36 dp) aunque no lo haya (Nacionales): el nombre
+            // arranca a la misma altura en todas las filas.
             Column(
-                modifier = Modifier.align(if (alignTop) Alignment.Top else Alignment.CenterVertically),
+                modifier = Modifier
+                    .width(36.dp)
+                    .align(if (alignTop) Alignment.Top else Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                RaceLogo(url = logoUrl, size = 36.dp)
+                RaceLogo(url = logoUrl, size = 36.dp, placeholder = logoPlaceholder)
                 if (flagCountryCode != null) CountryFlag(countryCode = flagCountryCode)
             }
 

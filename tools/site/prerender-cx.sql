@@ -45,7 +45,7 @@ select
   (select coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name, 'nameEn', r."nameEn", 'slug', r.slug,
             'slugEn', r."slugEn", 'seasonKey', r."seasonKey", 'dateKey', r."dateKey", 'endDateKey', r."endDateKey",
             'class', r.class, 'countryCode', r."countryCode", 'venue', r.venue, 'tournamentId', r."tournamentId",
-            'colorHex', r."colorHex", 'logoUrl', r."logoUrl", 'isCancelled', r."isCancelled", 'timezone', r.timezone,
+            'colorHex', r."colorHex", 'logoUrl', r."logoUrl", 'isCancelled', r."isCancelled", 'timezone', r.timezone, 'tvStatus', r."tvStatus",
             'assets', coalesce((select jsonb_agg(jsonb_build_object('type', a.type, 'url', a.url) order by a.id)
                                   from assets a where a."cxRaceId" = r.id), '[]'::jsonb),
             'cx_tournaments', (select jsonb_build_object('id', t.id, 'name', t.name, 'nameEn', t."nameEn", 'slug', t.slug,

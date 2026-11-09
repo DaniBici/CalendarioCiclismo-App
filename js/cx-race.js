@@ -62,19 +62,22 @@ try {
   const model=cxRaceModel(race,{broadcasts,videos,inscritos,results,teamRows,rounds,docAssets,states,standings,tournamentRaceRows});
   const {categories,multiDate}=model;
   const currentHash=()=>{try{return decodeURIComponent(location.hash.slice(1));}catch{return '';}};
-  const initial=cxRaceSelection(model,{pathname:location.pathname,search:location.search,hash:currentHash()});
   // Página generada en el build: cada hueco con la misma huella se conserva
-  // (esqueleto, sección de la URL, panel de la categoría visible y columna
-  // lateral) y el resto se pinta.
+  // (esqueleto, sección de la URL, sus paneles de categoría y columna
+  // lateral) y el resto se pinta. El HTML no conoce la consulta ni el
+  // fragmento: se compara con la selección de la ruta, y selectSection()
+  // aplica la de la URL, que el script en línea ya mostró antes del primer
+  // pintado.
   if(root.dataset.prerendered!=null) {
-    applyPrerenderedHtml(root,cxRaceSkeletonHtml(model,initial));
-    for(const node of root.querySelectorAll('[data-cx-section]'))applyPrerenderedHtml(node,cxRaceSectionHtml(model,node.dataset.cxSection,initial));
+    const served=cxRaceSelection(model,{pathname:location.pathname});
+    applyPrerenderedHtml(root,cxRaceSkeletonHtml(model,served));
+    for(const node of root.querySelectorAll('[data-cx-section]'))applyPrerenderedHtml(node,cxRaceSectionHtml(model,node.dataset.cxSection,served));
     for(const [key,attribute] of Object.entries(CX_PANEL_ATTRIBUTES)) {
       for(const node of root.querySelectorAll(`[${attribute}]`))applyPrerenderedHtml(node,cxRacePanelHtml(model,key,node.getAttribute(attribute)));
     }
-    for(const node of root.querySelectorAll('[data-cx-context]'))applyPrerenderedHtml(node,cxRaceContextHtml(model,initial));
+    for(const node of root.querySelectorAll('[data-cx-context]'))applyPrerenderedHtml(node,cxRaceContextHtml(model,served));
   } else {
-    root.innerHTML=cxRacePageHtml(model,initial);
+    root.innerHTML=cxRacePageHtml(model,cxRaceSelection(model,{pathname:location.pathname,search:location.search,hash:currentHash()}));
   }
   cxWireStandingsScroll(root);
   // Columna lateral sin pintar hasta que el mapa tiene tamaño: la imagen no

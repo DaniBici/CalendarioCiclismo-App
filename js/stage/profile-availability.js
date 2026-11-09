@@ -12,3 +12,20 @@ export function hasRenderableElevationProfile(rd) {
     && Array.isArray(profile.points)
     && profile.points.length >= 2);
 }
+
+// La jornada tiene algo que enseñar en el modal de datos.
+export function hasModalData(rd) {
+  if (!rd) return false;
+  return !!(
+    rd.startLocation ||
+    rd.distanceKm ||
+    rd.primaryType ||
+    rd.neutralStartTimeUtc ||
+    rd.estimatedFinishTimeUtc ||
+    rd.hasAssets ||
+    (rd.tvStatus && rd.tvStatus !== 'none') ||
+    hasRenderableElevationProfile(rd) ||
+    rd.description ||
+    rd.notes
+  );
+}

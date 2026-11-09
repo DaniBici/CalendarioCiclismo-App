@@ -19,6 +19,9 @@ struct SettingsView: View {
     /// en `onAppear` y persistido en `UserDefaults` a través del propio servicio.
     @State private var hapticsEnabled: Bool = Haptics.isEnabled
 
+    /// «iPhone» o «iPad», para los textos que nombran el dispositivo.
+    private static let deviceName = UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+
     private let privacyPolicyURL = URL(string: "https://www.calendariociclismo.app/privacidad.html")
         ?? URL(string: "https://calendariociclismo.app")!
     private var supportStoryURL: URL {
@@ -56,6 +59,9 @@ struct SettingsView: View {
 
             }
             .padding(.bottom, 24)
+            // En ventanas anchas, columna de lectura centrada.
+            .frame(maxWidth: AdaptiveLayoutPolicy.readingWidth)
+            .frame(maxWidth: .infinity)
         }
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t("Ajustes", "Settings"))
@@ -119,7 +125,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader(icon: "calendar.badge.plus", title: localeService.t("Calendario iCal", "iCal Calendar"))
 
-            Text(localeService.t("Añade las carreras directamente a la app Calendario de tu iPhone. Se actualiza automáticamente.", "Add races directly to your iPhone Calendar app. Updates automatically."))
+            Text(localeService.t("Añade las carreras directamente a la app Calendario de tu \(Self.deviceName). Se actualiza automáticamente.", "Add races directly to your \(Self.deviceName) Calendar app. Updates automatically."))
                 .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)

@@ -9,6 +9,127 @@ struct TransfersTeamRoute: Hashable, Identifiable {
 
 private enum TransfersFeed { case signings, renewals }
 
+/// Elemento de la columna lateral de `TransfersSplitView`.
+enum TransfersSidebarItem: Hashable {
+    case market
+    case team(String)
+}
+
+/// Fichajes en iPad (ancho regular): en la columna lateral, «Movimientos» y
+/// los equipos por división; en el detalle, los paneles de Fichajes y
+/// Renovaciones o la página del equipo elegido. En ancho compacto la pestaña
+/// usa `TransfersView` en una pila, como en el iPhone.
+struct TransfersSplitView: View {
+    @Binding var deepLinkedTeamId: String?
+    @State private var data: TransfersLogic.MarketData?
+    @State private var loadFailed = false
+    @State private var selection: TransfersSidebarItem? = .market
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var localeService = LocaleService.shared
+
+    private var title: String {
+        localeService.t(
+            "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
+            "\(String(TransfersLogic.marketSeason)) Transfer Market"
+        )
+    }
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebar
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
+        } detail: {
+            NavigationStack {
+                switch selection {
+                case .team(let teamId):
+                    TransfersTeamView(teamId: teamId)
+                default:
+                    TransfersView(
+                        deepLinkedTeamId: .constant(nil),
+                        inSplitDetail: true,
+                        onOpenTeam: { selection = .team($0) }
+                    )
+                }
+            }
+            // Cada selección parte de una pila nueva.
+            .id(selection)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .task { await load() }
+        .onAppear(perform: openDeepLinkedTeamIfNeeded)
+        .onChange(of: deepLinkedTeamId) { _, _ in openDeepLinkedTeamIfNeeded() }
+        .onChange(of: selection) { _, _ in Haptics.play(.selection) }
+    }
+
+    @ViewBuilder private var sidebar: some View {
+        if let data {
+            List(selection: $selection) {
+                Label(localeService.t("Movimientos", "Moves"), systemImage: "arrow.left.arrow.right")
+                    .tag(TransfersSidebarItem.market)
+                ForEach(TransfersLogic.divisions, id: \.self) { division in
+                    let teams = TransfersLogic.divisionTeams(data.seasons, division: division)
+                    if !teams.isEmpty {
+                        Section(division) {
+                            ForEach(teams, id: \.teamId) { season in
+                                teamRow(season, prev: data.prevSeasonsByTeamId)
+                                    .tag(TransfersSidebarItem.team(season.teamId))
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            // Fondo de la app, como la columna lateral de Resultados.
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background.ignoresSafeArea())
+        } else if loadFailed {
+            ContentUnavailableView {
+                Label(localeService.t("No se pudo cargar el mercado", "Could not load the market"), systemImage: "wifi.slash")
+            } actions: {
+                Button(localeService.t("Reintentar", "Retry")) { Task { await load() } }
+                    .buttonStyle(.bordered)
+            }
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Fila de equipo: franjas de maillot y nombre completo, que pasa a otra
+    /// línea entre palabras.
+    private func teamRow(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
+        HStack(spacing: 8) {
+            if let team = TransfersLogic.stripesTeam(for: season, prev: prev) {
+                TeamColorBands(team: team, width: 14, height: 15)
+            }
+            Text(season.name ?? "")
+                .ccFont(.s14, weight: .medium)
+                .fixedSize(horizontal: false, vertical: true)
+            if season.continuityDoubt == true {
+                Spacer(minLength: 4)
+                DoubtBadge(text: localeService.t("En duda", "TBC"))
+            }
+        }
+    }
+
+    private func load() async {
+        loadFailed = false
+        do {
+            data = try await SupabaseService.shared.loadTransfersMarket(season: TransfersLogic.marketSeason)
+        } catch {
+            if data == nil { loadFailed = true }
+        }
+    }
+
+    private func openDeepLinkedTeamIfNeeded() {
+        guard let teamId = deepLinkedTeamId else { return }
+        deepLinkedTeamId = nil
+        selection = .team(teamId)
+    }
+}
+
 /// Filtro de las pulsaciones que abren un equipo del Mercado. Al bloquear la
 /// pantalla con un dedo sobre la lista, iOS puede completar la pulsación de la
 /// fila en vez de cancelarla, y al desbloquear aparecía un equipo abierto. La
@@ -52,6 +173,11 @@ enum ForegroundTap {
 /// `TransfersLogic` (testeada); aquí solo carga + render.
 struct TransfersView: View {
     @Binding var deepLinkedTeamId: String?
+    /// En la columna de detalle de `TransfersSplitView`: sin rejilla de
+    /// equipos ni marca (los lleva la columna lateral), y el equipo se abre
+    /// en el detalle mediante `onOpenTeam`.
+    var inSplitDetail = false
+    var onOpenTeam: ((String) -> Void)? = nil
     @State private var data: TransfersLogic.MarketData?
     @State private var isLoading = true
     @State private var error: String?
@@ -60,6 +186,7 @@ struct TransfersView: View {
     @State private var teamRoute: TransfersTeamRoute?
     @State private var localeService = LocaleService.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var contentWidth: CGFloat = 0
 
     /// Altura fija de la lista de cada panel en pantallas anchas (22rem web).
     private static let feedHeight: CGFloat = 352
@@ -83,17 +210,19 @@ struct TransfersView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(title)
+        .navigationTitle(inSplitDetail ? localeService.t("Movimientos", "Moves") : title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarLeading) {
-                    CCHeaderMarkView()
-                }
-                .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .topBarLeading) {
-                    CCHeaderMarkView()
+            if !inSplitDetail {
+                if #available(iOS 26, *) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        CCHeaderMarkView()
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        CCHeaderMarkView()
+                    }
                 }
             }
         }
@@ -117,7 +246,11 @@ struct TransfersView: View {
     private func openTeam(_ teamId: String) {
         ForegroundTap.perform {
             Haptics.play(.navigation)
-            teamRoute = TransfersTeamRoute(teamId: teamId)
+            if let onOpenTeam {
+                onOpenTeam(teamId)
+            } else {
+                teamRoute = TransfersTeamRoute(teamId: teamId)
+            }
         }
     }
 
@@ -140,7 +273,10 @@ struct TransfersView: View {
     // MARK: - Lista principal
 
     private func marketList(_ data: TransfersLogic.MarketData) -> some View {
+        // Paneles en paralelo con ancho regular y sitio para dos columnas
+        // (sin medir aún, basta la size class).
         let wide = horizontalSizeClass == .regular
+            && (contentWidth == 0 || contentWidth >= AdaptiveLayoutPolicy.twoColumnThreshold)
         let categoryByTeamId = Dictionary(uniqueKeysWithValues: data.seasons.compactMap { season in
             season.category.map { (season.teamId, $0) }
         })
@@ -163,8 +299,46 @@ struct TransfersView: View {
         let signingsTitle = localeService.t("Fichajes", "Signings")
         let renewalsTitle = localeService.t("Renovaciones", "Renewals")
 
+        // Columna de detalle de la vista dividida: sin rejilla de equipos, los
+        // paneles llegan hasta el borde inferior, bajo la barra de pestañas,
+        // y su lista reserva el alto de la barra para la última fila.
+        if inSplitDetail {
+            return AnyView(GeometryReader { proxy in
+                let bottomInset = proxy.safeAreaInsets.bottom
+                VStack(alignment: .leading, spacing: 0) {
+                    if wide {
+                        HStack(alignment: .top, spacing: 24) {
+                            feedPanel(title: signingsTitle, feed: signingsFeed, data: data, bottomInset: bottomInset)
+                            feedPanel(title: renewalsTitle, feed: renewalsFeed, data: data, bottomInset: bottomInset)
+                        }
+                    } else {
+                        Picker(localeService.t("Movimientos", "Moves"), selection: $activeFeed) {
+                            Text(signingsTitle).tag(TransfersFeed.signings)
+                            Text(renewalsTitle).tag(TransfersFeed.renewals)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.bottom, 12)
+                        feedPanel(
+                            title: nil,
+                            feed: activeFeed == .signings ? signingsFeed : renewalsFeed,
+                            data: data,
+                            bottomInset: bottomInset
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea(.container, edges: .bottom)
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
+            .background(AppTheme.background)
+            .onChange(of: activeFeed) { _, _ in Haptics.play(.selection) })
+        }
+
         // Un único scroll permite que el feed crezca y todos los equipos sigan accesibles.
-        return ScrollView {
+        return AnyView(ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // ── Fichajes y Renovaciones ────────────────────────
                 if wide {
@@ -187,6 +361,7 @@ struct TransfersView: View {
                 }
 
                 // ── Divisiones + equipos ───────────────────────────
+                if !inSplitDetail {
                 sectionTitle(localeService.t(
                     "Equipos \(String(TransfersLogic.marketSeason))",
                     "\(String(TransfersLogic.marketSeason)) Teams"
@@ -201,8 +376,10 @@ struct TransfersView: View {
                 if teams.isEmpty {
                     emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
                 } else {
+                    // En ancho regular, tarjetas de al menos 200 pt: el nombre
+                    // completo cabe en dos líneas sin partir palabras.
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 150, maximum: 300), spacing: 10)],
+                        columns: [GridItem(.adaptive(minimum: wide ? 200 : 150, maximum: 300), spacing: 10)],
                         spacing: 10
                     ) {
                         ForEach(teams, id: \.teamId) { season in
@@ -210,24 +387,29 @@ struct TransfersView: View {
                         }
                     }
                 }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 24)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .background(AppTheme.background)
         .refreshable { await load() }
         .onChange(of: activeFeed) { _, _ in Haptics.play(.selection) }
-        .onChange(of: activeDivision) { _, _ in Haptics.play(.selection) }
+        .onChange(of: activeDivision) { _, _ in Haptics.play(.selection) })
     }
 
     /// Panel de Fichajes o Renovaciones: superficie de tarjeta con filas
     /// separadas por filete y lista de altura fija con desplazamiento propio.
     /// En pantallas anchas lleva título.
+    /// `bottomInset` (solo en la columna de detalle): el panel ocupa el alto
+    /// disponible y la lista reserva ese margen al final.
     private func feedPanel(
         title: String?,
         feed: [RiderTransfer],
-        data: TransfersLogic.MarketData
+        data: TransfersLogic.MarketData,
+        bottomInset: CGFloat? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let title {
@@ -241,9 +423,11 @@ struct TransfersView: View {
             ScrollView {
                 feedRows(feed, data: data)
             }
-            .frame(height: Self.feedHeight)
+            .contentMargins(.bottom, bottomInset ?? 0, for: .scrollContent)
+            .frame(height: bottomInset == nil ? Self.feedHeight : nil)
+            .frame(maxHeight: bottomInset == nil ? nil : .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: bottomInset == nil ? nil : .infinity, alignment: .topLeading)
         .ccCardSurface()
     }
 
@@ -303,11 +487,13 @@ struct TransfersView: View {
                         if let team = TransfersLogic.stripesTeam(for: season, prev: prev) {
                             TeamColorBands(team: team, width: 14, height: 15)
                         }
+                        // Nombre completo, sin truncar: pasa a otra línea
+                        // entre palabras.
                         Text(season.name ?? "")
                             .ccFont(.s14, weight: .semibold)
                             .foregroundStyle(.primary)
                             .multilineTextAlignment(.leading)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if season.continuityDoubt == true {
                         DoubtBadge(text: localeService.t("En duda", "TBC"))

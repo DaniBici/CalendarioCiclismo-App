@@ -28,7 +28,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { ISO2, parseCode } from './bornan-results-fetch.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => { const index = args.indexOf(`--${name}`); return index === -1 ? fallback : args[index + 1]; };
@@ -290,6 +290,7 @@ async function main() {
   const client = new Client({
     connectionString: databaseUrl(env),
     ssl: databaseUrl(env).includes('localhost') ? undefined : { rejectUnauthorized: false },
+    ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
   const summary = { processed: 0, applied: 0, blocked: 0, pending: 0, unchanged: 0, errored: 0, changed: false };

@@ -29,6 +29,8 @@ struct RaceDetailView: View {
     @State private var inhouseByDay: [String: Int?] = [:]
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var listWidth: CGFloat = 0
 
     var body: some View {
         LoadingGate(
@@ -66,6 +68,8 @@ struct RaceDetailView: View {
                     NavigationStack {
                         StartlistView(raceId: race.id, showDismissButton: true)
                     }
+                    // iPad: los inscritos en varias columnas, a tamaño de página.
+                    .presentationSizing(.page)
                 }
                 .safariSheet(url: $safariURL)
                 // Push por valor a la pantalla de resultados in-house (trofeo).
@@ -104,16 +108,39 @@ struct RaceDetailView: View {
     // MARK: - Stages list
 
     @ViewBuilder
+    /// Jornadas en una columna o, en ancho regular, en dos, como Hoy y la
+    /// lista de Competición de la web desde 761 px. Una jornada suelta ocupa
+    /// media fila a la izquierda.
     private func stagesList(race: Race) -> some View {
-        LazyVStack(spacing: 8) {
-            ForEach(viewModel.days) { day in
-                stageRow(day: day, race: race)
+        let columns = AdaptiveLayoutPolicy.feedColumns(
+            width: max(0, listWidth - 32),
+            isRegular: horizontalSizeClass == .regular
+        )
+        let rows = AdaptiveLayoutPolicy.rows(viewModel.days, columns: columns)
+        return LazyVStack(spacing: 8) {
+            ForEach(rows) { row in
+                if columns == 1 || row.spansAllColumns {
+                    stageRow(day: row.items[0], race: race)
+                } else {
+                    // Misma altura para las tarjetas de la fila.
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(row.items) { day in
+                            stageRow(day: day, race: race)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        }
+                        if row.items.count < columns {
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(.horizontal)
         // Separa la primera tarjeta de etapa del encabezado
         // (logo + datos + botones de documentación).
         .padding(.top, 14)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
     }
 
     @ViewBuilder
@@ -160,7 +187,8 @@ struct RaceDetailView: View {
         VStack(spacing: 12) {
             RaceCompetitionIdentity(name: race.localizedName, logoUrl: race.logoUrl, countryCode: race.countryCode,
                 hideFlag: race.hideFlag == true, originalName: race.originalName.flatMap { $0 != race.name ? $0 : nil },
-                showFemale: RaceLogic.shouldShowFemaleIndicator(race))
+                showFemale: RaceLogic.shouldShowFemaleIndicator(race),
+                logoPlaceholder: race.uciCategory != "CN")
 
             HStack(spacing: 8) {
                 RaceCategoryLabel(category: race.uciCategory)

@@ -21,11 +21,10 @@
  * Requiere SUPABASE_ANON_KEY en el entorno o en .env (la clave publishable,
  * la misma que sirve la web; no hace falta la service_role).
  *
- * NOTA sobre optimización: `bundle-logos.yml` además redimensiona a 192 px y
- * comprime con pngquant/oxipng. Aquí NO se hace: requiere binarios de sistema y
- * el objetivo de este script es desbloquear un build local. Los logos pesan algo
- * más, lo que no afecta al funcionamiento. Para el bundle definitivo de una
- * release, lanza el workflow a mano (`workflow_dispatch`).
+ * NOTA sobre optimización: no redimensiona ni comprime (el antiguo
+ * `bundle-logos.yml`, retirado el 2026-11-06, lo hacía con pngquant/oxipng y
+ * binarios de sistema). Los logos pesan algo más, lo que no afecta al
+ * funcionamiento; Xcode Cloud los descarga por su cuenta en `ci_pre_xcodebuild.sh`.
  */
 
 import { createHash } from 'node:crypto';

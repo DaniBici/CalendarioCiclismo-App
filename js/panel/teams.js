@@ -360,6 +360,7 @@ function readTeamSeasonFromForm(team) {
     translations: panelState._season27Row?.translations || {},
     badgeVisible: panelState._season27Row ? panelState._season27Row.badgeVisible !== false : true,
     continuityDoubt: !!panelState._season27Row?.continuityDoubt,
+    prevColorsHidden: !!panelState._season27Row?.prevColorsHidden,
   };
 }
 
@@ -629,6 +630,10 @@ function teamEditorBodyHtml() {
       <label class="panel-check-label u-gap-050 u-fs-3">
         <input type="checkbox" id="ts27-badgeVisible">
         <span>Colores publicados para esta temporada</span>
+      </label>
+      <label class="panel-check-label u-gap-050 u-fs-3">
+        <input type="checkbox" id="ts27-prevColorsHidden">
+        <span>Sin colores hasta confirmar la denominación <span class="u-dim">— con los colores sin publicar, Fichajes no muestra los de la temporada anterior</span></span>
       </label>
       <label class="panel-check-label u-gap-050 u-fs-3">
         <input type="checkbox" id="ts27-continuityDoubt">

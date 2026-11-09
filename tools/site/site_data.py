@@ -282,11 +282,11 @@ def inscritos_stage_chunks(stages, size):
 
 def auxiliares_types(value):
     """Tipos de página del prerender de perfiles, mapas y órdenes de salida
-    según PRERENDER_AUXILIARES: los tres con `es`, los de una lista separada por
+    según PRERENDER_AUXILIARES: los tres con `es` y `all`, los de una lista separada por
     comas (`perfil`, `mapa`, `orden`) o None (off o valor no admitido: sin
     lecturas; el paso falla por su cuenta). Como parseScope() del prerender."""
     value = (value or "off").strip()
-    if value == "es":
+    if value in ("es", "all"):
         return set(AUXILIARES_TYPES)
     types = {item.strip() for item in value.split(",") if item.strip()}
     return types if types and types <= set(AUXILIARES_TYPES) else None
@@ -309,9 +309,9 @@ def orden_scope(days, races):
 
 
 def resultados_active(value):
-    """Si PRERENDER_RESULTADOS pide lecturas: `es` (off o valor no admitido:
-    no; el paso falla por su cuenta)."""
-    return (value or "off").strip() == "es"
+    """Si PRERENDER_RESULTADOS pide lecturas: `es` o `all` (off o valor no
+    admitido: no; el paso falla por su cuenta)."""
+    return (value or "off").strip() in ("es", "all")
 
 
 def madrid_today(now=None):

@@ -16,50 +16,12 @@ import { stageContextHtml } from './stage/context.js';
 import { stageProfileHtml } from './stage/profile.js';
 import { teamStripes, splitStartlistTeams } from './team-appearance.js';
 import { localizedTeamName } from './services/national-team-name.js';
+import { startOrderConversion } from './orden-salida-zona.js';
 
 export const STAGE_TYPE_LABELS = {
   itt: { es: 'CRI', en: 'ITT' },
   ttt: { es: 'CRE', en: 'TTT' },
 };
-
-// Formateadores por zona, creados una vez por página: una CRI pasa por ellos
-// en cada fila.
-function zoneFormatters() {
-  const cache = new Map();
-  return (key, options) => {
-    if (!cache.has(key)) cache.set(key, new Intl.DateTimeFormat(options.locale, options.format));
-    return cache.get(key);
-  };
-}
-
-// Construye un Date que representa el instante en el que los relojes locales
-// de `tz` marcan `dateStr` (YYYY-MM-DD) + `timeStr` (HH:MM[:SS]).
-function raceLocalToInstant(dateStr, timeStr, tz, formatter) {
-  if (!dateStr || !timeStr || !tz) return null;
-  const [Y, M, D] = dateStr.split('-').map(Number);
-  const [h, m, s = 0] = timeStr.split(':').map(Number);
-  if (![Y, M, D, h, m].every(Number.isFinite)) return null;
-  const wantedMs = Date.UTC(Y, M - 1, D, h, m, s);
-  const parts = formatter(`parts|${tz}`, { locale: 'en-US', format: {
-    timeZone: tz, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  } }).formatToParts(new Date(wantedMs));
-  const get = type => Number(parts.find(p => p.type === type).value);
-  const projectedMs = Date.UTC(get('year'), get('month') - 1, get('day'),
-                               get('hour'), get('minute'), get('second'));
-  return new Date(wantedMs - (projectedMs - wantedMs));
-}
-
-// "GMT+9", "GMT-5:30" para una TZ IANA en una fecha concreta (DST-correct).
-function tzOffsetLabel(tz, atDate) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' })
-      .formatToParts(atDate);
-    const raw = parts.find(p => p.type === 'timeZoneName')?.value || '';
-    return raw.replace(/^GMT([+-])0?(\d+):00$/, 'GMT$1$2').replace(/^GMT([+-])0?(\d+):(\d{2})$/, 'GMT$1$2:$3');
-  } catch { return ''; }
-}
 
 /** Aviso de la jornada sin filas de orden de salida. */
 export function ordenSalidaEmptyHtml() {
@@ -135,28 +97,9 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
   // NUNCA es null; `date` es legacy y puede faltar (rompía la conversión → se
   // mostraba la hora cruda sin pasar a la zona del usuario).
   const rdDate = rd.dateKey || rd.date;
-  const formatter = zoneFormatters();
-  // Probe instant: usamos la primera entrada para decidir si las horas coinciden con el usuario.
-  let willConvert = false;
-  if (raceTz && userTz && raceTz !== userTz && entries[0]) {
-    const probe = raceLocalToInstant(rdDate, entries[0].startTime, raceTz, formatter);
-    if (probe) {
-      const raceStr = probe.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: raceTz });
-      const userStr = probe.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: userTz });
-      willConvert = raceStr !== userStr;
-    }
-  }
   const locName = startLoc || (raceTz ? raceTz.split('/').pop().replace(/_/g, ' ') : '');
-  if (willConvert) {
-    const userOffset = tzOffsetLabel(userTz, new Date(rdDate + 'T12:00:00Z'));
-    const raceOffset = tzOffsetLabel(raceTz, new Date(rdDate + 'T12:00:00Z'));
-    html += `
-    <div class="so-tz-note">
-      ${_isEn
-        ? `Times shown in your local time${userOffset ? ` (${userOffset})` : ''}. Race-local time in ${esc(locName)}${raceOffset ? ` (${raceOffset})` : ''} is shown on hover.`
-        : `Horarios en tu hora local${userOffset ? ` (${userOffset})` : ''}. Pasa el ratón para ver la hora oficial en ${esc(locName)}${raceOffset ? ` (${raceOffset})` : ''}.`}
-    </div>`;
-  }
+  const conversion = startOrderConversion({ rdDate, raceTz, userTz, firstTime: entries[0]?.startTime, place: locName, isEn: _isEn });
+  if (conversion) html += conversion.noteHtml();
 
   html += `
     <div class="so-table-wrap">
@@ -187,27 +130,7 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
     const isTt = ttDorsals.has(e.dorsal);
     const isGc = gcDorsals.has(e.dorsal);
 
-    let timeCell = esc(e.startTime);
-    if (willConvert) {
-      const inst = raceLocalToInstant(rdDate, e.startTime, raceTz, formatter);
-      if (inst) {
-        // Como toLocaleTimeString('en-GB', …) con esas opciones.
-        const userStr = formatter('time', { locale: 'en-GB', format: {
-          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: userTz,
-        } }).format(inst);
-        // Si la fecha-en-zona-del-usuario difiere de la fecha de la carrera, anotar +1d / -1d
-        const userDate = formatter('date', { locale: 'en-CA', format: { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' } }).format(inst);
-        let dayHint = '';
-        if (userDate !== rdDate) {
-          const diff = Math.round((Date.parse(userDate) - Date.parse(rdDate)) / 86400000);
-          dayHint = diff > 0 ? `+${diff}d ` : `${diff}d `;
-        }
-        const tip = _isEn
-          ? `${e.startTime} local time in ${locName}`
-          : `${e.startTime} hora local en ${locName}`;
-        timeCell = `<span title="${esc(tip)}">${dayHint ? `<span class="so-day-shift">${dayHint}</span>` : ''}${esc(userStr)}</span>`;
-      }
-    }
+    const timeCell = conversion ? conversion.cellHtml(e.startTime) : esc(e.startTime);
 
     if (isTtt) {
       // CRE: solo hora + equipo (sin dorsal, sin bandera, sin corredor).

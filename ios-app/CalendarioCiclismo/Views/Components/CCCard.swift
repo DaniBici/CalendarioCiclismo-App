@@ -14,9 +14,33 @@ enum AdaptiveLayoutPolicy {
     static let twoColumnThreshold: CGFloat = 620
     static let detailThreshold: CGFloat = 820
     static let spacing: CGFloat = 12
+    /// Ancho máximo del cintillo de destacadas y del selector de días de Hoy:
+    /// en ventanas anchas quedan centrados en lugar de recorrer toda la
+    /// ventana (Android: `HEADER_STRIP_MAX_DP`).
+    static let headerStripMaxWidth: CGFloat = 640
+    /// Ancho máximo de lectura de las pantallas de una columna (Ajustes) en
+    /// ventanas anchas.
+    static let readingWidth: CGFloat = 680
+    /// Ancho máximo del contenido y los botones del onboarding.
+    static let onboardingWidth: CGFloat = 520
+    /// Ancho de contenido mínimo para tres columnas de vídeos: tres
+    /// tarjetas de 260 pt y dos separaciones. Cubre la pantalla interior del
+    /// iPhone Duo en horizontal (951 pt) aunque lleve márgenes de seguridad
+    /// laterales (Android: `VIDEO_THREE_COLUMN_MIN_DP`, medido sobre la
+    /// ventana).
+    static let videoThreeColumnThreshold: CGFloat = 3 * 260 + 2 * spacing
 
     static func feedColumns(width: CGFloat, isRegular: Bool) -> Int {
         isRegular && width >= twoColumnThreshold ? 2 : 1
+    }
+
+    /// Columnas de los vídeos de ciclocross: dos con el ancho de dos columnas
+    /// de Hoy y tres en un contenedor apaisado con ancho para tres tarjetas
+    /// (iPad y pantalla interior del iPhone Duo en horizontal). En vertical,
+    /// dos.
+    static func videoColumns(width: CGFloat, isLandscape: Bool, isRegular: Bool) -> Int {
+        guard feedColumns(width: width, isRegular: isRegular) > 1 else { return 1 }
+        return isLandscape && width >= videoThreeColumnThreshold ? 3 : 2
     }
 
     static func startlistColumns(width: CGFloat, isRegular: Bool) -> Int {

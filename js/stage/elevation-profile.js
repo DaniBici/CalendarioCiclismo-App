@@ -267,7 +267,9 @@ const EP_RANGE_FACTOR = 0.1;
 // Builds the SVG sparkline + indicator badges HTML for a race card.
 // progressFraction ∈ [0,1]: 0 = static (before start), >0 = live progress.
 // Returns null if profile data is insufficient.
-export function buildElevationSparkline(profile, progressFraction, rdId, fillColor, summits = [], waypoints = []) {
+// timeHatch (CRI/CRE en Hoy): el avance es tiempo de la sesión, no distancia;
+// se pinta con rayas diagonales del color de la carrera sobre la silueta gris.
+export function buildElevationSparkline(profile, progressFraction, rdId, fillColor, summits = [], waypoints = [], { timeHatch = false } = {}) {
   if (!profile || !Array.isArray(profile.points) || profile.points.length < 2 || !profile.distance) return null;
   const range   = profile.maxElevation - profile.minElevation;
   const padding = Math.max(EP_MIN_PADDING, EP_MAX_PADDING - range * EP_RANGE_FACTOR);
@@ -291,11 +293,23 @@ export function buildElevationSparkline(profile, progressFraction, rdId, fillCol
   const clipId = `ep-${rdId}`;
   const clipW  = (Math.min(1, Math.max(0, progressFraction)) * 100).toFixed(2);
 
-  const svgHtml = `<svg class="race-card__elevation" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
-    + `<defs><clipPath id="${clipId}"><rect x="0" y="0" width="${clipW}" height="30"/></clipPath></defs>`
-    + `<path d="${pathD}" fill="var(--profile-pending-color, #d1d5db)" fill-opacity="0.55"/>`
-    + `<path d="${pathD}" fill="${profileThemeColor(fillColor)}" fill-opacity="1" clip-path="url(#${clipId})"/>`
-    + `</svg>`;
+  let svgHtml;
+  if (timeHatch) {
+    // El SVG se estira (preserveAspectRatio="none"): un <pattern> deformaría el
+    // ángulo y el grosor de las rayas. El rayado es un fondo CSS en píxeles de
+    // pantalla recortado por la silueta (máscara estirada) y por el avance
+    // (--ep-progress, que actualiza el refresco de Hoy).
+    const mask = `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30' preserveAspectRatio='none'><path d='${pathD}'/></svg>`).replace(/'/g, '%27')}')`;
+    svgHtml = `<svg class="race-card__elevation race-card__elevation--time" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
+      + `<path d="${pathD}" fill="var(--profile-pending-color, #d1d5db)"/></svg>`
+      + `<div class="race-card__ep-hatch" style="--ep-mask:${mask};--ep-hatch-color:${profileThemeColor(fillColor)};--ep-progress:${clipW}%" aria-hidden="true"></div>`;
+  } else {
+    svgHtml = `<svg class="race-card__elevation" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
+      + `<defs><clipPath id="${clipId}"><rect x="0" y="0" width="${clipW}" height="30"/></clipPath></defs>`
+      + `<path d="${pathD}" fill="var(--profile-pending-color, #d1d5db)" fill-opacity="0.55"/>`
+      + `<path d="${pathD}" fill="${profileThemeColor(fillColor)}" fill-opacity="1" clip-path="url(#${clipId})"/>`
+      + `</svg>`;
+  }
 
   const interpAlt = km => {
     if (km <= rawPts[0].km) return rawPts[0].alt;
@@ -387,6 +401,8 @@ export function buildElevationProfileSVG({
   iconsOnly = false,
   hidePointNames = false,
   progressFraction = null,
+  // CRI/CRE: el avance (tiempo de la sesión) con rayas diagonales finas.
+  timeHatch = false,
 } = {}) {
   if (!profile?.points?.length || profile.points.length < 2) {
     const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`
@@ -451,7 +467,12 @@ export function buildElevationProfileSVG({
 
   // ── Solid fill + outline ──────────────────────────────────────────
   const lineColor = profileThemeColor(color);
-  const progressLayer = progressFraction == null ? '' : `<defs><clipPath id="ep-progress-${uid}"><rect x="${ML}" y="${MT}" width="${PW * Math.max(0, Math.min(1, progressFraction))}" height="${PH}"/></clipPath></defs><path d="${fillD}" fill="${lineColor}" fill-opacity=".45" clip-path="url(#ep-progress-${uid})"/>`;
+  // El SVG escala de forma uniforme (viewBox del ancho real): el patrón
+  // conserva el ángulo y el grosor de las rayas.
+  const hatchDef = timeHatch ? `<pattern id="ep-hatch-${uid}" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1" height="4" fill="${lineColor}"/></pattern>` : '';
+  const progressLayer = progressFraction == null ? '' : `<defs><clipPath id="ep-progress-${uid}"><rect x="${ML}" y="${MT}" width="${PW * Math.max(0, Math.min(1, progressFraction))}" height="${PH}"/></clipPath>${hatchDef}</defs>`
+    + (timeHatch ? `<path d="${fillD}" fill="url(#ep-hatch-${uid})" clip-path="url(#ep-progress-${uid})"/>`
+      : `<path d="${fillD}" fill="${lineColor}" fill-opacity=".45" clip-path="url(#ep-progress-${uid})"/>`);
   const profileLayers = `<path d="${fillD}" fill="${lineColor}" fill-opacity="0.42"/>${progressLayer}
     <path d="${lineD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>`;
 

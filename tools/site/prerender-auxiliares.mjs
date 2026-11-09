@@ -2,8 +2,9 @@
 // Paso de build «Prerender de perfiles, mapas y órdenes de salida»
 // (docs/plans/contenido-generado-build.md, fase 3).
 //
-// Escribe en las páginas ES de `_site` /perfil/<slug>/, /mapa/<slug>/ y
-// /orden-salida/<slug>/ el contenido que pintan js/perfil-pub.js,
+// Escribe en las páginas de `_site` /perfil/<slug>/, /mapa/<slug>/ y
+// /orden-salida/<slug>/ (EN: /en/profile/<slugEn>/, /en/route-map/<slugEn>/ y
+// /en/start-order/<slugEn>/) el contenido que pintan js/perfil-pub.js,
 // js/mapa-pub.js y js/orden-salida.js, con el mismo código
 // (js/perfil-mapa-html.js, js/orden-salida-html.js y js/header-html.js)
 // importado en Node con el entorno mínimo de navegador y el núcleo de página
@@ -17,25 +18,26 @@
 //
 // El <head> sigue siendo el de gen_og_pages.py.
 //
-//   node tools/site/prerender-auxiliares.mjs <_site> [--scope off|es|<tipos>] [--data datos.json]
+//   node tools/site/prerender-auxiliares.mjs <_site> [--scope off|es|all|<tipos>] [--data datos.json]
 //
 // - Ámbito: --scope o PRERENDER_AUXILIARES (por defecto off: no hace nada); es:
-//   perfil, mapa y orden de salida; o una lista de tipos separados por comas
-//   (perfil, mapa, orden). Solo páginas ES: las EN llevan horas y repintan en
-//   cualquier zona distinta de la del build.
+//   perfil, mapa y orden de salida en ES; all: también en EN; o una lista de
+//   tipos separados por comas (perfil, mapa, orden), en ES. Las páginas EN se
+//   pintan en GMT con la etiqueta de la zona: un visitante en otra zona repinta
+//   las horas, pero ve el contenido desde el primer momento.
 // - Datos: del volcado compartido del build (PAGES_DATA, site_data.py) si
 //   algún generador lo leyó: jornadas, carreras, documentos y guías y, si su
 //   manifiesto las incluye, las filas del orden de salida y los equipos de la
 //   lista (ORDEN de site_data.py). Lo que falte, por la API pública con
 //   SUPABASE_ANON_KEY y las mismas consultas. En local, --data con el volcado
 //   de prerender-auxiliares.sql.
-// - Un proceso con TZ=Europe/Madrid: horas de Madrid, como un visitante
-//   peninsular (las páginas usan la zona del visitante).
+// - Un proceso por idioma, con la zona de ese idioma (Europe/Madrid, Etc/GMT):
+//   las páginas usan la zona del visitante.
 // - Vuelta atrás por página: sin datos, sin plantilla reconocible o con un
 //   error al pintar, la página queda como la dejó gen_og_pages.py y se cuenta.
 // - Falla (código 1) si genera menos del 99 % de las páginas de algún tipo o
 //   si una página generada incumple validatePage().
-import { spawnSync } from 'node:child_process';
+import { fork } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -50,29 +52,36 @@ import { apiFetch, inFilter } from './prerender-inscritos.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = fileURLToPath(import.meta.url);
-const TIME_ZONE = 'Europe/Madrid';
 const MIN_RATIO = 0.99;
 const API_IN_CHUNK = 100;
 
-// Por tipo: directorio de las páginas ES, contenedor y tamaño máximo sin
-// comprimir (2026-10-22: perfil, máximo de 26 KB; mapa, 22 KB; orden de
+// Por tipo: directorio de las páginas por idioma, contenedor y tamaño máximo
+// sin comprimir (2026-10-22: perfil, máximo de 26 KB; mapa, 22 KB; orden de
 // salida, 98 KB con 184 corredores).
 const TYPES = {
-  perfil: { dir: 'perfil', container: 'perfilEtapaContent', maxBytes: 64 * 1024 },
-  mapa: { dir: 'mapa', container: 'mapaEtapaContent', maxBytes: 64 * 1024 },
-  orden: { dir: 'orden-salida', container: 'startOrderContent', maxBytes: 128 * 1024 },
+  perfil: { dirs: { es: 'perfil', en: 'en/profile' }, container: 'perfilEtapaContent', maxBytes: 64 * 1024 },
+  mapa: { dirs: { es: 'mapa', en: 'en/route-map' }, container: 'mapaEtapaContent', maxBytes: 64 * 1024 },
+  orden: { dirs: { es: 'orden-salida', en: 'en/start-order' }, container: 'startOrderContent', maxBytes: 128 * 1024 },
+};
+const LANGS = {
+  es: { timeZone: 'Europe/Madrid', timeZoneLabel: null },
+  en: { timeZone: 'Etc/GMT', timeZoneLabel: 'GMT' },
 };
 
-/** Tipos del ámbito, en el orden de TYPES: [] con off. Como auxiliares_types() de site_data.py. */
+/**
+ * Tipos e idiomas del ámbito, en el orden de TYPES: sin tipos con off. Los
+ * tipos, como auxiliares_types() de site_data.py.
+ */
 function parseScope(value) {
   const scope = String(value ?? 'off').trim() || 'off';
-  if (scope === 'off') return [];
-  if (scope === 'es') return Object.keys(TYPES);
+  if (scope === 'off') return { types: [], langs: [] };
+  if (scope === 'es') return { types: Object.keys(TYPES), langs: ['es'] };
+  if (scope === 'all') return { types: Object.keys(TYPES), langs: ['es', 'en'] };
   const types = scope.split(',').map(type => type.trim()).filter(Boolean);
   if (!types.length || types.some(type => !Object.hasOwn(TYPES, type))) {
-    throw new Error(`PRERENDER_AUXILIARES no admitido: «${scope}» (off, es o tipos separados por comas: perfil, mapa, orden)`);
+    throw new Error(`PRERENDER_AUXILIARES no admitido: «${scope}» (off, es, all o tipos separados por comas: perfil, mapa, orden)`);
   }
-  return Object.keys(TYPES).filter(type => types.includes(type));
+  return { types: Object.keys(TYPES).filter(type => types.includes(type)), langs: ['es'] };
 }
 
 // ── Datos ──────────────────────────────────────────────────────────────────
@@ -168,7 +177,7 @@ function sharedDataDir() {
 const pick = (row, columns) => Object.fromEntries(columns.split(',').map(column => [column, row[column] ?? null]));
 
 /** Índices por jornada y carrera de los datos (volcado o API). */
-function buildIndex(data) {
+export function buildIndex(data) {
   const rows = name => data[name] || [];
   const guideByRace = new Map();
   for (const [raceId, guides] of groupBy(rows('guides'), row => row.race_days?.raceId)) {
@@ -193,7 +202,7 @@ function buildIndex(data) {
  * aviso que pinta el navegador en ese caso (perfil no visible, jornada sin
  * mapa o sin filas de orden de salida).
  */
-function pageInputs(type, index, dayId) {
+export function pageInputs(type, index, dayId) {
   const row = index.days.get(dayId);
   if (!row) return { reason: 'sin datos' };
   const raceRow = row.raceId ? index.races.get(row.raceId) ?? null : null;
@@ -240,14 +249,14 @@ function validatePage(page, { type, rd, rows, navHrefs, notice = false }) {
  * 'fallback', reason } si queda como está; { status: 'ok', page, errors } si
  * se generó. `render(type, input, header)` devuelve { html, headerInner, rows }.
  */
-function prerenderPage(source, { type, index, render, navHrefs, fingerprint }) {
+function prerenderPage(source, { lang, type, index, render, navHrefs, fingerprint }) {
   const dayId = pageDayId(source);
   if (!dayId) return { status: 'out' };
   const input = pageInputs(type, index, dayId);
   if (input.reason) return { status: 'fallback', reason: input.reason };
   let rendered;
   try {
-    rendered = render(type, input, headerOptions(source, 'es'));
+    rendered = render(type, input, headerOptions(source, lang));
   } catch (error) {
     return { status: 'fallback', reason: `error: ${error.message}` };
   }
@@ -262,11 +271,11 @@ function summarize(results) {
   return { failing, ok: !failing.length && !results.some(result => result.errors.length) };
 }
 
-async function run(site, types, data) {
+async function runLanguage(lang, site, types, data) {
   const started = performance.now();
   // Módulos que leen el entorno al cargarse (idioma, cliente de datos):
   // después de installBrowserEnv. Los importados arriba no lo leen.
-  installBrowserEnv('es', TYPES[types[0]].dir);
+  installBrowserEnv(lang, TYPES[types[0]].dirs[lang]);
   const load = file => import(pathToFileURL(join(ROOT, file)).href);
   const { initI18n } = await load('js/i18n.js');
   const { withRaceTechnicalGuide } = await load('js/shared.js');
@@ -275,24 +284,25 @@ async function run(site, types, data) {
   await initI18n();
   const imported = performance.now();
   const index = buildIndex(data);
+  const { timeZone, timeZoneLabel } = LANGS[lang];
   const render = (type, input, header) => {
     const assets = input.notice ? null : withRaceTechnicalGuide(input.assets, input.guide);
     const html = input.notice ? (type === 'orden' ? ordenSalidaEmptyHtml() : stagePageNoticeHtml(input.notice))
-      : type === 'perfil' ? perfilHtml({ ...input, assets })
-      : type === 'mapa' ? mapaHtml({ ...input, assets })
-        : ordenSalidaHtml({ ...input, assets, userTz: TIME_ZONE }).html;
+      : type === 'perfil' ? perfilHtml({ ...input, assets, timeZoneLabel })
+      : type === 'mapa' ? mapaHtml({ ...input, assets, timeZoneLabel })
+        : ordenSalidaHtml({ ...input, assets, userTz: timeZone }).html;
     return { html, headerInner: headerHtml(header), rows: input.entries?.length };
   };
-  const navHrefs = PRIMARY_NAV_ITEMS.map(key => STRINGS.es[key].href);
+  const navHrefs = PRIMARY_NAV_ITEMS.map(key => STRINGS[lang][key].href);
   const results = [];
   for (const type of types) {
-    const result = { type, pages: 0, scope: 0, generated: 0, written: 0, fallbacks: [], errors: [], bytes: [] };
+    const result = { lang, type, pages: 0, scope: 0, generated: 0, written: 0, fallbacks: [], errors: [], bytes: [] };
     const typeStarted = performance.now();
-    for (const file of pageFiles(site, TYPES[type].dir)) {
+    for (const file of pageFiles(site, TYPES[type].dirs[lang])) {
       result.pages++;
       const source = readFileSync(file, 'utf8');
       const name = relative(site, file);
-      const outcome = prerenderPage(source, { type, index, render, navHrefs, fingerprint: htmlFingerprint });
+      const outcome = prerenderPage(source, { lang, type, index, render, navHrefs, fingerprint: htmlFingerprint });
       if (outcome.status === 'out') continue;
       result.scope++;
       if (outcome.status === 'fallback') {
@@ -313,8 +323,22 @@ async function run(site, types, data) {
   return { results, importMs: imported - started };
 }
 
+function forkLanguage(lang, site, scope, data) {
+  return new Promise((done, fail) => {
+    const child = fork(SCRIPT, ['--worker', lang, site, '--scope', scope], {
+      env: { ...process.env, TZ: LANGS[lang].timeZone },
+      serialization: 'advanced',
+    });
+    let result = null;
+    child.on('message', message => { result = message; });
+    child.on('error', fail);
+    child.on('exit', code => (code === 0 && result ? done(result) : fail(new Error(`El proceso ${lang} terminó con código ${code}`))));
+    child.send(data);
+  });
+}
+
 // ── Línea de órdenes ───────────────────────────────────────────────────────
-// Opciones con valor (--scope, --data) y la ruta del sitio.
+// Opciones con valor (--worker <idioma>, --scope, --data) y la ruta del sitio.
 function parseArgs(argv) {
   const args = { site: null, options: {} };
   for (let at = 0; at < argv.length; at++) {
@@ -328,40 +352,45 @@ const seconds = ms => `${(ms / 1000).toFixed(2)} s`;
 
 async function main(argv) {
   const { site, options } = parseArgs(argv);
-  if (!site) throw new Error('Uso: prerender-auxiliares.mjs <_site> [--scope off|es|perfil,mapa,orden] [--data datos.json]');
-  const types = parseScope(options.scope ?? process.env.PRERENDER_AUXILIARES);
+  if (options.worker) {
+    process.once('message', async data => {
+      const result = await runLanguage(options.worker, site, parseScope(options.scope).types, data);
+      process.send(result, () => process.exit(0));
+    });
+    return 0;
+  }
+  if (!site) throw new Error('Uso: prerender-auxiliares.mjs <_site> [--scope off|es|all|perfil,mapa,orden] [--data datos.json]');
+  const scopeValue = String(options.scope ?? process.env.PRERENDER_AUXILIARES ?? 'off').trim() || 'off';
+  const { types, langs } = parseScope(scopeValue);
   if (!types.length) {
     console.log('Prerender de perfiles, mapas y órdenes de salida desactivado (PRERENDER_AUXILIARES=off)');
     return 0;
-  }
-  // Horas de Madrid en todo el proceso: se relanza con la zona si hace falta.
-  if (process.env.TZ !== TIME_ZONE) {
-    const child = spawnSync(process.execPath, [...process.execArgv, SCRIPT, ...argv], { stdio: 'inherit', env: { ...process.env, TZ: TIME_ZONE } });
-    return child.status ?? 1;
   }
   const started = performance.now();
   const shared = options.data ? null : sharedDataDir();
   const { data, origin } = await loadData(types, { file: options.data, shared, key: process.env.SUPABASE_ANON_KEY });
   const loaded = performance.now();
-  const { results, importMs } = await run(resolve(site), types, data);
+  const outcomes = await Promise.all(langs.map(lang => forkLanguage(lang, resolve(site), scopeValue, data)));
+  const results = outcomes.flatMap(outcome => outcome.results);
+  const importMs = Math.max(...outcomes.map(outcome => outcome.importMs));
   const total = summarize(results);
   const kb = bytes => `${((bytes || 0) / 1024).toFixed(1)} KB`;
   for (const result of results) {
     const sizes = result.bytes.sort((a, b) => a - b);
     const mb = (sizes.reduce((sum, bytes) => sum + bytes, 0) / 1048576).toFixed(1);
-    console.log(`  ${result.type}: ${result.generated}/${result.scope} generadas (${result.written} reescritas, ${result.pages} páginas), `
+    console.log(`  ${result.lang} ${result.type}: ${result.generated}/${result.scope} generadas (${result.written} reescritas, ${result.pages} páginas), `
       + `pintado ${seconds(result.ms)}, mediana ${kb(sizes[Math.floor(sizes.length / 2)])}, máximo ${kb(sizes.at(-1))}, total ${mb} MB`);
     for (const fallback of result.fallbacks.slice(0, 20)) console.log(`  Vuelta atrás: ${fallback}`);
   }
   const generated = results.reduce((sum, result) => sum + result.generated, 0);
   const scope = results.reduce((sum, result) => sum + result.scope, 0);
-  console.log(`Prerender de perfiles, mapas y órdenes de salida (${types.join(', ')}): ${generated}/${scope}, `
+  console.log(`Prerender de perfiles, mapas y órdenes de salida (${langs.join(', ')}: ${types.join(', ')}): ${generated}/${scope}, `
     + `${scope - generated} con vuelta atrás; datos (${origin}) ${seconds(loaded - started)}, `
     + `importación ${seconds(importMs)}, total ${seconds(performance.now() - started)}`);
   const errors = results.flatMap(result => result.errors);
   if (errors.length) console.log(`::error::Prerender de perfiles, mapas y órdenes de salida: ${errors.length} páginas inválidas: ${errors.slice(0, 10).join(' | ')}`);
   for (const result of total.failing) {
-    console.log(`::error::Prerender de ${result.type}: ${result.generated} de ${result.scope} generadas (mínimo ${MIN_RATIO * 100} %)`);
+    console.log(`::error::Prerender de ${result.type} (${result.lang}): ${result.generated} de ${result.scope} generadas (mínimo ${MIN_RATIO * 100} %)`);
   }
   return total.ok ? 0 : 1;
 }

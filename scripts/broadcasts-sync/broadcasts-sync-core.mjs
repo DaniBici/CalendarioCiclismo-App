@@ -434,46 +434,61 @@ export function rtveVueltaExternalEventId(dateKey, stageNumber) {
   return contentHash(`rtve-vuelta-schedule|${dateKey}|${stageNumber}`).slice(0, 32);
 }
 
-export function parseRtveStructuredGuide(html) {
+function* rtveGuideItems(html) {
   const decoded = String(html).replace(/\\"/g, '"');
   const groupRe = /"nombreCanal":"([^"]+)"[\s\S]{0,500}?"items":(\[[\s\S]*?\]),"canal":\{"id":"([^"]+)"/gi;
-  const events = [];
   for (const group of decoded.matchAll(groupRe)) {
     const channel = rtveChannel(group[1]) || rtveChannel(group[3]);
     if (!channel) continue;
-    const items = [...group[2].matchAll(/\{"name":[\s\S]*?"orden":\d+\}/g)].map((match) => match[0]);
-    const stringField = (item, name) => {
-      const value = item.match(new RegExp(`"${name}":"((?:\\\\.|[^"])*)"`))?.[1];
-      return value == null ? null : decodeHtml(value.replace(/\\+r|\\+n/g, ' ').replace(/\\+"/g, '"'));
-    };
-    const numberField = (item, name) => Number(item.match(new RegExp(`"${name}":(?:"(\\d+)"|(\\d+))`))?.slice(1).find(Boolean));
-    for (const item of items) {
-      const begin = stringField(item, 'begintime') || '';
-      if (!/^\d{14}$/.test(begin)) continue;
-      const title = stripHtml(stringField(item, 'original_event_name') || stringField(item, 'name'));
-      const subtitle = stripHtml(stringField(item, 'original_episode_name')
-        || stringField(item, 'episode_name') || stringField(item, 'description'));
-      if (!CYCLING_RE.test(`${title} ${subtitle}`)) continue;
-      const dateKey = `${begin.slice(0, 4)}-${begin.slice(4, 6)}-${begin.slice(6, 8)}`;
-      const localTime = `${begin.slice(8, 10)}:${begin.slice(10, 12)}`;
-      const episodeNumber = numberField(item, 'episode_number');
-      const isLaVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${title} ${subtitle}`));
-      const stageNumber = parseStageNumber(`${title} ${subtitle}`)
-        ?? (isLaVuelta && episodeNumber > 0 ? episodeNumber : null);
-      const titleIdentity = fold(title)
-        .replace(/\b\d{4}\b/g, '')
-        .replace(/\b\d+\s*a?\s*(?:etapa|stage)\b.*$/, '')
-        .trim();
-      const stableKey = `${dateKey}|${stageNumber ?? 'one-day'}|${titleIdentity}`;
-      events.push({
-        source: 'rtve', externalEventId: contentHash(stableKey).slice(0, 32),
-        dateKey, title, subtitle, sourceChannel: channel,
-        channel: canonicalRtveChannel(channel), country: 'ES',
-        sourceUrl: RTVE_SOURCE_URLS[0].url, broadcastUrl: rtveLiveUrl(channel),
-        startTimeUtc: zonedTimeToUtc(dateKey, localTime), localStartTime: localTime,
-        stageNumber,
-      });
+    for (const match of group[2].matchAll(/\{"name":[\s\S]*?"orden":\d+\}/g)) {
+      yield { channel, item: match[0] };
     }
+  }
+}
+
+// La guía es legible si un canal supervisado publica algún programa con hora,
+// sea cual sea su contenido. Distingue una ventana sin ciclismo de un contrato
+// de página modificado.
+export function rtveGuideHasProgramming(html) {
+  for (const { item } of rtveGuideItems(html)) {
+    if (/"begintime":"\d{14}"/.test(item)) return true;
+  }
+  return false;
+}
+
+export function parseRtveStructuredGuide(html) {
+  const events = [];
+  const stringField = (item, name) => {
+    const value = item.match(new RegExp(`"${name}":"((?:\\\\.|[^"])*)"`))?.[1];
+    return value == null ? null : decodeHtml(value.replace(/\\+r|\\+n/g, ' ').replace(/\\+"/g, '"'));
+  };
+  const numberField = (item, name) => Number(item.match(new RegExp(`"${name}":(?:"(\\d+)"|(\\d+))`))?.slice(1).find(Boolean));
+  for (const { channel, item } of rtveGuideItems(html)) {
+    const begin = stringField(item, 'begintime') || '';
+    if (!/^\d{14}$/.test(begin)) continue;
+    const title = stripHtml(stringField(item, 'original_event_name') || stringField(item, 'name'));
+    const subtitle = stripHtml(stringField(item, 'original_episode_name')
+      || stringField(item, 'episode_name') || stringField(item, 'description'));
+    if (!CYCLING_RE.test(`${title} ${subtitle}`)) continue;
+    const dateKey = `${begin.slice(0, 4)}-${begin.slice(4, 6)}-${begin.slice(6, 8)}`;
+    const localTime = `${begin.slice(8, 10)}:${begin.slice(10, 12)}`;
+    const episodeNumber = numberField(item, 'episode_number');
+    const isLaVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${title} ${subtitle}`));
+    const stageNumber = parseStageNumber(`${title} ${subtitle}`)
+      ?? (isLaVuelta && episodeNumber > 0 ? episodeNumber : null);
+    const titleIdentity = fold(title)
+      .replace(/\b\d{4}\b/g, '')
+      .replace(/\b\d+\s*a?\s*(?:etapa|stage)\b.*$/, '')
+      .trim();
+    const stableKey = `${dateKey}|${stageNumber ?? 'one-day'}|${titleIdentity}`;
+    events.push({
+      source: 'rtve', externalEventId: contentHash(stableKey).slice(0, 32),
+      dateKey, title, subtitle, sourceChannel: channel,
+      channel: canonicalRtveChannel(channel), country: 'ES',
+      sourceUrl: RTVE_SOURCE_URLS[0].url, broadcastUrl: rtveLiveUrl(channel),
+      startTimeUtc: zonedTimeToUtc(dateKey, localTime), localStartTime: localTime,
+      stageNumber,
+    });
   }
   events.sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
   const byEvent = new Map();

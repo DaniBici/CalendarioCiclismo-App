@@ -107,7 +107,8 @@ async function loadBroadcasts(db, raceIds) {
 
 // Aplica el plan en una transacción: relee las filas de la carrera tras
 // bloquearlas y vuelve a planificar, de modo que una edición concurrente desde
-// el panel no se pisa. Las actualizaciones comparan enlace y hora previos.
+// el panel no se pisa. Las actualizaciones comparan enlace y hora previos. Con
+// altas o cambios, la carrera pasa a `tvStatus` 'confirmed_time'.
 export async function applyCxRacePlan(db, { raceId, entries, sources }) {
   await db.query('BEGIN');
   try {
@@ -157,6 +158,13 @@ export async function applyCxRacePlan(db, { raceId, entries, sources }) {
       applied.push(update);
     }
     if (plan.inserts.length || applied.length) {
+      // Las fuentes CX son directos: confirman la TV con hora, como
+      // confirmTvStatus en carretera.
+      await db.query(
+        `UPDATE public.cx_races SET "tvStatus" = 'confirmed_time'
+          WHERE id = $1 AND "tvStatus" IS DISTINCT FROM 'confirmed_time'`,
+        [raceId],
+      );
       await db.query(
         `INSERT INTO private.cx_change_log (operation, "raceId", before, after, evidence)
          VALUES ('sync_broadcasts', $1, $2::jsonb, $3::jsonb, $4::jsonb)`,

@@ -21,7 +21,8 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
-import { STRINGS, BACK_ICON, BACK_PLACEHOLDER, PRIMARY_ICONS, CX_HOME, headerHtml } from './header-html.js';
+import { STRINGS, PRIMARY_ICONS, CX_HOME, headerHtml } from './header-html.js';
+import { headerBack } from './header-back.js';
 
 function detectLang() {
   const p = window.location.pathname;
@@ -109,31 +110,7 @@ function buildHeader(el) {
 //   ccHeaderBack(null)        → oculta el botón.
 // Pensada para páginas SPA que cambian de vista sin recargar; el header se
 // construye una vez, así que este control es la vía para un "volver" dinámico.
-window.ccHeaderBack = function ccHeaderBack(cfg) {
-  const header = document.getElementById('siteHeader');
-  const inner = header && header.querySelector('.site-header__inner');
-  if (!inner) return;
-  const lang = header.dataset.lang || detectLang();
-  const s = STRINGS[lang] || STRINGS.es;
-  const existing = inner.querySelector('#backBtn');
-  if (existing) existing.remove();
-  if (!cfg) { inner.insertAdjacentHTML('afterbegin', BACK_PLACEHOLDER); return; }
-  const label = cfg.label || s.backLabel;
-  let node;
-  if (cfg.onClick) {
-    node = document.createElement('button');
-    node.type = 'button';
-    node.addEventListener('click', cfg.onClick);
-  } else {
-    node = document.createElement('a');
-    node.href = cfg.href || s.home;
-  }
-  node.className = 'back-btn';
-  node.id = 'backBtn';
-  node.setAttribute('aria-label', label);
-  node.innerHTML = BACK_ICON;
-  inner.insertBefore(node, inner.firstChild);
-};
+window.ccHeaderBack = cfg => headerBack(cfg, detectLang());
 
 const _el = document.getElementById('siteHeader');
 if (_el) buildHeader(_el);

@@ -531,11 +531,21 @@ button.feed-row {
 }
 /* Nombre completo: pasa a una segunda línea en lugar de cortarse, para que
    «sub23 masculino» y «sub23 femenino» se distingan. */
+/* Nombre en una línea con puntos suspensivos, como en las apps; el símbolo
+   femenino queda visible a continuación. */
 .feed-row__race {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-weight: 500;
   font-size: var(--fs-4);
   line-height: 1.3;
-  overflow-wrap: anywhere;
+}
+.feed-row__race-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .feed-day>.feed-row .feed-row__race { position: relative; }
 .feed-row__fem { font-size: 0.75em; opacity: 0.7; font-weight: 400; }
@@ -619,8 +629,8 @@ button.feed-row {
 .uci-ranking-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.35rem 0 0.75rem; }
 .uci-ranking-gender-tabs { margin: 0; }
 .uci-ranking-updated { margin: 0; color: var(--text-muted); font-size: var(--fs-1); }
-/* Explicación de las etiquetas: panel a la izquierda en escritorio, encima
-   de la lista en móvil. */
+/* Explicación de las etiquetas: panel a la izquierda desde 761 px, encima
+   de la lista en una columna. */
 .uci-ranking-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; }
 .uci-ranking-key {
   align-self: start;
@@ -632,7 +642,7 @@ button.feed-row {
 .uci-ranking-key__title { margin: 0 0 10px; font: 600 var(--fs-4) var(--font-display); }
 .uci-ranking-key__item + .uci-ranking-key__item { margin-top: 10px; }
 .uci-ranking-key__item p { margin: 4px 0 0; font-size: var(--fs-2); line-height: 1.4; color: var(--text-muted); }
-@media (min-width: 1100px) {
+@media (min-width: 761px) {
   .uci-ranking-layout { grid-template-columns: 18rem minmax(0,1fr); gap: 24px; }
   .uci-ranking-key { position: sticky; top: calc(var(--site-header-h, 56px) + 16px); }
 }
@@ -666,9 +676,12 @@ button.feed-row {
   box-shadow: var(--card-shadow);
 }
 html.light .uci-ranking-table { background: #fff; }
+/* Cat. y Puntos ajustadas a su contenido (categoría de dos o tres letras;
+   puntos de hasta cinco cifras con separador de miles): el resto del ancho es
+   del nombre del equipo. */
 .uci-ranking-table__head, .uci-ranking-row {
   display: grid;
-  grid-template-columns: 2.4rem 1.55rem minmax(0, 1fr) 3.2rem 6.6rem;
+  grid-template-columns: 2.4rem 1.55rem minmax(0, 1fr) 2.25rem 3.25rem;
   align-items: center;
   column-gap: 0.5rem;
 }
@@ -837,7 +850,7 @@ html.light .uci-ranking-table { background: #fff; }
 
 @media (max-width: 480px) {
   .uci-ranking-table__head, .uci-ranking-row {
-    grid-template-columns: 2rem 1.35rem minmax(0, 1fr) 2.7rem 4.5rem;
+    grid-template-columns: 2rem 1.35rem minmax(0, 1fr) 2.25rem 2.75rem;
     column-gap: 0.3rem;
   }
   .uci-ranking-row { min-height: 2.05rem; padding: 4px 10px; font-size: var(--fs-2); }
@@ -858,10 +871,11 @@ html.light .uci-ranking-table { background: #fff; }
   .res-ttt-team-name { overflow: hidden; text-overflow: ellipsis; }
 }
 
-@media (min-width: 961px) {
-  /* Dos columnas aunque el día tenga un solo resultado. La destacada ocupa una
-     columna y abarca las filas que calcula packFeaturedEntries
-     (resultados-feed.js); las normales rellenan la otra en orden denso. */
+@media (min-width: 761px) {
+  /* Dos columnas aunque el día tenga un solo resultado, desde el mismo punto
+     de corte que la rejilla de Hoy. La destacada ocupa una columna y abarca
+     las filas que calcula packFeaturedEntries (resultados-feed-layout.js);
+     las normales rellenan la otra en orden denso. */
   .feed-day {
     display: grid;
     grid-template-columns: repeat(2,minmax(0,1fr));
@@ -871,8 +885,9 @@ html.light .uci-ranking-table { background: #fff; }
   .feed-day>* { grid-column: 1/-1; }
   .feed-day>.feed-day__hdr { margin-bottom: 0; }
   .feed-day>.feed-row { grid-column: auto; margin: 0; }
-  /* Ciclocross: dos columnas de mampostería (packCxDays en resultados-feed.js);
-     la tarjeta crece con sus categorías y cada columna apila sin huecos. */
+  /* Ciclocross: dos columnas de mampostería (packCxDays en
+     resultados-feed-layout.js); la tarjeta crece con sus categorías y cada
+     columna apila sin huecos. */
   .feed-day__cx-grid {
     display: grid;
     grid-template-columns: repeat(2,minmax(0,1fr));
@@ -883,9 +898,9 @@ html.light .uci-ranking-table { background: #fff; }
   .feed-day__cx-grid>.feed-row { margin: 0; align-self: start; }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 761px) {
   /* La columna lateral (perfil y datos de la jornada) queda a la derecha de la
-     clasificación desde 900px, con 280px; a partir de 1100px pasa a 320px. Se
+     clasificación desde 761px, con 280px; a partir de 1100px pasa a 320px. Se
      fija 16px bajo la barra de navegación al desplazar la clasificación; si no
      cabe, se desplaza dentro de su caja. CX redefine --res-context-top y el
      margen (ciclocross.css). */
@@ -901,6 +916,42 @@ html.light .uci-ranking-table { background: #fff; }
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
+}
+
+@media (min-width: 761px) and (max-width: 899px) {
+  /* Junto a la columna lateral, la clasificación (409-547px) no tiene sitio
+     para la columna Equipo: el equipo pasa a subtítulo bajo el corredor, como
+     en móvil, y cada fila ocupa dos líneas. Ficha de resultados y
+     clasificaciones CX. */
+  .res-layout--context .res-th--team,
+  .res-layout--context .res-td--team { display: none; }
+  .res-layout--context .res-rider-team {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--fs-2);
+    line-height: 1.3;
+    margin-top: 2px;
+  }
+  .res-layout--context .res-table:not(.res-table--ttt) .res-td--rider { height: 49px; }
+  /* Orden de salida junto a la lateral (416-547px): sin dorsal, como en
+     móvil; horario estrecho, corredor en una línea con puntos suspensivos y
+     el equipo con el 40 % del ancho. La CRE conserva su columna de equipo. */
+  #startOrderContent .so-th--dorsal,
+  #startOrderContent .so-td--dorsal { display: none; }
+  #startOrderContent .so-table { table-layout: fixed; }
+  #startOrderContent .so-th,
+  #startOrderContent .so-td { padding-inline: 0.5rem; }
+  #startOrderContent .so-th--time { width: 5.5rem; }
+  #startOrderContent .so-th--rider { min-width: 0; }
+  #startOrderContent .so-table:not(.so-table--teams) .so-th--team { min-width: 0; width: 40%; }
+  #startOrderContent .so-td--rider { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+@media (min-width: 761px) and (max-width: 1099px) {
+  /* Leyenda de 15rem: el nombre del equipo conserva el ancho para no
+     truncarse. */
+  .uci-ranking-layout { grid-template-columns: 15rem minmax(0,1fr); }
 }
 
 @media (min-width: 1100px) {

@@ -74,8 +74,11 @@ enum TransfersLogic {
     ///    anuncie el kit.
     ///  - Sin publicar y SIN identidad anterior (equipo nacido este año) → nil
     ///    (sin franjas).
+    ///  - Sin publicar y con `prevColorsHidden` (denominación sin confirmar) →
+    ///    nil (sin franjas).
     static func badgeSeason(for season: TeamSeason, prev: [String: TeamSeason]) -> TeamSeason? {
         if season.badgeVisible == true { return season }
+        if season.prevColorsHidden == true { return nil }
         return prev[season.teamId]
     }
 

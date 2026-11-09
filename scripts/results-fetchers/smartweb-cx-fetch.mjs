@@ -24,6 +24,8 @@
  * autonómico la fila lleva `ES` (licencia española en una NAC de España). Los
  * puestos se renumeran dentro de la categoría (las listas filtradas de una
  * manga conjunta dejan huecos) y las filas con puesto 0 y sin tiempo se omiten.
+ * Si tres o más llegadas comparten un único tiempo (Castilla y León repite el
+ * del ganador en toda su vuelta), solo el ganador conserva el tiempo.
  * No resuelve fichas ni equipos: el documento conserva la grafía de la fuente
  * para la normalización posterior.
  */
@@ -161,6 +163,13 @@ export function parseSmartwebRows(sourceRows) {
     rows.push({ ...base, rank, rankText: String(rank), irm: null, timeText: hms(time), timeSeconds: String(time), gapText: rank === 1 ? null : gap(time - winner) });
   }
   if (!rows.some(row => row.rank === 1)) throw new Error('La clasificación smartweb no tiene ganador con tiempo');
+  // El cronometraje de Castilla y León (fedciclismocyl.com) da a toda la vuelta del líder el tiempo del
+  // ganador: con tres o más llegadas y un solo tiempo, los demás son desconocidos (sin tiempo ni diferencia).
+  const timed = rows.filter(row => row.rank != null && row.timeSeconds != null);
+  if (timed.length >= 3 && new Set(timed.map(row => row.timeSeconds)).size === 1) {
+    for (const row of timed.slice(1)) Object.assign(row, { timeText: null, timeSeconds: null, gapText: null });
+    warnings.push({ sourceRow: null, reason: `Las ${timed.length} llegadas repiten el tiempo del ganador: solo se conserva el suyo` });
+  }
   return { rows, omitted, warnings };
 }
 

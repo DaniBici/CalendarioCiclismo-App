@@ -5,6 +5,7 @@ build-i18n-html.py — Genera las páginas EN desde los HTML maestros ES.
 Para cada HTML raíz marcado con data-i18n, genera su equivalente EN en en/:
   index.html        → en/index.html
   privacidad.html   → en/privacy/index.html
+  terminos.html     → en/terms/index.html
   404.html          → en/404.html
   suscripcion/      → en/subscription/index.html
 
@@ -45,6 +46,7 @@ PAGES = [
     ("index.html",              "en"),
     ("ciclocross.html",         "en/cyclocross"),
     ("privacidad.html",         "en/privacy"),
+    ("terminos.html",           "en/terms"),
     ("404.html",                "en/404"),
     ("suscripcion/index.html",  "en/subscription"),
 ]
@@ -70,6 +72,8 @@ HREF_MAP = {
     "/abierto.html":          "/en/open/",
     "/privacidad.html":       "/en/privacy/",
     "privacidad.html":        "/en/privacy/",
+    "/terminos.html":         "/en/terms/",
+    "terminos.html":          "/en/terms/",
     "/apps/":                 "/en/apps/",
     "/apoyar/":               "/en/support/",
     "/betaandroid.html":      "/en/apps/",
@@ -85,6 +89,62 @@ HREF_MAP = {
 # ── Bloques <main> EN para páginas con contenido largo ───────────
 # Reemplazan el <main>...</main> del fuente ES íntegro.
 MAIN_BLOCKS_EN = {
+    "terminos.html": """\
+  <main class="cc-public-document" style="">
+    <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;margin-bottom:0.5rem;text-align:center">Terms of Service</h1>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem"><strong>calendariociclismo.app</strong> - Last updated: 5 November 2026</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">1. Provider and scope</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The service is provided by <strong>Daniel Sánchez Badorrey</strong>, independent developer of <strong>Calendario Ciclismo</strong>, with address at Consejo 5, 28223 Pozuelo de Alarcón, Madrid (España) and tax identification number (NIF) 53764156T. Contact: <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>. These terms apply to <a href="https://calendariociclismo.app" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">calendariociclismo.app</a> and to the iOS and Android apps. By using the service you accept them; if you do not agree, do not use it. The processing of personal data is explained in the <a href="/en/privacy/" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Privacy Policy</a>.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">2. The service</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Calendario Ciclismo is a guide to professional road cycling and cyclocross, for men and women: calendar, schedules, routes, profiles, maps, television and streaming, startlists, start orders, results and the transfer market. Every feature is free, requires no user account and does not depend on a purchase. The apps and the website show no advertising.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">3. Published information</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The data comes from the UCI, timekeepers, organisers, teams and specialist media, together with our own work; details are available on the <a href="/en/open/" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Open</a> page. We aim to keep it correct, but it may contain errors or omissions and may change without notice. Schedules, broadcasts, startlists and results may be provisional, and the transfer market includes rumours identified as such.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Before making a decision that depends on this information, such as a trip or buying a ticket, check the official source. Calendario Ciclismo is not affiliated with or sponsored by the UCI, the race organisers or the teams.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">4. Permitted use</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">You may consult the service and reuse its information, including with automated crawlers. We only ask that you cite Calendario Ciclismo as the source. This reuse does not cover the third-party materials listed in section 6. You must not:</p>
+    <ul style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem;padding-left:1.5rem">
+      <li>attack, overload or disrupt the service, or circumvent its security measures;</li>
+      <li>access restricted areas, such as the editing panel;</li>
+      <li>submit false, abusive or automated reports;</li>
+      <li>impersonate Calendario Ciclismo or attribute to it content it has not published;</li>
+      <li>use the service for unlawful purposes.</li>
+    </ul>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">We may limit access or discard reports when these rules are breached.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">5. Reports and corrections</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The form on each race day lets you report errors, changes or missing data. By submitting it, you confirm that the information is truthful to the best of your knowledge and you authorise us to use it, without payment, to correct or complete the service. We review reports but do not guarantee that they will be applied. Contact details are processed in accordance with the <a href="/en/privacy/" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Privacy Policy</a>.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">6. Code, content and trademarks</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The code of the website and the apps is open and published on <a href="https://github.com/DaniBici/CalendarioCiclismo-App" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">GitHub</a> under the AGPL-3.0 licence. These terms do not limit the rights granted by that licence. The public repository does not include the project's data or credentials, nor the race logos.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Race and team names and logos belong to their owners and are used solely to identify each competition. Organisers' documents, cartography and other third-party materials retain their own rights and licences.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">7. Third-party services and stores</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The service links to or embeds broadcasts, official websites, maps and other third-party services. Their content, price, availability and territorial coverage depend on each provider and are governed by its terms; a link or broadcast may change or be unavailable in your country.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Downloads and purchases in the stores are also governed by the <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Apple standard licence agreement</a> and the <a href="https://play.google.com/about/play-terms/" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Google Play Terms of Service</a>.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">8. Amigo, contributions and historical Premium</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Purchases are voluntary and do not unlock features. <strong>Amigo</strong> is a support subscription that grants a cosmetic icon while it is active; <strong>one-off contributions</strong> only display a thank-you. Premium is no longer sold and is not automatically converted into Amigo. Apple or Google handles payment. Indicative prices are €2.99/month and €17.99/year for Amigo and €2.99, €5.99 and €11.99 for contributions; the price and currency shown by the store before confirmation always prevail.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Renewal and cancellation.</strong> Amigo renews automatically under the terms shown by the App Store or Google Play until cancelled. On iOS, manage it in <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Apple Subscriptions</a>; on Android, in Google Play &rarr; Payments &amp; subscriptions &rarr; Subscriptions. Cancellation prevents future renewals and access continues until the end of the paid period.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Refunds and withdrawal.</strong> iOS purchase requests are submitted to <a href="https://reportaproblem.apple.com" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Apple</a>; Android requests through <a href="https://support.google.com/googleplay/workflow/9813244" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Google Play</a> or developer channels where applicable. Store terms and mandatory consumer rights apply, including withdrawal rights where legally applicable.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Founder.</strong> Anyone who bought Premium permanently keeps the Founder recognition and its icon. On iOS, Restore Purchases can detect historical transactions. On Android, an already-expired Premium subscription may not be recoverable after clearing data or reinstalling if Google Play does not return that historical purchase and no local copy exists; contact us so we can review the case.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Ko-fi.</strong> Contributions from the website are made on <a href="https://ko-fi.com/calendariociclismo" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Ko-fi</a>, are independent of app purchases and are governed by that platform's terms.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">9. Availability and changes to the service</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Calendario Ciclismo is maintained by one person. We may add, modify or remove features and content, and the service may be interrupted by maintenance, faults or causes beyond our control. We do not guarantee continuous availability. If the service has to end permanently, we will try to give advance notice on the website and in the apps.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Liability</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">To the extent permitted by law, we are not liable for damage arising from errors or omissions in the information, service interruptions, changes to races or broadcasts, or the actions of third parties. This limitation does not apply to wilful misconduct or gross negligence and does not affect the rights that consumer law grants you on a mandatory basis, including those relating to the conformity of digital content and services.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">11. Governing law and complaints</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">These terms are governed by Spanish law. If you are a consumer, you keep the mandatory protection of your country of residence and may go to the courts of your place of residence. Before bringing a claim, you can write to <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a> to try to resolve the matter.</p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">12. Changes to these terms and contact</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">We will update these terms when the service or the law changes. The date at the top identifies the current version. If a change is significant, we will indicate it on the website or in the apps before it applies. For any questions, write to <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>.</p>
+  </main>""",
     "privacidad.html": """\
   <main class="cc-public-document" style="">
     <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;margin-bottom:0.5rem;text-align:center">Privacy Policy</h1>
@@ -224,6 +284,11 @@ PAGE_SEO_EN = {
         "description": "Privacy policy of Calendario Ciclismo: processing of personal data, user rights and use of cookies.",
         "twitter_description": "Privacy policy of Calendario Ciclismo: processing of personal data and user rights.",
         "keywords": "privacy policy, privacy, data protection, GDPR, calendario ciclismo",
+    },
+    "terminos.html": {
+        "title": "Terms of Service - Calendario Ciclismo App",
+        "description": "Terms of Service of Calendario Ciclismo: conditions of use of the website and apps, voluntary purchases, liability and governing law.",
+        "keywords": "terms of service, terms of use, calendario ciclismo",
     },
     "404.html": {
         "title": "Page not found - Calendario Ciclismo App",
@@ -392,6 +457,7 @@ def patch_hrefs(html: str) -> str:
     # nombre en su locale EN (values-en/strings.xml app_name), así que la web
     # EN servida en /en/ lo mantiene por coherencia.
     html = html.replace('href="/en/privacy/">Privacidad<', 'href="/en/privacy/">Privacy<')
+    html = html.replace('href="/en/terms/">T&eacute;rminos<', 'href="/en/terms/">Terms<')
     html = html.replace('Ideado y editado por', 'Created and edited by')
     html = html.replace("aria-label=\"Menú\"", 'aria-label="Menu"')
     html = html.replace('aria-label="Ordenar carreras"', 'aria-label="Sort races"')

@@ -4,11 +4,18 @@ import SwiftUI
 struct CCHeaderMarkView: View {
     var width: CGFloat = 46
 
+    /// En iPad la barra coloca el elemento sin cápsula a 10 pt del borde; el
+    /// contenido de las pestañas empieza a 16 pt. El margen alinea la firma
+    /// con las tarjetas.
+    private static let padLeadingInset: CGFloat =
+        UIDevice.current.userInterfaceIdiom == .pad ? 6 : 0
+
     var body: some View {
         Image("HeaderLogo")
             .resizable()
             .scaledToFit()
             .frame(width: width, height: width * 32 / 74)
+            .padding(.leading, Self.padLeadingInset)
             .accessibilityHidden(true)
     }
 }

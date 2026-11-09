@@ -37,6 +37,10 @@ data class TeamSeason(
      *  con chip y aviso (ej.: sin sponsor todavía). Distinto de la AUSENCIA de
      *  fila, que sigue significando "no continúa". Solo Fichajes lo consume. */
     val continuityDoubt: Boolean = false,
+    /** Sin colores en Fichajes mientras [badgeVisible] es false (denominación
+     *  sin confirmar): no se usan los de la temporada anterior. Solo Fichajes
+     *  lo consume. */
+    val prevColorsHidden: Boolean = false,
 )
 
 /**

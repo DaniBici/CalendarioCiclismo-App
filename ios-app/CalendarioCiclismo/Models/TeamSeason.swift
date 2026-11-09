@@ -26,6 +26,10 @@ struct TeamSeason: Codable {
     /// con chip y aviso (ej.: sin sponsor todavía). Distinto de la AUSENCIA de
     /// fila, que sigue significando "no continúa". Solo Fichajes lo consume.
     let continuityDoubt: Bool?
+    /// Sin colores en Fichajes mientras `badgeVisible` es false (denominación
+    /// sin confirmar): no se usan los de la temporada anterior. Solo Fichajes
+    /// lo consume.
+    let prevColorsHidden: Bool?
 }
 
 extension TeamSeason {

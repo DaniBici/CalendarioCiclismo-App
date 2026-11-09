@@ -135,6 +135,7 @@
         '/resultados/':  '/en/results/',
         '/fichajes/':    '/en/transfers/',
         '/privacidad.html': '/en/privacy/',
+        '/terminos.html': '/en/terms/',
         '/suscripcion/': '/en/subscription/',
         '/campeonatos-nacionales-2026.html': '/en/2026-national-championships/',
       };
@@ -187,6 +188,7 @@
           '/results/':      '/resultados/',
           '/transfers/':    '/fichajes/',
           '/privacy/':      '/privacidad.html',
+          '/terms/':        '/terminos.html',
           '/subscription/': '/suscripcion/',
           '/apps/':         '/apps/',
           '/beta/':         '/apps/',
@@ -216,6 +218,7 @@
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;
       if (path.startsWith('/en/transfers/')) return '/fichajes/' + qs;
       if (path.startsWith('/en/privacy/')) return '/privacidad.html' + qs;
+      if (path.startsWith('/en/terms/')) return '/terminos.html' + qs;
       if (path.startsWith('/en/subscription/')) return '/suscripcion/' + qs;
       if (path.startsWith('/en/2026-national-championships/')) return '/campeonatos-nacionales-2026.html' + qs;
 

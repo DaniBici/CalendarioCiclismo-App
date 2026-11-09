@@ -594,6 +594,7 @@ async function loadTeamSeason27(teamId) {
       ? (panelState._season27Row.badgeVisible !== false)
       : year !== MARKET_SEASON;
     document.getElementById('ts27-continuityDoubt').checked = !!panelState._season27Row?.continuityDoubt;
+    document.getElementById('ts27-prevColorsHidden').checked = !!panelState._season27Row?.prevColorsHidden;
     _ts27SetColor('headerBg',    src.headerBg         || DEFAULT_TEAM.headerBg);
     _ts27SetColor('torsoCenter', src.badgeTorsoCenter || DEFAULT_TEAM.badgeTorsoCenter);
     _ts27SetColor('torsoSides',  src.badgeTorsoSides  || DEFAULT_TEAM.badgeTorsoSides);
@@ -652,6 +653,7 @@ async function saveTeamSeason27() {
       translations,
       badgeVisible:     document.getElementById('ts27-badgeVisible').checked,
       continuityDoubt:  document.getElementById('ts27-continuityDoubt').checked,
+      prevColorsHidden: document.getElementById('ts27-prevColorsHidden').checked,
     };
     const { error } = await supabase.rpc('admin_save_team_season', {
       p_team_id: panelState._editingTeamId, p_year: panelState._editingTeamSeasonYear, p_season: payload,
@@ -679,7 +681,7 @@ async function saveTeamSeason27() {
 async function _refreshMarketTeamsIfVisible() {
   if (!document.getElementById('marketTeamsList')) return;
   const { data } = await supabase.from('team_seasons')
-    .select('teamId, name, category, badgeVisible, continuityDoubt')
+    .select('teamId, name, category, badgeVisible, continuityDoubt, prevColorsHidden')
     .eq('year', MARKET_SEASON);
   panelState._marketSeasons = data || [];
   panelState._trTeamNameById = new Map(panelState._marketSeasons.map(s => [s.teamId, s.name]));

@@ -71,6 +71,14 @@ struct DeepLinkDestinationView: View {
     }
 }
 
+extension View {
+    /// Devuelve a una pestaña la size class de la ventana, que el `TabView`
+    /// sustituye por `.compact` para dibujar la barra abajo en iPad.
+    func windowSizeClass(_ sizeClass: UserInterfaceSizeClass?) -> some View {
+        environment(\.horizontalSizeClass, sizeClass)
+    }
+}
+
 /// Vista principal con navegación por pestañas.
 struct ContentView: View {
     /// Hoy de carretera visible (`RoadTodayAvailability`); se reevalúa al
@@ -92,6 +100,10 @@ struct ContentView: View {
     @State private var reviewPrompt = ReviewPromptService.shared
     @Environment(\.requestReview) private var requestReview
     @Environment(\.scenePhase) private var scenePhase
+    /// Size class real de la ventana. El `TabView` recibe `.compact` para que
+    /// iPadOS dibuje la barra de pestañas abajo, como en el iPhone; cada
+    /// pestaña recupera este valor y conserva sus diseños anchos.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init() {
         let visible = RoadTodayAvailability.isVisible()
@@ -107,6 +119,10 @@ struct ContentView: View {
                 tab(value)
             }
         }
+        // iPad: barra de pestañas inferior en cualquier ancho de ventana (en
+        // regular, iPadOS la sube a la cabecera). El contenido de cada pestaña
+        // recibe la size class real (`windowSizeClass`).
+        .environment(\.horizontalSizeClass, .compact)
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             let visible = RoadTodayAvailability.isVisible()
@@ -174,28 +190,46 @@ struct ContentView: View {
                     TodayView(navigationPath: $navigationPath)
                         .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
                 }
+                .windowSizeClass(horizontalSizeClass)
             }
             .accessibilityIdentifier(AccessibilityID.tabToday)
         case RoadTodayAvailability.resultsTab:
             // Apps 3.1 (fase F3): el feed "Últimos resultados" entra como 2º
             // tab y Mes+Temporada se fusionan en "Calendario" (con toggle).
             Tab(localeService.t("Resultados", "Results"), systemImage: "trophy", value: value) {
-                NavigationStack {
-                    ResultsFeedView()
+                // Ancho regular (iPad): columna lateral y detalle.
+                Group {
+                    if horizontalSizeClass == .regular {
+                        ResultsSplitView()
+                    } else {
+                        NavigationStack {
+                            ResultsFeedView()
+                        }
+                    }
                 }
+                .windowSizeClass(horizontalSizeClass)
             }
             .accessibilityIdentifier(AccessibilityID.tabResults)
         case RoadTodayAvailability.transfersTab:
             Tab(localeService.t("Fichajes", "Transfers"), systemImage: "arrow.left.arrow.right", value: value) {
-                NavigationStack {
-                    TransfersView(deepLinkedTeamId: $transfersTeamId)
+                // Ancho regular (iPad): equipos en la columna lateral y detalle.
+                Group {
+                    if horizontalSizeClass == .regular {
+                        TransfersSplitView(deepLinkedTeamId: $transfersTeamId)
+                    } else {
+                        NavigationStack {
+                            TransfersView(deepLinkedTeamId: $transfersTeamId)
+                        }
+                    }
                 }
+                .windowSizeClass(horizontalSizeClass)
             }
             .accessibilityIdentifier(AccessibilityID.tabTransfers)
         case RoadTodayAvailability.cyclocrossTab:
             if roadTodayVisible {
                 Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: value) {
                     cyclocrossStack
+                        .windowSizeClass(horizontalSizeClass)
                 }
                 .accessibilityIdentifier(AccessibilityID.tabCyclocross)
             } else {
@@ -204,6 +238,7 @@ struct ContentView: View {
                 // de carretera.
                 Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
                     cyclocrossStack
+                        .windowSizeClass(horizontalSizeClass)
                 }
                 .accessibilityIdentifier(AccessibilityID.tabCyclocross)
             }
@@ -212,6 +247,7 @@ struct ContentView: View {
                 NavigationStack(path: $calendarNavigationPath) {
                     CalendarTabView()
                 }
+                .windowSizeClass(horizontalSizeClass)
             }
             .accessibilityIdentifier(AccessibilityID.tabCalendar)
         }
@@ -309,6 +345,20 @@ struct ContentView: View {
             openRoadDestination(.race(raceId))
         case .stage(let raceDayId):
             openRoadDestination(.stage(raceDayId))
+        case .raceSlug(let slug, let english):
+            // Enlace universal: el slug de la web se resuelve a id. Sin
+            // resolución, la pestaña inicial, como en Android.
+            Task {
+                let id = try? await SupabaseService.shared.raceId(forWebSlug: slug, english: english)
+                guard deepLinkRevision == revision else { return }
+                if let id { openRoadDestination(.race(id)) } else { handleDeepLink(.tab(0)) }
+            }
+        case .stageSlug(let slug, let english):
+            Task {
+                let id = try? await SupabaseService.shared.raceDayId(forWebSlug: slug, english: english)
+                guard deepLinkRevision == revision else { return }
+                if let id { openRoadDestination(.stage(id)) } else { handleDeepLink(.tab(0)) }
+            }
         case .startlist(let raceId):
             openRoadDestination(.startlist(raceId))
         case .startOrder(let raceDayId):

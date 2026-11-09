@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { PG_CONNECTION_LIMITS } from './db/env.mjs';
 
 export function deployedRevision() {
   if (process.env.CC_DEPLOY_REVISION) return process.env.CC_DEPLOY_REVISION.slice(0, 80);
@@ -22,6 +23,7 @@ export async function openAutomationClient(connectionString) {
     ssl: connectionString?.includes('localhost')
       ? undefined
       : { rejectUnauthorized: false },
+    ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
   return client;

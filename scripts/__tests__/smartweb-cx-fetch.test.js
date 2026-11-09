@@ -43,6 +43,14 @@ describe('smartweb CX', () => {
     expect(omitted).toHaveLength(1);
     expect(warnings).toMatchObject([{ reason: expect.stringContaining('renumera') }]);
   });
+  it('deja sin tiempo las llegadas que repiten el del ganador (Castilla y León)', () => {
+    const { rows, warnings } = parseSmartwebRows([source(1, '00:38:12.000'), source(2, '00:38:12.000'), source(3, '00:38:12.000'),
+      source(6, '00:38:12.000'), source(7, 'Vta. perdida')]);
+    expect(rows.map(row => [row.rank, row.irm, row.timeSeconds, row.gapText])).toEqual([
+      [1, null, '2292', null], [2, null, null, null], [3, null, null, null], [4, null, null, null], [5, 'LAP', null, '-1 LAP']]);
+    expect(warnings).toMatchObject([{ reason: expect.stringContaining('renumera') }, { reason: expect.stringContaining('tiempo del ganador') }]);
+    expect(parseSmartwebRows([source(1, '00:50:00'), source(2, '00:50:00')]).rows[1]).toMatchObject({ timeSeconds: '3000', gapText: '+0:00' });
+  });
   it('rechaza clasificaciones incoherentes', () => {
     expect(() => parseSmartwebRows([source(1, 'Vta. perdida')])).toThrow(/ganador/);
     expect(() => parseSmartwebRows([source(1, '00:50:00'), source(2, '00:49:00')])).toThrow(/inferior/);

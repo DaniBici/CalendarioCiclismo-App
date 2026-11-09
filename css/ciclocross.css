@@ -15,7 +15,8 @@
 .cx-tournament-list .cx-agenda-day {padding-bottom:0}
 .cx-tournament-list .cx-day-label {padding:0 0 10px}
 .cx-tournament-list .cx-day-races {gap:10px;padding-bottom:0}
-@media(min-width:961px){.cx-tournament-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-tournament-list .cx-day-races {grid-template-columns:minmax(0,1fr)}}
+/* Lista de carreras del torneo: días en dos columnas desde 761 px, como Hoy. */
+@media(min-width:761px){.cx-tournament-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-tournament-list .cx-day-races {grid-template-columns:minmax(0,1fr)}}
 /* Vista Hoy: lista del día con las medidas de Hoy en Carretera (#raceList),
    en dos columnas desde 761 px. El gesto de cambio de día gestiona el eje
    horizontal (components/day-swipe.js). */
@@ -27,10 +28,10 @@
 .cx-empty {color:var(--text-muted);font-size: var(--fs-3);line-height:1.5}#cxAgendaError:empty {display:none}#cxAgendaError {color:var(--red)}
 .race-card--cx .race-card__name a:not(.race-card__overview-btn) {color:inherit;text-decoration:none}.race-card--cx .race-card__name a:not(.race-card__overview-btn):hover {text-decoration:underline}.race-card--cx .race-card__name {display:flex;gap:.4rem;align-items:center;flex-wrap:nowrap}.race-card--cx .cat-badge {font-size: var(--fs-1);color:var(--text-muted)}
 .race-card--cx .race-card__logo {flex:0 0 32px;width:32px;position:static;transform:none}.race-card--cx [data-cx-logo-race] {display:block;width:32px;height:32px}.race-card--cx .race-logo-img {width:32px;height:32px;object-fit:contain}
-/* Tarjeta CX: estructura común de components/race-card.js con las categorías
-   en la columna derecha. Hasta 760 px y en las rejillas de dos columnas
-   las categorías pasan bajo el nombre para que quepan hasta
-   seis celdas sin estrechar el nombre. */
+/* Tarjeta CX: estructura común de components/race-card.js. Las listas de
+   tarjetas CX (Hoy y torneo) tienen una columna hasta 760 px y dos desde
+   761 px: las categorías van bajo el nombre para que quepan hasta seis celdas
+   sin estrechar el nombre. */
 .race-card--cx {padding:10px 30px 10px 12px;gap:8px 10px;min-height:0}.race-card--cx .race-card__main {min-width:0}
 /* Altura única: nombre, torneo y sede en una línea, con puntos suspensivos
    si no caben; el botón de torneo, la ronda y los separadores no se recortan. */
@@ -41,20 +42,10 @@
 .race-card--cx .race-card__sub>.cx-card-meta-text {flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* La sede se recorta antes que el torneo. */
 .race-card--cx .race-card__sub>.cx-card-meta-text--venue {flex:1 1 0}
-@media(max-width:760px),(min-width:961px){
- .race-card--cx {grid-template-columns:32px minmax(0,1fr)}
- .race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
- .race-card--cx .race-card__main {grid-column:2;grid-row:1;padding-right:0}
- .race-card--cx .race-card__meta.cx-category-times {grid-column:2;grid-row:2;justify-self:stretch;align-self:start;width:100%;grid-template-columns:repeat(var(--cx-category-count,4),minmax(0,1fr))}
-}
-/* En Hoy la rejilla de dos columnas empieza en 761 px: mismas categorías bajo
-   el nombre en el tramo intermedio. */
-@media(min-width:761px) and (max-width:960px){
- .cx-day-list .race-card--cx {grid-template-columns:32px minmax(0,1fr)}
- .cx-day-list .race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
- .cx-day-list .race-card--cx .race-card__main {grid-column:2;grid-row:1;padding-right:0}
- .cx-day-list .race-card--cx .race-card__meta.cx-category-times {grid-column:2;grid-row:2;justify-self:stretch;align-self:start;width:100%;grid-template-columns:repeat(var(--cx-category-count,4),minmax(0,1fr))}
-}
+.race-card--cx {grid-template-columns:32px minmax(0,1fr)}
+.race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
+.race-card--cx .race-card__main {grid-column:2;grid-row:1;padding-right:0}
+.race-card--cx .race-card__meta.cx-category-times {grid-column:2;grid-row:2;justify-self:stretch;align-self:start;width:100%;grid-template-columns:repeat(var(--cx-category-count,4),minmax(0,1fr))}
 .cx-category-times {display:grid;grid-template-columns:repeat(var(--cx-category-count,4),minmax(3.2rem,1fr));gap:2px}
 /* La rejilla hereda align-items:flex-end de .race-card__meta: fijar las cajas
    arriba para que una copa junto a horarios no desalinee la fila. */
@@ -99,7 +90,9 @@
 .cx-race-sections>.cx-media-section+.cx-media-section {margin-top:16px}
 .cx-media-label {flex:1;min-width:0;padding-right:.75rem}.cx-media-actions {display:flex;align-items:center;gap:.75rem}.cx-media-section [hidden] {display:none!important}
 .cx-video-section {padding-top:0}
-.cx-video-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px}
+/* Vídeos: una columna hasta 760 px; desde 761 px, tantas de ≥340px como quepan. */
+.cx-video-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:20px}
+@media(max-width:760px){.cx-video-grid {grid-template-columns:minmax(0,1fr)}}
 .cx-video-card {min-width:0;display:flex;flex-direction:column}.cx-video-card h3 {font: 600 var(--fs-4)/1.35 var(--font-body);margin:0 0 9px}.cx-video-card iframe {display:block;width:100%;aspect-ratio:16/9;border:0;border-radius: var(--radius);background:#000}.cx-video-card .tv-link-btn {margin-top:9px;align-self:flex-end}
 /* Subtítulo de categoría dentro del cajón de TV. */
 .cx-tv-group__title {font: 600 var(--fs-2)/1.35 var(--font-body);margin:0;padding:10px 12px 2px;color:var(--text-muted)}
@@ -128,7 +121,7 @@
 .cx-programme-heading time {font-variant-numeric:tabular-nums}
 /* Programa en dos columnas cuando la pantalla es suficientemente ancha. */
 .cx-programme-grid {display:grid;grid-template-columns:minmax(0,1fr);column-gap:2rem}
-@media(min-width:900px){.cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-programme-grid .cx-programme-row:last-child {border-bottom:1px solid var(--border)}}
+@media(min-width:761px){.cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-programme-grid .cx-programme-row:last-child {border-bottom:1px solid var(--border)}}
 .cx-programme-layout {display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .cx-programme-layout .stage-profile-panel {width:100%;min-width:0;margin:0}
 .cx-programme-map,.cx-programme-schedule {overflow:hidden}
@@ -141,7 +134,7 @@
 .cx-programme-side {display:contents}
 .cx-programme-schedule {order:-1}
 .cx-programme-layout .cx-media-section {width:100%;min-width:0;margin:0}
-@media(min-width:900px){.cx-programme-layout {grid-template-columns:minmax(0,1.8fr) minmax(320px,1fr)}.cx-programme-side {display:flex;flex-direction:column;gap:16px;min-width:0}.cx-programme-schedule {order:0}}
+@media(min-width:761px){.cx-programme-layout {grid-template-columns:minmax(0,1.8fr) minmax(320px,1fr)}.cx-programme-side {display:flex;flex-direction:column;gap:16px;min-width:0}.cx-programme-schedule {order:0}}
 @media(min-width:1200px){.cx-programme-layout--schedule .cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* Fila del programa: horarios a la izquierda e inscritos/resultados a la derecha. */
 .cx-programme-top {display:flex;align-items:center;justify-content:space-between;gap:1rem}
@@ -151,7 +144,9 @@
 .cx-race-docs {margin-bottom:0}
 .cx-race-docs .asset-links-wrap {margin:0}
 
-.race-card--cx .race-card__logo--without-logo {align-self:center;justify-content:center}
+/* Sin logo (Campeonatos Nacionales): la bandera arriba, junto a la primera
+   línea del nombre, como en las apps. */
+.race-card--cx .race-card__logo--without-logo {align-self:start;justify-content:flex-start}
 .race-card--cx .race-card__logo--without-logo [data-cx-logo-race] {display:none}
 
 .race-card--cx .race-card__sub a {color:inherit;text-decoration:none}.race-card--cx .race-card__sub a:hover {text-decoration:underline}
@@ -172,9 +167,9 @@
 .cx-classification-page {padding-top:8px}
 .cx-classification-page .res-main .res-publication:first-child {margin-top:0}
 .cx-classification-page .res-main .cx-empty {margin:0;padding:14px 16px;box-shadow:var(--card-shadow);border-radius: var(--radius);background:var(--bg-card)}
-/* Columna lateral como en carretera (dos columnas desde 900px): mapa reducido
-   y horario de la jornada; en una columna, las cajas se reparten donde quepan. */
-.cx-results-context {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;align-items:start}
+/* Columna lateral como en carretera (dos columnas desde 761px): mapa reducido
+   y horario de la jornada, apilados; en una columna, bajo la clasificación. */
+.cx-results-context {display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .cx-context-map {overflow:hidden}
 .cx-context-map .cx-map-preview img {max-height:420px;object-fit:contain}
 /* Hasta que el mapa recibe sus dimensiones (js/cx-race.js). */
@@ -191,7 +186,7 @@
 /* En dos columnas, el mapa y el horario quedan fijos bajo la barra de
    secciones y categorías (--res-tabs-h), a la altura del relleno superior,
    que ya da el aire en reposo. */
-@media(min-width:900px){.cx-classification-page.res-layout--context>.res-context {margin-top:0;--res-context-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--res-tabs-h,0px) + 16px)}}
+@media(min-width:761px){.cx-classification-page.res-layout--context>.res-context {margin-top:0;--res-context-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--res-tabs-h,0px) + 16px)}}
 /* General con desglose por ronda: tabla con desplazamiento horizontal propio,
    puesto y corredor fijos a la izquierda y el equipo como subtítulo. */
 .cx-standings-scroll {overflow-x:auto;-webkit-overflow-scrolling:touch}

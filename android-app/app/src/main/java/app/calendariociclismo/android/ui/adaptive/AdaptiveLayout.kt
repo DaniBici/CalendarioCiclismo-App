@@ -62,11 +62,26 @@ object AdaptiveLayoutPolicy {
     const val DETAIL_MIN_DP = 840
     const val STARTLIST_CARD_MIN_DP = 290
     const val MAX_STARTLIST_COLUMNS = 3
+    /** Ancho máximo del cintillo de destacadas: en tablet horizontal queda
+     *  centrado en lugar de recorrer toda la ventana (iOS: `headerStripMaxWidth`). */
+    const val HEADER_STRIP_MAX_DP = 640
+    /** Ancho de ventana mínimo para tres columnas de vídeos: tres tarjetas de
+     *  unos 280 dp, márgenes de 16 dp y dos separaciones de 12 dp (iOS:
+     *  `videoThreeColumnThreshold`, medido sobre el contenido). */
+    const val VIDEO_THREE_COLUMN_MIN_DP = 900
 
     data class Row<T>(val items: List<T>, val spansAllColumns: Boolean)
 
     fun feedColumns(containerWidthDp: Float, info: AdaptiveLayoutInfo): Int =
         if (info.supportsTwoPanes && containerWidthDp >= TWO_COLUMN_MIN_DP) 2 else 1
+
+    /** Columnas de los vídeos de ciclocross: dos con el ancho de dos columnas de
+     *  Hoy y tres en un contenedor apaisado con ancho para tres tarjetas
+     *  (tablet en horizontal). En vertical, dos. */
+    fun videoColumns(containerWidthDp: Float, isLandscape: Boolean, info: AdaptiveLayoutInfo): Int {
+        if (feedColumns(containerWidthDp, info) < 2) return 1
+        return if (isLandscape && containerWidthDp >= VIDEO_THREE_COLUMN_MIN_DP) 3 else 2
+    }
 
     fun startlistColumns(containerWidthDp: Float, info: AdaptiveLayoutInfo, spacingDp: Float = 12f): Int {
         if (!info.supportsTwoPanes) return 1

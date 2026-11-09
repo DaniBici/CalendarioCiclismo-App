@@ -17,7 +17,7 @@ import { loadEnv, mainCheckoutEnvPath, withUrl } from './env.mjs';
 
 export const AGENT_ROLE = 'cc_agent';
 
-function scramVerifier(password, { salt = randomBytes(16), iterations = 4096 } = {}) {
+export function scramVerifier(password, { salt = randomBytes(16), iterations = 4096 } = {}) {
   const salted = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
   const clientKey = createHmac('sha256', salted).update('Client Key').digest();
   const storedKey = createHash('sha256').update(clientKey).digest('base64');
@@ -27,16 +27,16 @@ function scramVerifier(password, { salt = randomBytes(16), iterations = 4096 } =
 
 // Supavisor identifica el proyecto con el sufijo del usuario (postgres.<ref>);
 // la conexión directa usa el nombre del rol sin sufijo.
-function agentUrl(adminUrl, password) {
+export function agentUrl(adminUrl, password, role = AGENT_ROLE) {
   const url = new URL(adminUrl);
   const user = decodeURIComponent(url.username);
   const dot = user.indexOf('.');
-  url.username = `${AGENT_ROLE}${dot === -1 ? '' : user.slice(dot)}`;
+  url.username = `${role}${dot === -1 ? '' : user.slice(dot)}`;
   url.password = password;
   return url.toString();
 }
 
-function roleOfUrl(value) {
+export function roleOfUrl(value) {
   return decodeURIComponent(new URL(value).username).split('.')[0];
 }
 
@@ -67,12 +67,12 @@ function parseArgs(argv) {
   return options;
 }
 
-async function connectsAsAgent(url) {
+export async function connectsAsAgent(url, expected = AGENT_ROLE) {
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
       const role = await withUrl(url, async client => (await client.query('SELECT current_user AS role')).rows[0].role);
-      if (role === AGENT_ROLE) return;
-      throw new Error(`La conexión nueva entra como ${role}, no como ${AGENT_ROLE}.`);
+      if (role === expected) return;
+      throw new Error(`La conexión nueva entra como ${role}, no como ${expected}.`);
     } catch (error) {
       if (attempt === 5) throw error;
       await new Promise(done => setTimeout(done, attempt * 3000));

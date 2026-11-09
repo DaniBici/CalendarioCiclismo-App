@@ -17,7 +17,7 @@
 import { timeToSeconds, secondsToGap, formatGap, cleanTimeText, secondsToAbsText } from './results/time.js';
 import { stageContextHtml } from './stage/context.js';
 import { stageProfileHtml } from './stage/profile.js';
-import { TEAM_COLUMNS, teamStripes, teamsForSeason, splitStartlistTeams } from './team-appearance.js';
+import { TEAM_COLUMNS, resultTeamStripes, teamsForSeason, splitStartlistTeams } from './team-appearance.js';
 import { localizedTeamName } from './services/national-team-name.js';
 import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
@@ -636,7 +636,7 @@ function tttTableHtml(rows, stageRow, { resolver, race, lang }) {
       </tr></thead><tbody>`;
 
   teamRows.forEach((tr, i) => {
-    const teamBadge = tr.teamObj ? teamStripes(tr.teamObj) : '';
+    const teamBadge = tr.teamObj ? resultTeamStripes(tr.teamObj) : '';
     const nameInner = tr.teamHref
       ? `<a class="so-link" href="${esc(tr.teamHref)}">${esc(tr.teamName)}</a>`
       : esc(tr.teamName || '-');
@@ -978,7 +978,7 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
       // Casado → nombre canónico del catálogo + chapa (como la columna Equipo
       // de las clasificaciones individuales); sin casar → el crudo de la fuente.
       const displayName = localizedTeamName((rowTeamObj && rowTeamObj.name) || riderName, rowTeamObj, isEn);
-      const teamBadge = rowTeamObj ? teamStripes(rowTeamObj) : '';
+      const teamBadge = rowTeamObj ? resultTeamStripes(rowTeamObj) : '';
       const nameInner = teamHref
         ? `<a class="so-link" href="${esc(teamHref)}">${esc(displayName)}</a>`
         : esc(displayName);
@@ -1001,9 +1001,9 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
     // Subtítulo de equipo (solo visible en móvil, donde la columna Equipo se
     // oculta) con las franjas del equipo; la columna Equipo de escritorio
     // repite franjas y nombre.
-    const teamSub = teamName ? `<span class="res-rider-team">${teamStripes(teamObj)}${esc(teamName)}</span>` : '';
+    const teamSub = teamName ? `<span class="res-rider-team">${resultTeamStripes(teamObj)}${esc(teamName)}</span>` : '';
     const riderCell = `${flagCell}<span class="res-rider-main">${nameLink}${teamSub}</span>`;
-    const teamBadge = teamObj ? teamStripes(teamObj) : '';
+    const teamBadge = teamObj ? resultTeamStripes(teamObj) : '';
     const teamInner = teamName
       ? (teamHref ? `<a class="so-link res-team-link" href="${esc(teamHref)}">${esc(teamName)}</a>` : esc(teamName))
       : '';

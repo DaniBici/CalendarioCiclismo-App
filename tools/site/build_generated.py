@@ -57,8 +57,8 @@ STAGE_BLOCKS = ("og-races", "og-stages", "og-extras", "sitemap", "feeds")
 STAGE_OG_BLOCKS = ("og-races", "og-stages", "og-extras")
 STAGE_DELTA_ROOT = CACHE_ROOT / "_stage-delta"
 STAGE_RUN_NAME = "stage-incremental"
-# Dispatch de refresco (scripts/pages-refresh): se planifica como un push y no
-# cuenta como solicitud completa ni incremental.
+# Dispatch de refresco (input `refresh` de build-site.yml): se planifica como un
+# push y no cuenta como solicitud completa ni incremental.
 REFRESH_RUN_NAME = "prerender-refresh"
 TURN_POLL_SECONDS = 20
 TURN_LIMIT_SECONDS = 90 * 60

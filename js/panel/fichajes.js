@@ -123,12 +123,15 @@ export function renderMarketTeams() {
     const renamed = prev && prev !== s.name;
     // Colores que se verán en Fichajes: paleta 2027 publicada / paleta anterior
     // (equipo que ya existía en la temporada previa) / vacío (equipo nuevo, sin
-    // kit antiguo que enseñar). `prev` truthy = hay fila team_seasons previa.
+    // kit antiguo que enseñar, o prevColorsHidden: denominación sin confirmar).
+    // `prev` truthy = hay fila team_seasons previa.
     const badgeChip = s.badgeVisible
       ? chip(`Colores ${MARKET_SEASON}`, 'var(--green)')
-      : prev
-        ? chip(`Colores ${MARKET_PREV_SEASON}`, 'var(--text-muted)')
-        : chip('Nuevo · sin colores', 'var(--orange)');
+      : !prev
+        ? chip('Nuevo · sin colores', 'var(--orange)')
+        : s.prevColorsHidden
+          ? chip('Sin colores', 'var(--orange)')
+          : chip(`Colores ${MARKET_PREV_SEASON}`, 'var(--text-muted)');
     return `
       <div class="market-team-row" data-team="${esc(s.teamId)}">
         <span class="u-grow u-min0 u-fs-3"><strong>${esc(s.name || s.teamId)}</strong>
@@ -218,7 +221,7 @@ export async function loadTransfers() {
         .order('announcedAt', { ascending: false })
         .order('createdAt', { ascending: false }),
       supabase.from('team_seasons')
-        .select('teamId, name, category, badgeVisible, continuityDoubt')
+        .select('teamId, name, category, badgeVisible, continuityDoubt, prevColorsHidden')
         .eq('year', MARKET_SEASON),
       supabase.from('team_seasons').select('teamId, name').eq('year', MARKET_PREV_SEASON),
     ]);

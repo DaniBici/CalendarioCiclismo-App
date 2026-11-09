@@ -932,6 +932,8 @@ internal fun RaceDayHeading(
     showFlag: Boolean = true, stageLabel: String = "", onRaceTap: (() -> Unit)? = null,
     categoryName: String? = null,
     nameMaxLines: Int = 3,
+    /** Sin logo, el hueco de la marca (no en los Campeonatos Nacionales). */
+    logoPlaceholder: Boolean = false,
 ) {
     // Línea de detalle como `buildRaceHero` de la web: etapa y categoría
     // escrita completa («Etapa 5 · UCI WorldTour»).
@@ -989,7 +991,7 @@ internal fun RaceDayHeading(
                         )
                     }
                 }
-                RaceLogo(url = logoUrl, size = 36.dp)
+                RaceLogo(url = logoUrl, size = 36.dp, placeholder = logoPlaceholder)
             }
         }
     }
@@ -1046,6 +1048,7 @@ internal fun StageInfoBlock(
     val rd = raceDay
 
     RaceDayHeading(name = race?.localizedName, logoUrl = race?.logoUrl, countryCode = rd.countryCode ?: race?.countryCode,
+        logoPlaceholder = race != null && race.uciCategory != "CN",
         dateLabel = DateFormatting.formatDateLongContent(rd.dateKey), onBack = onBack, showFlag = race?.hideFlag != true || rd.countryCode != null,
         stageLabel = rd.stageLabel, onRaceTap = onRaceTap,
         categoryName = RaceLogic.uciCategoryName(race?.uciCategory))

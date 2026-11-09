@@ -126,7 +126,7 @@ import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import { prepareResultsImport } from '../data-preflight/results-preflight.mjs';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -1297,7 +1297,7 @@ async function main() {
   const url = databaseUrl(env);
   if (!url) { log('FATAL: --apply necesita DATABASE_URL (en .env o entorno)'); process.exit(1); }
   const { default: pg } = await import('pg');
-  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
   await client.connect();
 
   // --skip-existing: averiguar qué clasificaciones (eventId) ya están volcadas para

@@ -150,6 +150,33 @@ final class SupabaseService {
             .value
     }
 
+    /// Fila con solo el identificador.
+    private struct IdRow: Codable {
+        let id: String
+    }
+
+    /// Id por el slug de la página web (`slug` en español, `slugEn` en inglés),
+    /// para los enlaces universales. Nil si no existe.
+    private func id(in table: String, webSlug slug: String, english: Bool) async throws -> String? {
+        let rows: [IdRow] = try await client.from(table)
+            .select("id")
+            .eq(english ? "slugEn" : "slug", value: slug)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.id
+    }
+
+    /// Carrera de `/competicion/<slug>/` o `/en/race/<slug>/`.
+    func raceId(forWebSlug slug: String, english: Bool) async throws -> String? {
+        try await id(in: "races", webSlug: slug, english: english)
+    }
+
+    /// Jornada de `/jornada/<slug>/` o `/en/stage/<slug>/`.
+    func raceDayId(forWebSlug slug: String, english: Bool) async throws -> String? {
+        try await id(in: "race_days", webSlug: slug, english: english)
+    }
+
     /// Una carrera por slug.
     func race(bySlug slug: String) async throws -> Race {
         try await client.from("races")

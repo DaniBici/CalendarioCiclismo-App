@@ -2,16 +2,14 @@
 //  Tarjeta de jornada de carretera — Hoy y Competición
 // ─────────────────────────────────────────────────────────────────
 // Contenido común de la tarjeta de race-card.js para una jornada: cifras,
-// subtítulo, horario, miniperfil, resultados y activación.
+// subtítulo, horario, miniperfil y resultados.
 
-import { esc, extractYouTubeId, jornadaUrl, makeCardActivatable } from '../shared.js';
+import { esc, extractYouTubeId } from '../shared.js';
 import { t, getLang } from '../i18n.js';
-import { waitingResultsHtml, resultsTrophyHtml, profileProgress, tvIconHtml } from '../services/race-presentation.js';
+import { waitingResultsHtml, resultsTrophyHtml, profileProgress, profileUsesTimeHatch, tvIconHtml } from '../services/race-presentation.js';
 import { isReviveBroadcast } from '../broadcast-priority.js';
 import { buildElevationSparkline } from '../stage/elevation-profile.js';
-import { setInfoTooltip } from './race-card.js';
 
-export { tvIconHtml };
 const timerIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
 
 export function noExtraInfoMessage(dateKey) {
@@ -78,83 +76,30 @@ export function scheduleHtml(metaState, startTU, finishTU) {
   return `<div class="race-card__schedule${finishClass}"${title}><span>${metaState.label}</span><strong>${metaState.value}</strong>${day}</div>`;
 }
 
-// Miniperfil como banda inferior. Sigue el avance de la carrera salvo en
-// contrarreloj; con resultados queda completo.
-export function appendProfile(card, rd) {
-  const color = card.style.getPropertyValue('--card-color');
+// Miniperfil como banda inferior. Sigue el avance de la carrera, rayado en
+// contrarreloj (tiempo de la sesión); con resultados queda completo. `color`:
+// el de la tarjeta.
+export function elevationProfileHtml(rd, color, now = Date.now()) {
   const sparkline = rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
-    ? buildElevationSparkline(rd.elevationProfile, profileProgress(rd), rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? [])
+    ? buildElevationSparkline(rd.elevationProfile, profileProgress(rd, now), rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? [],
+      { timeHatch: profileUsesTimeHatch(rd) })
     : null;
-  if (!sparkline) return false;
-  card.classList.add('race-card--elevation');
-  card.insertAdjacentHTML('beforeend', `<div class="race-card__profile">${sparkline}</div>`);
-  return true;
+  return sparkline ? `<div class="race-card__profile">${sparkline}</div>` : '';
 }
 
-// Modo terminado: sin horario, con Resultados y Revive a la derecha.
-export function appendResultsActions(card, rd, { onResults, onYoutube }) {
-  card.classList.add('race-card--finished');
-  const metaTop = card.querySelector('.race-card__meta-top');
-  metaTop.replaceChildren();
-  const resultsBadge = document.createElement('button');
-  resultsBadge.type = 'button';
-  resultsBadge.className = 'badge badge--results badge--icon';
-  resultsBadge.title = t('stage.results');
-  resultsBadge.setAttribute('aria-label', t('stage.results'));
-  resultsBadge.innerHTML = `${resultsTrophyHtml}<span class="badge__label">${t('stage.results')}</span>`;
-  resultsBadge.addEventListener('click', e => { e.stopPropagation(); onResults(); });
-  metaTop.appendChild(resultsBadge);
-
+// Modo terminado: sin horario, con Resultados y Revive a la derecha. `data-yt`: Revive que se
+// abre en la página; los oyentes van delegados en la lista.
+export function resultsActionsHtml(rd, broadcasts = rd._broadcasts || []) {
+  const results = `<button type="button" class="badge badge--results badge--icon" title="${esc(t('stage.results'))}" aria-label="${esc(t('stage.results'))}">${resultsTrophyHtml}<span class="badge__label">${t('stage.results')}</span></button>`;
   // Revive: redes sociales antes que el resto, después sortOrder.
-  const revive = (rd._broadcasts || [])
+  const revive = broadcasts
     .filter(isReviveBroadcast)
     .sort((a, b) => {
       const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
       const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
       return (aSoc - bSoc) || ((a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     })[0] ?? null;
-  if (!revive?.url) return;
+  if (!revive?.url) return results;
   const ytId = revive.embeddable !== false ? extractYouTubeId(revive.url) : null;
-  const reviveBadge = document.createElement('a');
-  reviveBadge.className = 'badge badge--tv badge--tv-link badge--revive badge--icon';
-  reviveBadge.href = revive.url;
-  reviveBadge.target = '_blank';
-  reviveBadge.rel = 'noopener';
-  reviveBadge.title = t('tv.reviveRace');
-  reviveBadge.setAttribute('aria-label', t('tv.reviveRace'));
-  reviveBadge.innerHTML = `${tvIconHtml}<span class="badge__label">${t('tv.reviveRace')}</span>`;
-  reviveBadge.addEventListener('click', ytId
-    ? e => { e.preventDefault(); e.stopPropagation(); onYoutube(ytId); }
-    : e => e.stopPropagation());
-  resultsBadge.after(reviveBadge);
-}
-
-// Activación: página de la jornada, modal de datos o aviso sin información.
-// Sin página, un enlace oculto (visible al recibir el foco) conserva la URL
-// indexable de la jornada.
-export function activateStageCard(card, rd, { clickable, label, seoText, onModal, tooltip }) {
-  if (clickable) {
-    const go = () => {
-      sessionStorage.removeItem('cc_nav');
-      window.location.href = jornadaUrl(rd);
-    };
-    card.addEventListener('click', go);
-    makeCardActivatable(card, { role: 'link', href: jornadaUrl(rd), label, onActivate: go });
-    return;
-  }
-  const seoLink = document.createElement('a');
-  seoLink.href = jornadaUrl(rd);
-  seoLink.className = 'race-card__seo-link';
-  seoLink.textContent = seoText;
-  card.appendChild(seoLink);
-  if (onModal) {
-    const open = e => {
-      if (e?.target?.closest?.('a.badge, .race-card__overview-btn')) return;
-      onModal();
-    };
-    card.addEventListener('click', open);
-    makeCardActivatable(card, { role: 'button', label, onActivate: open });
-    return;
-  }
-  setInfoTooltip(card, tooltip);
+  return `${results}<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${esc(revive.url)}" target="_blank" rel="noopener" title="${esc(t('tv.reviveRace'))}" aria-label="${esc(t('tv.reviveRace'))}"${ytId ? ` data-yt="${esc(ytId)}"` : ' onclick="event.stopPropagation()"'}>${tvIconHtml}<span class="badge__label">${t('tv.reviveRace')}</span></a>`;
 }

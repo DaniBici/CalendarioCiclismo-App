@@ -79,6 +79,8 @@ private struct CxSchemeEntry: Decodable, Sendable {
 extension SupabaseService: CxRemote {
     private var cxAgendaColumns: String {
         "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+        // Estado de TV del badge y del orden «Hora TV», junto a las emisiones.
+        "tvStatus," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
@@ -89,7 +91,8 @@ extension SupabaseService: CxRemote {
         "cx_videos(id,raceId,category,title,url,sortOrder)"
     }
 
-    /// Columnas del índice: las de la agenda sin documentos ni emisiones.
+    /// Columnas del índice: las de la agenda sin documentos, emisiones ni
+    /// estado de TV (el badge y el orden por TV salen de la consulta del día).
     private var cxIndexColumns: String {
         "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +

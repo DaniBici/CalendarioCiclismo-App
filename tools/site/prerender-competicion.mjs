@@ -71,7 +71,7 @@ function parseScope(value) {
 
 // ── Datos ──────────────────────────────────────────────────────────────────
 /** Índices por carrera: jornadas publicadas (por id), emisiones y documentos por jornada y clasificaciones propias. */
-function buildIndex(data) {
+export function buildIndex(data) {
   return {
     races: new Map((data.races || []).map(race => [race.id, race])),
     daysByRace: groupBy(data.days || [], 'raceId'),
@@ -86,7 +86,7 @@ function buildIndex(data) {
  * las emisiones visibles en la región (`filterBroadcastsByRegion`), documentos,
  * clasificaciones propias y dobles sectores. null sin la carrera.
  */
-function competitionInputs(index, raceId, { filterBroadcastsByRegion, annotateDoubleSectors, sortCompetitionDays }) {
+export function competitionInputs(index, raceId, { filterBroadcastsByRegion, annotateDoubleSectors, sortCompetitionDays }) {
   const race = index.races.get(raceId);
   if (!race) return null;
   const matcher = buildInhouseResultsMatcher(index.uciByRace.get(raceId) || []);
@@ -104,7 +104,7 @@ function competitionInputs(index, raceId, { filterBroadcastsByRegion, annotateDo
 }
 
 // ── Página ─────────────────────────────────────────────────────────────────
-const RACE_META = /<meta name="cc:race-id" content="([^"]+)">/;
+export const RACE_META = /<meta name="cc:race-id" content="([^"]+)">/;
 const MAIN_OPEN = /<main id="competicionContent"[^>]*>/;
 
 /**

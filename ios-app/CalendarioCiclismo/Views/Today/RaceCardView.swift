@@ -172,7 +172,8 @@ struct RaceCardView: View {
                     rd: rd,
                     hasInhouseResults: isFinishedMode,
                     now: context.date
-                )
+                ),
+                timeHatch: RaceLogic.profileUsesTimeHatch(rd: rd, hasInhouseResults: isFinishedMode)
             )
         }
     }
@@ -260,10 +261,15 @@ struct RaceCardView: View {
                 // Con banda de perfil, el contenido deja 12 pt sobre ella.
                 .padding(.bottom, showsMiniProfile ? 12 : (isPhone ? 14 : 16))
 
+                // En una fila de dos tarjetas estiradas al alto de la más
+                // alta, el miniperfil queda anclado al pie.
+                Spacer(minLength: 0)
+
                 if showsMiniProfile, let profile = rd.elevationProfile {
                     miniProfileBand(profile)
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
             .background(alignment: .leading) { liveFill }
         }
         // Solo se atenúa la CARRERA cancelada (no se corre en absoluto). Una
@@ -306,15 +312,17 @@ struct RaceCardView: View {
 
     private var showsFlag: Bool { race?.hideFlag != true || rd.countryCode != nil }
     private var hasLogo: Bool { race?.logoUrl.map { !$0.isEmpty } == true }
+    /// Sin logo, hueco de la marca salvo en los Campeonatos Nacionales.
+    private var showsLogoSlot: Bool { hasLogo || (race != nil && race?.uciCategory != "CN") }
 
     /// Columna izquierda: logotipo en caja de lista con la bandera debajo; sin
     /// logotipo, solo la bandera (`cardLogoHtml` de la web).
     @ViewBuilder
     private var identityColumn: some View {
-        if hasLogo || showsFlag {
+        if showsLogoSlot || showsFlag {
             VStack(spacing: 4) {
-                if hasLogo {
-                    RaceLogo(race?.logoUrl, size: 32)
+                if showsLogoSlot {
+                    RaceLogo(race?.logoUrl, size: 32, placeholder: true)
                 }
                 if showsFlag {
                     CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
@@ -575,11 +583,16 @@ struct RaceCompetitionIdentity: View {
     var hideFlag = false
     var originalName: String? = nil
     var showFemale = false
+    /// Sin logo, hueco de la marca (no en los Campeonatos Nacionales).
+    var logoPlaceholder = false
     var body: some View {
         // Logo y bandera arriba aunque el nombre ocupe varias líneas, como en
-        // las tarjetas de Hoy de Ciclocross.
+        // las tarjetas de Hoy de Ciclocross. Sin nombre original y con logo
+        // (o su hueco), el nombre se centra en vertical respecto al logo
+        // mientras quepa en su alto.
+        let centersName = originalName == nil && (logoUrl != nil || logoPlaceholder)
         HStack(alignment: .top, spacing: 12) {
-            RaceLogo(logoUrl, size: 48)
+            RaceLogo(logoUrl, size: 48, placeholder: logoPlaceholder)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .top, spacing: 6) {
                     if !hideFlag { CountryFlag(countryCode: countryCode).padding(.top, 5) }
@@ -588,6 +601,7 @@ struct RaceCompetitionIdentity: View {
                 }
                 if let originalName { Text(originalName).font(.subheadline).foregroundStyle(.secondary) }
             }
+            .frame(minHeight: centersName ? 48 : nil, alignment: .leading)
             Spacer()
         }.accessibilityElement(children: .combine)
     }

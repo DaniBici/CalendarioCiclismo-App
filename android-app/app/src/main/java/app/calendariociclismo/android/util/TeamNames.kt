@@ -23,7 +23,22 @@ object TeamNames {
         "mo" to "Macao",
     )
 
+    private val namesEn = mapOf(
+        "ain" to "Individual Neutral Athletes",
+        "gb" to "Great Britain",
+    )
+
     private val ageCategory = Regex("""\bU(\d{2})\b""", RegexOption.IGNORE_CASE)
+
+    /** Nombre de la selección de un país (código ISO-2 o de selección); null si no se reconoce.
+     *  Espejo de `nationalSelectionName` en `js/services/national-team-name.js`. */
+    fun selectionName(code: String?, isEnglish: Boolean): String? {
+        val key = code.orEmpty().lowercase()
+        (if (isEnglish) namesEn else namesEs)[key]?.let { return it }
+        if (key.length != 2 || !key.all { it in 'a'..'z' }) return null
+        val display = Locale("", key.uppercase()).getDisplayCountry(if (isEnglish) Locale.ENGLISH else Locale.forLanguageTag("es"))
+        return display.takeIf { it.isNotEmpty() && !it.equals(key, ignoreCase = true) }
+    }
 
     /** `name` es el texto que se mostraría sin traducir; de él se conserva la
      *  categoría de edad («Canada U23» → «Canadá sub23»). */
@@ -43,12 +58,7 @@ object TeamNames {
         isEnglish: Boolean,
     ): String {
         if (isEnglish || teamKind != "selection" || selectionScope != "national") return name
-        val code = (countryCode?.takeIf { it.isNotEmpty() } ?: selectionCode.orEmpty()).lowercase()
-        val country = namesEs[code]
-            ?: code.takeIf { it.length == 2 && it.all { c -> c in 'a'..'z' } }
-                ?.let { Locale("", it.uppercase()).getDisplayCountry(Locale.forLanguageTag("es")) }
-                ?.takeIf { it.isNotEmpty() && !it.equals(code, ignoreCase = true) }
-            ?: return name
+        val country = selectionName(countryCode?.takeIf { it.isNotEmpty() } ?: selectionCode, false) ?: return name
         val age = ageCategory.find(name) ?: return country
         return "$country sub${age.groupValues[1]}"
     }

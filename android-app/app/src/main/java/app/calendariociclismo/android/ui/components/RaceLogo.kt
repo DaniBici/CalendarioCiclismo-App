@@ -1,6 +1,19 @@
 package app.calendariociclismo.android.ui.components
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.theme.neutralFill
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -35,8 +48,20 @@ fun RaceLogo(
     url: String?,
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
+    /** Sin logo, o si no carga, el hueco de la marca ([LogoPlaceholder]) en
+     *  lugar de nada. Solo en carreras que admiten logo: nunca en los
+     *  Campeonatos Nacionales. */
+    placeholder: Boolean = false,
 ) {
-    if (url.isNullOrBlank()) return
+    if (url.isNullOrBlank()) {
+        if (placeholder) LogoPlaceholder(size = size, modifier = modifier)
+        return
+    }
+    var failed by remember(url) { mutableStateOf(false) }
+    if (failed && placeholder) {
+        LogoPlaceholder(size = size, modifier = modifier)
+        return
+    }
     val context = LocalContext.current
     val cache   = ImageAssetCache.instance()
 
@@ -60,5 +85,31 @@ fun RaceLogo(
         placeholder = null,
         error = null,
         fallback = null,
+        onError = { failed = true },
     )
+}
+
+/**
+ * Hueco de logotipo: la marca de la cabecera (calendario y bici) en gris tenue
+ * sobre el relleno neutro, con el radio de control y el tamaño del logo, para
+ * que filas y cabeceras no cambien de forma. Concepto de Alejandro Monteagudo
+ * con la estética actual de la app (iOS: `LogoPlaceholder`; web:
+ * `logoPlaceholderHtml`).
+ */
+@Composable
+fun LogoPlaceholder(size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(CCRadius.Control))
+            .background(neutralFill),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_cc_header),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+            modifier = Modifier.fillMaxWidth(0.72f),
+        )
+    }
 }

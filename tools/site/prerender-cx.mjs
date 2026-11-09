@@ -12,10 +12,12 @@
 // prerender-jornadas.mjs:
 //
 // - ficha: el interior de <main id="cxRaceContent">, el esqueleto con la
-//   sección de la URL y su columna lateral llenas, cada hueco con
-//   data-prerendered="<huella>" (cxRacePrerenderedHtml); el <main> lleva además
-//   data-cx-race-id. js/cx-race.js conserva cada hueco con la misma huella y
-//   pinta el resto (js/html-fingerprint.js);
+//   sección de la URL, todos sus paneles de categoría y su columna lateral
+//   llenos, cada hueco con data-prerendered="<huella>"
+//   (cxRacePrerenderedHtml); el <main> lleva además data-cx-race-id y le
+//   precede el script en línea RACE_SCRIPT, que muestra la categoría del
+//   fragmento antes del primer pintado. js/cx-race.js conserva cada hueco con
+//   la misma huella y pinta el resto (js/html-fingerprint.js);
 // - torneo: el interior de <main id="cxAgendaContent">, el esqueleto con las
 //   secciones visibles si hay generales y la lista de pruebas, cada uno con la
 //   huella de su versión sin estado de categorías ni insignias (las actualiza
@@ -55,9 +57,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = fileURLToPath(import.meta.url);
 const MIN_RATIO = 0.99;
 const API_IN_CHUNK = 100;
-// Ficha con la sección de la URL y el panel de la categoría visible
-// (2026-10-29: mediana de 15,6 KB y máximo de 60 KB, la general de un torneo).
-const MAX_PAGE_BYTES = 128 * 1024;
+// Ficha con la sección de la URL y todos sus paneles de categoría (2026-11-05,
+// <main> de 741 páginas ES: p90 77 KB, p99 163 KB y máximo 231 KB, los
+// resultados de seis categorías de una Copa de Francia; página de 253 KB).
+// Torneos: mediana de 37,9 KB y máximo de 63,9 KB (2026-10-29).
+const MAX_PAGE_BYTES = 512 * 1024;
 
 const SCOPES = {
   off: { langs: [] },
@@ -216,10 +220,72 @@ export function pageRaceId(source) {
   return RACE_ID.exec(main[1])?.[1] || RACE_ID.exec(source.slice(main.index, source.indexOf('</main>', main.index)))?.[1] || null;
 }
 
+// Script en línea antes del <main> de la ficha: la categoría del fragmento
+// (#WE), que no llega al servidor, desde el primer pintado. El HTML trae todos
+// los paneles de la sección de la URL, visible el de la categoría por defecto.
+// Con fragmento, el script aplica la categoría a medida que el analizador añade
+// barras, paneles, columna lateral y pestañas de sección (los avisos de
+// MutationObserver llegan antes de cada pintado); después, en cada cambio de
+// fragmento, hasta que js/cx-race.js conserva la página (retira
+// data-prerendered) y lo hace selectSection(). Misma elección que
+// cxRaceSelection() en resultados y dorsales: la categoría pedida si la ficha
+// la tiene; si no, ME o la primera; sin fragmento, la del HTML. Los enlaces
+// antiguos #general/#general-XX quedan para js/cx-race.js.
+function raceFragmentScript() {
+  const doc = document;
+  const PANELS = ['data-cx-classification-content', 'data-cx-startlist-category', 'data-cx-general'];
+  let main = null;
+  let initial = null;
+  let changed = false;
+  const apply = () => {
+    main = main || doc.getElementById('cxRaceContent');
+    if (!main || !main.hasAttribute('data-prerendered')) return;
+    // Barras completas: el contenedor de la primera sección ya existe.
+    const sticky = main.querySelector('[data-cx-sticky-nav]');
+    const nav = sticky && sticky.nextElementSibling && sticky.querySelector('[data-cx-category-nav]');
+    if (!nav || nav.hidden) return;
+    const codes = [...nav.querySelectorAll('[data-cx-classification]')].map(node => node.getAttribute('data-cx-classification'));
+    if (initial === null) initial = nav.querySelector('.res-stage-btn--active')?.getAttribute('data-cx-classification') || '';
+    let hash = '';
+    try { hash = decodeURIComponent(location.hash.slice(1)); } catch { /* Fragmento sin decodificar. */ }
+    if ((hash === 'general' || hash.startsWith('general-')) && sticky.querySelector('[data-cx-general-nav]')) return;
+    const code = !hash ? initial : codes.includes(hash) ? hash : codes.includes('ME') ? 'ME' : codes[0];
+    if (code === initial && !changed) return;
+    changed = true;
+    for (const node of main.querySelectorAll('[data-cx-classification],[data-cx-general-classification]')) {
+      const on = (node.getAttribute('data-cx-classification') || node.getAttribute('data-cx-general-classification')) === code;
+      node.classList.toggle('res-stage-btn--active', on);
+      if (on) node.setAttribute('aria-current', 'page');
+      else node.removeAttribute('aria-current');
+    }
+    for (const attribute of PANELS) {
+      for (const node of main.querySelectorAll(`[${attribute}]`)) {
+        const hidden = node.getAttribute(attribute) !== code;
+        if (node.hidden !== hidden) node.hidden = hidden;
+      }
+    }
+    for (const node of main.querySelectorAll('[data-cx-context-category]')) node.classList.toggle('res-stage-data__active', node.getAttribute('data-cx-context-category') === code);
+    for (const node of main.querySelectorAll('[data-cx-section-link][data-cx-carry]')) {
+      const href = node.getAttribute('href').split('#')[0] + (node.getAttribute('data-cx-carry').split(' ').includes(code) ? `#${code}` : '');
+      if (node.getAttribute('href') !== href) node.setAttribute('href', href);
+    }
+  };
+  if (location.hash.length > 1) {
+    const observer = new MutationObserver(apply);
+    observer.observe(doc.documentElement, { childList: true, subtree: true });
+    doc.addEventListener('DOMContentLoaded', () => { observer.disconnect(); apply(); }, { once: true });
+  }
+  addEventListener('hashchange', apply);
+}
+// Sin comentarios ni sangría: el build ejecuta este paso antes de instalar las dependencias (esbuild).
+const compact = source => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\n\s*/g, '');
+const RACE_SCRIPT = `<script id="cxRacePrerender">(${compact(String(raceFragmentScript))})()</script>`;
+const OWN_RACE_SCRIPT = /<script id="cxRacePrerender">[\s\S]*?<\/script>\n?/;
+
 /**
- * Página con la cabecera y la ficha generadas, o null si la plantilla no tiene
- * la cabecera y el <main> esperados. Sustituye también lo que escribió una
- * pasada anterior.
+ * Página con la cabecera, el script en línea RACE_SCRIPT y la ficha generadas,
+ * o null si la plantilla no tiene la cabecera y el <main> esperados. Sustituye
+ * también lo que escribió una pasada anterior.
  */
 export function composePage(source, { raceId, headerInner, html, fingerprint }) {
   const header = HEADER.exec(source);
@@ -229,15 +295,15 @@ export function composePage(source, { raceId, headerInner, html, fingerprint }) 
   if (close < 0) return null;
   return source.slice(0, header.index)
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
-    + source.slice(header.index + header[0].length, main.index)
-    + `<main id="cxRaceContent"${main[1].replace(OWN_ATTRS, '')} data-cx-race-id="${attr(raceId)}" data-prerendered="${attr(fingerprint)}">\n${html}\n`
+    + source.slice(header.index + header[0].length, main.index).replace(OWN_RACE_SCRIPT, '')
+    + `${RACE_SCRIPT}\n<main id="cxRaceContent"${main[1].replace(OWN_ATTRS, '')} data-cx-race-id="${attr(raceId)}" data-prerendered="${attr(fingerprint)}">\n${html}\n`
     + source.slice(close);
 }
 
 /**
  * Comprobaciones de una página generada; devuelve los errores. `navHrefs`:
  * enlaces de vistas de la cabecera; `section`: sección de la URL, que debe ir
- * llena; `rows`: filas de tabla del panel de la categoría visible.
+ * llena; `rows`: filas de tabla de sus paneles de categoría.
  */
 export function validatePage(page, { navHrefs, section, rows }) {
   const errors = pageErrors(page, { navHrefs, maxBytes: MAX_PAGE_BYTES });
@@ -411,11 +477,11 @@ async function runLanguage(lang, site, data) {
       continue;
     }
     const { page, sel, model } = outcome;
-    // Filas del panel de la categoría visible, el único que se escribe.
-    const code = sel.selected.category;
-    const rows = sel.page === 'results' ? (model.publishedCategories.includes(code) ? model.results.filter(row => row.category === code).length : 0)
+    // Filas de los paneles de la sección, todos escritos.
+    const codes = sel.page === 'general' ? model.generalCategories : model.categories.map(category => category.category);
+    const rows = codes.reduce((total, code) => total + (sel.page === 'results' ? (model.publishedCategories.includes(code) ? model.results.filter(row => row.category === code).length : 0)
       : sel.page === 'startlist' ? model.inscritos.filter(row => row.category === code).length
-        : sel.page === 'general' ? model.standings.filter(row => row.category === code).length : 0;
+        : sel.page === 'general' ? model.standings.filter(row => row.category === code).length : 0), 0);
     result.generated++;
     result.bytes.push(Buffer.byteLength(page));
     result.errors.push(...validatePage(page, { navHrefs, section: sel.page, rows }).map(error => `${name}: ${error}`));

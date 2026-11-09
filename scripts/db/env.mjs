@@ -30,6 +30,13 @@ export function loadEnv(path = mainCheckoutEnvPath()) {
   }
 }
 
+// Límites de los clientes pg de los procesos programados del VPS. Un reinicio de la base puede
+// dejar el socket medio abierto, sin FIN ni RST, y el cliente esperaría hasta el límite de
+// systemd. Con la consulta ya confirmada, keepalive corta en unos 40 s: 30 s de inactividad y
+// 10 sondas de 1 s, fijadas por libuv. Con datos sin confirmar el núcleo no envía sondas y corta
+// query_timeout. withUrl no los aplica: lo usan migraciones y sql.mjs, que pueden tardar más.
+export const PG_CONNECTION_LIMITS = { keepAlive: true, keepAliveInitialDelayMillis: 30000, connectionTimeoutMillis: 15000, query_timeout: 300000 };
+
 // Conexión de los scripts que también corren en el VPS: AGENT_DATABASE_URL
 // (cc_agent) en la máquina local; en el VPS no existe y se usa DATABASE_URL
 // del rol worker.

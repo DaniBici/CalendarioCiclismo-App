@@ -490,6 +490,7 @@
     <string name="results_feed_heading">Results</string>
     <string name="results_feed_latest">Latest Results</string>
     <string name="uci_ranking_tab">UCI Ranking</string>
+    <string name="uci_ranking_title">Ranking</string>
     <string name="results_tab_road">Road</string>
     <string name="results_feed_cx_empty">No cyclocross results this season</string>
     <string name="results_feed_cx_empty_period">No cyclocross results in this period</string>

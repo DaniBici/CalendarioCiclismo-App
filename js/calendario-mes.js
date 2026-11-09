@@ -24,6 +24,7 @@ import { staleWhileRevalidate } from './services/local-cache.js';
 import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
 import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
+import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 
 // ── Estado ────────────────────────────────────────────────────────
 const today = new Date();
@@ -212,8 +213,8 @@ function raceRowHtml(rd, refId) {
   // Los Campeonatos Nacionales no llevan logo: sin hueco.
   const logo = race.uciCategory === 'CN' ? ''
     : race.logoUrl
-      ? `<img class="cal-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
-      : '<span class="cal-race__logo cal-race__logo--empty"></span>';
+      ? `<img class="cal-race__logo" src="${race.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
+      : logoPlaceholderHtml('cal-race__logo cal-race__logo--empty');
 
   const nameStyle = cancelled ? ' style="text-decoration:line-through;opacity:0.5"' : '';
   const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${isFemale ? femaleMark({ cls: 'cal-race__female' }) : ''}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
