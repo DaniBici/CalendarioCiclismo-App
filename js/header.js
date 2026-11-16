@@ -99,7 +99,8 @@ function buildFooterNav(s) {
   if (copyright) {
     copyright.classList.add('site-footer__legal');
     // Tras el dueño (con la letra y el tamaño de la línea, como en producción),
-    // la firma del rediseño en Style Script. Privacidad y Términos pasan a «Más»:
+    // el autor del rediseño, igual que el resto de la línea. Privacidad y
+    // Términos pasan a «Más»:
     // la línea queda solo para la autoría.
     const owner = copyright.querySelector('a[href*="danisanchez"]');
     if (owner) {

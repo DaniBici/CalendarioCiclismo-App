@@ -121,8 +121,8 @@ textos e i18n son los mismos.
   (Acerca de mí, Datos abiertos, Calendario iCal, Apoyar, Apps, Privacidad,
   Términos y Gestión de cookies, que añade `js/cookie-consent.js`) y, abajo,
   la línea de autoría con la letra y el tamaño de producción: «Ideado y
-  editado por Dani Sánchez - Apariencia gráfica» y la firma del rediseño en
-  Style Script, escalada al alto visual del texto y enlazada a su perfil de X.
+  editado por Dani Sánchez - Apariencia gráfica Alejandro Monteagudo Niella»,
+  los dos nombres con la letra y el tamaño de la línea y su enlace.
   Privacidad y Términos salen de esa línea y pasan a «Más».
 - Siempre bajo el pliegue: el pie va al fondo del cuerpo (posición absoluta)
   y el cuerpo mide al menos una pantalla (`100lvh`) más el pie
@@ -169,8 +169,7 @@ textos e i18n son los mismos.
 ## Decisiones
 - Tipografía del Figma: Montserrat para el texto y Momo Trust Display para el
   nombre del logotipo (sin «by Dani Sánchez», por decisión del dueño),
-  autoalojadas (fonts/web/README.md);
-  Style Script solo para la firma del rediseño.
+  autoalojadas (fonts/web/README.md).
   El panel y el PDF de inscritos siguen con Google Sans.
 - Logo: los iconos de siempre en placa más el nombre del Figma en escritorio y
   tableta; en móvil, la placa.

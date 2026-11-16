@@ -134,17 +134,6 @@ Tipografía del logotipo de la web pública, autoalojada en `fonts/web/`
 
 ---
 
-## Style Script
-
-Tipografía de la firma del rediseño en el pie de la web pública, autoalojada
-en `fonts/web/` (subconjunto latino).
-
-- Proyecto: https://github.com/googlefonts/style-script
-- Copyright: Copyright 2013 The Style Script Project Authors (https://github.com/googlefonts/style-script)
-- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
-
----
-
 ## Google Sans
 
 Google Sans Medium se redistribuye en las cabeceras nativas de iOS y Android.

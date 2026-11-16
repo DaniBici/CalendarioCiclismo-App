@@ -34,13 +34,6 @@ externos) a leerlas del propio dominio.
   llega la fuente el texto ocupa casi lo mismo y el cambio no desplaza la
   página. Si se cambia de familia, hay que volver a medirlas.
 
-## Style Script
-
-- Firma del rediseño en el pie (`.site-footer__signature`). Un peso (400),
-  solo `latin`: `style-script-latin.woff2`.
-- Origen: `https://fonts.googleapis.com/css2?family=Style+Script&display=swap`,
-  con el mismo `User-Agent` de Chrome. Descarga: 2026-11-04.
-
 ## Regenerar
 
 1. Pedir la hoja anterior con un `User-Agent` de Chrome.
