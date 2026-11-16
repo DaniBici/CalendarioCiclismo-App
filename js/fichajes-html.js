@@ -126,9 +126,9 @@ export function buildMarket({ seasons, prevSeasons, transfers, extraTeams }) {
     teamNameById,
     teamNamePrev,
     // Colores de la temporada EN CURSO (2026) por equipo: los "antiguos", que se
-    // muestran mientras la chapa 2027 está oculta, salvo con prevColorsHidden.
-    // Un equipo NUEVO (nacido en 2027) no tiene fila 2026 → sin entrada aquí →
-    // la chapa queda vacía (mig. 129).
+    // muestran mientras los colores 2027 no están publicados, salvo con
+    // prevColorsHidden. Un equipo NUEVO (nacido en 2027) no tiene fila 2026 →
+    // sin entrada aquí → sin colores (mig. 129).
     prevColorsByTeamId: new Map(prevSeasons.map(s => [s.teamId, s])),
     transfers,
     slugToTeamId,
@@ -347,9 +347,9 @@ export function divisionTeams(market, div) {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
 }
 
-// Franjas de maillot de Resultados; sin colores publicados de la temporada,
-// los de la anterior, salvo con prevColorsHidden (denominación sin confirmar):
-// sin franjas.
+// Cuadrado de colores del equipo, como en Resultados; sin colores publicados
+// de la temporada, los de la anterior, salvo con prevColorsHidden
+// (denominación sin confirmar): sin cuadrado.
 function marketStripesHtml(market, season) {
   const source = season?.badgeVisible === true
     ? season

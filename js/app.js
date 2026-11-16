@@ -22,8 +22,9 @@ import { ACTIVE_RACE_COLUMNS, YEAR_NAV_COLUMNS, agendaPlaceholders, prepareAgend
          findNextDayWithRaces as nextDayWithRaces, findPrevDayWithRaces as prevDayWithRaces, addDaysKey } from './services/today-nav.js';
 import { agendaCardHtml, dateBarHtml, emptyDayHtml } from './today-agenda-html.js';
 import { sortAgenda } from './services/today-agenda-order.js';
-import { cyclocrossHome, cyclocrossLanding } from './services/today-season.js';
+import { cyclocrossLanding } from './services/today-season.js';
 import { mountDisciplineSwitch } from './components/discipline-switch.js';
+import { bindMenuButtons } from './components/menu-button.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
@@ -111,7 +112,7 @@ function syncDayUrl(dateKey) {
 
 // ── Cargar jornadas de un día ─────────────────────────────────────
 // Jornada con su carrera, emisiones, assets y filas de resultados propios.
-const DAY_SELECT = '*,race:races(*,race_uci_stages(raceId,raceDayId,stageNumber)),broadcasts(*),assets(id,raceDayId,type,url)';
+const DAY_SELECT = '*,race:races(*,race_uci_stages(raceId,raceDayId,stageNumber)),broadcasts(*),assets(id,raceDayId,type,url),race_day_videos(id,kind,title,titleEn,channel,url,embeddable,country,sortOrder,raceDayId)';
 let dayRequest = 0;
 let dayLoading = false;
 // skipEmptyDay: si true, salta automáticamente al siguiente día con carreras
@@ -379,6 +380,8 @@ function activateCard(card, event) {
 
 function initAgendaCardEvents() {
   const list = document.getElementById('raceList');
+  // Menú Resumen / Revive de la tarjeta terminada (js/components/menu-button.js).
+  bindMenuButtons(document);
   // En captura: los enlaces de los badges paran la propagación en línea.
   list.addEventListener('click', e => {
     const rd = _agendaById.get(e.target.closest?.('.race-card')?.dataset.key);
@@ -394,6 +397,16 @@ function initAgendaCardEvents() {
     if (e.target.closest('.badge--results')) {
       e.stopPropagation();
       openResultsModal(rd, race);
+      return;
+    }
+    // Opción del menú Resumen / Revive: YouTube en el modal de TV; el resto, pestaña nueva.
+    const item = e.target.closest('.menu-popover__item');
+    if (item) {
+      e.stopPropagation();
+      if (item.dataset.yt) {
+        e.preventDefault();
+        openYoutubeTvModal(rd, race, item.dataset.yt);
+      }
       return;
     }
     const revive = e.target.closest('.badge--revive[data-yt]');
@@ -654,13 +667,11 @@ initI18n().then(() => {
     const val = t(el.getAttribute('data-i18n'));
     if (typeof val === 'string') el.textContent = val;
   });
-  // Con la home cedida a Ciclocross, el conmutador CX / Ruta abre la franja
-  // de filtros y vuelve a la agenda de Ciclocross. Su chincheta fija Carretera
-  // como vista de `/`: el día de hoy pierde o recupera `?date=`.
-  if (cyclocrossHome(today)) {
-    mountDisciplineSwitch(document.querySelector('#agendaFilters .agenda-filters__inner'),
-      'road', today, () => syncDayUrl(currentDateKey));
-  }
+  // El conmutador CX / Ruta abre la franja de filtros todo el año (Ciclocross
+  // vive dentro de Hoy). Su chincheta fija Carretera como vista de `/` mientras
+  // la home es Ciclocross: el día de hoy pierde o recupera `?date=`.
+  mountDisciplineSwitch(document.querySelector('#agendaFilters .agenda-filters__inner'),
+    'road', today, () => syncDayUrl(currentDateKey));
   buildDateBar();
   loadDay(currentDateKey, { skipEmptyDay: true });
 });

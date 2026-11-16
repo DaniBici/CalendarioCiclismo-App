@@ -69,6 +69,9 @@ struct ResultsView: View {
     @State private var isLoadingResults = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var safariURL: URL?
+    /// Vídeos de la jornada visible (docs/plans/videos-5-2.md, fase 3): bajo
+    /// «Perfil y datos», en acordeón, como la página de clasificaciones web.
+    @State private var contextVideos: [StageVideoLogic.Entry] = []
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Ancho de la pantalla: la columna de contexto exige ancho regular y al
     /// menos `twoColumnThreshold` (en la columna de detalle del iPad puede
@@ -128,7 +131,25 @@ struct ResultsView: View {
                 await load(resetSelection: false, periodic: true)
             }
         }
+        .task(id: headerRaceDay?.id) { await loadContextVideos() }
         .safariSheet(url: $safariURL)
+    }
+
+    /// Vídeos de la jornada de la cabecera en la región del usuario, con la
+    /// emisión de YouTube convertida (la jornada tiene clasificaciones propias).
+    private func loadContextVideos() async {
+        guard let rd = headerRaceDay else { contextVideos = []; return }
+        async let broadcastRows = try? SupabaseService.shared.broadcasts(byRaceDayId: rd.id)
+        async let videoRows = try? SupabaseService.shared.raceDayVideos(byRaceDayId: rd.id)
+        let groups = RegionService.shared.allowedBroadcastGroups
+        let broadcasts = RaceLogic.filterBroadcastsByRegion(await broadcastRows ?? [], allowedGroups: groups)
+        let videos = StageVideoLogic.filterByRegion(await videoRows ?? [], allowedGroups: groups)
+        guard !Task.isCancelled, rd.id == headerRaceDay?.id else { return }
+        contextVideos = StageVideoLogic.entries(broadcasts: broadcasts, videos: videos, hasResults: true, isCancelled: rd.isCancelledDay)
+    }
+
+    private func openVideo(_ url: URL) {
+        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
     }
 
     private var stageRaceForToolbar: Race? {
@@ -341,7 +362,9 @@ struct ResultsView: View {
                         ScrollView {
                             ResultsStageContext(
                                 raceDay: rd,
-                                race: data.race
+                                race: data.race,
+                                videos: contextVideos,
+                                onExternal: openVideo
                             )
                         }
                         .frame(width: 320)
@@ -377,7 +400,7 @@ struct ResultsView: View {
     }
 
     private func hasResultsStageContext(_ raceDay: RaceDay) -> Bool {
-        raceDay.hasElevationProfile || raceDay.distanceKm != nil
+        !contextVideos.isEmpty || raceDay.hasElevationProfile || raceDay.distanceKm != nil
             || raceDay.elevationProfile?.elevationGain != nil || raceDay.neutralStartTimeUtc != nil
             || raceDay.averageSpeedKmh != nil
             || raceDay.hasValidTimeLimit
@@ -470,7 +493,9 @@ struct ResultsView: View {
                     if let rd = contextBelow, hasResultsStageContext(rd) {
                         ResultsStageContext(
                             raceDay: rd,
-                            race: data.race
+                            race: data.race,
+                            videos: contextVideos,
+                            onExternal: openVideo
                         )
                             .padding(.horizontal)
                             .padding(.bottom, 16)
@@ -684,6 +709,9 @@ struct ResultsStageContext: View {
     let raceDay: RaceDay
     let race: Race
     var officialProfileAsset: Asset? = nil
+    /// Vídeos de la jornada, tras «Perfil y datos» (acordeón, primero abierto).
+    var videos: [StageVideoLogic.Entry] = []
+    var onExternal: (URL) -> Void = { _ in }
 
     private var hasMetrics: Bool {
         raceDay.distanceKm != nil || raceDay.elevationProfile?.elevationGain != nil
@@ -692,6 +720,21 @@ struct ResultsStageContext: View {
     }
 
     var body: some View {
+        VStack(spacing: 16) {
+            dataCard
+            if !videos.isEmpty {
+                StagePanel {
+                    StagePanelTitle(LocaleService.t("Vídeos", "Videos"))
+                } content: {
+                    StageVideoList(entries: videos, oneDay: race.isOneDay, onExternal: onExternal)
+                        .id(raceDay.id)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dataCard: some View {
         if raceDay.hasElevationProfile || officialProfileAsset != nil || hasMetrics {
             VStack(alignment: .leading, spacing: 10) {
                 if let profile = raceDay.elevationProfile, raceDay.hasElevationProfile {

@@ -34,13 +34,14 @@ export function stageMetricsHtml(day, { hideNeutralStart = false, timeZoneLabel 
 /**
  * Columna lateral: perfil (`profileId`) y datos de la jornada. `profile`
  * (stageProfileHtml()) escribe el panel del perfil con el gráfico vacío, que
- * mountStageProfile dibuja después; sin él, el contenedor queda vacío. Con
+ * mountStageProfile dibuja después; sin él, el contenedor queda vacío.
+ * `videosHtml` (stageVideosContextHtml()) va tras los datos. Con
  * `metrics: false`, la lista de datos queda vacía para rellenarla aparte
  * (resultados: depende de la zona del visitante).
  */
-export function stageContextHtml(day, profileId, { profile = undefined, metrics = true, ...options } = {}) {
+export function stageContextHtml(day, profileId, { profile = undefined, metrics = true, videosHtml = '', ...options } = {}) {
   const host = profile === undefined ? `<div id="${esc(profileId)}"></div>`
     : profile ? `<div id="${esc(profileId)}" class="${esc(profile.className)}">${profile.html}</div>`
     : `<div id="${esc(profileId)}" hidden></div>`;
-  return `<aside class="res-context">${host}<section class="res-stage-data"><h2>${getLang() === 'en' ? 'Stage data' : 'Datos de la jornada'}</h2><dl>${metrics ? stageMetricsHtml(day, options) : ''}</dl></section></aside>`;
+  return `<aside class="res-context">${host}<section class="res-stage-data"><h2>${getLang() === 'en' ? 'Stage data' : 'Datos de la jornada'}</h2><dl>${metrics ? stageMetricsHtml(day, options) : ''}</dl></section>${videosHtml}</aside>`;
 }

@@ -1,0 +1,707 @@
+{
+ "source": "https://uci-competition.tech.uci.ch/api",
+ "capturedAt": "2026-11-11",
+ "list": [
+  {
+   "id": "793a89de-00f3-415f-8172-8082f36ed847",
+   "code": "ROA_2027_1.PRO_000214",
+   "name": "Surf Coast Classic - Women",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "1.Pro",
+   "className": "1 day - UCI ProSeries",
+   "countryCode": "AUS",
+   "countryName": "AUSTRALIA",
+   "continentCode": "OCE",
+   "venue": "Lorne Beach",
+   "startDate": "2027-01-27",
+   "endDate": "2027-01-27",
+   "v1Code": "D2CP80079",
+   "website": "www.cadelevansgreatoceanroadrace.com.au",
+   "categoryCodes": [
+    "WE"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    }
+   ],
+   "raceCount": 1,
+   "hasResults": false
+  },
+  {
+   "id": "a73c999b-3512-4ea3-b7d0-0a46e0c4517c",
+   "code": "ROA_2027_2.2_001171",
+   "name": "Vuelta al Táchira en Bicicleta",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "2.2",
+   "className": "Stages - Class 2",
+   "countryCode": "VEN",
+   "countryName": "VENEZUELA",
+   "continentCode": "AME",
+   "venue": "Táchira",
+   "startDate": "2027-01-08",
+   "endDate": "2027-01-17",
+   "v1Code": "D2CP81048",
+   "website": "http://instagram.com/vueltachira",
+   "categoryCodes": [
+    "ME"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    }
+   ],
+   "raceCount": 11,
+   "hasResults": false
+  },
+  {
+   "id": "a22971f0-a694-4302-801b-fc061b61bec1",
+   "code": "ROA_2027_2.UWT_000039",
+   "name": "Santos Tour Down Under",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "2.UWT",
+   "className": "Stages - UCI WorldTour",
+   "countryCode": "AUS",
+   "countryName": "AUSTRALIA",
+   "continentCode": "OCE",
+   "venue": "Victoria Square / Tarntanyangga",
+   "startDate": "2027-01-19",
+   "endDate": "2027-01-24",
+   "v1Code": "D2CP79669",
+   "website": "tourdownunder.com.au",
+   "categoryCodes": [
+    "ME"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    }
+   ],
+   "raceCount": 7,
+   "hasResults": false
+  },
+  {
+   "id": "e2c2764a-6eac-498d-b71c-385a2419255d",
+   "code": "ROA_2027_1.1_000667",
+   "name": "Kuurne - Brussel - Kuurne Juniors",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "1.1",
+   "className": "1 day - Class 1",
+   "countryCode": "BEL",
+   "countryName": "BELGIUM",
+   "continentCode": "EUR",
+   "venue": "Kuurne",
+   "startDate": "2027-02-28",
+   "endDate": "2027-02-28",
+   "v1Code": "D2CP80539",
+   "website": "www.kbk.be/junioren",
+   "categoryCodes": [
+    "MJ"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    }
+   ],
+   "raceCount": 1,
+   "hasResults": false
+  },
+  {
+   "id": "f1b3cd0c-5e01-4920-908a-a90ccdcca522",
+   "code": "ROA_2027_2.2_000073",
+   "name": "Tour du Faso",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "2.2",
+   "className": "Stages - Class 2",
+   "countryCode": "BUR",
+   "countryName": "BURKINA FASO",
+   "continentCode": "AFR",
+   "venue": "Ouagadougou",
+   "startDate": "2026-10-30",
+   "endDate": "2026-11-08",
+   "v1Code": "D2CP79698",
+   "website": "www.fedeburkina.com",
+   "categoryCodes": [
+    "ME"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    }
+   ],
+   "raceCount": 11,
+   "hasResults": true
+  },
+  {
+   "id": "560fb91e-5c63-44d2-aeef-ff4eadeae42c",
+   "code": "ROA_2027_CC_001382",
+   "name": "Oceania Road Championships",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "CC",
+   "className": "Continental Championships",
+   "countryCode": "AUS",
+   "countryName": "AUSTRALIA",
+   "continentCode": "OCE",
+   "venue": "Adelaide",
+   "startDate": "2027-01-15",
+   "endDate": "2027-01-17",
+   "v1Code": "D2CP81284",
+   "website": "oceaniacycling.org",
+   "categoryCodes": [
+    "ME",
+    "MJ",
+    "MU",
+    "WE",
+    "WJ",
+    "WU"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    },
+    {
+     "code": "ITT",
+     "name": "Individual Time Trial"
+    }
+   ],
+   "raceCount": 12,
+   "hasResults": false
+  },
+  {
+   "id": "52f30f61-38cf-40e2-aa76-f58a0cd25a54",
+   "code": "ROA_2027_2.PRO_001384",
+   "name": "Volta ao Algarve em Bicicleta",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "2.Pro",
+   "className": "Stages - UCI ProSeries",
+   "countryCode": "POR",
+   "countryName": "PORTUGAL",
+   "continentCode": "EUR",
+   "venue": "Loulé",
+   "startDate": "2027-02-17",
+   "endDate": "2027-02-21",
+   "v1Code": "D2CP81286",
+   "website": "www.voltaaoalgarve.com",
+   "categoryCodes": [],
+   "raceTypes": [],
+   "raceCount": 0,
+   "hasResults": false
+  }
+ ],
+ "details": {
+  "560fb91e-5c63-44d2-aeef-ff4eadeae42c": {
+   "id": "560fb91e-5c63-44d2-aeef-ff4eadeae42c",
+   "code": "ROA_2027_CC_001382",
+   "name": "Oceania Road Championships",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "CC",
+   "className": "Continental Championships",
+   "countryCode": "AUS",
+   "countryName": "AUSTRALIA",
+   "continentCode": "OCE",
+   "venue": "Adelaide",
+   "startDate": "2027-01-15",
+   "endDate": "2027-01-17",
+   "v1Code": "D2CP81284",
+   "website": "oceaniacycling.org",
+   "categoryCodes": [
+    "ME",
+    "MJ",
+    "MU",
+    "WE",
+    "WJ",
+    "WU"
+   ],
+   "raceTypes": [
+    {
+     "code": "IRR",
+     "name": "Individual Road Race"
+    },
+    {
+     "code": "ITT",
+     "name": "Individual Time Trial"
+    }
+   ],
+   "raceCount": 12,
+   "races": [
+    {
+     "id": "3223ff8f-1748-4898-9abe-19defd7ef3f3",
+     "name": "Men Elite - Individual Road Race",
+     "code": "ROA_2027_CC_001382_ME_IRR",
+     "categoryCode": "ME",
+     "categoryName": "Men Elite",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 7,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289697",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "9e274966-011d-425c-a3f6-b5a7b77cb010",
+       "code": "ROA_2027_CC_001382_ME_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398550"
+      }
+     ]
+    },
+    {
+     "id": "5a471da1-d168-4e37-b646-c8c6b533c7c1",
+     "name": "Women Elite - Individual Road Race",
+     "code": "ROA_2027_CC_001382_WE_IRR",
+     "categoryCode": "WE",
+     "categoryName": "Women Elite",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 8,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289695",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "cf41de35-6817-4278-9918-b27601b611f3",
+       "code": "ROA_2027_CC_001382_WE_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398551"
+      }
+     ]
+    },
+    {
+     "id": "e29df716-95a6-4b62-bbc9-e51e7214226b",
+     "name": "Men Under 23 - Individual Road Race",
+     "code": "ROA_2027_CC_001382_MU_IRR",
+     "categoryCode": "MU",
+     "categoryName": "Men Under 23",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 11,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289696",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "ca0086fd-af9f-4899-9a79-00f3b06a8271",
+       "code": "ROA_2027_CC_001382_MU_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398554"
+      }
+     ]
+    },
+    {
+     "id": "1ac82680-283f-4b3e-9baa-69741a086c03",
+     "name": "Women Under 23 - Individual Road Race",
+     "code": "ROA_2027_CC_001382_WU_IRR",
+     "categoryCode": "WU",
+     "categoryName": "Women Under 23",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 12,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289694",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "ca48922c-3546-4b6f-8cbe-bbcee8f2758e",
+       "code": "ROA_2027_CC_001382_WU_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398555"
+      }
+     ]
+    },
+    {
+     "id": "932ea348-0043-4a96-bf3d-92e10080ddb6",
+     "name": "Men Junior - Individual Road Race",
+     "code": "ROA_2027_CC_001382_MJ_IRR",
+     "categoryCode": "MJ",
+     "categoryName": "Men Junior",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 9,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289690",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "3f120a94-a822-47cd-acd1-e016274b8483",
+       "code": "ROA_2027_CC_001382_MJ_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398552"
+      }
+     ]
+    },
+    {
+     "id": "52c1e698-7ad9-4bd3-a47b-6eae08a06efb",
+     "name": "Women Junior - Individual Road Race",
+     "code": "ROA_2027_CC_001382_WJ_IRR",
+     "categoryCode": "WJ",
+     "categoryName": "Women Junior",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "IRR",
+     "raceTypeName": "Individual Road Race",
+     "sequence": 10,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289691",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "8039e148-fba2-4312-968f-0a8361b937e3",
+       "code": "ROA_2027_CC_001382_WJ_IRR_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398553"
+      }
+     ]
+    },
+    {
+     "id": "54317723-3869-4ecf-8a63-e7b2c60924f5",
+     "name": "Men Elite - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_ME_ITT",
+     "categoryCode": "ME",
+     "categoryName": "Men Elite",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 1,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289686",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "1007eb94-68b5-42ac-82b2-ac5876458572",
+       "code": "ROA_2027_CC_001382_ME_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398544"
+      }
+     ]
+    },
+    {
+     "id": "d60b6910-a88f-46fc-936a-d5dd92870969",
+     "name": "Women Elite - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_WE_ITT",
+     "categoryCode": "WE",
+     "categoryName": "Women Elite",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 2,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289687",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "1a40eb2b-19fc-46a3-9863-91e778fc6b94",
+       "code": "ROA_2027_CC_001382_WE_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398545"
+      }
+     ]
+    },
+    {
+     "id": "a355cf23-c700-41d5-b304-617836d7eaba",
+     "name": "Men Under 23 - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_MU_ITT",
+     "categoryCode": "MU",
+     "categoryName": "Men Under 23",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 5,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289693",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "7203f06a-0981-49d5-b070-49c0dd0d721e",
+       "code": "ROA_2027_CC_001382_MU_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398548"
+      }
+     ]
+    },
+    {
+     "id": "6d37e70c-324d-4009-8e42-18895d89d48e",
+     "name": "Women Under 23 - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_WU_ITT",
+     "categoryCode": "WU",
+     "categoryName": "Women Under 23",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 6,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289689",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "323f2c9a-dbc5-4f50-8ac8-526473b33574",
+       "code": "ROA_2027_CC_001382_WU_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398549"
+      }
+     ]
+    },
+    {
+     "id": "44f1b7ca-f21a-40a0-b8fb-1e7124bd18f8",
+     "name": "Men Junior - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_MJ_ITT",
+     "categoryCode": "MJ",
+     "categoryName": "Men Junior",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 3,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289692",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "43cdbdcf-4291-463e-9eb9-c53963b1cabf",
+       "code": "ROA_2027_CC_001382_MJ_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398546"
+      }
+     ]
+    },
+    {
+     "id": "48577e60-051d-44be-970c-9d4aed2e4271",
+     "name": "Women Junior - Individual Time Trial",
+     "code": "ROA_2027_CC_001382_WJ_ITT",
+     "categoryCode": "WJ",
+     "categoryName": "Women Junior",
+     "classCode": "CC",
+     "className": "Continental Championships",
+     "raceTypeCode": "ITT",
+     "raceTypeName": "Individual Time Trial",
+     "sequence": 4,
+     "startDate": "2027-01-15",
+     "endDate": "2027-01-15",
+     "v1Code": "D2RC289688",
+     "paraSportClassCode": null,
+     "paraSportClassName": null,
+     "startVenueName": null,
+     "endVenueName": null,
+     "classificationTypeId": 1,
+     "classificationTypeCode": "F",
+     "events": [
+      {
+       "id": "8b7d0269-003a-46a3-8986-cd016e638fcc",
+       "code": "ROA_2027_CC_001382_WJ_ITT_FNGE",
+       "name": "General Classification",
+       "date": "2027-01-15",
+       "startTime": null,
+       "endTime": null,
+       "parentEventId": null,
+       "classificationCode": "FNGE",
+       "classificationName": "General Classification",
+       "sequence": 1,
+       "v1Code": "D2EV398547"
+      }
+     ]
+    }
+   ]
+  },
+  "52f30f61-38cf-40e2-aa76-f58a0cd25a54": {
+   "id": "52f30f61-38cf-40e2-aa76-f58a0cd25a54",
+   "code": "ROA_2027_2.PRO_001384",
+   "name": "Volta ao Algarve em Bicicleta",
+   "seasonYear": 2027,
+   "disciplineCode": "ROA",
+   "disciplineName": "Road",
+   "classCode": "2.Pro",
+   "className": "Stages - UCI ProSeries",
+   "countryCode": "POR",
+   "countryName": "PORTUGAL",
+   "continentCode": "EUR",
+   "venue": "Loulé",
+   "startDate": "2027-02-17",
+   "endDate": "2027-02-21",
+   "v1Code": "D2CP81286",
+   "website": "www.voltaaoalgarve.com",
+   "categoryCodes": [],
+   "raceTypes": [],
+   "raceCount": 0,
+   "races": []
+  }
+ },
+ "note": "Respuestas reales del directorio UCI; sin email del organizador ni oficiales, que el importador no usa."
+}

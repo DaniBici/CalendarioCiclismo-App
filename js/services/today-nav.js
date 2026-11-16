@@ -1,7 +1,7 @@
 // Qué carreras hay un día y a qué día saltar, sin DOM: lo usan Hoy (js/app.js) y la
 // publicación por página.
 import { toDateKey } from '../shared.js';
-import { isTourDelPorvenir } from '../category-filter.js';
+import { isTourDelPorvenir, isGenderNeutral } from '../category-filter.js';
 import { championshipMatchesCategoryFilter } from '../campeonatos-config.js';
 import { annotateDoubleSectors, buildInhouseResultsMatcher } from './races.js';
 
@@ -87,10 +87,10 @@ export function matchesCategoryFilter(race, cat) {
     || (['1.2U','2.2U'].includes(uci) && isTourDelPorvenir(race.name));
   if (cat === 'uwt')    base = uci === '1.UWT' || uci === '2.UWT';
   if (cat === 'wwt')    base = uci === '1.WWT' || uci === '2.WWT';
-  if (cat === 'male')   base = (gender === 'male' || isMixedRelayChampionship(race))
+  if (cat === 'male')   base = (gender === 'male' || isGenderNeutral(race) || isMixedRelayChampionship(race))
     && !['1.2','2.2'].includes(uci)
     && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name));
-  if (cat === 'female') base = (gender === 'female' || isMixedRelayChampionship(race))
+  if (cat === 'female') base = (gender === 'female' || isGenderNeutral(race) || isMixedRelayChampionship(race))
     && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name))
     && (uci !== '1.2' && uci !== '2.2' || EUROPE.has(cc));
   if (!base) return false;
@@ -147,8 +147,11 @@ export function prepareAgendaDays(rows, { dateKey, featured, filterBroadcasts })
   const bcastRows = [];
   const assetRows = [];
   const stageRows = [];
-  for (const { race, broadcasts, assets, ...rd } of rows || []) {
+  const videosByRd = {};
+  for (const { race, broadcasts, assets, race_day_videos: videos, ...rd } of rows || []) {
     raceDays.push(rd);
+    // Vídeos de la jornada (Resumen de la tarjeta terminada), por sortOrder.
+    videosByRd[rd.id] = [...(videos || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     if (race) {
       const { race_uci_stages: stages, ...raceRow } = race;
       raceMap[raceRow.id] = raceRow;
@@ -169,6 +172,8 @@ export function prepareAgendaDays(rows, { dateKey, featured, filterBroadcasts })
     const allBroadcasts = bcastByRd[rd.id] || [];
     rd._allBroadcasts = allBroadcasts;
     rd._broadcasts = filterBroadcasts(allBroadcasts);
+    rd._allVideos = videosByRd[rd.id] || [];
+    rd._videos = filterBroadcasts(rd._allVideos);
     // Había TV pero ninguna emisión sobrevive al filtro regional → el usuario no
     // puede acceder a ninguna (badge de TV suprimido aunque tvStatus diga lo contrario).
     rd._tvBlocked = allBroadcasts.length > 0 && rd._broadcasts.length === 0;

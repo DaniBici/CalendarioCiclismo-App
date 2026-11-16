@@ -85,6 +85,7 @@ function apiQueries(scope) {
     siblings: `race_days?select=${STAGE_SIBLING_COLUMNS}&editorialStatus=eq.published`,
     races: 'races?select=*',
     broadcasts: 'broadcasts?select=*',
+    videos: 'race_day_videos?select=*',
     assets: 'assets?select=*',
     guides: 'assets?select=*,race_days!inner(raceId,dateKey)&type=eq.technicalGuide',
     uci: 'race_uci_stages?select=raceId,raceDayId,stageNumber&keepForWeb=eq.true&rowCount=gt.0',
@@ -142,7 +143,9 @@ export function readSharedData(dir) {
   const uci = read('race_uci_stages')
     .filter(row => row.keepForWeb === true && row.rowCount > 0)
     .map(({ raceId, raceDayId, stageNumber }) => ({ raceId, raceDayId, stageNumber }));
-  return { days: read('race_days'), races: read('races'), broadcasts: read('broadcasts'),
+  // race_day_videos: volcados anteriores a la tabla no la traen.
+  const videos = existsSync(join(dir, 'race_day_videos.json')) ? read('race_day_videos') : [];
+  return { days: read('race_days'), races: read('races'), broadcasts: read('broadcasts'), videos,
     assets: read('assets'), guides: read('guides'), uci };
 }
 
@@ -191,6 +194,8 @@ function buildIndex(data) {
     published: new Map(published.map(day => [day.id, day])),
     races: new Map(rows('races').map(race => [race.id, race])),
     broadcastsByDay: groupBy(broadcasts, 'raceDayId'),
+    videosByDay: groupBy([...rows('videos')].sort((a, b) =>
+      sortOrderOf(a) === sortOrderOf(b) ? 0 : sortOrderOf(a) < sortOrderOf(b) ? -1 : 1), 'raceDayId'),
     assetsByDay: groupBy(rows('assets'), 'raceDayId'),
     uciByRace: groupBy(rows('uci'), 'raceId'),
     guideByRace,
@@ -216,6 +221,7 @@ function jornadaInputs(index, dayId) {
   return {
     rd, race, siblings,
     broadcasts: index.broadcastsByDay.get(dayId) || [],
+    videos: index.videosByDay.get(dayId) || [],
     assets: index.assetsByDay.get(dayId) || [],
     guide: index.guideByRace.get(race.id) || null,
     uci: index.uciByRace.get(race.id) || [],
@@ -417,7 +423,8 @@ async function runLanguage(lang, site, scope, data) {
   const render = (input, header) => ({
     html: jornadaHtml(input.rd, input.race, filterBroadcastsByRegion(input.broadcasts),
       withRaceTechnicalGuide(input.assets, input.guide), input.siblings, input.hasStartlist,
-      input.broadcasts, buildInhouseResultsMatcher(input.uci), { timeZoneLabel }).html,
+      input.broadcasts, buildInhouseResultsMatcher(input.uci),
+      { timeZoneLabel, videos: filterBroadcastsByRegion(input.videos), allVideos: input.videos }).html,
     headerInner: headerHtml(header),
   });
   const navHrefs = PRIMARY_NAV_ITEMS.map(key => STRINGS[lang][key].href);

@@ -47,11 +47,11 @@ function profileModel(day, { points = false, timeZoneLabel = null } = {}, assets
     [en ? 'Highest point' : 'Punto más alto', profileData.maxElevation, ''],
     [en ? 'Lowest point' : 'Punto más bajo', profileData.minElevation, '']
   ].filter(([, value]) => Number.isFinite(Number(value)) && value !== null) : [];
-  const summaryHtml = summaryRows.length
-    ? `<div class="stage-side stage-side--summary"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile data' : 'Datos del perfil'}</h2></header><dl class="stage-summary">${summaryRows.map(([label, value, sign]) => `<div class="stage-summary__row"><dt>${label}</dt><dd>${sign}${fmt(Math.max(0, Math.round(Math.abs(value))))} m</dd></div>`).join('')}</dl></section><div class="stage-side__actions"></div></div>`
+  const summaryPanel = summaryRows.length
+    ? `<section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile data' : 'Datos del perfil'}</h2></header><dl class="stage-summary">${summaryRows.map(([label, value, sign]) => `<div class="stage-summary__row"><dt>${label}</dt><dd>${sign}${fmt(Math.max(0, Math.round(Math.abs(value))))} m</dd></div>`).join('')}</dl></section>`
     : '';
-  const className = `stage-profile-layout${hasPoints || summaryHtml ? ' stage-profile-layout--points' : ''}`;
-  return { interactive, official, en, locale, fmt, keyRows, initial, footBySummitKm, passageTimes, timeZoneLabel, hasPoints, summaryHtml, className };
+  const className = `stage-profile-layout${hasPoints || summaryPanel ? ' stage-profile-layout--points' : ''}`;
+  return { interactive, official, en, locale, fmt, keyRows, initial, footBySummitKm, passageTimes, timeZoneLabel, hasPoints, summaryPanel, className };
 }
 
 // Filas de Puntos clave. hoverData (perfil interactivo) aporta la pendiente
@@ -83,36 +83,74 @@ function keyRowsHtml(model, day, rows, hoverData) {
   }).join('');
 }
 
-function profileShellHtml(model, rowsHtml = '') {
-  const { interactive, official, en, keyRows, initial, hasPoints, summaryHtml } = model;
-  return `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>${hasPoints ? `<div class="stage-side"><section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}">${rowsHtml}</div></div></section><div class="stage-side__actions"></div></div>` : summaryHtml}`;
+// Mampostería de la jornada terminada con vídeos (docs/plans/videos-5-2.md,
+// D9): dos columnas que crecen por separado. Principal: Perfil, Información y
+// Revive; lateral: Puntos clave, Vídeos y las acciones. Los paneles ajenos al
+// perfil llevan data-profile-extra y el montaje los conserva.
+const MASONRY_CLASS = 'stage-profile-layout stage-profile-layout--points stage-profile-layout--videos';
+
+function profileShellHtml(model, rowsHtml = '', extras = null) {
+  const { interactive, official, en, keyRows, initial, hasPoints, summaryPanel } = model || {};
+  const panel = model ? `<section class="stage-profile-panel"><header class="stage-profile-heading"><h2>${en ? 'Profile' : 'Perfil'}</h2><output class="stage-profile-readout" aria-live="polite"></output>${interactive && official ? `<div class="stage-profile-modes" role="group" aria-label="${en ? 'Profile format' : 'Tipo de perfil'}"><button type="button" data-mode="interactive">${en ? 'Interactive' : 'Interactivo'}</button><button type="button" data-mode="official">${en ? 'Official' : 'Oficial'}</button></div>` : ''}</header><div class="stage-profile-graphic"></div></section>` : '';
+  const keyPanel = hasPoints ? `<section class="stage-key-panel"><header class="stage-profile-heading"><h2>${en ? 'Key points' : 'Puntos clave'}</h2><button type="button" class="stage-key-toggle" ${keyRows.length <= initial.length ? 'hidden' : ''}>${en ? 'Show all' : 'Ver todos'}</button></header><div class="stage-key-shell"><div class="stage-key-list" tabindex="0" aria-label="${en ? 'Route points' : 'Puntos del recorrido'}">${rowsHtml}</div></div></section>` : '';
+  const sideClass = !hasPoints && summaryPanel ? 'stage-side stage-side--summary' : 'stage-side';
+  if (extras) {
+    return `<div class="stage-main">${panel}${extras.main || ''}</div><div class="${sideClass}">${keyPanel || summaryPanel || ''}${extras.side || ''}<div class="stage-side__actions"></div></div>`;
+  }
+  const side = keyPanel || summaryPanel;
+  return `${panel}${side ? `<div class="${sideClass}">${side}<div class="stage-side__actions"></div></div>` : ''}`;
 }
 
 /** Perfil y Puntos clave en HTML para el build: panel del perfil con el
- *  gráfico vacío (lo dibuja mountStageProfile) y lista resumida de puntos. */
-export function stageProfileHtml(day, race, assets = [], { points = false, timeZoneLabel = null } = {}) {
+ *  gráfico vacío (lo dibuja mountStageProfile) y lista resumida de puntos.
+ *  `extras` ({ main, side }): mampostería con los paneles de la jornada, también
+ *  sin perfil. */
+export function stageProfileHtml(day, race, assets = [], { points = false, timeZoneLabel = null, extras = null } = {}) {
   const model = profileModel(day, { points, timeZoneLabel }, assets);
-  if (!model) return null;
+  if (!model) return extras ? { className: MASONRY_CLASS, html: profileShellHtml(null, '', extras) } : null;
   const hoverData = model.hasPoints && model.interactive && model.footBySummitKm.size
     ? buildElevationProfileSVG({ profile:day.elevationProfile, summits:day.profileSummits || [], waypoints:day.profileWaypoints || [],
         width:800, height:320, color:race?.colorHex, lang:getLang() }).hoverData
     : null;
-  return { className: model.className, html: profileShellHtml(model, model.hasPoints ? keyRowsHtml(model, day, model.initial, hoverData) : '') };
+  return { className: extras ? MASONRY_CLASS : model.className, html: profileShellHtml(model, model.hasPoints ? keyRowsHtml(model, day, model.initial, hoverData) : '', extras) };
+}
+
+// Monta el armazón del perfil. En la mampostería solo sustituye el panel del
+// perfil y el de Puntos clave (o Datos del perfil): los paneles de la jornada
+// y el reproductor abierto siguen en su sitio.
+function placeShell(host, model) {
+  const main = host.querySelector(':scope > .stage-main');
+  const side = host.querySelector(':scope > .stage-side');
+  if (!main || !side || !host.classList.contains('stage-profile-layout--videos')) {
+    host.className = model.className;
+    host.innerHTML = profileShellHtml(model);
+    return;
+  }
+  const shell = document.createElement('template');
+  shell.innerHTML = profileShellHtml(model, '', { main: '', side: '' });
+  const newSide = shell.content.querySelector('.stage-side');
+  main.querySelector(':scope > .stage-profile-panel')?.remove();
+  main.prepend(shell.content.querySelector('.stage-profile-panel'));
+  side.querySelector(':scope > .stage-key-panel')?.remove();
+  const keyPanel = newSide.querySelector(':scope > .stage-key-panel');
+  if (keyPanel) side.prepend(keyPanel);
+  side.className = newSide.className;
+  host.className = MASONRY_CLASS;
 }
 
 export function mountStageProfile(host, { day, race, assets = [], points = false, temporal = false, hidePointNames = false, timeZoneLabel = null } = {}) {
   if (!host) return () => {};
   host._profileCleanup?.();
   const model = profileModel(day, { points, timeZoneLabel }, assets);
-  if (!model) { host.hidden = true; return () => {}; }
+  // Sin perfil, la mampostería conserva Información, Revive y Vídeos.
+  if (!model) { if (!host.querySelector(':scope > .stage-main')) host.hidden = true; return () => {}; }
   const { interactive, official, en, locale, fmt, keyRows, initial, footBySummitKm, hasPoints } = model;
   let preferred;
   try { preferred = localStorage.getItem('cc_profile_mode'); } catch { /* Preferencia opcional. */ }
   let mode = official && (!interactive || preferred === 'official') ? 'official' : 'interactive';
   let all = false, selectedKm = null, pinnedKm = null, range = null, drag = null, hoverData, lastWidth = 0;
   host.hidden = false;
-  host.className = model.className;
-  host.innerHTML = profileShellHtml(model);
+  placeShell(host, model);
   const graphic = host.querySelector('.stage-profile-graphic');
   const readout = host.querySelector('output');
   const svgNode = (selector, tag, cls) => {
@@ -175,10 +213,12 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
     if (!panel) return;
     // Con Puntos clave al lado del perfil (rejilla de dos columnas, desde 761 px
     // en css/app.css), la columna lateral (Puntos clave y, debajo, las acciones
-    // de la jornada) no supera el alto del perfil.
+    // de la jornada) no supera el alto del perfil. En la mampostería, Puntos
+    // clave solo; Vídeos y las acciones siguen debajo.
     const wide = getComputedStyle(host).gridTemplateColumns.trim().split(/\s+/).length > 1;
     const actions = host.querySelector('.stage-side__actions');
-    const actionsH = actions?.childElementCount ? actions.offsetHeight + 12 : 0;
+    const masonry = host.classList.contains('stage-profile-layout--videos');
+    const actionsH = !masonry && actions?.childElementCount ? actions.offsetHeight + 12 : 0;
     panel.style.maxHeight = wide ? `${host.querySelector('.stage-profile-panel').offsetHeight - actionsH}px` : '';
   };
   // Alto común de los dos formatos: el oficial ocupa el mismo hueco que el

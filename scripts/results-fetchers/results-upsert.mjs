@@ -120,7 +120,7 @@
  */
 'use strict';
 
-import { resultObservation, isProgressiveResultSource, MANUAL_RESULT_SOURCES } from './result-publication.mjs';
+import { resultObservation, isProgressiveResultSource, MANUAL_RESULT_SOURCES, UCI_DIRECTORY_PROVIDER } from './result-publication.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -504,6 +504,10 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   }
   const disciplineId = n(data.disciplineId) ?? 10;
   const preserveUciIdentity = data.source === 'uci';
+  const isDirectory = isDirectoryDocument(data);
+  if (isDirectory && declaredSource) {
+    throw new Error('El documento del directorio UCI no declara fuente: no tocar race_uci_links con --source (DataRide lo sustituye al publicar).');
+  }
   const onlyStage = filters?.onlyStage ?? ONLY_STAGE;
   const onlySectorIndex = filters?.onlySectorIndex ?? ONLY_SECTOR_INDEX;
   const includeFinal = filters?.includeFinal ?? INCLUDE_FINAL;
@@ -837,12 +841,21 @@ WHERE ${twinCondition} AND g."lockedAt" IS NULL AND NOT ${ownExists}`,
           params: headerParams,
         });
       }
-      const headerInsertGuard = noDelete
+      // Directorio de competiciones UCI: copia de respaldo de la clasificación de
+      // DataRide. Si la oficial (eventId > 0) ya existe, no se inserta al lado; en
+      // --apply la omite officialLogicalKeys y aquí se cubre también el modo SQL.
+      const officialTwinGuard = isDirectory && eventId != null && eventId < 0
+        ? `\n  AND NOT EXISTS (SELECT 1 FROM public.race_uci_stages o
+     WHERE o."raceId"=$2 AND o."eventId" > 0
+       AND o."stageNumber" IS NOT DISTINCT FROM $11 AND o."classKind"=$6 AND o.scope=$7
+       AND ${insertLockRaceDayCondition.replace(/\bg\."raceDayId"/, 'o."raceDayId"')})`
+        : '';
+      const headerInsertGuard = (noDelete
         ? `\nWHERE NOT EXISTS (SELECT 1 FROM public.race_uci_stages g
      WHERE g."raceId"=$2 AND g."eventId" <> $5 AND g."eventId" < 0
        AND g."stageNumber" IS NOT DISTINCT FROM $11 AND g."classKind"=$6 AND g.scope=$7
        AND ${insertLockRaceDayCondition})`
-        : insertLockGuard;
+        : insertLockGuard) + officialTwinGuard;
       plan.push({
         note: `stage ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} · ${cl.rowCount} filas`,
         text: `INSERT INTO public.race_uci_stages
@@ -943,6 +956,31 @@ function lit(v) {
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
   if (Array.isArray(v)) return arrayLiteral(v);
   return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+function isDirectoryDocument(data) {
+  return data?.provider === UCI_DIRECTORY_PROVIDER;
+}
+
+// Directorio de competiciones UCI: sus filas no traen dorsal y sí el perfil UCI
+// (`sourceUciProfileId`, de riderRef). Se enlazan por `uciProfileId` antes del
+// fallback por nombre, solo si la ficha es única. Las filas con dorsal no se
+// tocan: siguen resolviéndose únicamente contra la startlist.
+function profileResolveSql(gender) {
+  const tables = gender === 'male' ? ['riders_men'] : gender === 'female' ? ['riders_women'] : ['riders_men', 'riders_women'];
+  return `WITH fichas AS (
+  ${tables.map((table) => `SELECT id, "uciProfileId" FROM public.${table} WHERE "uciProfileId" IS NOT NULL`).join('\n  UNION ALL\n  ')}
+), unicas AS (
+  SELECT "uciProfileId", min(id) AS id FROM fichas GROUP BY "uciProfileId" HAVING count(*) = 1
+)
+UPDATE public.race_uci_results r
+   SET "globalRiderId" = u.id
+  FROM public.race_uci_stages st, unicas u
+ WHERE st.id = r."stageRef" AND st."isTeamEvent" = false
+   AND r."raceId" = $1
+   AND r."globalRiderId" IS NULL
+   AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')
+   AND r."sourceUciProfileId" = u."uciProfileId"`;
 }
 
 export function nameResolveWithStartlistAuthoritySql(raceId, gender, ridersJson, { includeBib = false } = {}) {
@@ -1254,6 +1292,11 @@ async function main() {
     if (nStages > 0) {
       out.push('', '-- enlazar riders por dorsal (Fase 3)');
       out.push(`SELECT public.resolve_uci_results(${lit(RACE_ID)});`);
+      if (isDirectoryDocument(data)) {
+        out.push('', '-- directorio UCI: enlazar por uciProfileId las filas sin dorsal');
+        out.push(toSQL({ text: profileResolveSql(GENDER), params: [RACE_ID] }) + ';');
+        out.push('-- las clasificaciones con gemela oficial de DataRide (eventId > 0) no se insertan');
+      }
       out.push('', '-- enlazar equipos de sus clasificaciones contra la startlist');
       out.push(linkTeamResultRowsSql(RACE_ID) + ';');
     }
@@ -1454,6 +1497,11 @@ async function main() {
     // Dentro de la misma transacción → upsert + enlace son atómicos.
     const rr = await client.query('SELECT matched, unresolved FROM public.resolve_uci_results($1)', [RACE_ID]);
     let { matched = 0, unresolved = 0 } = rr.rows[0] || {};
+    let byProfile = 0;
+    if (isDirectoryDocument(data)) {
+      byProfile = (await client.query(profileResolveSql(GENDER), [RACE_ID])).rowCount || 0;
+      matched += byProfile; unresolved = Math.max(0, unresolved - byProfile);
+    }
     await client.query(linkTeamResultRowsSql(RACE_ID));
     // Fase 6: si quedaron filas sin enlazar (carrera sin startlist) y se pasó --gender,
     // resolver por NOMBRE desde el propio resultado UCI, creando la ficha que falte.
@@ -1515,6 +1563,7 @@ async function main() {
     if (nRejected) log(`   ↳ ${nRejected} omitidas sin rank=1 válido sin IRM`);
     if (dnfFilled > 0) log(`   ↳ DNF derivados de la startlist: ${dnfFilled} (--fill-dnf-from-startlist)`);
     if (irmOverridden > 0) log(`   ↳ IRM corregidos: ${irmOverridden} (--irm-override)`);
+    if (byProfile) log(`   ↳ ${byProfile} filas del directorio UCI enlazadas por uciProfileId`);
     log(`   ↳ riders: ${matched} enlazados, ${unresolved} sin enlazar` +
         (created > 0 ? `, ${created} fichas creadas (Fase 6 por nombre)` : '') +
         (unresolved > 0 ? ' (sin nombre/dorsal útil → visibles por riderDisplay)' : ''));

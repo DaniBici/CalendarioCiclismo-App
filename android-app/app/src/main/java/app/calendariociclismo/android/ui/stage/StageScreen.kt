@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.stage
 
+import app.calendariociclismo.android.data.model.RaceDayVideo
+import app.calendariociclismo.android.util.StageVideoLogic
 import android.content.Context
 import android.content.Intent
 import android.provider.CalendarContract
@@ -61,6 +63,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -167,7 +176,13 @@ import app.calendariociclismo.android.util.ProfileSegment
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun StageScreen(stageId: String, raceId: String? = null, navController: NavController, titleHint: String? = null) {
+fun StageScreen(
+    stageId: String,
+    raceId: String? = null,
+    navController: NavController,
+    titleHint: String? = null,
+    section: String? = null,
+) {
     val app = rememberApp()
     val context = LocalContext.current
     val haptic = rememberHaptics()
@@ -183,6 +198,26 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
     val networkErrorFallback = stringResource(R.string.startlist_error_unknown)
     // Selección del perfil compartida por el panel de perfil y Puntos clave.
     val profileSelection = remember(stageId) { ProfileSelection() }
+    // Enlace con `#videos` (tarjeta, sección Vídeos, App Link): la jornada se
+    // desplaza una vez a su panel Vídeos. El panel está en el último ítem de la
+    // lista, solo o en la columna lateral de la mampostería.
+    val listState = rememberLazyListState()
+    val videosRequester = remember { BringIntoViewRequester() }
+    var pendingSection by rememberSaveable(stageId) { mutableStateOf(section) }
+    // Clave solo el estado: limpiar la sección pendiente no reinicia el efecto
+    // ni cancela el desplazamiento; la caché sin vídeos espera a la red.
+    LaunchedEffect(state) {
+        val ready = state as? StageState.Ready ?: return@LaunchedEffect
+        if (pendingSection != "videos") return@LaunchedEffect
+        val media = StageVideoLogic.mediaState(ready.data.broadcasts, ready.data.videos,
+            ready.data.hasActualResults, ready.data.raceDay.isCancelledDay)
+        if (media.entries.isEmpty()) return@LaunchedEffect
+        val count = snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
+        listState.scrollToItem(count - 1)
+        withFrameNanos { }
+        videosRequester.bringIntoView()
+        pendingSection = null
+    }
     LaunchedEffect(stageId) {
         state = StageState.Loading
         // Room primero: si la jornada ya está completa en caché se pinta sin
@@ -270,6 +305,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                 val wideDetail = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    state = listState,
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -328,84 +364,25 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                         }
                     }
 
-                    if (hasTime) item { TimeSection(rd, race) }
-                    if (hasProfile) {
-                        item {
-                            if (sideLayout) {
-                                var profileHeightPx by remember { mutableIntStateOf(0) }
-                                val density = LocalDensity.current
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(sideGap),
-                                    verticalAlignment = Alignment.Top,
-                                ) {
-                                    StageProfileSection(
-                                        raceDay = rd,
-                                        race = race,
-                                        officialProfile = officialProfile,
-                                        onOfficialProfileTap = openOfficialProfile,
-                                        selection = selection,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .onSizeChanged { profileHeightPx = it.height },
-                                    )
-                                    Column(
-                                        modifier = Modifier
-                                            .width(StageSideColumnWidth)
-                                            .then(
-                                                if (profileHeightPx > 0) {
-                                                    Modifier.heightIn(max = with(density) { profileHeightPx.toDp() })
-                                                } else Modifier,
-                                            ),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        if (keyPoints != null) {
-                                            KeyPointsPanel(
-                                                raceDay = rd,
-                                                data = keyPoints,
-                                                selection = selection,
-                                                interactive = hasInteractiveProfile,
-                                                onRowTap = onKeyRowTap,
-                                                // Con el alto del perfil ya medido, la lista se
-                                                // desplaza dentro del alto disponible.
-                                                scrollable = profileHeightPx > 0,
-                                                modifier = if (profileHeightPx > 0) Modifier.weight(1f, fill = false) else Modifier,
-                                            )
-                                        } else {
-                                            ProfileSummaryPanel(profileSummary)
-                                        }
-                                    }
-                                }
-                            } else {
-                                StageProfileSection(
-                                    raceDay = rd,
-                                    race = race,
-                                    officialProfile = officialProfile,
-                                    onOfficialProfileTap = openOfficialProfile,
-                                    selection = selection,
-                                )
-                            }
-                        }
+                    // Vídeos y Revive de la jornada (docs/plans/videos-5-2.md, fase 7).
+                    val media = StageVideoLogic.mediaState(
+                        s.data.broadcasts, s.data.videos, s.data.hasActualResults, rd.isCancelledDay)
+                    // Terminada (Revive), la Información va antes que la TV.
+                    val infoFirst = media.hasRevive
+                    // Con vídeos en pantalla ancha (D9): dos columnas que crecen por separado.
+                    // Principal: Perfil, Información y Revive; lateral: Puntos clave (o Datos
+                    // del perfil) y Vídeos.
+                    val masonry = wideDetail && media.entries.isNotEmpty()
+                    val videoKeys = media.entries.mapTo(mutableSetOf()) { StageVideoLogic.videoKey(it.url) }
+                    val withoutVideos: (List<Broadcast>) -> List<Broadcast> = { list ->
+                        if (!s.data.hasActualResults) list
+                        else list.filter { StageVideoLogic.videoKey(it.url) !in videoKeys }
                     }
-                    if (!sideLayout && keyPoints != null) {
-                        item {
-                            KeyPointsPanel(
-                                raceDay = rd,
-                                data = keyPoints,
-                                selection = selection,
-                                interactive = hasInteractiveProfile,
-                                onRowTap = onKeyRowTap,
-                                scrollable = false,
-                            )
-                        }
-                    }
-                    if (hasMetrics) item { RaceMetricsSection(rd) }
-
-                    // En una cancelada solo se muestra Revive con clasificaciones
-                    // propias y una emisión seleccionada para reproducción.
-                    val cancelledWithoutRevive = rd.isCancelledDay &&
-                        !RaceLogic.hasReviveBroadcasts(
-                            s.data.broadcasts, s.data.hasActualResults, isCancelled = true)
+                    val sectionBroadcasts = withoutVideos(s.data.broadcasts)
+                    val sectionAllBroadcasts = withoutVideos(s.data.allBroadcasts)
+                    // En una cancelada solo se muestra Revive con clasificaciones propias y
+                    // una emisión seleccionada para reproducción.
+                    val cancelledWithoutRevive = rd.isCancelledDay && !media.hasRevive
                     val liveTextUrl = if (
                         !rd.isCancelledDay &&
                         !rd.isRestDay &&
@@ -416,45 +393,181 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                             it.type == "live_text" && !it.url.isNullOrEmpty()
                         }?.url
                     } else null
-                    val hasBroadcastSection = s.data.broadcasts.isNotEmpty() ||
-                        s.data.allBroadcasts.isNotEmpty() ||
-                        rd.tvStatus == "pending" ||
-                        liveTextUrl != null
-                    if (hasBroadcastSection && !cancelledWithoutRevive) {
-                        item {
-                            BroadcastSection(
-                                raceDay = rd,
-                                race = race,
-                                hasResults = s.data.hasActualResults,
-                                broadcasts = s.data.broadcasts,
-                                allBroadcasts = s.data.allBroadcasts,
-                                liveTextUrl = liveTextUrl,
-                                profileWidthInset = profileWidthInset,
-                                columnGap = sideGap,
-                                onExternalLinkTap = { url ->
-                                    openExternal(context, url) { offlineAlert = it }
+                    val hasBroadcastSection = !cancelledWithoutRevive && (
+                        sectionBroadcasts.isNotEmpty() ||
+                            sectionAllBroadcasts.isNotEmpty() ||
+                            rd.tvStatus == "pending" ||
+                            liveTextUrl != null)
+                    val onExternal: (String) -> Unit = { url -> openExternal(context, url) { offlineAlert = it } }
+                    val broadcastPanel: @Composable (Dp, Boolean) -> Unit = { inset, fill ->
+                        BroadcastSection(
+                            raceDay = rd,
+                            race = race,
+                            hasResults = s.data.hasActualResults,
+                            broadcasts = sectionBroadcasts,
+                            allBroadcasts = sectionAllBroadcasts,
+                            media = media,
+                            liveTextUrl = liveTextUrl,
+                            profileWidthInset = inset,
+                            columnGap = sideGap,
+                            onExternalLinkTap = onExternal,
+                            fillWidth = fill,
+                        )
+                    }
+                    val descriptionPanel: @Composable (Dp) -> Unit = { inset ->
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            DescriptionPanel(
+                                title = if (race?.isOneDay == true) {
+                                    LocaleHolder.t("Descripción de la carrera", "Race description")
+                                } else {
+                                    LocaleHolder.t("Info de la etapa", "Stage info")
                                 },
+                                body = description,
+                                bonuses = localizedBonuses,
+                                notes = localizedNotes,
+                                showAutoTranslationNotice = rd.isDescriptionAutoTranslated,
+                                modifier = Modifier.width(maxWidth - inset),
                             )
                         }
                     }
+                    val videosPanel: @Composable () -> Unit = {
+                        StageVideosPanel(media.entries, race?.isOneDay == true, stateKey = rd.id, onExternalLinkTap = onExternal,
+                            modifier = Modifier.bringIntoViewRequester(videosRequester))
+                    }
 
-                    if (hasEditorial) {
-                        item {
-                            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                                DescriptionPanel(
-                                    title = if (race?.isOneDay == true) {
-                                        LocaleHolder.t("Descripción de la carrera", "Race description")
+                    if (hasTime) item { TimeSection(rd, race) }
+                    if (masonry) {
+                        if (hasMetrics) item { RaceMetricsSection(rd) }
+                        item(key = "videos") {
+                            var profileHeightPx by remember { mutableIntStateOf(0) }
+                            val density = LocalDensity.current
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(sideGap),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (hasProfile) {
+                                        StageProfileSection(
+                                            raceDay = rd,
+                                            race = race,
+                                            officialProfile = officialProfile,
+                                            onOfficialProfileTap = openOfficialProfile,
+                                            selection = selection,
+                                            modifier = Modifier.onSizeChanged { profileHeightPx = it.height },
+                                        )
+                                    }
+                                    if (infoFirst) {
+                                        if (hasEditorial) descriptionPanel(0.dp)
+                                        if (hasBroadcastSection) broadcastPanel(0.dp, true)
                                     } else {
-                                        LocaleHolder.t("Info de la etapa", "Stage info")
-                                    },
-                                    body = description,
-                                    bonuses = localizedBonuses,
-                                    notes = localizedNotes,
-                                    showAutoTranslationNotice = rd.isDescriptionAutoTranslated,
-                                    modifier = Modifier.width(maxWidth - profileWidthInset),
+                                        if (hasBroadcastSection) broadcastPanel(0.dp, true)
+                                        if (hasEditorial) descriptionPanel(0.dp)
+                                    }
+                                }
+                                Column(Modifier.width(StageSideColumnWidth), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (keyPoints != null) {
+                                        KeyPointsPanel(
+                                            raceDay = rd,
+                                            data = keyPoints,
+                                            selection = selection,
+                                            interactive = hasInteractiveProfile,
+                                            onRowTap = onKeyRowTap,
+                                            scrollable = profileHeightPx > 0,
+                                            modifier = if (profileHeightPx > 0) {
+                                                Modifier.heightIn(max = with(density) { profileHeightPx.toDp() })
+                                            } else Modifier,
+                                        )
+                                    } else if (profileSummary.isNotEmpty()) {
+                                        ProfileSummaryPanel(profileSummary)
+                                    }
+                                    videosPanel()
+                                }
+                            }
+                        }
+                    } else {
+                        if (hasProfile) {
+                            item {
+                                if (sideLayout) {
+                                    var profileHeightPx by remember { mutableIntStateOf(0) }
+                                    val density = LocalDensity.current
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(sideGap),
+                                        verticalAlignment = Alignment.Top,
+                                    ) {
+                                        StageProfileSection(
+                                            raceDay = rd,
+                                            race = race,
+                                            officialProfile = officialProfile,
+                                            onOfficialProfileTap = openOfficialProfile,
+                                            selection = selection,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .onSizeChanged { profileHeightPx = it.height },
+                                        )
+                                        Column(
+                                            modifier = Modifier
+                                                .width(StageSideColumnWidth)
+                                                .then(
+                                                    if (profileHeightPx > 0) {
+                                                        Modifier.heightIn(max = with(density) { profileHeightPx.toDp() })
+                                                    } else Modifier,
+                                                ),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            if (keyPoints != null) {
+                                                KeyPointsPanel(
+                                                    raceDay = rd,
+                                                    data = keyPoints,
+                                                    selection = selection,
+                                                    interactive = hasInteractiveProfile,
+                                                    onRowTap = onKeyRowTap,
+                                                    // Con el alto del perfil ya medido, la lista se
+                                                    // desplaza dentro del alto disponible.
+                                                    scrollable = profileHeightPx > 0,
+                                                    modifier = if (profileHeightPx > 0) Modifier.weight(1f, fill = false) else Modifier,
+                                                )
+                                            } else {
+                                                ProfileSummaryPanel(profileSummary)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    StageProfileSection(
+                                        raceDay = rd,
+                                        race = race,
+                                        officialProfile = officialProfile,
+                                        onOfficialProfileTap = openOfficialProfile,
+                                        selection = selection,
+                                    )
+                                }
+                            }
+                        }
+                        if (!sideLayout && keyPoints != null) {
+                            item {
+                                KeyPointsPanel(
+                                    raceDay = rd,
+                                    data = keyPoints,
+                                    selection = selection,
+                                    interactive = hasInteractiveProfile,
+                                    onRowTap = onKeyRowTap,
+                                    scrollable = false,
                                 )
                             }
                         }
+                        if (hasMetrics) item { RaceMetricsSection(rd) }
+
+                        // Una columna: Perfil, Puntos clave, Información, Revive y Vídeos
+                        // (sin terminar, la TV va encima de la Información).
+                        if (infoFirst) {
+                            if (hasEditorial) item { descriptionPanel(profileWidthInset) }
+                            if (hasBroadcastSection) item { broadcastPanel(profileWidthInset, false) }
+                        } else {
+                            if (hasBroadcastSection) item { broadcastPanel(profileWidthInset, false) }
+                            if (hasEditorial) item { descriptionPanel(profileWidthInset) }
+                        }
+                        if (media.entries.isNotEmpty()) item(key = "videos") { videosPanel() }
                     }
                 }
                 }
@@ -521,7 +634,10 @@ private suspend fun loadStageData(
     // por ciudad de una carrera futura como la Vuelta a España), prefetchamos la
     // carrera completa para poblar Room antes de continuar. Camino normal:
     // refrescar desde red usando el raceId de la jornada cacheada.
+    // Sin caché ni carrera (enlace a una jornada antigua, p. ej. `#videos`), la
+    // carrera se lee de la propia jornada.
     val targetRaceId = cached?.raceId ?: raceId.takeIf { cached == null }
+        ?: if (cached == null) app.repository.raceDayById(stageId)?.raceId else null
     // Se reutiliza la consulta de la caché solo si respondió; tras un fallo de
     // red se repite para no perder el acceso a clasificaciones.
     val reusable = knownInhouse?.takeIf { it.isLoaded }
@@ -556,6 +672,11 @@ private suspend fun buildStageData(
     )
     val stageAssets = app.database.assetsDao()
         .getByRaceDay(stageId).map { it.toModel() }
+    // Vídeos de la jornada (race_day_videos) visibles en la región del usuario.
+    val videos = StageVideoLogic.filterByRegion(
+        app.database.raceDayVideosDao().getByRaceDay(stageId).map { it.toModel() },
+        RegionDetector.allowedBroadcastGroups(),
+    )
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     val hasStartlist = race?.startlistImportedAt != null
@@ -594,6 +715,7 @@ private suspend fun buildStageData(
         broadcasts = broadcasts,
         allBroadcasts = allBroadcasts,
         assets = assets,
+        videos = videos,
         hasStartlist = hasStartlist,
         siblings = siblings,
         hasInhouseResults = inhouseByDay.containsKey(latest.id) || latest.isCancelledDay,
@@ -2192,25 +2314,24 @@ private fun BroadcastSection(
     hasResults: Boolean,
     broadcasts: List<Broadcast>,
     allBroadcasts: List<Broadcast>,
+    media: StageVideoLogic.MediaState,
     liveTextUrl: String?,
     profileWidthInset: Dp,
     columnGap: Dp,
     onExternalLinkTap: (String) -> Unit,
+    fillWidth: Boolean = false,
 ) {
     var showAllBroadcasts by remember(raceDay.id) { mutableStateOf(false) }
     val regionalIds = remember(broadcasts) { broadcasts.mapTo(mutableSetOf()) { it.id } }
     val hasHiddenBroadcasts = allBroadcasts.any { it.id !in regionalIds }
 
     // Revive aparece con clasificaciones de esta jornada y una emisión recuperable.
-    // Conserva el filtro regional y no ofrece el selector «Todas».
-    val hasReviveBroadcast = RaceLogic.hasReviveBroadcasts(
-        broadcasts, hasResults, isCancelled = raceDay.isCancelledDay)
+    // Conserva el filtro regional y no ofrece el selector «Todas». No repite lo
+    // que ya está en Vídeos (la emisión de YouTube convertida).
+    val hasReviveBroadcast = media.hasRevive
 
     val selectedBroadcasts = if (showAllBroadcasts) allBroadcasts else broadcasts
-    val visibleBroadcasts = if (hasReviveBroadcast)
-        RaceLogic.reviveBroadcasts(broadcasts, raceDay.isCancelledDay)
-    else
-        selectedBroadcasts
+    val visibleBroadcasts = if (hasReviveBroadcast) media.revive else selectedBroadcasts
     val showNoRegion = visibleBroadcasts.isEmpty() && hasHiddenBroadcasts && !showAllBroadcasts
     // Solo Live texto: sin emisiones ni estado de TV pendiente o confirmado, el
     // panel indica que no hay televisión en lugar de quedarse vacío.
@@ -2235,7 +2356,7 @@ private fun BroadcastSection(
         val rowCount = visibleBroadcasts.size + if (showNoRegion || noTelevisionText != null) 1 else 0
         val single = rowCount <= 1
         val panelWidth = when {
-            !wide || !single -> maxWidth
+            fillWidth || !wide || !single -> maxWidth
             profileWidthInset > 0.dp -> maxWidth - profileWidthInset
             else -> (maxWidth - columnGap) / 2
         }
@@ -2529,6 +2650,7 @@ internal data class StageData(
     val broadcasts: List<Broadcast>,
     val allBroadcasts: List<Broadcast>,
     val assets: List<Asset>,
+    val videos: List<RaceDayVideo> = emptyList(),
     val hasStartlist: Boolean = false,
     val siblings: List<RaceDay> = emptyList(),
     val hasInhouseResults: Boolean = false,

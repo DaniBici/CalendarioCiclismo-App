@@ -125,7 +125,7 @@ export function renderMarketTeams() {
     // (equipo que ya existía en la temporada previa) / vacío (equipo nuevo, sin
     // kit antiguo que enseñar, o prevColorsHidden: denominación sin confirmar).
     // `prev` truthy = hay fila team_seasons previa.
-    const badgeChip = s.badgeVisible
+    const colorsChip = s.badgeVisible
       ? chip(`Colores ${MARKET_SEASON}`, 'var(--green)')
       : !prev
         ? chip('Nuevo · sin colores', 'var(--orange)')
@@ -138,7 +138,7 @@ export function renderMarketTeams() {
           ${renamed ? `<span class="u-c-dim u-fs-1 u-ml-030">· ${MARKET_PREV_SEASON}: ${esc(prev)}</span>` : ''}
         </span>
         ${s.continuityDoubt ? chip('Duda', 'var(--orange)') : ''}
-        ${badgeChip}
+        ${colorsChip}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="u-c-dim u-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
   }).join('');

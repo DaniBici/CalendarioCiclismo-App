@@ -88,7 +88,7 @@ extension SupabaseService: CxRemote {
         // y `agendaVideo`, que cuenta las emisiones de YouTube ya terminadas).
         "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder,embeddable)," +
         // Badge de resumen (`CyclocrossPresentation.agendaVideo`).
-        "cx_videos(id,raceId,category,title,url,sortOrder)"
+        "cx_videos(id,raceId,category,title,titleEn,channel,url,sortOrder)"
     }
 
     /// Columnas del índice: las de la agenda sin documentos, emisiones ni
@@ -298,7 +298,7 @@ extension SupabaseService: CxRemote {
     }
 
     private func cxTournamentRaces(tournamentId: String) async throws -> [CxRaceRef] {
-        try await cxRows(CxRaceRef.self, table: "cx_races", columns: "id,name,nameEn,class", filters: ["tournamentId": tournamentId, "editorialStatus": "published"])
+        try await cxRows(CxRaceRef.self, table: "cx_races", columns: "id,name,nameEn,class,dateKey", filters: ["tournamentId": tournamentId, "editorialStatus": "published"])
     }
 
     func cxTournamentStandings(tournamentId: String, season: String) async throws -> CxTournamentStandings {

@@ -13,7 +13,12 @@
  *   pasada las casa con nuestras carreras y enlaza las INEQUÍVOCAS.
  *
  * QUÉ HACE
- *   Para cada temporada a barrer (ver AÑOS, abajo), ejecuta el backfill canónico
+ *   Primero, para cada año a barrer, la vía determinista (uci-calendar-id-links.mjs):
+ *   las carreras con `uciCalendarId` se enlazan por el directorio de competiciones
+ *   UCI y la heurística ya no las toca. Requiere conexión a la BD también en
+ *   --dry-run (sin ella se omite con aviso); en --dry-run emite su SQL por stdout.
+ *
+ *   Después, para cada temporada a barrer (ver AÑOS, abajo), ejecuta el backfill canónico
  *     uci-backfill-links.mjs --year N --apply
  *   que a su vez corre el matcher (uci-match-poc.mjs, fetch EN VIVO del iframe UCI)
  *   y enlaza solo los `unique ∩ horizonte` con ON CONFLICT DO NOTHING. NO re-implementa
@@ -66,7 +71,8 @@
 import { spawn } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { databaseUrl } from '../db/env.mjs';
+import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
+import { linkRoadYearByCalendarId } from './uci-calendar-id-links.mjs';
 
 const args = process.argv.slice(2);
 const getArgs = (n) => args.reduce((acc, a, i) => (a === `--${n}` && args[i + 1] != null ? [...acc, args[i + 1]] : acc), []);
@@ -133,6 +139,35 @@ async function main() {
   const unknown = years.filter((y) => !ROAD_SEASON[y]);
 
   log(`Barrido de enlazado UCI — años candidatos: [${years.join(', ')}]` + (DRY ? ' (DRY-RUN)' : ''));
+
+  // Vía determinista por uciCalendarId (no depende de ROAD_SEASON).
+  const byCalendarId = { linked: 0, ambiguous: 0, incoherent: 0, errored: 0 };
+  if (databaseUrl(env)) {
+    const { default: pg } = await import('pg');
+    const url = databaseUrl(env);
+    const client = new pg.Client({ connectionString: url, ssl: url.includes('localhost') ? undefined : { rejectUnauthorized: false }, ...PG_CONNECTION_LIMITS });
+    await client.connect();
+    try {
+      for (const y of years) {
+        try {
+          const summary = await linkRoadYearByCalendarId({ client, year: y, dryRun: DRY, log });
+          if (DRY && summary.sql.length) process.stdout.write(`${summary.sql.join('\n\n')}\n`);
+          byCalendarId.linked += summary.linked.length;
+          byCalendarId.ambiguous += summary.ambiguous.length;
+          byCalendarId.incoherent += summary.incoherent.length;
+          log(`▶ ${y} por uciCalendarId: ${summary.linked.length} enlaces${DRY ? ' previstos' : ''}, ${summary.pending} pendientes de DataRide, ${summary.ambiguous.length} ambiguos, ${summary.incoherent.length} incoherentes, ${summary.collisions.length} colisiones`);
+          for (const item of [...summary.ambiguous, ...summary.incoherent]) log(`    ? «${item.name}» D2CP${item.uciCalendarId}: ${item.reason || 'varias competiciones DataRide'}`);
+        } catch (e) {
+          byCalendarId.errored++;
+          log(`  ✗ vía determinista ${y} falló: ${e.message}`);
+        }
+      }
+    } finally {
+      await client.end().catch(() => {});
+    }
+  } else {
+    log('⚠️  Sin conexión a la BD: se omite la vía determinista por uciCalendarId.');
+  }
   for (const y of unknown) {
     log(`⚠️  ${y}: seasonId road DESCONOCIDO (no está en ROAD_SEASON). Se OMITE.`);
     log(`    → MANTENIMIENTO ANUAL: añade { ${y}: <seasonId> } a ROAD_SEASON en uci-match-poc.mjs,`);
@@ -141,7 +176,7 @@ async function main() {
   }
   if (!known.length) {
     log('No hay ningún año barrible (todos sin seasonId conocido). Nada que hacer.');
-    process.stdout.write(JSON.stringify({ years, swept: [], ok: 0, errored: 0, skippedUnknown: unknown, changed: false }) + '\n');
+    process.stdout.write(JSON.stringify({ years, swept: [], ok: 0, errored: 0, skippedUnknown: unknown, byCalendarId, changed: !DRY && byCalendarId.linked > 0 }) + '\n');
     if (unknown.length) process.exit(1); // hay trabajo pero no puedo hacerlo → job en rojo (visible)
     return;
   }
@@ -159,7 +194,7 @@ async function main() {
   // página por sí solo (la página nace cuando hay resultados), pero el backfill no
   // distingue "enlacé algo nuevo" de "nada nuevo" en su exit code, así que dejamos que
   // el workflow decida con su propio detector si hace falta. Aquí reportamos actividad.
-  process.stdout.write(JSON.stringify({ years, swept: known, ok, errored, skippedUnknown: unknown, changed: false }) + '\n');
+  process.stdout.write(JSON.stringify({ years, swept: known, ok, errored, skippedUnknown: unknown, byCalendarId, changed: false }) + '\n');
   if (errored > 0 && ok === 0) process.exit(1); // todo falló → job en rojo
 }
 

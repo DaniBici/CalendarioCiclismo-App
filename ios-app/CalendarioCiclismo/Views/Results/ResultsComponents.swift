@@ -988,7 +988,7 @@ private struct ResultsRowView: View {
             .foregroundStyle(.secondary)
             .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
 
-            // Corredor arriba; equipación + equipo en el subtítulo, como en la
+            // Corredor arriba; colores + equipo en el subtítulo, como en la
             // tabla móvil de la web. La marca cromática identifica al equipo,
             // no al corredor.
             VStack(alignment: .leading, spacing: 2) {

@@ -10,6 +10,10 @@ final class StageDetailViewModel {
     var broadcasts: [Broadcast] = []
     /// Lista completa, necesaria para el selector «Todas» de la jornada.
     var allBroadcasts: [Broadcast] = []
+    /// Vídeos de la jornada (`race_day_videos`) visibles en la región del usuario.
+    var videos: [RaceDayVideo] = []
+    /// Todos los vídeos de la jornada: deciden la disposición en dos columnas.
+    var allVideos: [RaceDayVideo] = []
     var assets: [Asset] = []
     var siblings: [RaceDay] = []
     var isLoading = false
@@ -50,6 +54,7 @@ final class StageDetailViewModel {
                 allowedGroups: RegionService.shared.allowedBroadcastGroups,
             )
             assets = cached.assets
+            setVideos(cached.videos)
             // Pre-cargar siblings, clasificaciones y guía como una sola
             // instantánea. La vista solo se publica cuando puede resolver todas
             // sus secciones sin insertar contenido tras el primer render.
@@ -118,6 +123,13 @@ final class StageDetailViewModel {
         let siblings: [RaceDay]
         let technicalGuide: Asset?
         let resultsStages: [RaceUciStage]
+        let videos: [RaceDayVideo]
+    }
+
+    /// Vídeos ordenados y filtrados por la región del usuario.
+    private func setVideos(_ list: [RaceDayVideo]) {
+        allVideos = list.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+        videos = StageVideoLogic.filterByRegion(allVideos, allowedGroups: RegionService.shared.allowedBroadcastGroups)
     }
 
     /// Consultas de la carrera de la jornada, todas en paralelo.
@@ -139,13 +151,16 @@ final class StageDetailViewModel {
         // raceId, en paralelo, en vez de esperar a siblings y lanzar
         // una segunda ronda de red: así el chip no aparece tarde.
         async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
+        // Vídeos de la jornada: sin ellos, la jornada se pinta como antes.
+        async let videosResult = (try? service.raceDayVideos(byRaceDayId: raceDayId)) ?? []
 
         let (rd, r, b, a, siblings, technicalGuide, resultsStages) = try await (
             rdResult, raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
         )
         return RemoteSnapshot(
             raceDay: rd, race: r, broadcasts: b, assets: a,
-            siblings: siblings, technicalGuide: technicalGuide, resultsStages: resultsStages
+            siblings: siblings, technicalGuide: technicalGuide, resultsStages: resultsStages,
+            videos: await videosResult
         )
     }
 
@@ -203,6 +218,7 @@ final class StageDetailViewModel {
             // Se guarda una sola guía técnica por competición, pero se
             // expone en cada jornada sin duplicar su fila ni su PDF.
             assets = (snapshot.technicalGuide.map { [$0] } ?? []) + snapshot.assets.filter { $0.type != "technicalGuide" }
+            setVideos(snapshot.videos)
             self.siblings = allDays
             updateInhouseGates(raceDay: rd, siblings: allDays, stages: snapshot.resultsStages)
             // Guardar siblings para cargas futuras sin flash
@@ -233,6 +249,7 @@ final class StageDetailViewModel {
         let race: Race?
         let broadcasts: [Broadcast]
         let assets: [Asset]
+        let videos: [RaceDayVideo]
     }
 
     /// Busca una jornada entre los `DayData` cacheados por el modo offline
@@ -249,6 +266,7 @@ final class StageDetailViewModel {
                     race: match.race,
                     broadcasts: match.broadcasts,
                     assets: match.assets,
+                    videos: match.videos ?? [],
                 )
             }
         }

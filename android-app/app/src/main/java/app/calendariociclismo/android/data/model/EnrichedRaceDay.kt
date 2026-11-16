@@ -26,6 +26,8 @@ data class EnrichedRaceDay(
     val race: Race? = null,
     val broadcasts: List<Broadcast> = emptyList(),
     val assets: List<Asset> = emptyList(),
+    /** Vídeos de la jornada (`race_day_videos`), sin filtrar por región. */
+    val videos: List<RaceDayVideo> = emptyList(),
     val isPlaceholder: Boolean = false,
 ) {
     val id: String get() = raceDay.id

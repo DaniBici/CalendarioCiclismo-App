@@ -9,10 +9,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import app.calendariociclismo.android.data.local.dao.AssetsDao
 import app.calendariociclismo.android.data.local.dao.BroadcastsDao
 import app.calendariociclismo.android.data.local.dao.RaceDaysDao
+import app.calendariociclismo.android.data.local.dao.RaceDayVideosDao
 import app.calendariociclismo.android.data.local.dao.RacesDao
 import app.calendariociclismo.android.data.local.entity.AssetEntity
 import app.calendariociclismo.android.data.local.entity.BroadcastEntity
 import app.calendariociclismo.android.data.local.entity.RaceDayEntity
+import app.calendariociclismo.android.data.local.entity.RaceDayVideoEntity
 import app.calendariociclismo.android.data.local.entity.RaceEntity
 import app.calendariociclismo.android.data.local.entity.CxMonthCacheEntity
 import app.calendariociclismo.android.data.local.entity.CxDetailCacheEntity
@@ -26,8 +28,9 @@ import app.calendariociclismo.android.data.local.dao.CxCacheDao
         AssetEntity::class,
         CxMonthCacheEntity::class,
         CxDetailCacheEntity::class,
+        RaceDayVideoEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun broadcastsDao(): BroadcastsDao
     abstract fun assetsDao(): AssetsDao
     abstract fun cxCacheDao(): CxCacheDao
+    abstract fun raceDayVideosDao(): RaceDayVideosDao
 
     companion object {
         private const val DB_NAME = "calendario_ciclismo.db"
@@ -87,6 +91,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Vídeos 5.2: inserción permitida de cada emisión (la que convierte
+                // la de YouTube en «Emisión de la etapa») y vídeos de jornada.
+                db.execSQL("ALTER TABLE `broadcasts` ADD COLUMN `embeddable` INTEGER")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `race_day_videos` (`id` TEXT NOT NULL, `raceDayId` TEXT NOT NULL, `kind` TEXT NOT NULL, `title` TEXT NOT NULL, `titleEn` TEXT, `channel` TEXT, `url` TEXT NOT NULL, `embeddable` INTEGER, `country` TEXT, `sortOrder` INTEGER NOT NULL, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_race_day_videos_raceDayId` ON `race_day_videos` (`raceDayId`)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -96,7 +110,7 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DB_NAME,
             )
-            .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+            .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
             .fallbackToDestructiveMigration()
             .build()
 

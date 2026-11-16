@@ -477,7 +477,7 @@ export function _slUpdateRowEnrichUI(rowEl) {
   const team = teamId ? (panelState._teamsCache || []).find(t => t.id === teamId) : null;
   if (team) {
     slot.innerHTML = `
-      <span class="sl-team-badge">${teamStripes(team)}${esc(team.name)}</span>
+      <span class="sl-team-resolved">${teamStripes(team)}${esc(team.name)}</span>
       <button class="btn btn--ghost sl-change-team btn--tiny" type="button">Cambiar</button>`;
   } else {
     if (!rawName.trim()) { slot.replaceChildren(); return; }

@@ -24,6 +24,8 @@
     "rider": "Rider",
     "team": "Team",
     "time": "Time",
+    "bonuses": "Bonuses",
+    "bonus": "Bonus",
     "totalTime": "Total time",
     "points": "Points",
     "lapOne": "-1 lap",
@@ -47,6 +49,7 @@
     "standings": "Overall standings",
     "general": "Standings",
     "races": "Races",
+    "roundList": "Rounds",
     "droppedResult": "Dropped result",
       "moreRounds": "More rounds",
     "official": "Official results",
@@ -202,6 +205,18 @@
       "none": "No broadcast",
       "unavailable_es": "No TV in Spain"
     }
+  },
+  "videos": {
+    "title": "Videos",
+    "stageBroadcast": "Stage broadcast",
+    "raceBroadcast": "Race broadcast",
+    "full": "Broadcast",
+    "broadcast": "Broadcast",
+    "menu": "Videos or full broadcast",
+    "goStage": "Go to stage",
+    "goRace": "Go to race",
+    "goCx": "Go to race",
+    "pageTitle": "Cycling videos"
   },
   "assets": {
     "startOrder": "Start order",

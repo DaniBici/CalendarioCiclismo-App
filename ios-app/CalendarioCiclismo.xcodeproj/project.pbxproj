@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		021D56BB195948D2505787E4 /* VideosFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD8474583B5FA06C10AB3CCE /* VideosFeedView.swift */; };
 		03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3651F965C3ADE08DD8868D /* UciResult.swift */; };
 		063D89A631EACB963C91DF96 /* FollowedRacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D3962AC7A3D12B5D18111 /* FollowedRacesView.swift */; };
 		06A905A4897CEFC6E0DC7C95 /* WidgetSample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2587A4C3EC2BEC8E793B7E25 /* WidgetSample.swift */; };
@@ -25,6 +26,7 @@
 		27D69B27E68A304EF28C79B4 /* ProfileDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC572EA9623AC82543357E70 /* ProfileDestinationView.swift */; };
 		2A9DCFCB56EF967CF8E7F3C2 /* CalendarTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA4282987543E6D2F35303A /* CalendarTabView.swift */; };
 		2CE7FF0A88CC9734B1B9AAC1 /* SupabaseService+Cyclocross.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC35F0759C613CBD10CF374 /* SupabaseService+Cyclocross.swift */; };
+		2F802EE594D7C4CA2BE90732 /* RaceDayVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10BC80E18E795C9D63DB9522 /* RaceDayVideo.swift */; };
 		30917CFA58703AEAFA66FBD7 /* CxRaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AD3BE2D5D047F33591E5AF /* CxRaceDetailView.swift */; };
 		32496D20A4CFC135A2E05D6A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39999894CF76DCFE283F1CA0 /* Localizable.xcstrings */; };
 		3300591CCF9E81E8222D2588 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD984740158A331D289F46E1 /* NotificationManager.swift */; };
@@ -39,6 +41,7 @@
 		3C17EFBA098E9566014F7A64 /* SeasonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6833BA62D6085B0309D60937 /* SeasonView.swift */; };
 		3C8121A4604883D9DA705D1D /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C3D78A02E9DAA1C06A553A /* SafariView.swift */; };
 		3EA67DC5C454F1DB5BC30206 /* WidgetComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94929C262D2DBFB276F47E84 /* WidgetComponents.swift */; };
+		40E97E2911AD4E973BC89482 /* VideosFeedLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C78AB7DD99A8916FCB3F23 /* VideosFeedLogic.swift */; };
 		42066B4F05AE4303D2D4EB13 /* RaceFollowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F8AEBCD527F96AD9FC75C /* RaceFollowService.swift */; };
 		429BAB94FF2EC495C5001C52 /* AccessibilityHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF4E785EB18C1E580828423 /* AccessibilityHelpers.swift */; };
 		4522FC4C6FBC98F313F01BA6 /* TodayHighlightsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD7BDBEE7EF58501E285A50F /* TodayHighlightsBanner.swift */; };
@@ -115,9 +118,11 @@
 		B5B1F5DA596D0B26F84F4C27 /* TodayHighlightsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B80DAE35DBD0DA2DBDCC33 /* TodayHighlightsViewModel.swift */; };
 		B5CEBA01088E3D827640FB71 /* WidgetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F397E2CA4DAAF4A3012B3F /* WidgetPresentation.swift */; };
 		B8F703B4A91C93B29B2B4D12 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A986943DE31FB8737566D72F /* PrivacyInfo.xcprivacy */; };
+		B9BBD9BA1572AE0975A1DFB0 /* StageVideosPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D625B43229A9F2087E6A9F /* StageVideosPanel.swift */; };
 		BA263C15F6A2BA949527CB81 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA53E83B4EC195716011709 /* NotificationService.swift */; };
 		BCC962F781ACEA474307D0FA /* Team.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ED2633097AC8C280F68A1AA /* Team.swift */; };
 		BDA9C9BCCB1C08EB16F32ECE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173AFC9AC1FA76DAA1686362 /* SettingsView.swift */; };
+		BDD1EBA5921AFED0B56AD0E6 /* FinishedVideoAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46362196643C95BD697BB514 /* FinishedVideoAction.swift */; };
 		C0093C899A3DA58C13549C41 /* DateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F707763849CE075EE394A2 /* DateBarView.swift */; };
 		C1398263EA44D1C48D8CE4BC /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8B1B61A99BB8058205CB0E00 /* Supabase */; };
 		C43221CCF34ADDFAD816E0CD /* SeasonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2BAFEAD9A7705A75925642F /* SeasonViewModel.swift */; };
@@ -155,6 +160,7 @@
 		F7E0535F6C4F2CD8C5C23D75 /* RiderTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354EC95B971E9572BBE3B6DB /* RiderTransfer.swift */; };
 		F84F5EBC8594A4506655EF6A /* ProfileSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D179A06958625CA74A24F17 /* ProfileSegment.swift */; };
 		F9BB1DE5E10094A2754D05F7 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6355226666B1F46947BD209D /* LoadingView.swift */; };
+		FA38FFE785D0815E5776C6E3 /* StageVideoLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 967776D2783DA359EDF9B525 /* StageVideoLogic.swift */; };
 		FBBFFA7FF879DF8D3BD2925C /* TransfersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982C21DD698245740AF2F4C6 /* TransfersView.swift */; };
 		FCD40B4B6FD197A7AF426C09 /* StartlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7AEF801C0A7E4A20304BC02 /* StartlistView.swift */; };
 /* End PBXBuildFile section */
@@ -216,6 +222,7 @@
 		0D9C7A2775B18372B4A6D309 /* RouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapView.swift; sourceTree = "<group>"; };
 		0ED2633097AC8C280F68A1AA /* Team.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Team.swift; sourceTree = "<group>"; };
 		0EE7929FD5F3F82CD24BBC33 /* CalendarioCiclismo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CalendarioCiclismo.entitlements; sourceTree = "<group>"; };
+		10BC80E18E795C9D63DB9522 /* RaceDayVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDayVideo.swift; sourceTree = "<group>"; };
 		121FA3ABE19C2E9CFD01A503 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		122A04AF5748EF3E37189B1E /* RouteMapLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapLogicTests.swift; sourceTree = "<group>"; };
 		1344DD8023E08DB7656C31EE /* RouteMapLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapLogic.swift; sourceTree = "<group>"; };
@@ -247,6 +254,7 @@
 		40F266247CBB68CEB3EE2862 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		43CFC3A064B481CFBD974E40 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		4461E2F63974BDE7CA989245 /* ElevationProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileView.swift; sourceTree = "<group>"; };
+		46362196643C95BD697BB514 /* FinishedVideoAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinishedVideoAction.swift; sourceTree = "<group>"; };
 		468893C68879486E9A3D9859 /* SupabaseService+UciResults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+UciResults.swift"; sourceTree = "<group>"; };
 		48F94BBFA47CC5EA0A0D8D43 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		493A6548104A38662359470C /* SupabaseService+Transfers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+Transfers.swift"; sourceTree = "<group>"; };
@@ -261,6 +269,7 @@
 		565B870EDE9C8BF2875CF633 /* WidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetProvider.swift; sourceTree = "<group>"; };
 		569313D924D61EEFAC8A2E5A /* RegionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionServiceTests.swift; sourceTree = "<group>"; };
 		57C3FE824DFD028979A3FA2F /* StartOrderEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartOrderEntry.swift; sourceTree = "<group>"; };
+		59D625B43229A9F2087E6A9F /* StageVideosPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageVideosPanel.swift; sourceTree = "<group>"; };
 		5DF4E785EB18C1E580828423 /* AccessibilityHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityHelpers.swift; sourceTree = "<group>"; };
 		5EB6CB8843541873DD56705B /* ThemeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeService.swift; sourceTree = "<group>"; };
 		5F12AB2A72EF4FF21C4A3386 /* ResultsFeedLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsFeedLogicTests.swift; sourceTree = "<group>"; };
@@ -296,6 +305,7 @@
 		92F2CBAFCAF3B3F34636D515 /* WidgetDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataSource.swift; sourceTree = "<group>"; };
 		94929C262D2DBFB276F47E84 /* WidgetComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetComponents.swift; sourceTree = "<group>"; };
 		955A90C67B81CFC59D9F9F5C /* NotificationServiceExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		967776D2783DA359EDF9B525 /* StageVideoLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageVideoLogic.swift; sourceTree = "<group>"; };
 		970799AFD84F19A78FED8D15 /* SupportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportView.swift; sourceTree = "<group>"; };
 		9760C23396DE90D30F7DD243 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
 		982C21DD698245740AF2F4C6 /* TransfersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersView.swift; sourceTree = "<group>"; };
@@ -312,6 +322,7 @@
 		ACDFEAC0A589AFE48C8CE3EE /* DateFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormattingTests.swift; sourceTree = "<group>"; };
 		ACF8EDBB20E63C2E6C8B54C2 /* StageDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageDetailViewModel.swift; sourceTree = "<group>"; };
 		AD7BDBEE7EF58501E285A50F /* TodayHighlightsBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayHighlightsBanner.swift; sourceTree = "<group>"; };
+		AD8474583B5FA06C10AB3CCE /* VideosFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideosFeedView.swift; sourceTree = "<group>"; };
 		ADE31A37494F3E9D1BE1B22A /* StageRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageRowView.swift; sourceTree = "<group>"; };
 		AE2AEADA23EA969AFFA2A257 /* WidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetViews.swift; sourceTree = "<group>"; };
 		B01263F19C6BD474F6A332EB /* TransfersTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersTeamView.swift; sourceTree = "<group>"; };
@@ -359,6 +370,7 @@
 		F0AD3BE2D5D047F33591E5AF /* CxRaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CxRaceDetailView.swift; sourceTree = "<group>"; };
 		F4E7BF5976FB449CA43AC193 /* CalendarioCiclismoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CalendarioCiclismoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8BA1FC98995EC7AF3384436 /* CalendarioCiclismo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CalendarioCiclismo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9C78AB7DD99A8916FCB3F23 /* VideosFeedLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideosFeedLogic.swift; sourceTree = "<group>"; };
 		FA42312F27D44A1C05E34701 /* Broadcast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Broadcast.swift; sourceTree = "<group>"; };
 		FCA4282987543E6D2F35303A /* CalendarTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTabView.swift; sourceTree = "<group>"; };
 		FF920167552786CBD7B72FBA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -401,6 +413,7 @@
 				33EBE13A16CA79590D76F05D /* CategoryBadge.swift */,
 				50F80B81FFF567DD76291684 /* CCCard.swift */,
 				23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */,
+				46362196643C95BD697BB514 /* FinishedVideoAction.swift */,
 				8869C4F1206A3C38BEF499AF /* HeaderBrandView.swift */,
 				6355226666B1F46947BD209D /* LoadingView.swift */,
 				43CFC3A064B481CFBD974E40 /* MarkdownText.swift */,
@@ -475,6 +488,14 @@
 			path = Notifications;
 			sourceTree = "<group>";
 		};
+		285D3B6BD01A907F8CD97A7E /* Videos */ = {
+			isa = PBXGroup;
+			children = (
+				AD8474583B5FA06C10AB3CCE /* VideosFeedView.swift */,
+			);
+			path = Videos;
+			sourceTree = "<group>";
+		};
 		291AABBFE17D01E4C3015BDD /* Transfers */ = {
 			isa = PBXGroup;
 			children = (
@@ -540,6 +561,7 @@
 				969BB37CBAE98B815CA20645 /* Support */,
 				F704F2BF7B4524009CC5DAC0 /* Today */,
 				291AABBFE17D01E4C3015BDD /* Transfers */,
+				285D3B6BD01A907F8CD97A7E /* Videos */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -585,6 +607,7 @@
 				37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */,
 				BB5A757FF80BEB3AE007249C /* Race.swift */,
 				A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */,
+				10BC80E18E795C9D63DB9522 /* RaceDayVideo.swift */,
 				354EC95B971E9572BBE3B6DB /* RiderTransfer.swift */,
 				8E21AA16D681FECC7BFC7ED5 /* StartlistTeam.swift */,
 				57C3FE824DFD028979A3FA2F /* StartOrderEntry.swift */,
@@ -698,6 +721,7 @@
 				4C7A8280CFC316531A7598A7 /* ResultsFeedLogic.swift */,
 				1344DD8023E08DB7656C31EE /* RouteMapLogic.swift */,
 				D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */,
+				967776D2783DA359EDF9B525 /* StageVideoLogic.swift */,
 				90B092494268057641ED882D /* SupabaseService.swift */,
 				1DC35F0759C613CBD10CF374 /* SupabaseService+Cyclocross.swift */,
 				493A6548104A38662359470C /* SupabaseService+Transfers.swift */,
@@ -705,6 +729,7 @@
 				5EB6CB8843541873DD56705B /* ThemeService.swift */,
 				5226BF87D70D9670F0D46D21 /* TransfersLogic.swift */,
 				DBBD791D932656CF55E63CDB /* UciResultsLogic.swift */,
+				F9C78AB7DD99A8916FCB3F23 /* VideosFeedLogic.swift */,
 				02EBF66C1C6FF57668A5A593 /* WidgetBridge.swift */,
 			);
 			path = Services;
@@ -790,6 +815,7 @@
 				0D657CDFDE6DBCD52B28BE55 /* RouteMapDestinationView.swift */,
 				0D9C7A2775B18372B4A6D309 /* RouteMapView.swift */,
 				A499F40F11439DF8DC717581 /* StageDetailView.swift */,
+				59D625B43229A9F2087E6A9F /* StageVideosPanel.swift */,
 			);
 			path = Stage;
 			sourceTree = "<group>";
@@ -1082,6 +1108,7 @@
 				AADE534CEF4E0DCFBBC09523 /* DayData.swift in Sources */,
 				65960C19C110A6530F6F894A /* ElevationProfile.swift in Sources */,
 				254B8B7BE4832DB34FF86FDB /* ElevationProfileView.swift in Sources */,
+				BDD1EBA5921AFED0B56AD0E6 /* FinishedVideoAction.swift in Sources */,
 				063D89A631EACB963C91DF96 /* FollowedRacesView.swift in Sources */,
 				36293990D303F6743D421A93 /* FollowedStagesView.swift in Sources */,
 				590F1CF043E90DBA9C84CA1A /* Haptics.swift in Sources */,
@@ -1106,6 +1133,7 @@
 				98399FEA23FCF018CD4EF7F8 /* RaceCardIdentity.swift in Sources */,
 				735A627CED3D4FBF3D00DE8B /* RaceCardView.swift in Sources */,
 				D0E28E42F6CD6235825ECC1E /* RaceDay.swift in Sources */,
+				2F802EE594D7C4CA2BE90732 /* RaceDayVideo.swift in Sources */,
 				8442F5771BBE32C44901880D /* RaceDetailView.swift in Sources */,
 				76DF36E547BE94AA415D3572 /* RaceDetailViewModel.swift in Sources */,
 				42066B4F05AE4303D2D4EB13 /* RaceFollowService.swift in Sources */,
@@ -1129,6 +1157,8 @@
 				DB49F25B6E96EB766CC4823E /* StageDetailViewModel.swift in Sources */,
 				D380CFF4D2E63DEF330AB40C /* StageRowView.swift in Sources */,
 				7C06C12783559130AC188E12 /* StageTypeBadge.swift in Sources */,
+				FA38FFE785D0815E5776C6E3 /* StageVideoLogic.swift in Sources */,
+				B9BBD9BA1572AE0975A1DFB0 /* StageVideosPanel.swift in Sources */,
 				778F7E8F6ECF4DB6CC4B57B5 /* StartOrderEntry.swift in Sources */,
 				0B5C91D33E92E115ACEA20B2 /* StartOrderView.swift in Sources */,
 				15848FCC905206B910112440 /* StartOrderViewModel.swift in Sources */,
@@ -1156,6 +1186,8 @@
 				03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */,
 				82221FBFFF6BE60914DB5839 /* UciResultsLogic.swift in Sources */,
 				1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */,
+				40E97E2911AD4E973BC89482 /* VideosFeedLogic.swift in Sources */,
+				021D56BB195948D2505787E4 /* VideosFeedView.swift in Sources */,
 				B49ECC141C25CA405DCAFF59 /* WidgetBridge.swift in Sources */,
 				A491BDF801450E05F29F4BB4 /* WidgetShared.swift in Sources */,
 			);
@@ -1242,7 +1274,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.1.11;
+				MARKETING_VERSION = 5.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1304,7 +1336,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.1.11;
+				MARKETING_VERSION = 5.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1375,7 +1407,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.1.11;
+				MARKETING_VERSION = 5.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1426,7 +1458,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.1.11;
+				MARKETING_VERSION = 5.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

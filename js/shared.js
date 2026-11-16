@@ -904,7 +904,7 @@ export function handleCategorySelect(select, storageKey = PIN_STORAGE_KEY, valid
   return cat ? { type: 'filter', cat } : null;
 }
 
-// ── Equipos (chapa + matching) ───────────────────────────────────
+// ── Equipos (colores + matching) ───────────────────────────────────
 const TEAM_STOPWORDS = new Set([
   'pro','procycling','cycling','team','teams','squad','uci','worldteam',
   'wt','women','womens','féminin','feminin','femenino','féminine',

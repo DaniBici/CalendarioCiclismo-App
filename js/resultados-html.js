@@ -16,6 +16,8 @@
 
 import { timeToSeconds, secondsToGap, formatGap, cleanTimeText, secondsToAbsText } from './results/time.js';
 import { stageContextHtml } from './stage/context.js';
+import { stageVideoEntries } from './services/stage-videos.js';
+import { stageVideosContextHtml } from './stage/videos-html.js';
 import { stageProfileHtml } from './stage/profile.js';
 import { TEAM_COLUMNS, resultTeamStripes, teamsForSeason, splitStartlistTeams } from './team-appearance.js';
 import { localizedTeamName } from './services/national-team-name.js';
@@ -204,7 +206,7 @@ export function stageNavigationHtml(keys, activeKey, { canonBase, canonSlug, isE
  * `contextDay`, la de la columna lateral; `contextAssets` y `actionAssets`,
  * sus documentos con la guía técnica (withRaceTechnicalGuide).
  */
-export function resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn }) {
+export function resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn, contextBroadcasts = [], contextVideos = [] }) {
   const { activeStages, activeStageNumber, activeSuffix, configByKind, activeClass, raceDayId } = active;
   const isOneDay = race.raceFormat === 'one_day';
   const stageLabel = stagePathLabel(activeStageNumber, isEn, activeSuffix);
@@ -266,7 +268,12 @@ export function resultsPageHtml({ race, stages, active, raceDay, contextDay, con
   if (contextDay) {
     // Panel del perfil con el gráfico vacío: mountStageProfile lo dibuja sobre
     // el mismo marcado.
-    html += stageContextHtml(contextDay, 'resProfile', { profile: stageProfileHtml(contextDay, race, contextAssets), metrics: false });
+    // Vídeos de la jornada de contexto (regla común, emisión convertida
+    // incluida), sin filtro regional: el navegador oculta las filas que el
+    // visitante no ve.
+    const videoEntries = stageVideoEntries({ broadcasts: contextBroadcasts, videos: contextVideos, hasResults: true, isCancelled: !!contextDay.isCancelledDay });
+    html += stageContextHtml(contextDay, 'resProfile', { profile: stageProfileHtml(contextDay, race, contextAssets), metrics: false,
+      videosHtml: stageVideosContextHtml(videoEntries, race) });
   }
   html += '</div>';
   return html;
@@ -326,7 +333,7 @@ export function createResultsResolver({ race, slRiders, slTeamsRows, isEn }) {
     const slTeam = r.teamId ? slTeamByPk.get(r.teamId) : null;       // fila por PK
     const canon  = slTeam?.teamId ? teamBySlugId.get(slTeam.teamId) : null;
     // Estado sin equipo → ocultación cosmética: sin nombre de equipo, y en
-    // cascada sin chapa ni opción de filtro.
+    // cascada sin cuadrado de colores ni opción de filtro.
     const slName = isNoTeamPlaceholderTeam(slTeam) ? '' : (slTeam?.teamName || '');
     const snapshot = {
       name: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
@@ -335,7 +342,7 @@ export function createResultsResolver({ race, slRiders, slTeamsRows, isEn }) {
       // selecciones nacionales en el idioma de la página; sin casar → el
       // crudo de la startlist (p. ej. "TEAM RINGERIKE" de la UCI).
       teamName: localizedTeamName(canon?.name || slName, canon, isEn),
-      teamObj: canon || null,   // para la chapa (solo desktop)
+      teamObj: canon || null,   // para el cuadrado de colores (solo desktop)
     };
     if (r.dorsal != null) byDorsal.set(r.dorsal, snapshot);
     // Los resultados introducidos a mano pueden no llevar dorsal. Si el panel
@@ -380,7 +387,7 @@ export function createResultsResolver({ race, slRiders, slTeamsRows, isEn }) {
     if (!hrefByName.has(teamName)) hrefByName.set(teamName, teamLinkUrl(findMatchingTeam(teamName, raceTeams)));
     return hrefByName.get(teamName);
   };
-  // Resuelve un teamId de override a su equipo canónico (nombre + chapa + enlace).
+  // Resuelve un teamId de override a su equipo canónico (nombre + colores + enlace).
   // Requiere que enrichOverrideTeams haya corrido antes para el id en cuestión.
   const overrideTeam = (teamId) => {
     if (!teamId) return null;
@@ -449,7 +456,7 @@ export async function enrichRiders(client, resolver, ids, now = new Date()) {
 /**
  * Override manual de equipo (race_uci_results.teamId, fijado en el panel):
  * carga perezosa de los equipos canónicos referidos, reutilizando los de la
- * startlist y completando los que falten con la chapa + nombre.
+ * startlist y completando los que falten con los colores + nombre.
  */
 export async function enrichOverrideTeams(client, resolver, ids) {
   const { teamBySlugId, race } = resolver;
@@ -636,7 +643,7 @@ function tttTableHtml(rows, stageRow, { resolver, race, lang }) {
       </tr></thead><tbody>`;
 
   teamRows.forEach((tr, i) => {
-    const teamBadge = tr.teamObj ? resultTeamStripes(tr.teamObj) : '';
+    const teamColors = tr.teamObj ? resultTeamStripes(tr.teamObj) : '';
     const nameInner = tr.teamHref
       ? `<a class="so-link" href="${esc(tr.teamHref)}">${esc(tr.teamName)}</a>`
       : esc(tr.teamName || '-');
@@ -653,7 +660,7 @@ function tttTableHtml(rows, stageRow, { resolver, race, lang }) {
     // Fila de equipo (pulsable → despliega corredores).
     t += `<tr class="so-row res-team-row" data-key="${esc(`ttt${tr.teamName}`)}" data-ttt-group="${i}" tabindex="0" role="button" aria-expanded="false">`
       + `<td class="so-td res-td--rank">${rankCell}</td>`
-      + `<td class="so-td res-td--rider"><span class="res-ttt-team">${teamBadge}<span class="res-ttt-team-name">${nameInner}</span><span class="res-ttt-caret" aria-hidden="true">▾</span></span></td>`
+      + `<td class="so-td res-td--rider"><span class="res-ttt-team">${teamColors}<span class="res-ttt-team-name">${nameInner}</span><span class="res-ttt-caret" aria-hidden="true">▾</span></span></td>`
       + `${uciPointsCellHtml(showUciPoints, tr)}<td class="so-td res-td--result">${resultCell}</td></tr>`;
     // Sub-filas de corredores (ocultas por defecto): bandera + nombre + tiempo individual.
     tr.riders.forEach((r) => {
@@ -868,7 +875,7 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
     const flagCell = flagHtml(cc);
     // Equipos: la fila ES un equipo (riderDisplay = nombre crudo de la fuente,
     // sin dorsal) → se casa por NOMBRE contra los equipos canónicos de la
-    // startlist (mismo patrón que orden-salida) para chapa + nombre bonito +
+    // startlist (mismo patrón que orden-salida) para colores + nombre bonito +
     // enlace. Individual: override manual → equipo de la startlist → href por nombre.
     const rowTeamObj = isTeams
       ? ((overrideTeam(r.teamId) || {}).teamObj || (teamSnapshot?.teamId ? teamBySlugId.get(teamSnapshot.teamId) : null) || findMatchingTeam(r.riderDisplay || '', raceTeams))
@@ -975,14 +982,14 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
     }
 
     if (isTeams) {
-      // Casado → nombre canónico del catálogo + chapa (como la columna Equipo
+      // Casado → nombre canónico del catálogo + colores (como la columna Equipo
       // de las clasificaciones individuales); sin casar → el crudo de la fuente.
       const displayName = localizedTeamName((rowTeamObj && rowTeamObj.name) || riderName, rowTeamObj, isEn);
-      const teamBadge = rowTeamObj ? resultTeamStripes(rowTeamObj) : '';
+      const teamColors = rowTeamObj ? resultTeamStripes(rowTeamObj) : '';
       const nameInner = teamHref
         ? `<a class="so-link" href="${esc(teamHref)}">${esc(displayName)}</a>`
         : esc(displayName);
-      const teamCell = `<span class="res-team-cell">${teamBadge}${nameInner}</span>`;
+      const teamCell = `<span class="res-team-cell">${teamColors}${nameInner}</span>`;
       return `<tr class="so-row" data-key="${esc(resultRowKey(r, true))}"><td class="so-td res-td--rank">${rankCell}</td><td class="so-td res-td--rider">${teamCell}</td>`
         + `${uciPointsCellHtml(showUciPoints, r)}<td class="so-td res-td--result">${resultCell}</td></tr>`;
     }
@@ -996,18 +1003,18 @@ export function classificationHtml(rows, stageRow, { race, raceDay, isOneDay, re
         ? `<span class="res-rider-name">${esc(riderName)}</span>`
         : '<span class="res-rider-name" style="opacity:0.45">-</span>');
     // Objeto equipo (override manual → por dorsal → equipo actual del
-    // enriquecido por globalRiderId; null si nada casó → sin chapa).
+    // enriquecido por globalRiderId; null si nada casó → sin colores).
     const teamObj = (ovrTeam && ovrTeam.teamObj) || (fromSl && fromSl.teamObj) || (fromRider && fromRider.teamObj) || null;
     // Subtítulo de equipo (solo visible en móvil, donde la columna Equipo se
     // oculta) con las franjas del equipo; la columna Equipo de escritorio
     // repite franjas y nombre.
     const teamSub = teamName ? `<span class="res-rider-team">${resultTeamStripes(teamObj)}${esc(teamName)}</span>` : '';
     const riderCell = `${flagCell}<span class="res-rider-main">${nameLink}${teamSub}</span>`;
-    const teamBadge = teamObj ? resultTeamStripes(teamObj) : '';
+    const teamColors = teamObj ? resultTeamStripes(teamObj) : '';
     const teamInner = teamName
       ? (teamHref ? `<a class="so-link res-team-link" href="${esc(teamHref)}">${esc(teamName)}</a>` : esc(teamName))
       : '';
-    const teamCell = teamName ? `<span class="res-team-cell">${teamBadge}${teamInner}</span>` : '';
+    const teamCell = teamName ? `<span class="res-team-cell">${teamColors}${teamInner}</span>` : '';
     // Sin sangrado ni data-gap vacío: applyTeamFilter trata igual un atributo
     // ausente y uno vacío.
     return `<tr class="so-row" data-key="${esc(resultRowKey(r))}" data-team="${esc(teamName)}"${rowGap ? ` data-gap="${esc(rowGap)}"` : ''}>`

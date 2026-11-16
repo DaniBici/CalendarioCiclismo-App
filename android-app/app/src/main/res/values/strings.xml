@@ -8,6 +8,7 @@
     <string name="tab_calendar">Calendario</string>
     <string name="tab_month">Mes</string>
     <string name="tab_season">Año</string>
+    <string name="tab_videos">Vídeos</string>
     <string name="tab_transfers">Fichajes</string>
     <string name="tab_settings">Ajustes</string>
 
@@ -474,6 +475,7 @@
     <string name="results_col_rider">Corredor</string>
     <string name="results_col_team">Equipo</string>
     <string name="results_col_time">Tiempo</string>
+    <string name="results_col_bonus">Bonif.</string>
     <string name="results_col_points">Pts</string>
     <string name="results_same_time">m.t.</string>
     <string name="results_filter_all_teams">Todos los equipos</string>
@@ -524,6 +526,7 @@
 
     <!-- Fichajes (mercado 2027, apps 4.0) -->
     <string name="transfers_heading">Mercado de Fichajes %1$d</string>
+    <string name="transfers_moves">Movimientos</string>
     <string name="transfers_feed_signings">Fichajes</string>
     <string name="transfers_mid_season">M. temporada</string>
     <string name="transfers_feed_renewals">Renovaciones</string>
@@ -588,10 +591,12 @@
     <string name="cx_not_found">Carrera no disponible</string>
     <string name="cx_no_general">No hay general publicada</string>
     <string name="cx_races">Carreras</string>
+    <string name="cx_round_list">Pruebas</string>
     <string name="cx_more_rounds">Más rondas</string>
     <string name="cx_dropped_result">Resultado descartado</string>
     <string name="cx_points">Puntos</string>
     <string name="cx_time">Tiempo</string>
+    <string name="cx_bonuses">Bonificaciones</string>
     <string name="cx_no_categories">No hay categorías publicadas</string>
     <string name="cx_device_time">Hora del dispositivo</string>
     <string name="cx_no_startlist">No hay inscritos publicados</string>

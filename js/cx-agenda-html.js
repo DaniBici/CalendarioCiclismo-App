@@ -12,7 +12,7 @@
 //  zona ni la región.
 // ─────────────────────────────────────────────────────────────────
 
-import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
+import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml,rewindIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
 import {countryFlag,categoryBadge,buildRaceHeader,formatDateLabel,filterBroadcastsByRegion,seoShortMonth} from './shared.js';
@@ -67,7 +67,7 @@ function tvBadgeHtml(race,date) {
 // abren la ficha.
 function summaryBadgeHtml(race,date,open) {
   if(!open||!cxAgendaVideo(race,date,race.cx_videos,filterBroadcastsByRegion(race.cx_broadcasts||[])))return '';
-  return `<a class="badge badge--tv badge--tv-link badge--summary" href="${esc(cxRacePageUrl(race,getLang(),'videos'))}">${tvIconHtml} <span class="badge__text">${esc(t('cx.summary'))}</span></a>`;
+  return `<a class="badge badge--tv badge--tv-link badge--summary" href="${esc(cxRacePageUrl(race,getLang(),'videos'))}">${tvIconHtml}${rewindIconHtml} <span class="badge__text">${esc(t('cx.summary'))}</span></a>`;
 }
 export function cxCardBadgesHtml(race,date,open) {
   const startlist=open?cxAgendaStartlistCategory(race,date):null;

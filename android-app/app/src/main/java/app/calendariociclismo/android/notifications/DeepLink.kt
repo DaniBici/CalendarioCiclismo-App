@@ -12,7 +12,8 @@ import android.net.Uri
 sealed class DeepLink {
     data class Tab(val name: String) : DeepLink()
     data class Race(val id: String) : DeepLink()
-    data class Stage(val id: String) : DeepLink()
+    /** `anchor` «videos»: la jornada desplazada a su panel Vídeos. */
+    data class Stage(val id: String, val anchor: String? = null) : DeepLink()
     data class Startlist(val id: String) : DeepLink()
     data class StartOrder(val id: String) : DeepLink()
     data class Profile(val id: String) : DeepLink()
@@ -34,13 +35,13 @@ sealed class DeepLink {
     // no un id de Room. El handler resuelve el slug → id real contra Supabase
     // antes de navegar. Las push y el widget siguen usando Race/Stage con id directo.
     data class RaceSlug(val slug: String, val english: Boolean = false) : DeepLink()
-    data class StageSlug(val slug: String, val english: Boolean = false) : DeepLink()
+    data class StageSlug(val slug: String, val english: Boolean = false, val anchor: String? = null) : DeepLink()
 
     companion object {
         /** Pestañas válidas (igual que iOS). "search" se conserva por
          *  compatibilidad con pushes antiguos (el handler lo manda a Hoy);
          *  "transfers" abre el mercado de fichajes (4.0). */
-        val TAB_NAMES = setOf("today", "results", "month", "season", "calendar", "transfers", "cyclocross", "search", "subscribe", "notifications")
+        val TAB_NAMES = setOf("today", "results", "month", "season", "calendar", "transfers", "cyclocross", "search", "subscribe", "notifications", "videos")
 
         /**
          * Regex para IDs de carrera/etapa. Solo se aceptan caracteres alfanuméricos,
@@ -49,6 +50,9 @@ sealed class DeepLink {
         private val VALID_ID_REGEX = Regex("^[a-zA-Z0-9_-]+$")
         private val VALID_CX_ANCHOR = Regex("^(ME|WE|MU|WU|MJ|WJ|general|programme|videos|(?:general|inscritos)-(?:ME|WE|MU|WU|MJ|WJ))$")
         private val CX_CATEGORY = Regex("^(ME|WE|MU|WU|MJ|WJ)$")
+
+        /** Única sección de la jornada con ancla: el panel Vídeos (`#videos`). */
+        private const val STAGE_ANCHOR = "videos"
 
         private val RESULTS_STAGE_REGEX = Regex("^(\\d{1,3})([A-Z]?)$")
 
@@ -99,9 +103,11 @@ sealed class DeepLink {
                 return Race(id)
             }
             if (value.startsWith("stage/")) {
-                val id = value.removePrefix("stage/")
-                if (id.isEmpty() || !VALID_ID_REGEX.matches(id)) return null
-                return Stage(id)
+                val parts = value.removePrefix("stage/").split('#', limit = 2)
+                val id = parts[0]
+                val anchor = parts.getOrNull(1)
+                if (id.isEmpty() || !VALID_ID_REGEX.matches(id) || (anchor != null && anchor != STAGE_ANCHOR)) return null
+                return Stage(id, anchor)
             }
             if (value.startsWith("startlist/")) {
                 val id = value.removePrefix("startlist/")
@@ -133,7 +139,7 @@ sealed class DeepLink {
          * Parsea una URI con scheme `calendariociclismo://` (usado por el widget
          * "Hoy en el ciclismo"). Formas aceptadas:
          *   - `calendariociclismo://race/{id}`       → `Race(id)`
-         *   - `calendariociclismo://stage/{id}`      → `Stage(id)`
+         *   - `calendariociclismo://stage/{id}`      → `Stage(id)`; con `#videos`, al panel Vídeos
          *   - `calendariociclismo://startlist/{id}`  → `Startlist(id)`
          *   - `calendariociclismo://startOrder/{id}` → `StartOrder(id)`
          *   - `calendariociclismo://perfil/{id}`     → `Profile(id)`
@@ -161,6 +167,10 @@ sealed class DeepLink {
             if (host == "results") {
                 if (uri.pathSegments.size != 2) return null
                 return parse("results/" + uri.pathSegments.joinToString("/"))
+            }
+
+            if (host == "stage" && uri.fragment == STAGE_ANCHOR && uri.pathSegments.size == 1) {
+                return parse("stage/$firstSegment#$STAGE_ANCHOR")
             }
 
             return when (host) {
@@ -204,7 +214,8 @@ sealed class DeepLink {
             if (path.size == 2 && WEB_SLUG.matches(path[1])) {
                 when (path[0]) {
                     if (english) "race" else "competicion" -> return RaceSlug(path[1], english)
-                    if (english) "stage" else "jornada" -> return StageSlug(path[1], english)
+                    if (english) "stage" else "jornada" ->
+                        return StageSlug(path[1], english, uri.fragment?.takeIf { it == STAGE_ANCHOR })
                 }
             }
             return fromCxWebPath(path, english, uri)

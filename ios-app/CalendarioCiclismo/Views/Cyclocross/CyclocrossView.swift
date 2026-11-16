@@ -65,6 +65,8 @@ struct CyclocrossView: View {
     /// secciones y queda en la lista de carreras.
     @State private var standings: CxTournamentStandings?
     @State private var standingsMatcher = UciResultsLogic.TeamMatcher(teams: [])
+    /// Ancho de la general: decide si las pruebas van en una segunda columna.
+    @State private var generalWidth: CGFloat = 0
     @State private var section = CxTournamentSection.races
     @State private var generalCategory = ""
 
@@ -423,7 +425,7 @@ struct CyclocrossView: View {
             .frame(maxWidth: .infinity, minHeight: 320)
         } else {
             LazyVStack(spacing: 10) {
-                raceGrid(model.dayRaces.map { CxAgendaRow.race($0, model.dateKey) }, centersSingle: true)
+                raceGrid(model.dayRaces.map { CxAgendaRow.race($0, model.dateKey) })
             }
             .padding(.horizontal).padding(.top, 8).padding(.bottom)
         }
@@ -494,20 +496,14 @@ struct CyclocrossView: View {
         return groups
     }
 
-    /// Pruebas en una columna o, en pantalla ancha, en dos. `centersSingle`
-    /// (Hoy): una prueba única ocupa media anchura y va centrada.
-    @ViewBuilder private func raceGrid(_ items: [CxAgendaRow], centersSingle: Bool = false) -> some View {
+    /// Pruebas en una columna o, en pantalla ancha, en dos. Una prueba
+    /// suelta, también la única del día, ocupa la columna izquierda.
+    private func raceGrid(_ items: [CxAgendaRow]) -> some View {
         let columns = AdaptiveLayoutPolicy.feedColumns(
             width: max(0, contentWidth - 32),
             isRegular: horizontalSizeClass == .regular
         )
-        if centersSingle, columns > 1, items.count == 1, case .race = items[0] {
-            agendaRow(items[0]).id(items[0].id)
-                .frame(maxWidth: max(0, (contentWidth - 32 - 10) / 2))
-                .frame(maxWidth: .infinity)
-        } else {
-            raceColumns(items, columns: columns)
-        }
+        return raceColumns(items, columns: columns)
     }
 
     private func raceColumns(_ items: [CxAgendaRow], columns: Int) -> some View {
@@ -644,15 +640,30 @@ struct CyclocrossView: View {
         let rows = data.standings.filter { $0.category == generalCategory }
         let state = data.states.first { $0.category == generalCategory }
         let mode = CyclocrossPresentation.standingMode(scheme: data.pointsScheme, category: generalCategory, rows: rows)
-        return ScrollView {
+        // En pantalla ancha, las pruebas con su número y fecha ocupan una segunda
+        // columna (web: `res-layout--context`); en estrecho no se muestran.
+        let roundList = CyclocrossPresentation.roundList(races: data.races, rounds: model.rounds)
+        let wide = !roundList.isEmpty && AdaptiveLayoutPolicy.usesWideDetail(width: generalWidth, isRegular: horizontalSizeClass == .regular)
+        let table = CxStandingsTable(rows: rows, state: state, mode: mode, matcher: standingsMatcher, rounds: model.rounds, races: data.races)
+            .contentShape(Rectangle())
             // Con columnas de ronda, el gesto horizontal desplaza la tabla y no
             // cambia de categoría.
-            CxStandingsTable(rows: rows, state: state, mode: mode, matcher: standingsMatcher, rounds: model.rounds, races: data.races)
-                .contentShape(Rectangle())
-                .classificationSwipe(options: CxStandingsTable.hasRounds(state: state, mode: mode) ? [] : generalCategories, current: generalCategory) { generalCategory = $0 }
+            .classificationSwipe(options: CxStandingsTable.hasRounds(state: state, mode: mode) ? [] : generalCategories, current: generalCategory) { generalCategory = $0 }
+        return ScrollView {
+            if wide {
+                HStack(alignment: .top, spacing: AdaptiveLayoutPolicy.spacing * 2) {
+                    table.frame(maxWidth: .infinity, alignment: .top)
+                    CxRoundsCard(items: roundList).frame(width: 300, alignment: .top)
+                }
                 .padding(.horizontal)
                 .padding(.bottom)
+            } else {
+                table
+                    .padding(.horizontal)
+                    .padding(.bottom)
+            }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { generalWidth = $0 }
         .refreshable {
             await loadStandings()
             Haptics.play(.success)
@@ -1001,7 +1012,9 @@ struct CxRaceCard: View {
             }
             if hasSummary {
                 NavigationLink(value: CxDestination(raceId: race.id, anchor: "videos", title: CyclocrossPresentation.name(race))) {
-                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Resumen", "Summary") : "", icon: showIcon ? "tv" : nil)
+                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Resumen", "Summary") : "", icon: showIcon ? "tv" : nil,
+                                    // Solo con el icono: el de TV solo se confundiría con el badge de emisión.
+                                    secondIcon: showIcon && !showLabel ? "backward.fill" : nil)
                 }
                 .buttonStyle(CxBadgeLinkStyle()).fixedSize()
                 .accessibilityLabel(CyclocrossPresentation.t("Resumen", "Summary"))

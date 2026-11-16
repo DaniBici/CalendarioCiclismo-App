@@ -1,5 +1,8 @@
 import { normalizeRow } from './dataride-results-fetch.mjs';
+import { directoryByCalendarId, directoryWindow } from './uci-directory-link.mjs';
+import { getUciCompetition, getUciEventResults } from '../../supabase/functions/_shared/uci-competition-api.mjs';
 import { cxDataRideSeconds } from '../../js/cx/time.js';
+import { foldName } from '../../js/name-fold.js';
 
 export { cxDataRideSeconds };
 
@@ -86,7 +89,12 @@ export function normalizeCxDataRideRows(sourceRows) {
     // Algunos cronometradores teclean las vueltas perdidas como «+1 LAP» sin
     // Irm (Marín 2026): son vueltas, no una diferencia de tiempo.
     const plusLap = /^\+\s*([1-9]\d*)\s+LAPS?$/i.exec(value || '');
-    const state = stateText || (plusLap || /^(?:-?\s*\d+|@\s*\d+)\s+LAPS?$/i.test(value || '') ? 'LAP' : null);
+    // Los cronometradores franceses teclean «1t» (un tour) sin Irm para una
+    // vuelta perdida (Gernelle 2026): es el déficit en vueltas, no un tiempo.
+    const tourLap = /^([1-9]\d*)\s*t$/i.exec(value || '');
+    const lapsLost = plusLap || tourLap;
+    // El déficit sin Irm puede ir pegado a la palabra («-5LAPS», Matsubushi 2026).
+    const state = stateText || (lapsLost || /^(?:-?\s*\d+|@\s*\d+)\s*LAPS?$/i.test(value || '') ? 'LAP' : null);
     const explicitGap = value?.startsWith('+') && !plusLap;
     const split = normalized.firstName && normalized.lastName
       ? { firstName: normalized.firstName, lastName: normalized.lastName }
@@ -97,7 +105,7 @@ export function normalizeCxDataRideRows(sourceRows) {
     // Cero, fracciones y valores sin Irm=LAP no acreditan vueltas perdidas.
     const lapValue = state === 'LAP' ? clean(value).replace(/^['"]+|['"]+$/g, '').replace(/^@\s*/, '').trim() : '';
     const lapDeficit = /^-\s*([1-9]\d*)$/.exec(lapValue) || /^[1-9]\d*$/.test(lapValue) ? Number(lapValue.replace(/^-/, '')) : null;
-    const lapGap = state === 'LAP' && plusLap ? `-${plusLap[1]} LAP`
+    const lapGap = state === 'LAP' && lapsLost ? `-${lapsLost[1]} LAP`
       : state === 'LAP' && /LAP/i.test(value || '') ? value
       : state === 'LAP' && lapDeficit != null ? `-${lapDeficit} LAP` : null;
     // Solo LAP conserva puesto. DataRide publica a veces DNF/DNS con la posición
@@ -114,6 +122,8 @@ export function normalizeCxDataRideRows(sourceRows) {
       gapText: explicitGap ? value : lapGap,
       timeSeconds: !state && !explicitGap ? cxDataRideSeconds(value, { format }) : null,
       bonusSeconds: null, bonusPoints: 0, points: null, irm: state, sortOrder: index,
+      // DataRide CX no publica el ID UCI; lo completa attachUciLicenseIds desde el directorio.
+      uciLicenseId: null,
       sourceResultId: raw.ResultId == null ? null : String(raw.ResultId),
       sourceSortOrder: raw.SortOrder ?? index,
       sourceConflict: rankNumber && rankFromText && rankNumber !== rankFromText ? 'RankNumber y Rank discrepan' : null,
@@ -133,6 +143,99 @@ export function normalizeCxDataRideRows(sourceRows) {
     }
   }
   return rows;
+}
+
+// ID UCI por fila. DataRide CX solo publica nombre, país y nacimiento; el
+// directorio de competiciones UCI publica el `riderRef` (11 cifras) de cada
+// corredor en la clasificación del mismo evento. Las filas se emparejan por
+// puesto (o estado sin puesto: DNF, DNS…) y nombre.
+const UCI_LICENSE_ID = /^\d{11}$/;
+const DIRECTORY_TIMEOUT_MS = 15000;
+const nameTokens = value => foldName(value).split(' ').filter(Boolean);
+const nameKey = value => nameTokens(value).sort().join(' ');
+const placeKey = (rank, state) => rank != null ? `r${rank}` : state ? `s${String(state).toUpperCase()}` : null;
+
+// Mismos tokens en cualquier orden o, con dos tokens como mínimo, todos los
+// de un nombre contenidos en el otro: una fuente puede omitir el segundo
+// apellido o un segundo nombre.
+function compatibleNames(left, right) {
+  const a = new Set(nameTokens(left)); const b = new Set(nameTokens(right));
+  const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+  return small.size >= 2 && [...small].every(token => big.has(token));
+}
+
+/**
+ * `uciLicenseId` de cada fila DataRide (o null) desde la clasificación del
+ * directorio: mismo puesto, o mismo estado si la fila no tiene puesto, y
+ * nombre con los mismos tokens o contenido en el otro. Un puesto con más de un
+ * candidato compatible, o un `riderRef` emparejado con dos filas, queda sin ID.
+ */
+export function matchUciDirectoryResults(rows, results) {
+  const byPlace = new Map();
+  for (const result of results || []) {
+    const key = placeKey(result?.rank ?? null, result?.mark);
+    if (!key) continue;
+    if (!byPlace.has(key)) byPlace.set(key, []);
+    byPlace.get(key).push(result);
+  }
+  const ids = rows.map(row => {
+    const pool = byPlace.get(placeKey(row.rank ?? null, row.irm)) || [];
+    const names = [[row.firstName, row.lastName].filter(Boolean).join(' '), row.riderDisplay].filter(Boolean);
+    const directoryName = result => `${result.firstName ?? ''} ${result.lastName ?? ''}`;
+    const exact = pool.filter(result => names.some(name => nameKey(name) && nameKey(name) === nameKey(directoryName(result))));
+    const hits = exact.length ? exact : pool.filter(result => names.some(name => compatibleNames(name, directoryName(result))));
+    const ref = hits.length === 1 ? String(hits[0].riderRef ?? '').trim() : '';
+    return UCI_LICENSE_ID.test(ref) ? ref : null;
+  });
+  const uses = new Map();
+  for (const id of ids) if (id) uses.set(id, (uses.get(id) || 0) + 1);
+  return ids.map(id => id && uses.get(id) === 1 ? id : null);
+}
+
+/**
+ * Completa `uciLicenseId` en las filas de las mangas publicadas del documento.
+ * `uciCalendarId` (`cx_races.uciCalendarId`) identifica la competición del
+ * directorio (`v1Code` = D2CP + ID); `categories` limita las mangas. Un fallo
+ * o una clasificación todavía ausente en el directorio deja las filas sin ID:
+ * la ingesta resuelve entonces por nombre. El resumen queda en
+ * `document.uciDirectory` y, por manga emparejada, en `evidence.uciDirectory`.
+ */
+export async function attachUciLicenseIds(document, { uciCalendarId, categories = null, fetcher = fetch, timeoutMs = DIRECTORY_TIMEOUT_MS } = {}) {
+  const calendarId = Number(uciCalendarId);
+  const summary = { uciCalendarId: calendarId, status: 'ok', categories: [] };
+  document.uciDirectory = summary;
+  const mangas = document.categories.filter(manga => manga.publicationHint !== 'not_published'
+    && (!categories || categories.includes(manga.category)));
+  if (!positiveId(calendarId) || !mangas.length) { summary.status = 'skipped'; return document; }
+  const timed = (url, options = {}) => fetcher(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
+  try {
+    const dateKey = mangas.map(manga => manga.dateKey).filter(Boolean).sort()[0];
+    if (!dateKey) throw new Error('Manga sin fecha civil');
+    const directory = await directoryByCalendarId({ fetcher: timed, query: { disciplineCode: 'CRO', ...directoryWindow(dateKey) } });
+    const item = directory.get(calendarId);
+    if (!item) { summary.status = 'unavailable'; summary.reason = `El directorio no lista D2CP${calendarId}`; return document; }
+    summary.competitionId = item.id;
+    const detail = await getUciCompetition({ fetcher: timed, id: item.id });
+    // Clasificación general individual de la categoría; el `EventCode` de DataRide
+    // (D2EV…) coincide con el `v1Code` del evento y desempata si hay varias.
+    for (const manga of mangas) {
+      const events = (detail?.races || []).filter(race => race.categoryCode === manga.category && race.raceTypeCode === 'IND')
+        .flatMap(race => (race.events || []).filter(event => event.classificationCode === 'GE' || foldName(event.name) === 'general classification'));
+      const byCode = manga.eventCode ? events.filter(event => event.v1Code === manga.eventCode) : [];
+      const [event, ...others] = byCode.length === 1 ? byCode : events;
+      if (!event || others.length) { summary.categories.push({ category: manga.category, status: 'unavailable', reason: 'Sin clasificación general única en el directorio' }); continue; }
+      const results = await getUciEventResults({ fetcher: timed, competitionId: item.id, eventId: event.id, fresh: true });
+      if (!results.length) { summary.categories.push({ category: manga.category, status: 'unavailable', reason: 'Clasificación aún sin publicar en el directorio' }); continue; }
+      const ids = matchUciDirectoryResults(manga.rows, results);
+      manga.rows.forEach((row, index) => { row.uciLicenseId = ids[index]; });
+      const matched = ids.filter(Boolean).length;
+      manga.evidence.uciDirectory = { v1Code: item.v1Code, competitionId: item.id, eventId: event.id, eventCode: event.v1Code ?? null, matchedRows: matched };
+      summary.categories.push({ category: manga.category, status: 'ok', rows: manga.rows.length, matched });
+    }
+  } catch (error) {
+    summary.status = 'error'; summary.reason = error.message;
+  }
+  return document;
 }
 
 export function createCxDataRideClient({ fetchImpl = fetch, delayMs = 120, pageSize = 200, timeoutMs = 30000 } = {}) {
@@ -195,8 +298,12 @@ export function createCxDataRideClient({ fetchImpl = fetch, delayMs = 120, pageS
   } };
 }
 
-export async function fetchCxCompetition({ competitionId, seasonId = null, uciRaceId = null, category = null, categories = null, client = createCxDataRideClient() }) {
+// `uciCalendarId` activa el ID UCI por fila desde el directorio de competiciones
+// UCI (attachUciLicenseIds), limitado a `uciLicenseCategories` si se indica.
+export async function fetchCxCompetition({ competitionId, seasonId = null, uciRaceId = null, category = null, categories = null, client = createCxDataRideClient(),
+  uciCalendarId = null, uciLicenseCategories = null, directoryFetch = fetch }) {
   if (!positiveId(competitionId) || seasonId != null && !positiveId(seasonId) || uciRaceId != null && !positiveId(uciRaceId)
+    || uciCalendarId != null && !positiveId(uciCalendarId)
     || category != null && ![...CATEGORIES.values()].includes(category)
     || categories!=null&&(!Array.isArray(categories)||!categories.length||categories.some(value=>![...CATEGORIES.values()].includes(value)))) throw new Error('Destino DataRide CX inválido');
   const document = { schemaVersion: CX_RESULT_SCHEMA_VERSION, source: 'dataride', disciplineId: 3, competitionId: Number(competitionId),
@@ -227,10 +334,12 @@ export async function fetchCxCompetition({ competitionId, seasonId = null, uciRa
     const event = general[0]; if (!positiveId(event.EventId)) throw new Error('Event ID inválido en DataRide');
     const rows = normalizeCxDataRideRows(await client.pages('Results/', { eventId: String(event.EventId) }, 'ResultId'));
     document.categories.push({ category: classified.category, uciRaceId: race.Id, eventId: event.EventId, eventName: event.EventName,
+      eventCode: clean(event.EventCode) || null,
       dateKey: cxDataRideDate(race.Date), publicationHint: rows.some(row => row.rank || row.irm) ? 'unverified_results' : 'not_published',
       rows, evidence: { sourceUrl: BASE + 'Results/', inputSource: 'dataride',
         dataRide: { disciplineId: 3, competitionId: Number(competitionId), seasonId: document.seasonId, uciRaceId: race.Id, eventId: event.EventId } } });
   }
   if (category != null && !mapped.has(category)) throw new Error('Categoría solicitada no está en la competición');
+  if (uciCalendarId != null) await attachUciLicenseIds(document, { uciCalendarId, categories: uciLicenseCategories, fetcher: directoryFetch });
   return document;
 }

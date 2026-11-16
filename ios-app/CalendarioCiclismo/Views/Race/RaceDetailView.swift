@@ -29,6 +29,8 @@ struct RaceDetailView: View {
     @State private var inhouseByDay: [String: Int?] = [:]
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
+    /// Jornada abierta en su panel Vídeos desde su fila terminada.
+    @State private var stageVideosRoute: StageVideosRoute?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var listWidth: CGFloat = 0
 
@@ -73,6 +75,9 @@ struct RaceDetailView: View {
                 }
                 .safariSheet(url: $safariURL)
                 // Push por valor a la pantalla de resultados in-house (trofeo).
+                .navigationDestination(item: $stageVideosRoute) { route in
+                    StageDetailView(raceDayId: route.raceDayId, raceIdHint: route.raceId, titleHint: route.title, initialSection: "videos")
+                }
                 .navigationDestination(item: $resultsRoute) { route in
                     ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
                 }
@@ -152,7 +157,8 @@ struct RaceDetailView: View {
         let showResults = hasInhouse
         // Revive/TV solo acompaña al acceso a Resultados; la hora de meta por sí
         // sola no activa el botón en la vista de Competición.
-        let reviveURL = showResults ? RaceLogic.reviveUrl(from: day.broadcasts) : nil
+        let videoTargets = FinishedVideoTargets(item: day, hasResults: showResults)
+        let reviveURL = videoTargets.reviveURL
         let row = StageRowView(
             item: day,
             race: race,
@@ -165,6 +171,11 @@ struct RaceDetailView: View {
                 if let url = reviveURL {
                     NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
                 }
+            } : nil,
+            onShowVideos: videoTargets.hasVideos ? {
+                Haptics.play(.navigation)
+                stageVideosRoute = StageVideosRoute(raceDayId: day.raceDay.id, raceId: race.id,
+                                                    title: StageDetailView.title(raceName: race.localizedName, raceDay: day.raceDay))
             } : nil
         )
         // La jornada cancelada SÍ navega a su ficha (paridad con la web y

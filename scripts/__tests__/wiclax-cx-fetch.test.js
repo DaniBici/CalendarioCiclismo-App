@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseWiclaxCx, wiclaxCountry, wiclaxFileUrl, wiclaxSeconds } from '../results-fetchers/wiclax-cx-fetch.mjs';
+
+// Lunca Timisului CX (Timișoara, 14-11-2026), cronometraje de Linia de Sosire: solo los recorridos UCI.
+const timisoara = readFileSync(new URL('./fixtures/wiclax-cx-lunca-timisului-2026.clax', import.meta.url), 'utf8');
+const timisoaraMap = { 'CX MEN ELITE': 'ME', 'CX MEN U23': 'ME', 'CX WOMEN ELITE': 'WE', 'CX WOMEN U23': 'WE', 'CX MEN JUNIOR': 'MJ', 'CX WOMEN JUNIOR': 'WJ' };
 
 const xml = `<?xml version="1.0"?><Epreuve nom="CX" dt1="2026-10-04">
 <Etapes><Etape finito="1," /></Etapes>
@@ -45,6 +50,32 @@ describe('Wiclax CX', () => {
     ]);
     expect(we.rows[0]).toMatchObject({ firstName: 'Ana', lastName: 'Perez Lopez', isoCode2: 'ES', teamName: 'CLUB A' });
     expect(doc.skipped).toEqual([{ course: 'ELITE', category: 'ME', reason: 'Recorrido sin terminar en el cronometraje' }]);
+  });
+
+  it('convierte países en inglés a ISO-2', () => {
+    expect(['Slovakia', 'Czech Republic', 'Macedonia', 'United States of America', 'France', 'Hungary', 'Romania']
+      .map(wiclaxCountry)).toEqual(['SK', 'CZ', 'MK', 'US', 'FR', 'HU', 'RO']);
+  });
+
+  it('une Elite y U23 con la misma salida en una clasificación y lee el dialecto de Linia de Sosire', () => {
+    const doc = parseWiclaxCx(timisoara, { map: timisoaraMap, raceId: 'r', seasonKey: '2026-27', dateKey: '2026-11-14' });
+    expect(doc.categories.map(c => [c.category, c.sourceCourse, c.rows.length])).toEqual([
+      ['ME', 'CX MEN ELITE + CX MEN U23', 16], ['WE', 'CX WOMEN ELITE + CX WOMEN U23', 8], ['MJ', 'CX MEN JUNIOR', 8], ['WJ', 'CX WOMEN JUNIOR', 3]]);
+    expect(doc.skipped).toEqual([]);
+    const me = doc.categories[0].rows;
+    // Takács (U23) gana la manga conjunta; Malnasi (Elite) queda 9.º; dos corredores pierden una vuelta; «Withdrawal» es DNF.
+    expect(me.slice(0, 3).map(row => [row.rank, row.bib, row.timeSeconds, row.gapText])).toEqual([[1, '37', '3586', null], [2, '40', '3677', '+1:31'], [3, '36', '3692', '+1:46']]);
+    expect(me[8]).toMatchObject({ rank: 9, bib: '27', timeSeconds: '3860', gapText: '+4:34', uciLicenseId: '10056601605', isoCode2: 'RO' });
+    expect(me.slice(13).map(row => [row.rank, row.bib, row.irm, row.gapText])).toEqual([[14, '39', 'LAP', '-1 LAP'], [15, '30', 'LAP', '-1 LAP'], [null, '23', 'DNF', null]]);
+    expect(me.find(row => row.bib === '36')).toMatchObject({ isoCode2: 'US', birthYear: '2005' });
+    expect(doc.categories[3].rows.find(row => row.bib === '21').isoCode2).toBe('MK');
+  });
+
+  it('espera a todos los recorridos de una categoría conjunta', () => {
+    const partial = timisoara.replace('finito="1,1,1,1,1,1,1,1"', 'finito="1,1,1,1,1,1,0,1"');
+    const doc = parseWiclaxCx(partial, { map: timisoaraMap, raceId: 'r', seasonKey: '2026-27', dateKey: '2026-11-14' });
+    expect(doc.categories.map(c => c.category)).toEqual(['WE', 'MJ', 'WJ']);
+    expect(doc.skipped).toEqual([{ course: 'CX MEN U23', category: 'ME', reason: 'Recorrido sin terminar en el cronometraje' }]);
   });
 
   it('rechaza un archivo de otra fecha', () => {

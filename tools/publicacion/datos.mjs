@@ -8,6 +8,8 @@ import { STAGE_SIBLING_COLUMNS, firstTechnicalGuide, stageSiblings } from '../..
 import { PG_CONNECTION_LIMITS, databaseUrl, loadEnv } from '../../scripts/db/env.mjs';
 
 const sortOrderOf = row => row.sortOrder ?? Infinity;
+// Orden estable por sortOrder: con el mismo valor, el de llegada (id), como en el navegador.
+const ordenar = rows => [...rows].sort((a, b) => (sortOrderOf(a) === sortOrderOf(b) ? 0 : sortOrderOf(a) < sortOrderOf(b) ? -1 : 1));
 
 function agrupar(rows, key) {
   const groups = new Map();
@@ -30,6 +32,7 @@ export class Datos {
     const broadcasts = [...volcado.broadcasts].sort((a, b) =>
       sortOrderOf(a) === sortOrderOf(b) ? 0 : sortOrderOf(a) < sortOrderOf(b) ? -1 : 1);
     this.broadcasts = agrupar(broadcasts, 'raceDayId');
+    this.videos = agrupar(ordenar(volcado.videos || []), 'raceDayId');
     this.assets = agrupar(volcado.assets, 'raceDayId');
     this.guides = agrupar(volcado.guides, row => row.race_days?.raceId);
     this.uci = agrupar(volcado.uci, 'raceId');
@@ -53,12 +56,14 @@ export class Datos {
     if (filas.race) this.races.set(raceId, filas.race);
     for (const day of this.jornadas(raceId)) {
       this.broadcasts.delete(day.id);
+      this.videos.delete(day.id);
       this.assets.delete(day.id);
     }
     this.days.set(raceId, filas.days);
     const broadcasts = [...filas.broadcasts].sort((a, b) =>
       sortOrderOf(a) === sortOrderOf(b) ? 0 : sortOrderOf(a) < sortOrderOf(b) ? -1 : 1);
     for (const [dayId, rows] of agrupar(broadcasts, 'raceDayId')) this.broadcasts.set(dayId, rows);
+    for (const [dayId, rows] of agrupar(ordenar(filas.videos || []), 'raceDayId')) this.videos.set(dayId, rows);
     for (const [dayId, rows] of agrupar(filas.assets, 'raceDayId')) this.assets.set(dayId, rows);
     this.guides.set(raceId, filas.guides);
     this.uci.set(raceId, filas.uci);
@@ -83,6 +88,7 @@ export class Datos {
       return {
         rd, race, siblings, diasCarrera,
         broadcasts: this.broadcasts.get(day.id) || [],
+        videos: this.videos.get(day.id) || [],
         assets: this.assets.get(day.id) || [],
         guide: guides.length ? firstTechnicalGuide(guides) : null,
         uci: this.uci.get(raceId) || [],
@@ -251,6 +257,8 @@ select
   (select to_jsonb(r) from races r where r.id = $1) as race,
   (select coalesce(jsonb_agg(to_jsonb(b) order by b.id), '[]'::jsonb)
      from broadcasts b join race_days d on d.id = b."raceDayId" where d."raceId" = $1) as broadcasts,
+  (select coalesce(jsonb_agg(to_jsonb(v) order by v.id), '[]'::jsonb)
+     from race_day_videos v join race_days d on d.id = v."raceDayId" where d."raceId" = $1) as videos,
   (select coalesce(jsonb_agg(to_jsonb(a) order by a.id), '[]'::jsonb)
      from assets a join race_days d on d.id = a."raceDayId" where d."raceId" = $1) as assets,
   (select coalesce(jsonb_agg(to_jsonb(a) || jsonb_build_object('race_days',
@@ -275,6 +283,7 @@ const TABLAS = {
   race_days: { raza: 'd."raceId"', de: 'race_days d' },
   races: { raza: 'd.id', de: 'races d' },
   broadcasts: { raza: 'j."raceId"', de: 'broadcasts d left join race_days j on j.id = d."raceDayId"' },
+  race_day_videos: { raza: 'j."raceId"', de: 'race_day_videos d left join race_days j on j.id = d."raceDayId"' },
   // De carretera por la jornada (raceId); de ciclocross, por su ficha (cxRaceId).
   assets: { raza: 'j."raceId"', cx: 'd."cxRaceId"', de: 'assets d left join race_days j on j.id = d."raceDayId"' },
   race_uci_stages: { raza: 'd."raceId"', de: 'race_uci_stages d' },

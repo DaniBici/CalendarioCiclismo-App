@@ -24,6 +24,8 @@
  *   --stage        (opcional) limitar a un nº de etapa concreto (para iterar rápido).
  *   --uci-race-id  (opcional) limitar a UNA "race" de DataRide por su race.Id (Campeonatos
  *                  Nacionales: una sola prueba dentro del competitionId del país).
+ *   --uci-calendar-id  (solo CX, opcional) `cx_races.uciCalendarId`: añade a cada fila el
+ *                  `uciLicenseId` del directorio de competiciones UCI (puesto y nombre).
  *   --out          carpeta de salida (default _results_run/comp-<id> JUNTO A ESTE script, no
  *                  relativo al cwd); escribe <comp>.json. La ruta que imprime al terminar
  *                  es la real: leer esa, no reconstruirla a mano.
@@ -33,6 +35,19 @@
  *                  Las carreras normales (resueltas por dorsal) NO lo necesitan → opt-in.
  *   --pretty       además vuelca el JSON normalizado a stdout.
  *   --delay        ms entre peticiones (default 120) para ser educados con el servidor.
+ *
+ * Respaldo manual sin DataRide (`--source directory`, uci-directory-results.mjs): lee el
+ * directorio de competiciones UCI por el ID del calendario UCI (`races.uciCalendarId`) y
+ * emite el mismo contrato, sin dorsales y con IDs sintéticos negativos (carretera) o un
+ * documento CX `manual`. Sin cron: solo a mano cuando DataRide falla.
+ *   node scripts/results-fetchers/dataride-results-fetch.mjs --source directory --uci-calendar-id 77997 [--stage 2]
+ *   node scripts/results-fetchers/dataride-results-fetch.mjs --source directory --uci-calendar-id 79146 \
+ *     --discipline 3 --race-id <cxRaceId> --season-key 2026-27 [--category WJ]
+ *   --uci-calendar-id  uciCalendarId (D2CP<id> del directorio); --directory-id <uuid> como alternativa.
+ *   --season-year  año de temporada del directorio si la búsqueda no encuentra el D2CP (código
+ *                  propio desde 2027). Por defecto: carretera, año en curso, siguiente y anterior;
+ *                  CX, el año final de --season-key.
+ *   --directory-race  (carretera) código D2RC o UUID de una carrera del directorio (prueba CN).
  *
  * Salida: <out>/<competitionId>.json con la forma:
  *   { competitionId, disciplineId, fetchedAt, stageCount, stages: [
@@ -190,7 +205,7 @@ function textDateToISO(s) {
 // 'stage'); el render la colapsa a una fila por equipo al detectar el patrón (un solo
 // corredor con rank por equipo). isTeamEvent se conserva como metadato aparte (lo
 // guarda el fetcher en cl.isTeamEvent), pero NO entra aquí.
-function classifyEvent(eventName) {
+export function classifyEvent(eventName) {
   const n = clean(eventName).toLowerCase();
   const scope = /^overall/.test(n) ? 'overall' : 'stage';
   let classKind;
@@ -575,16 +590,53 @@ export function cachedRacesForStage(topology, stageNumber) {
 
 // ── pipeline ──────────────────────────────────────────────────────────────
 
+// Respaldo desde el directorio de competiciones UCI: mismo contrato de salida.
+async function mainDirectory() {
+  if (COMPETITION || ONLY_UCI_RACE_ID != null || TOPOLOGY) {
+    throw new Error('--source directory no usa --competition, --uci-race-id ni --topology de DataRide: usar --uci-calendar-id o --directory-id (y --directory-race)');
+  }
+  const calendarId = getArg('uci-calendar-id');
+  const directoryId = getArg('directory-id');
+  if (!calendarId && !directoryId) throw new Error('--source directory requiere --uci-calendar-id <uciCalendarId> o --directory-id <uuid>');
+  const { createUciDirectoryClient, fetchDirectoryCxCompetition, fetchDirectoryRoadCompetition } = await import('./uci-directory-results.mjs');
+  const client = createUciDirectoryClient({ delayMs: DELAY });
+  const key = calendarId ? `D2CP${calendarId}` : directoryId;
+  const out = getArg('out') || join(dirname(fileURLToPath(import.meta.url)), '_results_run', `directory-${key}`);
+  log(`Directorio UCI — ${key} disciplina ${DISCIPLINE === '3' ? 'CX' : 'carretera'}`);
+  let document;
+  if (DISCIPLINE === '3') {
+    if (ONLY_STAGE != null) throw new Error('CX usa mangas por categoría, sin etapas');
+    document = await fetchDirectoryCxCompetition({ calendarId, directoryId, seasonYear: getArg('season-year'), raceId: getArg('race-id'), seasonKey: getArg('season-key'),
+      category: getArg('category'), client, log });
+  } else if (DISCIPLINE === '10') {
+    document = await fetchDirectoryRoadCompetition({ calendarId, directoryId, seasonYear: getArg('season-year'), stage: ONLY_STAGE,
+      directoryRace: getArg('directory-race'), client, log });
+  } else {
+    throw new Error(`--source directory admite --discipline 10 o 3 (recibido ${DISCIPLINE})`);
+  }
+  mkdirSync(out, { recursive: true });
+  const file = join(out, `${key}.json`);
+  writeFileSync(file, JSON.stringify(document, null, 2));
+  if (DISCIPLINE === '3') log(`\n✅ CX: ${document.categories.length} categorías, ${document.categories.reduce((sum, manga) => sum + manga.rows.length, 0)} filas → ${file}`);
+  else log(`\n✅ ${document.stageCount} etapas, ${document.stages.reduce((sum, stage) => sum + stage.classificationCount, 0)} clasificaciones → ${file}`);
+  if (PRETTY) process.stdout.write(JSON.stringify(document, null, 2) + '\n');
+}
+
 async function main() {
+  const source = getArg('source');
+  if (source === 'directory') return mainDirectory();
+  if (source != null && source !== 'dataride') { log(`FATAL: --source admite dataride (por defecto) o directory (recibido "${source}")`); process.exit(1); }
   if (!COMPETITION) { log('FATAL: falta --competition <id>'); process.exit(1); }
   if (DISCIPLINE === '3') {
     if (ONLY_STAGE != null || TOPOLOGY) throw new Error('CX usa mangas por categoría, sin etapas ni topología de carretera');
     const { fetchCxCompetition, createCxDataRideClient } = await import('./cx-dataride-results.mjs');
     const document = await fetchCxCompetition({ competitionId: COMPETITION, seasonId: getArg('season'),
-      uciRaceId: ONLY_UCI_RACE_ID, category: getArg('category'), client: createCxDataRideClient({ delayMs: DELAY }) });
+      uciRaceId: ONLY_UCI_RACE_ID, category: getArg('category'), client: createCxDataRideClient({ delayMs: DELAY }),
+      uciCalendarId: getArg('uci-calendar-id') });
     mkdirSync(OUT, { recursive: true });
     const file = join(OUT, `${COMPETITION}.json`); writeFileSync(file, JSON.stringify(document, null, 2));
     log(`CX: ${document.categories.length} categorías, ${document.categories.reduce((sum, manga) => sum + manga.rows.length, 0)} filas → ${file}`);
+    if (document.uciDirectory) log(`Directorio UCI: ${JSON.stringify(document.uciDirectory)}`);
     if (PRETTY) process.stdout.write(JSON.stringify(document, null, 2) + '\n');
     return;
   }

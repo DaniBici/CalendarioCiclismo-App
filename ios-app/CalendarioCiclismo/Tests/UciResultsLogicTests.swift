@@ -53,7 +53,7 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(ttt.riders.map(\.uciPoints), [12.5, 12.5])
     }
 
-    // Helper: equipo canónico con lo mínimo (chapa irrelevante para la lógica).
+    // Helper: equipo canónico con lo mínimo (colores irrelevantes para la lógica).
     private func team(_ id: String, _ name: String, aliases: String? = nil) -> Team {
         Team(
             id: id, name: name, badgeTorsoCenter: "#000000", badgeTorsoSides: "#000000",
@@ -543,7 +543,7 @@ final class UciResultsLogicTests: XCTestCase {
 
     func testPestanaEquiposCasaRiderDisplayParaChapaYNombreCanonico() {
         // Espejo del render web (resultados.js): fila de equipos = riderDisplay
-        // crudo sin dorsal; casada → nombre del catálogo + chapa; sin casar → crudo.
+        // crudo sin dorsal; casada → nombre del catálogo + colores; sin casar → crudo.
         let raceTeams = [
             team("t1", "Groupama-FDJ United"),
             team("t2", "Visma | Lease a Bike"),
@@ -563,7 +563,7 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[1].riderName, "Visma | Lease a Bike")
         XCTAssertEqual(vms[1].team?.id, "t2")
         XCTAssertEqual(vms[1].valueText, "+44\"")
-        // Sin casar → el crudo de la fuente, sin chapa.
+        // Sin casar → el crudo de la fuente, sin colores.
         XCTAssertEqual(vms[2].riderName, "EQUIPO DESCONOCIDO")
         XCTAssertNil(vms[2].team)
         XCTAssertEqual(vms[2].valueText, "+1'10\"")
@@ -758,7 +758,7 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[0].countryCode, "es")            // bandera de la ficha
         XCTAssertEqual(vms[0].teamName, "Movistar Team")    // equipo actual
         XCTAssertEqual(vms[0].riderName, "Pablo Castrillo")  // nombre de la ficha gana al display crudo
-        XCTAssertEqual(vms[0].team?.id, "t-wt")             // chapa del equipo actual
+        XCTAssertEqual(vms[0].team?.id, "t-wt")             // colores del equipo actual
     }
 
     func testByDorsalTienePrioridadSobreByRider() {

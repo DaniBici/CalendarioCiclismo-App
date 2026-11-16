@@ -191,6 +191,8 @@ const IRM_MAP = {
   // Wiclax en castellano (Becrono y otros cronometradores españoles).
   ABANDONO: 'DNF', RETIRADO: 'DNF', 'NO SALE': 'DNS', 'NO PRESENTADO': 'DNS',
   DESCALIFICADO: 'DSQ', 'FUERA DE CONTROL': 'OTL',
+  // Wiclax en inglés (Linia de Sosire, Timișoara 2026: «Withdrawal»).
+  WITHDRAWAL: 'DNF', WITHDRAWN: 'DNF', 'DID NOT FINISH': 'DNF', 'DID NOT START': 'DNS', DISQUALIFIED: 'DSQ',
 };
 export function irmOf(tValue) {
   // En el .clax el ESTADO viaja en el atributo t cuando no es un tiempo

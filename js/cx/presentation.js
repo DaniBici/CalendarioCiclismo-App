@@ -305,6 +305,12 @@ function cxStandingTotal(row,mode,locale='es-ES') {
   return '-';
 }
 export const cxRankSort=(a,b)=>(a.rank??Infinity)-(b.rank??Infinity)||(a.sortOrder??0)-(b.sortOrder??0);
+// Bonificaciones de la ronda (X2O: sprint y vuelta rápida, en segundos). Solo las
+// concedidas: `bonusSeconds` es 0 en las demás filas y NULL si se desconoce.
+export const cxBonusRows=rows=>rows.filter(row=>Number(row.bonusSeconds)>0);
+// Mayor bonificación primero y, a igualdad, orden de la clasificación.
+export const cxBonusSort=(a,b)=>b.bonusSeconds-a.bonusSeconds||cxRankSort(a,b);
+export const cxBonusText=seconds=>`${seconds}"`;
 // Vueltas perdidas (CIC): número de vueltas que separan al corredor del
 // ganador; null si la fila no acredita vueltas. La palabra LAP/LAPS en la
 // diferencia ("-2 LAPS", "- 4 LAP", "@ 3 LAPS", "2 LAP") acredita por sí sola;
@@ -396,6 +402,17 @@ export function cxProgrammeOrder(race,categories) {
   const start=c=>{const ms=Date.parse(c.startTimeUtc);return Number.isFinite(ms)?ms:Infinity;};
   return [...categories].sort((a,b)=>cxCategoryDate(race,a).localeCompare(cxCategoryDate(race,b))||(start(a)===start(b)?0:start(a)<start(b)?-1:1));
 }
+// Orden de las categorías en TV, Revive y vídeos: ME, WE, MU, WU, MJ, WJ, con
+// lo común (sin categoría) delante (decisión de Dani, 2026-11-14). Solo la
+// lista de horarios sigue el orden cronológico del programa.
+export const CX_CATEGORY_ORDER=['ME','WE','MU','WU','MJ','WJ'];
+export function cxCategoryRank(code) {
+  if(!code)return -1;
+  const index=CX_CATEGORY_ORDER.indexOf(code);
+  return index<0?CX_CATEGORY_ORDER.length:index;
+}
+const byCategory=(rows,code)=>[...rows].sort((a,b)=>cxCategoryRank(code(a))-cxCategoryRank(code(b)));
+export const cxCategoryOrder=categories=>byCategory(categories,c=>c.category);
 // TV, Revive y vídeos de la ficha (`active`: queda alguna categoría en
 // directo). Una categoría emite en directo mientras no
 // esté cancelada, no tenga resultados y no haya concluido; Revive llega con
@@ -440,9 +457,14 @@ export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibl
     if(videoIds.has(id))return [];
     videoIds.add(id);
     const title=row.category?t('cx.fullRace',{category:t(`cx.category.${row.category}`)}):t('cx.fullBroadcast');
-    return [{id:row.id,raceId:row.raceId,category:row.category??null,title,titleEn:title,url:`https://www.youtube.com/watch?v=${id}`,sortOrder:row.sortOrder}];
+    return [{id:row.id,raceId:row.raceId,category:row.category??null,title,titleEn:title,channel:row.channel??null,url:`https://www.youtube.com/watch?v=${id}`,sortOrder:row.sortOrder,fullRace:true}];
   });
-  return {tv,revive,videos:[...media,...fullRaces],liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category),active:live.length>0};
+  // Primero los vídeos de cx_videos y, al final, las emisiones convertidas en
+  // «Carrera completa»; unos y otras por categoría (decisión de Dani,
+  // 2026-11-14, que sustituye a la de 2026-11-11: carrera completa delante).
+  const category=row=>row.category;
+  return {tv,revive:byCategory(revive,category),videos:[...byCategory(media,category),...byCategory(fullRaces,category)],
+    liveCategories:cxCategoryOrder(live.filter(unit=>unit.code).map(unit=>unit.category)),active:live.length>0};
 }
 // Badge de TV de la tarjeta de Agenda, entre las emisiones visibles en la
 // región del usuario (llegan ya filtradas). Muestra la hora de la primera

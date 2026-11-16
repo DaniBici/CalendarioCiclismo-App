@@ -63,7 +63,7 @@ export async function crearFamiliaCarrera({ lang, headerHtml, pie, huella }) {
   };
 
   return async function componerCarrera(item, activos) {
-    const { race, stagesAll, allRaceDays, classificationConfig, dias, assets, guide, datos } = item.input;
+    const { race, stagesAll, allRaceDays, classificationConfig, dias, assets, guide, datos, broadcasts = {}, videos = {} } = item.input;
     const ahora = new Date();
     const salida = [];
     const carpeta = join(activos.base, dir, slugDe(race));
@@ -104,7 +104,10 @@ export async function crearFamiliaCarrera({ lang, headerHtml, pie, huella }) {
         const resolver = H.createResultsResolver({ race, slRiders: datos.riders, slTeamsRows: datos.teams, isEn });
         const conPestanas = activeStages.length > 1;
         const comunes = { race, raceDay, resolver, datos, configByKind, isOneDay, conPestanas, ahora };
-        const esqueleto = H.resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug: slugDe(race), isEn });
+        // Vídeos de la jornada de contexto (y la emisión convertida), como la web
+        // y el prerender del sitio base; el pre-pintado oculta las filas de otra región.
+        const esqueleto = H.resultsPageHtml({ race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug: slugDe(race), isEn,
+          contextBroadcasts: contextDayId ? broadcasts[contextDayId] || [] : [], contextVideos: contextDayId ? videos[contextDayId] || [] : [] });
         const metricas = contextDay ? stageMetricsHtml(contextDay, { timeZoneLabel: etiqueta }) : null;
         contenido = rellenar(esqueleto, await huecos(activeClass, comunes), metricas);
         // Las demás clasificaciones, aparte.

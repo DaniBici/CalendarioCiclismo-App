@@ -49,8 +49,8 @@ enum SimplifiedGuide {
     }
 
     /// Crea un serializador ISO UTC. Se crea por invocación porque
-    /// `ISO8601DateFormatter` (NSObject) no es thread-safe — mismo criterio
-    /// que `DateFormatting.makeISOFormatter`.
+    /// `ISO8601DateFormatter` (NSObject) no es thread-safe; solo se usa al
+    /// componer una guía, no al pintar listas.
     private static func makeISOOut() -> ISO8601DateFormatter {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

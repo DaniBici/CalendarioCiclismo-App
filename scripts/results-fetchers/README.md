@@ -12,8 +12,10 @@ cron puede resolver las filas con dorsal por nombre, fecha de nacimiento, nacion
 aliases mediante `--resolve-bibs-by-name`, escribiendo solo `race_uci_results.globalRiderId`.
 
 `dataride-live-linker.mjs` trabaja con el rol `cc_results_worker`, consulta solo carreras
-no canceladas con una jornada real en la fecha local de España y exige coincidencia
-de fecha, país, categoría y una señal de nombre/género. Si existe cualquier enlace
+no canceladas con una jornada real en la fecha local de España. Las que tienen
+`uciCalendarId` se enlazan solo por la vía determinista de `uci-directory-link.mjs`
+(directorio de competiciones UCI → DataRide; reglas en `docs/runbooks/results-vps.md`);
+las demás exigen coincidencia de fecha, país, categoría y una señal de nombre/género. Si existe cualquier enlace
 previo para la carrera, no la toca. El enlace se crea como `source='uci'`,
 `autoMatched=true` y `matchMethod='live-today'`; todo enlace queda activo por
 definición. Después
@@ -71,6 +73,20 @@ usa `cx-dataride-results.mjs` y su salida pasa a `cx-results-upsert.mjs`/`cx_ing
 No enviar esa salida al upsert de carretera. Calendario desde web UCI, matching propio CX,
 bonos X2O desconocidos NULL y protección de correcciones manuales.
 [Contrato y operación CX](../../docs/runbooks/cc-cx-results-pipeline.md).
+
+`uci-directory-results.mjs` es el respaldo manual cuando DataRide falla:
+`dataride-results-fetch.mjs --source directory --uci-calendar-id <uciCalendarId>` lee el
+directorio de competiciones UCI (`https://uci-competition.tech.uci.ch/api`), cuyo
+`result` es el `ResultValue` en bruto de DataRide, traduce cada fila a la forma de
+DataRide y reutiliza su normalización. Carretera: mismo contrato, sin dorsales ni
+nacimiento, con `uciProfileId` = `int(riderRef[2:9])`, IDs sintéticos negativos de
+competición, carrera y evento y `provider='uci-directory'` sin `source`;
+`results-upsert.mjs` no toca `race_uci_links`, enlaza esas filas por `uciProfileId`
+antes que por nombre y no inserta una clasificación cuya gemela DataRide ya existe.
+CX (`--discipline 3 --race-id --season-key`): documento `manual` con `uciLicenseId`,
+oficial y sin bloqueo frente al worker. Sin cron ni cola. Operación y validación:
+[results-vps.md](../../docs/runbooks/results-vps.md#respaldo-manual-desde-el-directorio-de-competiciones-uci)
+y [cc-cx-results-pipeline.md](../../docs/runbooks/cc-cx-results-pipeline.md#pdfmanual-y-correcciones).
 
 `cc-cx-results.timer` usa `results-vps-runner.mjs --discipline 3` y
 `cx-results-cron.mjs`: cola compartida separada por disciplina, ventanas desde el

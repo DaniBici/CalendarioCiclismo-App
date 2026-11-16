@@ -158,5 +158,9 @@ try {
   window.addEventListener('popstate',selectSection);
   window.addEventListener('hashchange',selectSection);
   selectSection();
+  // Página generada con una vista (?view=) distinta de su sección: el script
+  // en línea (tools/site/prerender-cx.mjs) dejó, si la sección de la vista no
+  // venía en el HTML, un marcador de carga hasta pintarla.
+  root.querySelector('[data-cx-view-loading]')?.remove();
   }
 }catch(error){root.innerHTML=`<div class="race-header cx-race-header"><h1 class="race-header__name">${t('cx.title')}</h1><p role="alert">${esc(error.message)}</p><div class="cx-race-actions"><a href="${lang==='en'?'/en/cyclocross/':'/ciclocross/'}">${t('cx.back')}</a><button type="button" class="tv-filter-btn" data-cx-retry>${t('cx.retry')}</button></div></div>`;root.querySelector('[data-cx-retry]').onclick=()=>location.reload();}

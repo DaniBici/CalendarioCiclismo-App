@@ -12,7 +12,7 @@ data class StartlistTeam(
     val isConfirmed: Boolean = false,
 ) {
     /** Un equipo filial se distingue por su propia ficha en `teams` (nombre y
-     *  chapa propios), no por un sufijo. Ver migración 063. */
+     *  colores propios), no por un sufijo. Ver migración 063. */
     val displayName: String
         get() = teamName
 

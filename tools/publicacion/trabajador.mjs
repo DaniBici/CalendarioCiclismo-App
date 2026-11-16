@@ -13,7 +13,7 @@ import { installBrowserEnv } from '../site/prerender-jornadas.mjs';
 import { PRIMARY_ICONS, STRINGS, headerHtml } from '../../js/header-html.js';
 import { buildInhouseResultsMatcher, hasCalendarForYear } from '../../js/services/races.js';
 import { isNearToday } from '../../js/services/refresh-window.js';
-import { reviveBroadcastsForDay, hasReviveBroadcastsForDay } from '../../js/broadcast-priority.js';
+import { stageMediaState } from '../../js/services/stage-videos.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { cabezaInscritos, cabezaJornada } from './head.mjs';
 
@@ -52,7 +52,8 @@ function visiblePara(b, { group, eu }) {
   return !!group && b.country === group;
 }
 
-const PANEL = /<section class="jornada-section tv-panel">[\s\S]*?<\/section>/;
+const PANEL = /<section class="jornada-section tv-panel[^"]*"[^>]*>[\s\S]*?<\/section>/;
+const PANEL_VIDEOS = /<section class="jornada-section video-panel"[^>]*>[\s\S]*?<\/section>/;
 const INSIGNIA = /<span class="badge badge--uci tv-region-badge">[^<]*<\/span>/g;
 const FILA = /<div class="tv-entry(?: tv-entry--regional-hidden)?"[^>]*>/g;
 
@@ -74,35 +75,50 @@ function corregirInsignias(panel, filas, ocultas) {
   return salida;
 }
 
+// Paneles de TV y de Vídeos por grupo de emisión: los dos dependen de la región
+// (las emisiones convertidas y los vídeos geobloqueados pasan de uno a otro).
 function variantesTv(input, assets, matcher, base) {
   const todas = input.broadcasts;
-  if (!todas.length) return '';
+  const videos = input.videos || [];
+  if (!todas.length && !videos.length) return '';
   const hasActual = matcher.has(input.rd);
-  const idsBase = filterBroadcastsByRegion(todas).map(b => b.id).join();
+  const firma = (emisiones, propios) => `${emisiones.map(b => b.id).join()}|${propios.map(v => v.id).join()}`;
+  const idsBase = firma(filterBroadcastsByRegion(todas), filterBroadcastsByRegion(videos));
   const porConjunto = new Map();
   for (const grupo of GRUPOS) {
     const visibles = todas.filter(b => visiblePara(b, grupo));
-    const ids = visibles.map(b => b.id).join();
+    const videosVisibles = videos.filter(v => visiblePara(v, grupo));
+    const ids = firma(visibles, videosVisibles);
     if (ids === idsBase) continue;
-    if (!porConjunto.has(ids)) porConjunto.set(ids, { visibles, claves: [] });
+    if (!porConjunto.has(ids)) porConjunto.set(ids, { visibles, videosVisibles, claves: [] });
     porConjunto.get(ids).claves.push(grupo.clave);
   }
   if (!porConjunto.size) return '';
   const rdLite = { ...input.rd, elevationProfile: null, profileSummits: null, profileWaypoints: null, description: null, bonuses: null, notes: null, translations: null };
   const panelBase = PANEL.exec(base)?.[0] || '';
-  let salida = '';
-  for (const { visibles, claves } of porConjunto.values()) {
-    const html = jornadaHtml(rdLite, input.race, visibles, assets, [], input.hasStartlist, todas, matcher, { timeZoneLabel: etiqueta }).html;
+  const videosBase = PANEL_VIDEOS.exec(base)?.[0] || '';
+  // Una plantilla por panel distinto del de la página, con todos los grupos que lo ven.
+  const plantillasTv = new Map();
+  const plantillasVideos = new Map();
+  const anotar = (mapa, panel, claves) => mapa.set(panel, [...(mapa.get(panel) || []), ...claves]);
+  for (const { visibles, videosVisibles, claves } of porConjunto.values()) {
+    const html = jornadaHtml(rdLite, input.race, visibles, assets, [], input.hasStartlist, todas, matcher,
+      { timeZoneLabel: etiqueta, videos: videosVisibles, allVideos: videos }).html;
     let panel = PANEL.exec(html)?.[0] || '';
     if (panel) {
-      const revive = hasReviveBroadcastsForDay(visibles, hasActual, input.rd.isCancelledDay);
+      const media = stageMediaState({ broadcasts: visibles, videos: videosVisibles, hasResults: hasActual, isCancelled: input.rd.isCancelledDay });
       const ids = new Set(visibles.map(b => b.id));
       const ocultas = todas.filter(b => !ids.has(b.id));
-      const filas = revive ? reviveBroadcastsForDay(visibles, input.rd.isCancelledDay) : [...visibles, ...ocultas];
+      const filas = media.hasRevive ? media.revive : [...visibles, ...ocultas];
       panel = corregirInsignias(panel, filas, new Set(ocultas.map(b => b.id)));
     }
-    if (panel !== panelBase) salida += `<template data-tv="${claves.join(' ')}">${panel}</template>`;
+    if (panel !== panelBase) anotar(plantillasTv, panel, claves);
+    const panelVideos = PANEL_VIDEOS.exec(html)?.[0] || '';
+    if (panelVideos !== videosBase) anotar(plantillasVideos, panelVideos, claves);
   }
+  let salida = '';
+  for (const [panel, claves] of plantillasTv) salida += `<template data-tv="${claves.join(' ')}">${panel}</template>`;
+  for (const [panel, claves] of plantillasVideos) salida += `<template data-videos="${claves.join(' ')}">${panel}</template>`;
   return salida;
 }
 
@@ -178,7 +194,8 @@ function componer(item, activos) {
   const assets = withRaceTechnicalGuide(input.assets, input.guide);
   const matcher = buildInhouseResultsMatcher(input.uci);
   const { html, hasActualResults } = jornadaHtml(input.rd, input.race, filterBroadcastsByRegion(input.broadcasts), assets,
-    input.siblings, input.hasStartlist, input.broadcasts, matcher, { timeZoneLabel: etiqueta });
+    input.siblings, input.hasStartlist, input.broadcasts, matcher,
+    { timeZoneLabel: etiqueta, videos: filterBroadcastsByRegion(input.videos || []), allVideos: input.videos || [] });
   const clave = `${lang}/${slug}`;
   if (activos.modoJornada === 'hibrido') {
     const head = cabezaJornada(lang, input.rd, input.race, input.diasCarrera, activosHibridos('jornada'), AYUDAS, etiquetasHibridas('jornada'));

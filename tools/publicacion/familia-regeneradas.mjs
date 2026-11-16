@@ -28,7 +28,6 @@ export async function crearFamiliaRegeneradas({ lang, headerHtml, huella }) {
   const cxHtml = await load('js/cx-race-html.js');
   const agendaHtml = await load('js/cx-agenda-html.js');
   const { htmlFingerprint } = await load('js/html-fingerprint.js');
-  const { CX_HOME } = await load('js/header-html.js');
   const ayudas = { filterBroadcastsByRegion, annotateDoubleSectors, sortCompetitionDays };
   const { CAMP } = await load('js/campeonatos-config.js');
   const { campEmptyHtml, campPageHtml, prepareChampionships } = await load('js/campeonatos-html.js');
@@ -95,7 +94,7 @@ export async function crearFamiliaRegeneradas({ lang, headerHtml, huella }) {
   function fichasCx(input, activos, base) {
     if (input.tablas) cx = { indice: indiceCx(input.tablas, { cxTournamentRounds, cxSeasonBounds }), carreras: input.tablas.races };
     const salida = [];
-    const activa = CX_HOME ? 'today' : 'cyclocross';
+    const activa = 'today';
     const at = new Date();
     for (const raceId of input.carreras || []) {
       const rutas = base.cx.get(raceId) || [];

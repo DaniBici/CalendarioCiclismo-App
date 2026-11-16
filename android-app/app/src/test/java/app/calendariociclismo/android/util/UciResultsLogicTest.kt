@@ -59,7 +59,7 @@ class UciResultsLogicTest {
         assertEquals(listOf(12.5, 12.5), ttt.riders.map { it.uciPoints })
     }
 
-    // Helper: equipo canónico con lo mínimo (chapa irrelevante para la lógica).
+    // Helper: equipo canónico con lo mínimo (colores irrelevantes para la lógica).
     private fun team(id: String, name: String, aliases: String? = null) = Team(
         id = id, name = name, badgeTorsoCenter = "#000000", badgeTorsoSides = "#000000",
         badgeShorts = "#000000", badgeInnerCircle = null, headerBg = "#000000",
@@ -541,9 +541,9 @@ class UciResultsLogicTest {
     }
 
     @Test
-    fun `pestana equipos casa riderDisplay para chapa y nombre canonico`() {
+    fun `pestana equipos casa riderDisplay para colores y nombre canonico`() {
         // Espejo del render web (resultados.js): fila de equipos = riderDisplay
-        // crudo sin dorsal; casada → nombre del catálogo + chapa; sin casar → crudo.
+        // crudo sin dorsal; casada → nombre del catálogo + colores; sin casar → crudo.
         val raceTeams = listOf(
             team("t1", "Groupama-FDJ United"),
             team("t2", "Visma | Lease a Bike"),
@@ -563,7 +563,7 @@ class UciResultsLogicTest {
         assertEquals("Visma | Lease a Bike", vms[1].riderName)
         assertEquals("t2", vms[1].team?.id)
         assertEquals("+44\"", vms[1].valueText)
-        // Sin casar → el crudo de la fuente, sin chapa.
+        // Sin casar → el crudo de la fuente, sin colores.
         assertEquals("EQUIPO DESCONOCIDO", vms[2].riderName)
         assertNull(vms[2].team)
         assertEquals("+1'10\"", vms[2].valueText)
@@ -763,7 +763,7 @@ class UciResultsLogicTest {
         assertEquals("es", vms[0].countryCode)             // bandera de la ficha
         assertEquals("Movistar Team", vms[0].teamName)     // equipo actual
         assertEquals("Pablo Castrillo", vms[0].riderName)  // nombre de la ficha gana al display crudo
-        assertEquals("t-wt", vms[0].team?.id)              // chapa del equipo actual
+        assertEquals("t-wt", vms[0].team?.id)              // colores del equipo actual
     }
 
     @Test

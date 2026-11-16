@@ -108,14 +108,16 @@ struct ContentView: View {
     init() {
         let visible = RoadTodayAvailability.isVisible()
         _roadTodayVisible = State(initialValue: visible)
-        _selectedTab = State(initialValue: RoadTodayAvailability.initialTab(todayVisible: visible))
+        // En la temporada de carretera, Hoy abre en Ruta.
+        _showsRoadToday = State(initialValue: visible)
+        _selectedTab = State(initialValue: RoadTodayAvailability.initialTab)
     }
 
     var body: some View {
         // `value` identifica cada sección con independencia de su posición:
         // `DeepLink.tab(index)` apunta siempre a la misma pestaña.
         TabView(selection: $selectedTab) {
-            ForEach(RoadTodayAvailability.tabs(todayVisible: roadTodayVisible), id: \.self) { value in
+            ForEach(RoadTodayAvailability.tabs, id: \.self) { value in
                 tab(value)
             }
         }
@@ -128,9 +130,7 @@ struct ContentView: View {
             let visible = RoadTodayAvailability.isVisible()
             guard visible != roadTodayVisible else { return }
             roadTodayVisible = visible
-            if !RoadTodayAvailability.tabs(todayVisible: visible).contains(selectedTab) {
-                selectedTab = RoadTodayAvailability.initialTab(todayVisible: visible)
-            }
+            showsRoadToday = visible
         }
         .tint(Color("AccentColor"))
         .onChange(of: reviewPrompt.shouldRequest) { _, shouldRequest in
@@ -184,15 +184,14 @@ struct ContentView: View {
     @TabContentBuilder<Int>
     private func tab(_ value: Int) -> some TabContent<Int> {
         switch value {
-        case RoadTodayAvailability.todayTab:
-            Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
-                NavigationStack(path: $navigationPath) {
-                    TodayView(navigationPath: $navigationPath)
-                        .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+        case RoadTodayAvailability.videosTab:
+            Tab(localeService.t("Vídeos", "Videos"), systemImage: "play.rectangle", value: value) {
+                NavigationStack {
+                    VideosFeedView()
                 }
                 .windowSizeClass(horizontalSizeClass)
             }
-            .accessibilityIdentifier(AccessibilityID.tabToday)
+            .accessibilityIdentifier(AccessibilityID.tabVideos)
         case RoadTodayAvailability.resultsTab:
             // Apps 3.1 (fase F3): el feed "Últimos resultados" entra como 2º
             // tab y Mes+Temporada se fusionan en "Calendario" (con toggle).
@@ -226,22 +225,13 @@ struct ContentView: View {
             }
             .accessibilityIdentifier(AccessibilityID.tabTransfers)
         case RoadTodayAvailability.cyclocrossTab:
-            if roadTodayVisible {
-                Tab(localeService.t("Ciclocross", "Cyclocross"), image: "CyclocrossEmblem", value: value) {
-                    cyclocrossStack
-                        .windowSizeClass(horizontalSizeClass)
-                }
-                .accessibilityIdentifier(AccessibilityID.tabCyclocross)
-            } else {
-                // Con Hoy retirada, la pestaña se rotula Hoy, con su icono:
-                // alberga la agenda de Ciclocross y, desde el conmutador, Hoy
-                // de carretera.
-                Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
-                    cyclocrossStack
-                        .windowSizeClass(horizontalSizeClass)
-                }
-                .accessibilityIdentifier(AccessibilityID.tabCyclocross)
+            // Hoy todo el año: la agenda de Ciclocross y, desde el conmutador,
+            // Hoy de carretera.
+            Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
+                cyclocrossStack
+                    .windowSizeClass(horizontalSizeClass)
             }
+            .accessibilityIdentifier(AccessibilityID.tabCyclocross)
         default:
             Tab(localeService.t("Calendario", "Calendar"), systemImage: "calendar", value: value) {
                 NavigationStack(path: $calendarNavigationPath) {
@@ -263,37 +253,35 @@ struct ContentView: View {
                     CyclocrossView(tournament: destination.tournament, season: destination.season)
                 }
                 .navigationDestination(for: DeepLinkDestination.self) { DeepLinkDestinationView(destination: $0) }
+                .navigationDestination(for: StageVideosRoute.self) { route in
+                    StageDetailView(raceDayId: route.raceDayId, raceIdHint: route.raceId, titleHint: route.title, initialSection: "videos")
+                }
         }
     }
 
-    /// Raíz de la pestaña Ciclocross. Con Hoy retirada, la agenda CX lleva
-    /// Ajustes y el conmutador «CX | Ruta» en su barra, que alterna con Hoy de
-    /// carretera en la misma pila; esa pila recibe además los destinos de
-    /// carretera de los deep links. El cintillo común (Ciclocross y después
+    /// Raíz de la pestaña Hoy (todo el año desde la 5.2, D1): la agenda CX
+    /// lleva Ajustes y el conmutador «CX | Ruta» en su barra, que alterna con
+    /// Hoy de carretera en la misma pila; esa pila recibe además los destinos
+    /// de carretera de los deep links. El cintillo común (Ciclocross y después
     /// carretera) queda fijo sobre las dos vistas: alternar no lo recrea ni lo
     /// vuelve a cargar.
-    @ViewBuilder
     private var cyclocrossRoot: some View {
-        if roadTodayVisible {
-            CyclocrossView()
-        } else {
-            VStack(spacing: 0) {
-                TodayHighlightsBanner(
-                    scope: "cx",
-                    includesRoad: true,
-                    onTapChampionships: { cxNavigationPath.append(DeepLinkDestination.championships) },
-                    onOpenTarget: openHomeHighlight
-                )
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
-                if showsRoadToday {
-                    TodayView(navigationPath: $cxNavigationPath, onSelectCyclocross: { showsRoadToday = false })
-                } else {
-                    CyclocrossView(showsSettings: true, onSelectRoad: { showsRoadToday = true })
-                }
+        VStack(spacing: 0) {
+            TodayHighlightsBanner(
+                scope: "cx",
+                includesRoad: true,
+                onTapChampionships: { cxNavigationPath.append(DeepLinkDestination.championships) },
+                onOpenTarget: openHomeHighlight
+            )
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+            if showsRoadToday {
+                TodayView(navigationPath: $cxNavigationPath, onSelectCyclocross: { showsRoadToday = false })
+            } else {
+                CyclocrossView(showsSettings: true, onSelectRoad: { showsRoadToday = true })
             }
-            .background(AppTheme.background.ignoresSafeArea())
         }
+        .background(AppTheme.background.ignoresSafeArea())
     }
 
     /// Destino de una entrada del cintillo común, en la pila de la pestaña.
@@ -314,14 +302,17 @@ struct ContentView: View {
     /// Abre un destino de carretera en la pila de Hoy o, mientras Hoy está
     /// retirada, en la de Ciclocross.
     private func openRoadDestination(_ destination: DeepLinkDestination) {
-        if roadTodayVisible {
-            selectedTab = RoadTodayAvailability.todayTab
-            navigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { navigationPath.append(destination) }
-        } else {
-            selectedTab = RoadTodayAvailability.cyclocrossTab
-            cxNavigationPath = NavigationPath()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { cxNavigationPath.append(destination) }
+        selectedTab = RoadTodayAvailability.cyclocrossTab
+        cxNavigationPath = NavigationPath()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { cxNavigationPath.append(destination) }
+    }
+
+    /// Jornada desplazada a su panel Vídeos, en la pila de Hoy.
+    private func openStageVideos(_ raceDayId: String) {
+        selectedTab = RoadTodayAvailability.cyclocrossTab
+        cxNavigationPath = NavigationPath()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            cxNavigationPath.append(StageVideosRoute(raceDayId: raceDayId, raceId: nil, title: nil))
         }
     }
 
@@ -332,11 +323,12 @@ struct ContentView: View {
         case .tab(let index):
             navigationPath = NavigationPath()
             cxNavigationPath = NavigationPath()
-            if RoadTodayAvailability.tabs(todayVisible: roadTodayVisible).contains(index) {
+            if index == RoadTodayAvailability.todayTab || index == RoadTodayAvailability.cyclocrossTab {
+                // Hoy de carretera y Ciclocross comparten la pestaña Hoy.
+                selectedTab = RoadTodayAvailability.cyclocrossTab
+                showsRoadToday = index == RoadTodayAvailability.todayTab
+            } else if RoadTodayAvailability.tabs.contains(index) {
                 selectedTab = index
-            } else if (0..<5).contains(index) {
-                // Hoy retirada: la pestaña inicial vigente.
-                selectedTab = RoadTodayAvailability.initialTab(todayVisible: roadTodayVisible)
             } else {
                 // Enlaces de pestañas retiradas → ajustes
                 openRoadDestination(.settings)
@@ -353,11 +345,14 @@ struct ContentView: View {
                 guard deepLinkRevision == revision else { return }
                 if let id { openRoadDestination(.race(id)) } else { handleDeepLink(.tab(0)) }
             }
-        case .stageSlug(let slug, let english):
+        case .stageVideos(let raceDayId):
+            openStageVideos(raceDayId)
+        case .stageSlug(let slug, let english, let videos):
             Task {
                 let id = try? await SupabaseService.shared.raceDayId(forWebSlug: slug, english: english)
                 guard deepLinkRevision == revision else { return }
-                if let id { openRoadDestination(.stage(id)) } else { handleDeepLink(.tab(0)) }
+                guard let id else { handleDeepLink(.tab(0)); return }
+                if videos { openStageVideos(id) } else { openRoadDestination(.stage(id)) }
             }
         case .startlist(let raceId):
             openRoadDestination(.startlist(raceId))

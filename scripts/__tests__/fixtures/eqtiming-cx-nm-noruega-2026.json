@@ -1,0 +1,1196 @@
+{
+ "event": {
+  "UID": 83954,
+  "Navn": "Norway Cross 2026 UM/NM Sykkelkross",
+  "Dato": "2026-11-14T00:00:00",
+  "TidsSone": "Europe/Oslo",
+  "Publiseres": true,
+  "Sted": "Grønmo, Oslo",
+  "Klasser": {
+   "1308059": {
+    "UID": 1308059,
+    "Navn": "K Junior Elite",
+    "Kjonn": "f",
+    "AlderFom": 17,
+    "AlderTom": 18
+   },
+   "1308061": {
+    "UID": 1308061,
+    "Navn": "K Senior Elite",
+    "Kjonn": "f",
+    "AlderFom": 19,
+    "AlderTom": 99
+   },
+   "1308060": {
+    "UID": 1308060,
+    "Navn": "M Junior Elite",
+    "Kjonn": "m",
+    "AlderFom": 17,
+    "AlderTom": 18
+   },
+   "1308062": {
+    "UID": 1308062,
+    "Navn": "M Senior Elite",
+    "Kjonn": "m",
+    "AlderFom": 19,
+    "AlderTom": 99
+   }
+  },
+  "Etapper": {
+   "340468": {
+    "UID": 340468,
+    "Navn": "15-16 år/Junior/Elite",
+    "Nummer": 3,
+    "Klasser": {
+     "1308059": {
+      "UID": "1308059"
+     },
+     "1308061": {
+      "UID": "1308061"
+     },
+     "1308060": {
+      "UID": "1308060"
+     },
+     "1308062": {
+      "UID": "1308062"
+     }
+    }
+   }
+  },
+  "Puljer": {
+   "450560": {
+    "UID": 450560,
+    "Navn": "Heat 4 - Unge menn",
+    "Runder": 5,
+    "StartTid": "2026-11-14T12:50:00",
+    "EtappeUID": 340468
+   },
+   "450563": {
+    "UID": 450563,
+    "Navn": "Heat 5 - Menn Elite",
+    "Runder": 8,
+    "StartTid": "2026-11-14T13:50:00",
+    "EtappeUID": 340468
+   },
+   "450564": {
+    "UID": 450564,
+    "Navn": "Heat 3 Elite/Jun/K-15-16 Kvinner",
+    "Runder": 4,
+    "StartTid": "2026-11-14T11:35:00",
+    "EtappeUID": 340468
+   }
+  }
+ },
+ "startlist": {
+  "340468": {
+   "TotalItems": 50,
+   "Items": [
+    {
+     "Startnummer": 51,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Oda",
+      "Etternavn": "Laforce",
+      "Kjonn": "f",
+      "Aar": 2003,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "IF Frøy",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 195 527 56",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "3649605",
+       "Roles": {}
+      },
+      "14": {
+       "Type": "FISCODE",
+       "Kode": "3427566",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 52,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Åshild",
+      "Etternavn": "Tovsrud",
+      "Kjonn": "f",
+      "Aar": 1994,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Asker CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 204 176 72",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4033502",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 53,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Tiril",
+      "Etternavn": "Frostestad-Stenbrenden",
+      "Kjonn": "f",
+      "Aar": 2008,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "SK Rye sykkel",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 182 982 51",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4275517",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "8515285",
+       "Roles": {}
+      },
+      "8": {
+       "Type": "MYLAPS-PROCHIP",
+       "Kode": "RK-40235",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 54,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Maria Nordal",
+      "Etternavn": "Berg",
+      "Kjonn": "f",
+      "Aar": 2008,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "SK Rye sykkel",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 495 135 58",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4397493",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "6195494",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 55,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Marthe",
+      "Etternavn": "Rødsgaard",
+      "Kjonn": "f",
+      "Aar": 1995,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Asker CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 047 752 39",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4360087",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 56,
+     "Klasse": {
+      "UID": 1308061,
+      "Navn": "K Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Maja Tangen",
+      "Etternavn": "Risheim",
+      "Kjonn": "f",
+      "Aar": 2008,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "IF Frøy",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 206 874 54",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 57,
+     "Klasse": {
+      "UID": 1308059,
+      "Navn": "K Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Sereina",
+      "Etternavn": "Snerthammer",
+      "Kjonn": "f",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Kristiansands CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 245 874 87",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4517900",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 58,
+     "Klasse": {
+      "UID": 1308059,
+      "Navn": "K Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Therese Moe",
+      "Etternavn": "Landén",
+      "Kjonn": "f",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Romeriksåsen SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 260 978 59",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4092037",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 59,
+     "Klasse": {
+      "UID": 1308059,
+      "Navn": "K Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Ingeborg",
+      "Etternavn": "Snopestad",
+      "Kjonn": "f",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Halden CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 416 746 45",
+       "Roles": {}
+      },
+      "44": {
+       "Type": "UCI ID MANUEL",
+       "Kode": "101 416 746 45",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "7503111",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 60,
+     "Klasse": {
+      "UID": 1308059,
+      "Navn": "K Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Nanna",
+      "Etternavn": "Jensehaugen",
+      "Kjonn": "f",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "SK Rye sykkel",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 659 429 34",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4627212",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 61,
+     "Klasse": {
+      "UID": 1308059,
+      "Navn": "K Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Karoline",
+      "Etternavn": "Flaterud",
+      "Kjonn": "f",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Asker CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 010 628 66",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 21,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Felix Nygård",
+      "Etternavn": "Jacobsen",
+      "Kjonn": "m",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Romeriksåsen SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 296 679 64",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4299814",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "7234948",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "136668373",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 22,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Philip Skaane",
+      "Etternavn": "Hansen",
+      "Kjonn": "m",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Tønsberg CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 884 559 00",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4252441",
+       "Roles": {}
+      },
+      "8": {
+       "Type": "MYLAPS-PROCHIP",
+       "Kode": "RH-06800",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 23,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Linus",
+      "Etternavn": "Johnsrud",
+      "Kjonn": "m",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "SK Rye sykkel",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 933 093 34",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4281366",
+       "Roles": {}
+      },
+      "44": {
+       "Type": "UCI ID MANUEL",
+       "Kode": "10093309334",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "6972925",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "137008744",
+       "Roles": {}
+      },
+      "8": {
+       "Type": "MYLAPS-PROCHIP",
+       "Kode": "PS-97964",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 24,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Halvor Stedje",
+      "Etternavn": "Lier",
+      "Kjonn": "m",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Asker CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 528 112 55",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4512323",
+       "Roles": {}
+      },
+      "31": {
+       "Type": "BIRKID",
+       "Kode": "317231",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "9400269",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "136413267",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 25,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Patrick",
+      "Etternavn": "Mørk",
+      "Kjonn": "m",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "IF Frøy",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 945 007 17",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4627915",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "7554642",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "132897174",
+       "Roles": {}
+      },
+      "8": {
+       "Type": "MYLAPS-PROCHIP",
+       "Kode": "RH-67533",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 26,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Marcus G.",
+      "Etternavn": "Tregde",
+      "Kjonn": "m",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Mandal CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 091 368 05",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 27,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Linus Gregersen",
+      "Etternavn": "Bolstad",
+      "Kjonn": "m",
+      "Aar": 2010,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Sandefjord SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 414 628 61",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4552584",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "9937455",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "130119928",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 29,
+     "Klasse": {
+      "UID": 1308060,
+      "Navn": "M Junior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Oliver",
+      "Etternavn": "Rysletten-Solvoll",
+      "Kjonn": "m",
+      "Aar": 2009,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Ringerike SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 951 611 25",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4313243",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 1,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Kevin Andre Sandli",
+      "Etternavn": "Messel",
+      "Kjonn": "m",
+      "Aar": 2004,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Ringerike SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 196 841 12",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4299608",
+       "Roles": {}
+      },
+      "44": {
+       "Type": "UCI ID MANUEL",
+       "Kode": "100 196 841 12",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 2,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Sebastian",
+      "Etternavn": "Veslum",
+      "Kjonn": "m",
+      "Aar": 2005,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Asker CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 739 387 37",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4314589",
+       "Roles": {}
+      },
+      "44": {
+       "Type": "UCI ID MANUEL",
+       "Kode": "10073938737",
+       "Roles": {}
+      },
+      "8": {
+       "Type": "MYLAPS-PROCHIP",
+       "Kode": "RK-34826",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 3,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Fredrik",
+      "Etternavn": "Breyer",
+      "Kjonn": "m",
+      "Aar": 2004,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Follo SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 973 679 74",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 4,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Erik",
+      "Etternavn": "Kay",
+      "Kjonn": "m",
+      "Aar": 1987,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Follo SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 087 367 51",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "3275773",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 5,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Håvard",
+      "Etternavn": "Øiom",
+      "Kjonn": "m",
+      "Aar": 2006,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Ringerike SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 931 092 70",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4183778",
+       "Roles": {}
+      },
+      "45": {
+       "Type": "NIF PERSONID",
+       "Kode": "9192186",
+       "Roles": {}
+      },
+      "40": {
+       "Type": "NIF BUYPASSID",
+       "Kode": "129567723",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 6,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Thomas",
+      "Etternavn": "Rem",
+      "Kjonn": "m",
+      "Aar": 1986,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "IK Hero",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 125 239 93",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4315446",
+       "Roles": {}
+      },
+      "31": {
+       "Type": "BIRKID",
+       "Kode": "259630",
+       "Roles": {}
+      },
+      "44": {
+       "Type": "UCI ID MANUEL",
+       "Kode": "100 125 239 93",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 7,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Marius Grødahl",
+      "Etternavn": "Andresen",
+      "Kjonn": "m",
+      "Aar": 1996,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Halden CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 536 047 09",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 8,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Sindre",
+      "Etternavn": "Moe Landén",
+      "Kjonn": "m",
+      "Aar": 2006,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Romeriksåsen SK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 938 941 62",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4238796",
+       "Roles": {}
+      },
+      "31": {
+       "Type": "BIRKID",
+       "Kode": "194994",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 9,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Sigurd",
+      "Etternavn": "Stubberud",
+      "Kjonn": "m",
+      "Aar": 2005,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Tangen Watt og Oksygen Cyklekl",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 938 419 25",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 10,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Martin E.",
+      "Etternavn": "Farstadvoll",
+      "Kjonn": "m",
+      "Aar": 2004,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "IF Frøy",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "101 108 307 66",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "4074225",
+       "Roles": {}
+      },
+      "31": {
+       "Type": "BIRKID",
+       "Kode": "176352",
+       "Roles": {}
+      }
+     }
+    },
+    {
+     "Startnummer": 11,
+     "Klasse": {
+      "UID": 1308062,
+      "Navn": "M Senior Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     },
+     "Utover": {
+      "Fornavn": "Ole Sigurd",
+      "Etternavn": "Rekdahl",
+      "Kjonn": "m",
+      "Aar": 2001,
+      "Land": {
+       "ISO2": "NO",
+       "ISO3": "NOR"
+      }
+     },
+     "Klubbnavn": "Halden CK",
+     "Lisens": {
+      "1": {
+       "Type": "UCI ID",
+       "Kode": "100 197 886 87",
+       "Roles": {}
+      },
+      "11": {
+       "Type": "EMITAGID",
+       "Kode": "3624590",
+       "Roles": {}
+      }
+     }
+    }
+   ]
+  }
+ }
+}

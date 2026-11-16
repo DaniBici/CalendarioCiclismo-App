@@ -10,6 +10,7 @@ El proyecto se lanzó en abril de 2026 y lo produce una sola persona: Dani Sánc
 
 - [Hoy](https://calendariociclismo.app/): carreras del día, horarios, televisión, streaming y accesos a resultados o repeticiones.
 - [Últimos resultados](https://calendariociclismo.app/resultados/): etapas y clásicas en orden cronológico inverso, con ganadores y clasificaciones completas. Incluye el ránking UCI de equipos masculino y femenino.
+- [Vídeos](https://calendariociclismo.app/videos/): emisiones completas, resúmenes y últimos kilómetros de etapas, clásicas y pruebas de ciclocross, por día en orden cronológico inverso.
 - [Mercado de Fichajes](https://calendariociclismo.app/fichajes/): confirmaciones, rumores, renovaciones, retiradas, contratos y movimientos por equipo y temporada.
 - [Calendario](https://calendariociclismo.app/calendario/): vistas mensual y de temporada, con filtros por categoría, género y país.
 - [Ciclocross](https://calendariociclismo.app/ciclocross/): calendario de ciclocross UCI por temporada, con torneos, horarios, inscritos y resultados.
@@ -36,6 +37,7 @@ Los datos deportivos se actualizan durante la temporada. Los horarios se muestra
 
 - [English home](https://calendariociclismo.app/en/)
 - [Results](https://calendariociclismo.app/en/results/)
+- [Videos](https://calendariociclismo.app/en/videos/)
 - [Transfers](https://calendariociclismo.app/en/transfers/)
 - [Calendar](https://calendariociclismo.app/en/calendar/)
 - [Cyclocross](https://calendariociclismo.app/en/cyclocross/)

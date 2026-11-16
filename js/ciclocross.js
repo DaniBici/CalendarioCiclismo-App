@@ -1,5 +1,4 @@
 import {initCintillo} from './cintillo.js';
-import {cyclocrossHome} from './services/today-season.js';
 import {dateNavigationButton} from './components/date-navigation.js';
 import {disciplineSwitchHtml} from './components/discipline-switch.js';
 import {initDaySwipe} from './components/day-swipe.js';
@@ -7,7 +6,7 @@ import {supabase,setMeta,setMetaProperty,openPhBanner,wirePhDescriptions,getPinn
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows} from './services/cx-data.js';
 import {cxEsc as esc,cxSeason,cxSeasonMonths,cxCategories,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxCategoryCardState,cxAgendaFilterMatches,cxDayRaces,cxSortDayRaces,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
-import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
+import {cxStandingsTableHtml,cxRoundsContextHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {cxTournamentDescription} from './cx/tournament-seo.js';
 import {cxClampDay,cxRaceDays,cxAdjacentRaceDay,cxStepDay,cxDateStrip} from './cx/today.js';
 import {cxOpenTvEmbed} from './cx/tv-modal.js';
@@ -68,7 +67,7 @@ const sortSelectHtml=()=>`<div class="agenda-filter-divider"></div><div class="a
 const categorySelectHtml=()=>`<div class="agenda-cat-wrap"><span class="agenda-cat-wrap__label" aria-hidden="true">${esc(t('filter.category'))}</span><select class="agenda-cat-select" id="cxAgendaCatSelect" aria-label="${esc(t('filter.category'))}"><option value="" disabled selected>${esc(t('filter.category'))}</option>${filterCats.map(key=>`<option value="${key}">${esc(t(`cx.filter.${key}`))}</option>`).join('')}</select></div>`;
 // Mientras Ciclocross es la home, el conmutador CX / Ruta abre la franja y
 // lleva a Hoy de carretera; sigue la fecha y, a la derecha, filtros y «Ordenar».
-const filterBarHtml=()=>`<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${cyclocrossHome(today())?disciplineSwitchHtml('cyclocross',today()):''}<span class="agenda-date"></span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${filterCats.map(key=>`<button type="button" aria-pressed="${key===agendaFilter}" class="tcat-btn${key===agendaFilter?' tcat-btn--active':''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('')}</div>${categorySelectHtml()}${sortSelectHtml()}</div></section>`;
+const filterBarHtml=()=>`<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${disciplineSwitchHtml('cyclocross',today())}<span class="agenda-date"></span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${filterCats.map(key=>`<button type="button" aria-pressed="${key===agendaFilter}" class="tcat-btn${key===agendaFilter?' tcat-btn--active':''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('')}</div>${categorySelectHtml()}${sortSelectHtml()}</div></section>`;
 // Secciones del torneo, como las de la ficha de carrera: Carreras y, cuando
 // hay generales publicadas, General.
 const standingCategories=tournamentMode?cxTournamentStandingCategories(tournament):[];
@@ -327,7 +326,8 @@ async function loadStandings() {
       cxAllRows(supabase,'cx_teams','id,name,nameAliases,uciCode,colorHex,headerBg,headerText,badgeTorsoCenter,badgeTorsoSides,badgeInnerCircle,badgeShorts'),
       cxSeasonRows(supabase,season),cxSeasonRounds(supabase,season).then(map=>map,()=>null)]);
     return {states,standings,rounds,teamList:teamRows.map(team=>({...team,nameAliases:(team.nameAliases||[]).join('\n')})),
-      races:new Map(rows.filter(race=>race.tournamentId===tournamentId).map(race=>[race.id,race]))};
+      races:new Map(rows.filter(race=>race.tournamentId===tournamentId).map(race=>[race.id,race])),
+      seasonRaces:new Map(rows.map(race=>[race.id,race]))};
   })().catch(error=>{standingsData=null;throw error;});
   return standingsData;
 }
@@ -338,12 +338,21 @@ function paintStandings(data,fragment) {
   generalNav.innerHTML=categories.length?`<nav class="res-stages cx-classification-nav cx-category-nav" aria-label="${esc(t('cx.standings'))}"><div class="res-stages__inner">${categories.map(code=>`<a class="res-stage-btn${code===selected.category?' res-stage-btn--active':''}" href="${esc(cxTournamentPageUrl(tournament,lang,'general',code))}" aria-label="${esc(t(`cx.category.${code}`))}"${code===selected.category?' aria-current="page"':''}>${code}</a>`).join('')}</div></nav>`:'';
   if(!selected.category){standingsNode.innerHTML=`<div class="res-layout cx-classification-page cx-standings-page"><div class="res-main"><p class="cx-empty">${esc(t('cx.noStandings'))}</p></div></div>`;return;}
   const category=selected.category,rows=data.standings.filter(row=>row.category===category),state=data.states.find(row=>row.category===category);
+  // Rondas de otro torneo que suma el reglamento: entran en la lista de pruebas y la numeración pasa a ser
+  // cronológica sobre el conjunto, igual en las columnas que en la lista.
+  const externalIds=(state?.roundIds||[]).filter(id=>!data.races.has(id)&&data.seasonRaces.has(id));
+  const races=externalIds.length?new Map([...data.races,...externalIds.map(id=>[id,data.seasonRaces.get(id)])]):data.races;
+  const roundNumbers=externalIds.length?new Map([...races.values()].filter(race=>!race.isCancelled)
+    .sort((a,b)=>a.dateKey.localeCompare(b.dateKey)||(a.id<b.id?-1:a.id>b.id?1:0))
+    .map((race,index,list)=>[race.id,{n:index+1,total:list.length}])):data.rounds;
   const roundHeader=(raceId,index)=>{
-    const race=data.races.get(raceId),label=`#${data.rounds?.get(raceId)?.n??index+1}`;
+    const race=races.get(raceId),label=`#${roundNumbers?.get(raceId)?.n??index+1}`;
     if(!race||cxIsHidden(race,lang))return {label};
     return {label,title:cxRaceName(race,lang),href:cxRaceUrl(race,lang)};
   };
-  standingsNode.innerHTML=`<div class="res-layout cx-classification-page cx-standings-page"><div class="res-main"><h2 class="sr-only">${esc(t(`cx.category.${category}`))}</h2>${cxStandingsTableHtml({rows,state,mode:cxStandingMode(tournament,category,rows),lang,locale,teamList:data.teamList,roundHeader})}</div></div>`;
+  // En pantalla ancha (desde 761 px) las pruebas con su número y fecha ocupan una segunda columna.
+  const rounds=cxRoundsContextHtml({races,rounds:roundNumbers,lang});
+  standingsNode.innerHTML=`<div class="res-layout cx-classification-page cx-standings-page${rounds?' res-layout--context':''}"><div class="res-main"><h2 class="sr-only">${esc(t(`cx.category.${category}`))}</h2>${cxStandingsTableHtml({rows,state,mode:cxStandingMode(tournament,category,rows),lang,locale,teamList:data.teamList,roundHeader})}</div>${rounds?`<aside class="res-context cx-rounds-context" aria-label="${esc(t('cx.roundList'))}">${rounds}</aside>`:''}</div>`;
 }
 let racesOpened=false,hasStandings=false;
 async function showSection() {
@@ -428,7 +437,7 @@ if(tournamentId)window.ccHeaderBack?.({href:lang==='en'?'/en/cyclocross/':'/cicl
 // Mientras Ciclocross es la home (Hoy de carretera fuera del menú), su
 // cintillo es único: entradas de Ciclocross seguidas de las de carretera. La
 // pantalla de carga lo espera: aparece sobre la agenda y la desplazaría.
-if(!tournamentId){const cintillo=initCintillo(cyclocrossHome(today())?['cx','road']:'cx');window.ccPageLoading?.waitFor(cintillo);}
+if(!tournamentId){const cintillo=initCintillo(['cx','road']);window.ccPageLoading?.waitFor(cintillo);}
 // La lista del torneo nace vacía, sin marcador de carga: la pantalla de carga
 // espera a la apertura (carreras o general) y no se cierra antes de pintarla.
 const opened=open();

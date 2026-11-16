@@ -10,8 +10,8 @@
 //   2. Botones de división (WT · PT · WWT · PRW) + lista de equipos 2027.
 //      Los equipos salen de team_seasons[2027] → los renombres de sponsor y
 //      los ascensos/descensos se editan en el panel sin tocar `teams`.
-//      La chapa muestra los colores 2027 si team_seasons.badgeVisible; si aún
-//      no (kit 2027 sin anunciar), muestra los colores ANTIGUOS del equipo
+//      El cuadrado muestra los colores 2027 si team_seasons.badgeVisible; si aún
+//      no (colores 2027 sin publicar), muestra los colores ANTIGUOS del equipo
 //      (temporada en curso, 2026) — o nada si es un equipo NUEVO nacido en 2027
 //      (sin fila 2026, mig. 129) o si la fila 2027 tiene prevColorsHidden
 //      (denominación sin confirmar). continuityDoubt → chip + aviso (el equipo

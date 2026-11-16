@@ -1,0 +1,65 @@
+{
+ "componentType": "calendar",
+ "componentProps": {
+  "date": "2026-11-15",
+  "data": [
+   {
+    "label": "Wielrennen",
+    "items": [
+     {
+      "componentType": "match",
+      "componentProps": {
+       "matchId": 3305677,
+       "highlight": true,
+       "sport": "cycling",
+       "status": "NOT_STARTED",
+       "label": "15/11\n15:00",
+       "scoreboardLabels": {
+        "prefixLabel": "15/11",
+        "mainLabel": "15:00"
+       },
+       "ariaLabel": "X²O Trofee , Veldrijden, Vlak, zondag 15 november om 15:00",
+       "url": "https://sporza.be/nl/sport/wielrennen/~3305677/",
+       "sportApiUrl": "https://api.sporza.be/web/content/cycling/matches/3305677?model=defaultScoreboard",
+       "displayName": "Bollekescross",
+       "competitionName": "X²O Trofee",
+       "competition": "X²O Trofee",
+       "roundsToGo": null,
+       "rounds": 8,
+       "type": "Veldrijden",
+       "typeIcon": "cycling-cyclocross",
+       "startLabel": "15:00 Hamme-Zogge",
+       "endLabel": "16:00"
+      }
+     },
+     {
+      "componentType": "match",
+      "componentProps": {
+       "matchId": 3305685,
+       "highlight": true,
+       "sport": "cycling",
+       "status": "NOT_STARTED",
+       "label": "15/11\n13:45",
+       "scoreboardLabels": {
+        "prefixLabel": "15/11",
+        "mainLabel": "13:45"
+       },
+       "ariaLabel": "X²O Trofee vrouwen , Veldrijden, Vlak, zondag 15 november om 13:45",
+       "url": "https://sporza.be/nl/sport/wielrennen/~3305685/",
+       "sportApiUrl": "https://api.sporza.be/web/content/cycling/matches/3305685?model=defaultScoreboard",
+       "displayName": "Bollekescross (vrouwen)",
+       "competitionName": "X²O Trofee vrouwen",
+       "competition": "X²O Trofee vrouwen",
+       "roundsToGo": null,
+       "rounds": 5,
+       "type": "Veldrijden",
+       "typeIcon": "cycling-cyclocross",
+       "startLabel": "13:45 Hamme-Zogge",
+       "endLabel": "14:35"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

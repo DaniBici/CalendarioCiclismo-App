@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.navigation
 
+import androidx.compose.material.icons.outlined.SmartDisplay
+import app.calendariociclismo.android.ui.videos.VideosFeedScreen
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import android.os.Bundle
@@ -107,26 +109,32 @@ fun AppNavHost(navController: NavHostController) {
     val isSubscribed by app.premium.isSubscribed.collectAsState()
     val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     var showContributionPrompt by remember { mutableStateOf(false) }
-    // Hoy de carretera: se evalúa al arrancar y al volver a primer plano.
+    // Temporada de carretera (desde [RoadTodayAvailability.RETURN_DATE]): Hoy
+    // abre en Ruta; antes, en Ciclocross. Se evalúa al arrancar y al volver a
+    // primer plano.
     var todayVisible by remember { mutableStateOf(RoadTodayAvailability.isVisible()) }
+    // La pestaña Hoy alterna la agenda de Ciclocross y Hoy de carretera con el
+    // conmutador «CX | Ruta» todo el año (D1). No se conserva entre aperturas.
+    var showsRoadToday by rememberSaveable { mutableStateOf(todayVisible) }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            todayVisible = RoadTodayAvailability.isVisible()
+            val visible = RoadTodayAvailability.isVisible()
+            if (visible != todayVisible) {
+                todayVisible = visible
+                showsRoadToday = visible
+            }
         }
     }
-    // Con Hoy oculta, la pestaña Ciclocross muestra Hoy de carretera tras
-    // elegir «Ruta» en su conmutador. No se conserva entre aperturas.
-    var showsRoadToday by rememberSaveable { mutableStateOf(false) }
-    val mainTabs = Routes.mainTabs(todayVisible)
-    val homeRoute = Routes.home(todayVisible)
+    val mainTabs = Routes.MAIN_TABS
+    val homeRoute = Routes.HOME
     // El destino inicial se fija al crear el grafo: cambiarlo reiniciaría la
     // pila de navegación al reanudar.
     val startRoute = remember { homeRoute }
-    // Con Hoy oculta, la pestaña Ciclocross se rotula Hoy, con su icono:
-    // alberga la agenda de Ciclocross y, desde el conmutador, Hoy de carretera.
+    // La pestaña Ciclocross se rotula Hoy, con su icono: alberga la agenda de
+    // Ciclocross y, desde el conmutador, Hoy de carretera.
     val tabs = mainTabs.map { route ->
-        if (!todayVisible && route == Routes.CYCLOCROSS) HomeTab
+        if (route == Routes.CYCLOCROSS) HomeTab
         else allTabs.first { it.route == route }
     }
 
@@ -140,6 +148,8 @@ fun AppNavHost(navController: NavHostController) {
         val screenName = when {
             currentRoute == Routes.TODAY -> return@LaunchedEffect
             currentRoute == Routes.RESULTS_FEED -> return@LaunchedEffect
+            // Vídeos registra `videos` o `videos_cx` según la disciplina.
+            currentRoute == Routes.VIDEOS -> return@LaunchedEffect
             currentRoute == Routes.CALENDAR -> return@LaunchedEffect
             currentRoute == Routes.TRANSFERS -> return@LaunchedEffect
             currentRoute == Routes.SETTINGS -> "settings"
@@ -298,8 +308,9 @@ fun AppNavHost(navController: NavHostController) {
                 composable(Routes.TODAY) { TodayScreen(navController) }
                 composable(Routes.RESULTS_FEED) { ResultsFeedScreen(navController) }
                 composable(Routes.CALENDAR) { CalendarScreen(navController) }
+                composable(Routes.VIDEOS) { VideosFeedScreen(navController) }
                 composable(Routes.CYCLOCROSS) {
-                    val showsRoad = !todayVisible && showsRoadToday
+                    val showsRoad = showsRoadToday
                     // Atrás desde Hoy de carretera vuelve a la agenda de Ciclocross.
                     BackHandler(enabled = showsRoad) { showsRoadToday = false }
                     // Cada vista conserva su estado guardado al alternar.
@@ -314,10 +325,10 @@ fun AppNavHost(navController: NavHostController) {
                         } else {
                             CyclocrossScreen(
                                 navController,
-                                showSettingsShortcut = !todayVisible,
-                                roadTodayVisible = todayVisible,
-                                onSelectRoad = if (todayVisible) null else { { showsRoadToday = true } },
-                                highlights = if (todayVisible) null else homeHighlights,
+                                showSettingsShortcut = true,
+                                roadTodayVisible = false,
+                                onSelectRoad = { showsRoadToday = true },
+                                highlights = homeHighlights,
                             )
                         }
                     }
@@ -362,12 +373,14 @@ fun AppNavHost(navController: NavHostController) {
                         navArgument("stageId") { type = NavType.StringType },
                         navArgument("raceId") { type = NavType.StringType; nullable = true; defaultValue = null },
                         navArgument("title") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("section") { type = NavType.StringType; nullable = true; defaultValue = null },
                     ),
                 ) { entry ->
                     StageScreen(
                         stageId = entry.arguments?.getString("stageId").orEmpty(),
                         raceId = entry.arguments?.getString("raceId"),
                         titleHint = entry.arguments?.getString("title"),
+                        section = entry.arguments?.getString("section"),
                         navController = navController,
                     )
                 }
@@ -523,6 +536,7 @@ private val BottomBarItemMaxWidth = 80.dp
 private val allTabs = listOf(
     TabItem(Routes.TODAY, R.string.tab_today, Icons.Filled.CalendarToday),
     TabItem(Routes.RESULTS_FEED, R.string.tab_results, Icons.Filled.EmojiEvents),
+    TabItem(Routes.VIDEOS, R.string.tab_videos, Icons.Outlined.SmartDisplay),
     TabItem(Routes.TRANSFERS, R.string.tab_transfers, Icons.Filled.SyncAlt),
     TabItem(Routes.CYCLOCROSS, R.string.tab_cyclocross, iconResource = R.drawable.ic_cyclocross),
     TabItem(Routes.CALENDAR, R.string.tab_calendar, Icons.Filled.CalendarMonth),

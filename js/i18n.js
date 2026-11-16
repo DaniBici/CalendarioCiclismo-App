@@ -33,6 +33,8 @@ const LOCALES = {
       "rider": "Corredor",
       "team": "Equipo",
       "time": "Tiempo",
+      "bonuses": "Bonificaciones",
+      "bonus": "Bonif.",
       "totalTime": "Tiempo total",
       "points": "Puntos",
       "lapOne": "-1 vuelta",
@@ -56,6 +58,7 @@ const LOCALES = {
       "standings": "Clasificación general",
       "general": "General",
       "races": "Carreras",
+      "roundList": "Pruebas",
       "droppedResult": "Resultado descartado",
       "moreRounds": "Más rondas",
       "official": "Resultados oficiales",
@@ -186,6 +189,11 @@ const LOCALES = {
       noInfo: 'Sin información de TV', noBroadcast: 'No hay televisión', noTvRegion: 'No hay TV en tu región', fullStage: 'Íntegra', live: 'En directo',
       filterAll: 'Todas', filterMine: 'Mi región',
       status: { pending: 'Sin confirmar', none: 'Sin TV', unavailable_es: 'No TV España' },
+    },
+    videos: {
+      title: 'Vídeos', stageBroadcast: 'Emisión de la etapa', raceBroadcast: 'Emisión de la carrera',
+      full: 'Completa', broadcast: 'Emisión', menu: 'Vídeos o emisión completa',
+      pageTitle: 'Vídeos de ciclismo', goStage: 'Ir a la etapa', goRace: 'Ir a la carrera', goCx: 'Ir a la prueba',
     },
     assets: {
       startOrder: 'Orden de salida', technicalGuide: 'Libro de ruta', roadbook: 'Rutómetro', profile: 'Perfil',

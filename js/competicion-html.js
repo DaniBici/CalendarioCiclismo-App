@@ -14,16 +14,15 @@
 //  paintCompetitionCard().
 // ─────────────────────────────────────────────────────────────────
 
-import { todayRaceState, resultsTrophyHtml, tvIconHtml } from './services/race-presentation.js';
+import { todayRaceState, resultsTrophyHtml } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
-import { formatTimeUser, resolveTypeBadges, jornadaUrl, rdLocation, startOrderUrl, buildRaceHeader, extractYouTubeId,
+import { formatTimeUser, resolveTypeBadges, jornadaUrl, rdLocation, startOrderUrl, buildRaceHeader,
          esc, seoShortDate, seoShortMonth } from './shared.js';
 import { t, getLang } from './i18n.js';
 import { raceCardHtml, safeCardColor } from './components/race-card.js';
 import { noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
-         startOrderBadgeHtml, scheduleHtml } from './components/stage-card.js';
+         startOrderBadgeHtml, scheduleHtml, finishedVideoActionHtml } from './components/stage-card.js';
 import { agendaMetaState } from './services/today-agenda-layout.js';
-import { isReviveBroadcast } from './broadcast-priority.js';
 import { buildElevationSparkline } from './stage/elevation-profile.js';
 import { hasModalData } from './race-data-modal.js';
 import { tvBadge } from './race-assets.js';
@@ -55,24 +54,13 @@ function sparkline(rd, color) {
     : null;
 }
 
-// Resultados y Revive en la columna derecha de una jornada terminada. Revive:
-// redes sociales antes que el resto, después sortOrder. Los clics los atiende
-// el manejador delegado de js/competicion.js (data-card-results, Revive embebible).
+// Resultados y la acción de vídeo (Revive, Resumen o el menú con ambos) en la
+// columna derecha de una jornada terminada. Los clics los atiende el manejador
+// delegado de js/competicion.js (data-card-results, data-card-revive-yt, menú).
 function resultsActionsHtml(rd) {
   const label = esc(t('stage.results'));
-  let html = `<button type="button" class="badge badge--results badge--icon" title="${label}" aria-label="${label}" data-card-results>${resultsTrophyHtml}<span class="badge__label">${label}</span></button>`;
-  const revive = (rd._broadcasts || [])
-    .filter(isReviveBroadcast)
-    .sort((a, b) => {
-      const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-      const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-      return (aSoc - bSoc) || ((a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    })[0] ?? null;
-  if (!revive?.url) return html;
-  const ytId = revive.embeddable !== false ? extractYouTubeId(revive.url) : null;
-  const reviveLabel = esc(t('tv.reviveRace'));
-  html += `<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${esc(revive.url)}" target="_blank" rel="noopener" title="${reviveLabel}" aria-label="${reviveLabel}"${ytId ? ` data-card-revive-yt="${esc(ytId)}"` : ''}>${tvIconHtml}<span class="badge__label">${reviveLabel}</span></a>`;
-  return html;
+  const html = `<button type="button" class="badge badge--results badge--icon" title="${label}" aria-label="${label}" data-card-results>${resultsTrophyHtml}<span class="badge__label">${label}</span></button>`;
+  return html + finishedVideoActionHtml(rd, { broadcasts: rd._broadcasts || [], videos: rd._videos || [], ytAttr: 'data-card-revive-yt' });
 }
 
 /**

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {resolveCxPanelResultRows} from '../cx/result-identity.js';
+import {resolveCxPanelResultRows,resolveCxResultIdentity} from '../cx/result-identity.js';
 
 describe('enlazado de resultados del panel CX con el resolver de ingesta',()=>{
   const rider={id:'cx-uno',firstName:'Uno',lastName:'Local',nationality:'BE',birthDate:'2000-01-02',verified:true};
@@ -20,5 +20,19 @@ describe('enlazado de resultados del panel CX con el resolver de ingesta',()=>{
   it('conserva la elección explícita compatible y rechaza país/nacimiento contradictorio',()=>{
     expect(resolveCxPanelResultRows([{...row,globalRiderId:rider.id}],[rider])[0].globalRiderId).toBe(rider.id);
     expect(()=>resolveCxPanelResultRows([{...row,globalRiderId:rider.id,birthDate:'2001-01-02'}],[rider])).toThrow('incompatible');
+  });
+});
+
+describe('resolución por ID UCI de licencia',()=>{
+  // Fichas importadas del ranking UCI: uciLicenseId sin uciProfileId.
+  const rider={id:'breyer-fredrik',firstName:'Fredrik',lastName:'Breyer',nationality:'NO',birthDate:'2004-08-22',verified:true,uciProfileId:null,uciLicenseId:'10097367974'};
+  const row={riderDisplay:'F. Breyer',firstName:'F.',lastName:'Breyer',isoCode2:'NO',uciLicenseId:'100 973 679 74'};
+  it('resuelve por el ID de licencia aunque el nombre no coincida y la ficha no tenga uciProfileId',()=>{
+    expect(resolveCxResultIdentity(row,[rider,{...rider,id:'otro',uciLicenseId:'10000000001'}])).toMatchObject({id:'breyer-fredrik',reason:'verified_uci_id'});
+  });
+  it('no resuelve por un ID de otra persona, una ficha no verificada ni una nacionalidad contradictoria',()=>{
+    expect(resolveCxResultIdentity({...row,uciLicenseId:'10000000001'},[rider]).id).toBeNull();
+    expect(resolveCxResultIdentity(row,[{...rider,verified:false}]).id).toBeNull();
+    expect(resolveCxResultIdentity({...row,isoCode2:'SE'},[rider]).id).toBeNull();
   });
 });

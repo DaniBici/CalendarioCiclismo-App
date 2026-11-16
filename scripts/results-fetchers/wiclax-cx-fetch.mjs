@@ -42,25 +42,30 @@ const DEMONYMS = { espanola: 'ES', espanol: 'ES', francesa: 'FR', frances: 'FR',
   mexicana: 'MX', mexicano: 'MX', argentina: 'AR', argentino: 'AR', venezolana: 'VE', venezolano: 'VE',
   ecuatoriana: 'EC', ecuatoriano: 'EC', chilena: 'CL', chileno: 'CL', checa: 'CZ', checo: 'CZ', polaca: 'PL', polaco: 'PL' };
 const RETIRED_REGIONS = new Set(['AN', 'BU', 'CS', 'DD', 'FX', 'NT', 'SU', 'TP', 'YD', 'YU', 'ZR', 'EU', 'EZ', 'UN', 'QO', 'ZZ']);
-let spanishRegions;
-function spanishRegionCode(value) {
-  if (!spanishRegions) {
-    spanishRegions = new Map(); const names = new Intl.DisplayNames(['es'], { type: 'region' });
+// Nombres de país en inglés que `Intl.DisplayNames` no devuelve (Linia de Sosire, Timișoara 2026).
+const ENGLISH_NAMES = { 'czech republic': 'CZ', macedonia: 'MK', 'united states of america': 'US', 'great britain': 'GB',
+  turkey: 'TR', 'ivory coast': 'CI' };
+const regionCodes = new Map();
+function regionCode(locale, value) {
+  if (!regionCodes.has(locale)) {
+    const codes = new Map(); const names = new Intl.DisplayNames([locale], { type: 'region' });
     for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
       // Códigos retirados (DD = RDA, YU, CS, SU…) comparten nombre con el país vigente.
       const code = String.fromCharCode(a, b); let name;
       if (RETIRED_REGIONS.has(code)) continue;
       try { name = names.of(code); } catch { continue; }
-      if (name && name !== code && !spanishRegions.has(foldText(name))) spanishRegions.set(foldText(name), code);
+      if (name && name !== code && !codes.has(foldText(name))) codes.set(foldText(name), code);
     }
+    regionCodes.set(locale, codes);
   }
-  return spanishRegions.get(foldText(value)) || null;
+  return regionCodes.get(locale).get(foldText(value)) || null;
 }
 export function wiclaxCountry(value) {
   const text = clean(value);
   if (!text) return null;
   if (/^[A-Z]{2}$/.test(text)) return text;
-  return countryCode(text)?.toUpperCase() || DEMONYMS[foldText(text)] || spanishRegionCode(text);
+  return countryCode(text)?.toUpperCase() || DEMONYMS[foldText(text)] || regionCode('es', text) || regionCode('en', text)
+    || ENGLISH_NAMES[foldText(text)] || null;
 }
 
 // «00h45'44» o «00h45'44,082» → segundos (con decimales); texto no horario → null.
@@ -71,6 +76,9 @@ export function wiclaxSeconds(value) {
 }
 const hms = total => `${Math.floor(total / 3600)}:${String(Math.floor(total % 3600 / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 const gap = total => `+${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+
+// El cronometraje rumano escribe el ID UCI en grupos («100 555 634 02»).
+const licence = value => String(value ?? '').replace(/\s+/g, '');
 
 function statusOf(text) {
   const irm = irmOf(text);
@@ -87,12 +95,19 @@ export function parseWiclaxCx(xml, { map, raceId, seasonKey, dateKey, sourceUrl,
   const entries = new Map(elements(firstBlock(xml, 'Engages'), 'E').map(entry => [entry.d, entry]));
   const results = new Map(elements(firstBlock(xml, 'Resultats'), 'R').map(result => [result.d, result]));
   const categories = []; const skipped = [];
+  // Varios recorridos asignados a una misma categoría (Elite y U23 con la misma salida, Timișoara 2026) forman
+  // una sola clasificación conjunta; si alguno no ha terminado, la categoría espera a todos.
+  const groups = new Map();
   for (const [course, category] of Object.entries(map)) {
     if (!CATEGORIES.has(category)) throw new Error(`Categoría CX inválida: ${category}`);
-    const index = courses.indexOf(course);
-    if (index < 0) throw new Error(`Recorrido «${course}» ausente del archivo`);
-    if (finished[index] !== '1') { skipped.push({ course, category, reason: 'Recorrido sin terminar en el cronometraje' }); continue; }
-    const field = [...entries.values()].filter(entry => entry.p === course && results.has(entry.d))
+    if (!courses.includes(course)) throw new Error(`Recorrido «${course}» ausente del archivo`);
+    groups.set(category, [...groups.get(category) || [], course]);
+  }
+  for (const [category, groupCourses] of groups) {
+    const unfinished = groupCourses.filter(course => finished[courses.indexOf(course)] !== '1');
+    if (unfinished.length) { for (const course of unfinished) skipped.push({ course, category, reason: 'Recorrido sin terminar en el cronometraje' }); continue; }
+    const course = groupCourses.join(' + ');
+    const field = [...entries.values()].filter(entry => groupCourses.includes(entry.p) && results.has(entry.d))
       .map(entry => ({ entry, result: results.get(entry.d) }));
     const finishers = field.filter(({ result }) => wiclaxSeconds(result.t) != null)
       .sort((a, b) => Number(b.result.to) - Number(a.result.to)
@@ -104,7 +119,7 @@ export function parseWiclaxCx(xml, { map, raceId, seasonKey, dateKey, sourceUrl,
       const { firstName, lastName } = splitCxDisplayName(entry.n);
       return { bib: clean(entry.d), riderDisplay: cxNaturalRiderDisplay(firstName, lastName, entry.n), firstName, lastName,
         sourceName: clean(entry.n), teamName: clean(entry.c) || null, isoCode2: wiclaxCountry(entry.na),
-        birthYear: /^\d{4}$/.test(entry.a || '') ? entry.a : null, uciLicenseId: /^\d{11}$/.test(entry.l2 || '') ? entry.l2 : null,
+        birthYear: /^\d{4}$/.test(entry.a || '') ? entry.a : null, uciLicenseId: /^\d{11}$/.test(licence(entry.l2)) ? licence(entry.l2) : null,
         bonusSeconds: null, ...extra };
     };
     const rows = finishers.map((item, position) => {

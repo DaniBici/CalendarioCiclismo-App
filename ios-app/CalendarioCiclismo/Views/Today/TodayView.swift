@@ -38,6 +38,8 @@ struct TodayView: View {
     /// recreaba `ChampionshipsView`, rompiendo la navegación a la prueba tocada).
     @State private var championshipsRoute: ChampionshipsRoute?
     @State private var competitionRaceId: IdentifiableID?
+    /// Jornada abierta en su panel Vídeos desde la tarjeta terminada.
+    @State private var stageVideosRoute: StageVideosRoute?
     @State private var highlightedStageDayId: IdentifiableID?
     @State private var startlistRouteRaceId: IdentifiableID?
     @State private var startOrderRouteRaceDayId: IdentifiableID?
@@ -230,6 +232,9 @@ struct TodayView: View {
             }
             .navigationDestination(item: $championshipsRoute) { _ in
                 ChampionshipsView()
+            }
+            .navigationDestination(item: $stageVideosRoute) { route in
+                StageDetailView(raceDayId: route.raceDayId, raceIdHint: route.raceId, titleHint: route.title, initialSection: "videos")
             }
             .navigationDestination(item: $competitionRaceId) { item in
                 RaceDetailView(raceId: item.id)
@@ -620,17 +625,12 @@ struct TodayView: View {
                 isRegular: horizontalSizeClass == .regular
             )
             // Las destacadas solo cambian el orden: misma tarjeta y misma
-            // columna que el resto. Una tarjeta suelta conserva media anchura.
+            // columna que el resto. Una tarjeta suelta, también la única del
+            // día, conserva media anchura a la izquierda, como Resultados.
             let rows = AdaptiveLayoutPolicy.rows(viewModel.displayItems, columns: columns)
-            // Una jornada única en pantalla ancha: media anchura, centrada.
-            let centersSingle = columns > 1 && viewModel.displayItems.count == 1
             LazyVStack(spacing: 8) {
                 ForEach(rows) { row in
-                    if centersSingle {
-                        raceItemView(item: row.items[0])
-                            .frame(maxWidth: max(0, (contentWidth - 32 - 8) / 2))
-                            .frame(maxWidth: .infinity)
-                    } else if row.spansAllColumns || columns == 1 {
+                    if row.spansAllColumns || columns == 1 {
                         raceItemView(item: row.items[0])
                             .frame(maxWidth: .infinity, alignment: .top)
                     } else {
@@ -726,7 +726,10 @@ struct TodayView: View {
         let inhouseStage = inhouseByDay[item.id].flatMap { $0 }
         // Revive/TV forma parte del estado de resultados: nunca aparece por el
         // mero hecho de alcanzar la hora de meta sin clasificaciones visibles.
-        let reviveURL = hasInhouse ? RaceLogic.reviveUrl(from: item.broadcasts) : nil
+        // Vídeos propios y emisión íntegra (docs/plans/videos-5-2.md): con los
+        // dos, el botón de TV es un menú «Vídeos» / «Completa».
+        let videoTargets = FinishedVideoTargets(item: item, hasResults: hasInhouse)
+        let reviveURL = videoTargets.reviveURL
         let raceState = RaceLogic.todayRaceState(
             rd: item.raceDay,
             hasInhouseResults: hasInhouse,
@@ -792,6 +795,11 @@ struct TodayView: View {
                         if let url = reviveURL {
                             NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
                         }
+                    } : nil,
+                    onShowVideos: videoTargets.hasVideos ? {
+                        Haptics.play(.navigation)
+                        stageVideosRoute = StageVideosRoute(raceDayId: item.raceDay.id, raceId: item.raceDay.raceId,
+                                                            title: StageDetailView.title(raceName: item.race?.localizedName, raceDay: item.raceDay))
                     } : nil,
                     onShowStartlist: item.race?.startlistImportedAt != nil ? {
                         if let race = item.race {

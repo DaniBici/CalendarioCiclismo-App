@@ -121,7 +121,7 @@
   font-size: var(--fs-1);
   font-weight: 700;
   letter-spacing: 0.02em;
-  /* El fondo propio de la chapa aclara la base y --text-muted se quedaba en
+  /* El fondo propio del chip aclara la base y --text-muted se quedaba en
      4.44:1 en tema oscuro (WCAG 1.4.3); en claro ya pasa. */
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -229,7 +229,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer; text-decoration:none;
 }
 .tr-team-card:hover { background:var(--bg-card-hover); }
-/* Franjas de maillot (las de Resultados) delante del nombre del equipo. */
+/* Cuadrado de colores (el de Resultados) delante del nombre del equipo. */
 .tr-team-card__name { overflow-wrap:anywhere; }
 .tr-team-card__label { min-width:0; }
 .tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }

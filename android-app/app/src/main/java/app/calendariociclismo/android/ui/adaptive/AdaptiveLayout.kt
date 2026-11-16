@@ -69,11 +69,26 @@ object AdaptiveLayoutPolicy {
      *  unos 280 dp, márgenes de 16 dp y dos separaciones de 12 dp (iOS:
      *  `videoThreeColumnThreshold`, medido sobre el contenido). */
     const val VIDEO_THREE_COLUMN_MIN_DP = 900
+    /** Ancho mínimo del contenedor para lista y detalle en Fichajes: columna
+     *  lateral de 280 dp y detalle de al menos 360 dp (iOS: size class regular). */
+    const val LIST_DETAIL_MIN_DP = 640
+    /** Ancho del contenedor desde el que la columna lateral de Fichajes pasa de
+     *  280 a 320 dp (iOS: ancho ideal 320 pt, mínimo 280 pt). */
+    const val LIST_DETAIL_WIDE_SIDEBAR_MIN_DP = 760
+    const val LIST_DETAIL_SIDEBAR_DP = 280
+    const val LIST_DETAIL_WIDE_SIDEBAR_DP = 320
 
     data class Row<T>(val items: List<T>, val spansAllColumns: Boolean)
 
     fun feedColumns(containerWidthDp: Float, info: AdaptiveLayoutInfo): Int =
         if (info.supportsTwoPanes && containerWidthDp >= TWO_COLUMN_MIN_DP) 2 else 1
+
+    /** Fichajes con columna lateral y detalle en lugar de una sola columna. */
+    fun usesListDetail(containerWidthDp: Float, info: AdaptiveLayoutInfo): Boolean =
+        info.supportsTwoPanes && containerWidthDp >= LIST_DETAIL_MIN_DP
+
+    fun listDetailSidebarDp(containerWidthDp: Float): Int =
+        if (containerWidthDp >= LIST_DETAIL_WIDE_SIDEBAR_MIN_DP) LIST_DETAIL_WIDE_SIDEBAR_DP else LIST_DETAIL_SIDEBAR_DP
 
     /** Columnas de los vídeos de ciclocross: dos con el ancho de dos columnas de
      *  Hoy y tres en un contenedor apaisado con ancho para tres tarjetas

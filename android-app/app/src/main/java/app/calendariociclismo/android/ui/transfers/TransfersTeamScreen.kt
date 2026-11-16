@@ -76,18 +76,65 @@ private sealed class TeamState {
  * /fichajes/ web: continúan (plantilla actual con fin de contrato) / llegan /
  * se marchan, con badge Rumor donde proceda. Regla Dani: una salida rumoreada
  * saca al corredor de "continúan" y lo pinta como baja·Rumor.
+ *
+ * Ruta a pantalla completa (móvil, enlaces profundos). En tablets, Fichajes
+ * muestra el mismo contenido en la columna de detalle ([TransfersTeamPane]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransfersTeamScreen(teamId: String, navController: NavController) {
+    val title = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        TransfersTeamPane(
+            teamId = teamId,
+            // Llega → equipo del que VENÍA; se marcha → equipo AL QUE VA.
+            // No hay ficha pública de corredor → el nombre enlaza al equipo.
+            onLinkTeam = { linkedTeamId ->
+                navController.navigate(Routes.transfersTeam(linkedTeamId))
+            },
+            padding = padding,
+        )
+    }
+}
+
+/**
+ * Carga y contenido de la página de un equipo, sin barra superior: la ruta a
+ * pantalla completa ([TransfersTeamScreen]) y la columna de detalle de
+ * [TransfersScreen] en tablets lo comparten. `market` evita pedir de nuevo el
+ * mercado cuando el llamador ya lo tiene.
+ */
+@Composable
+fun TransfersTeamPane(
+    teamId: String,
+    onLinkTeam: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    market: TransfersLogic.MarketData? = null,
+    padding: PaddingValues = PaddingValues(0.dp),
+) {
     val app = app.calendariociclismo.android.ui.rememberApp()
     val unknownError = stringResource(R.string.transfers_error)
-    var state by remember { mutableStateOf<TeamState>(TeamState.Loading) }
+    val title = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON)
+    var state by remember(teamId) { mutableStateOf<TeamState>(TeamState.Loading) }
 
-    LaunchedEffect(teamId) {
-        app.analytics.logScreenView("transfers_team")
+    LaunchedEffect(teamId) { app.analytics.logScreenView("transfers_team") }
+    LaunchedEffect(teamId, market) {
         runCatching {
-            val data = app.repository.loadTransfersMarket(TransfersLogic.MARKET_SEASON)
+            val data = market ?: app.repository.loadTransfersMarket(TransfersLogic.MARKET_SEASON)
             val season = data.seasons.firstOrNull { it.teamId == teamId }
                 ?: error("team season not found")
             val gender = season.gender ?: TransfersLogic.divisionGender(season.category)
@@ -112,55 +159,34 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
         }
     }
 
-    val title = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON)
-
     val loadingVisible = rememberLoadingVisible(state is TeamState.Loading)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        val current = state
-        when {
-            loadingVisible -> RouteLoadingView(
-                message = stringResource(R.string.loading),
-                title = (current as? TeamState.Ready)?.season?.name ?: title,
-                modifier = Modifier.padding(padding),
-            )
-            current is TeamState.Error -> Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = current.message,
-                    style = CCText.S14,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(24.dp),
-                )
-            }
-            current is TeamState.Ready -> TeamContent(
-                season = current.season,
-                data = current.data,
-                detail = current.detail,
-                padding = padding,
-                // Llega → equipo del que VENÍA; se marcha → equipo AL QUE VA.
-                // No hay ficha pública de corredor → el nombre enlaza al equipo.
-                onLinkTeam = { linkedTeamId ->
-                    navController.navigate(Routes.transfersTeam(linkedTeamId))
-                },
+    val current = state
+    when {
+        loadingVisible -> RouteLoadingView(
+            message = stringResource(R.string.loading),
+            title = (current as? TeamState.Ready)?.season?.name ?: title,
+            modifier = modifier.padding(padding),
+        )
+        current is TeamState.Error -> Box(
+            modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = current.message,
+                style = CCText.S14,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(24.dp),
             )
         }
+        current is TeamState.Ready -> TeamContent(
+            season = current.season,
+            data = current.data,
+            detail = current.detail,
+            padding = padding,
+            modifier = modifier,
+            onLinkTeam = onLinkTeam,
+        )
     }
 }
 
@@ -171,6 +197,7 @@ private fun TeamContent(
     detail: TransfersLogic.TeamDetail,
     padding: PaddingValues,
     onLinkTeam: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     val sections = buildList {
@@ -207,7 +234,7 @@ private fun TeamContent(
         })
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+    BoxWithConstraints(modifier.fillMaxSize().padding(padding)) {
         val wide = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo) && sections.size > 1
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -242,7 +269,7 @@ private data class TeamSectionBlock(
     val content: @Composable () -> Unit,
 )
 
-/** Cabecera sobre superficie neutra con las franjas de maillot de Resultados. */
+/** Cabecera sobre superficie neutra con el cuadrado de colores de Resultados. */
 @Composable
 private fun TeamHeader(season: TeamSeason, data: TransfersLogic.MarketData) {
     CCCard(modifier = Modifier.fillMaxWidth()) {

@@ -56,16 +56,40 @@
       if (titulo) titulo.dataset.tooltip = main.dataset.tzTexto;
     }
   }
+  // Panel de TV de la región. Sin panel en el HTML: en la mampostería de la
+  // jornada con vídeos, en la columna principal (Revive al final; la TV, tras
+  // el perfil); si no, Revive tras la Información y la TV tras el perfil.
   function panel(raiz) {
     var plantilla = raiz.querySelector('template[data-tv~="' + clave + '"]');
     if (!plantilla) return;
     var actual = raiz.querySelector('.tv-panel');
     var nuevo = plantilla.content.cloneNode(true);
-    if (actual) actual.replaceWith(nuevo);
-    else {
-      var perfil = raiz.querySelector('[data-integrated-profile]');
-      if (perfil) perfil.after(nuevo);
+    if (actual) { actual.replaceWith(nuevo); return; }
+    var seccion = nuevo.firstElementChild;
+    if (!seccion) return;
+    var revive = seccion.classList.contains('tv-panel--revive');
+    var principal = raiz.querySelector('.stage-profile-layout--videos > .stage-main');
+    if (principal) {
+      var perfilPanel = principal.querySelector('.stage-profile-panel');
+      if (revive) principal.appendChild(nuevo);
+      else if (perfilPanel) perfilPanel.after(nuevo);
+      else principal.prepend(nuevo);
+      return;
     }
+    var info = revive && raiz.querySelector('.stage-text-panel');
+    if (info) { info.after(nuevo); return; }
+    var perfil = raiz.querySelector('[data-integrated-profile]');
+    if (perfil) perfil.after(nuevo);
+  }
+  // Panel Vídeos de la región, en la columna lateral de la mampostería.
+  function videos(raiz) {
+    var plantilla = raiz.querySelector('template[data-videos~="' + clave + '"]');
+    if (!plantilla) return;
+    var actual = raiz.querySelector('.video-panel');
+    var nuevo = plantilla.content.cloneNode(true);
+    if (actual) { actual.replaceWith(nuevo); return; }
+    var lateral = raiz.querySelector('.stage-profile-layout--videos > .stage-side');
+    if (lateral && nuevo.firstElementChild) lateral.insertBefore(nuevo, lateral.querySelector('.stage-side__actions'));
   }
   function anchoTv(raiz) {
     raiz.querySelectorAll('.tv-panel').forEach(function (p) {
@@ -73,7 +97,7 @@
       p.classList.toggle('tv-panel--single', filas.length <= 1);
     });
   }
-  window.ccVisitante = function (raiz) { panel(raiz); horas(raiz); anchoTv(raiz); };
+  window.ccVisitante = function (raiz) { panel(raiz); videos(raiz); horas(raiz); anchoTv(raiz); };
   window.ccVisitante(doc);
   var hueco = doc.querySelector('.stage-side__actions');
   var barra = doc.getElementById('icalBar');

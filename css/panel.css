@@ -3378,7 +3378,7 @@ label.panel-check-label { display: inline-flex; align-items: center; cursor: poi
   white-space: nowrap;
 }
 .sl-team-order-controls { gap: 0.25rem; align-items: center; }
-/* Colores de equipo: tres franjas de maillot (teamStripes de team-appearance.js). */
+/* Cuadrado de colores del equipo: tres franjas (teamStripes de team-appearance.js). */
 .team-stripes {
   display: inline-flex;
   width: 14px;
@@ -3392,8 +3392,8 @@ label.panel-check-label { display: inline-flex; align-items: center; cursor: poi
 /* Franjas en un solo elemento (teamStripes): un hijo vacío conserva la línea
    base de la caja con hijos, y con ella su posición vertical. */
 .team-stripes::before { content: ''; flex: 1; }
-/* Equipo resuelto: franjas de maillot y nombre */
-.sl-team-badge {
+/* Equipo resuelto: cuadrado de colores y nombre */
+.sl-team-resolved {
   display: inline-flex;
   align-items: center;
   font-size: var(--fs-2);

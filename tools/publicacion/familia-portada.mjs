@@ -55,7 +55,6 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
   const { cxListedInAgenda, cxTournamentRounds } = await load('js/services/cx-data.js');
   const { disciplineSwitchHtml } = await load('js/components/discipline-switch.js');
   const { cyclocrossHome } = await load('js/services/today-season.js');
-  const { CX_HOME } = await load('js/header-html.js');
   const cintillo = await crearCintillo();
 
   const CATEGORIAS = ['all', 'big', 'pro', 'spain'];
@@ -87,7 +86,7 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
     const orden = `<div class="agenda-filter-divider"></div><div class="agenda-sort-wrap"><select class="agenda-sort-select" id="cxAgendaSortSelect" aria-label="${esc(t('sort.label'))}"><option value="" disabled selected>${esc(t('sort.label'))}</option>${['category', 'tvtime', 'finishtime'].map(key => `<option value="${key}">${esc(t(`sort.${key}`))}</option>`).join('')}</select></div>`;
     const categoria = `<div class="agenda-cat-wrap"><span class="agenda-cat-wrap__label" aria-hidden="true">${esc(t('filter.category'))}</span><select class="agenda-cat-select" id="cxAgendaCatSelect" aria-label="${esc(t('filter.category'))}"><option value="" disabled selected>${esc(t('filter.category'))}</option>${CATEGORIAS.map(key => `<option value="${key}">${esc(t(`cx.filter.${key}`))}</option>`).join('')}</select></div>`;
     const chips = CATEGORIAS.map(key => `<button type="button" aria-pressed="${key === 'all'}" class="tcat-btn${key === 'all' ? ' tcat-btn--active' : ''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('');
-    return `<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${cyclocrossHome(hoy) ? disciplineSwitchHtml('cyclocross', hoy) : ''}<span class="agenda-date">${agendaDateHtml(dia)}</span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${chips}</div>${categoria}${orden}</div></section>`;
+    return `<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${disciplineSwitchHtml('cyclocross', hoy)}<span class="agenda-date">${agendaDateHtml(dia)}</span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${chips}</div>${categoria}${orden}</div></section>`;
   }
 
   return async function componerPortada(item, activos) {
@@ -113,12 +112,12 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
     const tarjetas = carreras.map(race => cxAgendaCardHtml(race, dia, { rounds: rondas })).join('');
     const titulo = home ? `<h2 class="sr-only">${t('cx.title')}</h2>` : `<h1 class="sr-only">${t('cx.title')}</h1>`;
     const contenido = `<div class="cx-agenda-sticky">${titulo}<div class="date-bar" id="cxDateBar">${barraFechas(dia, dias, season, hoy)}</div>${barraFiltros(dia, hoy)}</div><p id="cxAgendaError" role="alert"></p><div id="cxAgendaList" class="cx-day-list">${tarjetas}</div>`;
-    const franja = await cintillo({ ...input, cx_races: filas }, cyclocrossHome(hoy) ? ['cx', 'road'] : 'cx');
+    const franja = await cintillo({ ...input, cx_races: filas }, ['cx', 'road']);
     const shell = activos.portada.paginas[`${lang}-${destino}`];
     const clave = `portada-${lang}/${destino}`;
     const version = huella(contenido + franja);
     const head = shell.head.replace('</head>', `<meta name="cc:clave" content="${clave}"><meta name="cc:v" content="${version}"></head>`);
-    const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: home || CX_HOME ? 'today' : 'cyclocross' }).replace('href="#main"', 'href="#cxAgendaContent"')}</header>`;
+    const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'today' }).replace('href="#main"', 'href="#cxAgendaContent"')}</header>`;
     const pagina = `${head}<body>\n${RESERVA_ANDROID}\n${cabecera}\n<div id="giroCountdown" class="giro-countdown"${franja ? '' : ' hidden'}>${franja}</div>\n${home ? shell.h1 : ''}`
       + `<main id="cxAgendaContent" tabindex="-1"${home ? ' data-cx-home=""' : ''} data-publicada="${version}">${contenido}</main>\n${pie()}\n`
       + `<script defer src="${activos.clasicos}"></script>\n<script type="module" src="${activos.portada.isla}"></script>\n</body>\n</html>\n`;

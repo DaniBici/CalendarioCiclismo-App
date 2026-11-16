@@ -20,6 +20,9 @@ struct EnrichedRaceDay: Codable, Identifiable, Hashable {
     let race: Race?
     let broadcasts: [Broadcast]
     let assets: [Asset]
+    /// Vídeos de la jornada (`race_day_videos`), sin filtrar por región.
+    /// Opcional: las cachés anteriores a la 5.2 no los traen.
+    var videos: [RaceDayVideo]? = nil
 
     /// Si es un placeholder (carrera sin etapa publicada para ese día).
     var isPlaceholder: Bool = false
@@ -56,9 +59,10 @@ struct EnrichedRaceDay: Codable, Identifiable, Hashable {
             && l.stageNumber == r.stageNumber
             && lhs.broadcasts == rhs.broadcasts
             && lhs.assets == rhs.assets
+            && lhs.videos == rhs.videos
     }
 
     enum CodingKeys: String, CodingKey {
-        case raceDay, race, broadcasts, assets, isPlaceholder
+        case raceDay, race, broadcasts, assets, videos, isPlaceholder
     }
 }

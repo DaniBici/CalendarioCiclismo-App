@@ -8,6 +8,7 @@
     <string name="tab_calendar">Calendar</string>
     <string name="tab_month">Month</string>
     <string name="tab_season">Year</string>
+    <string name="tab_videos">Videos</string>
     <string name="tab_transfers">Transfers</string>
     <string name="tab_settings">Settings</string>
 
@@ -474,6 +475,7 @@
     <string name="results_col_rider">Rider</string>
     <string name="results_col_team">Team</string>
     <string name="results_col_time">Time</string>
+    <string name="results_col_bonus">Bonus</string>
     <string name="results_col_points">Pts</string>
     <string name="results_same_time">s.t.</string>
     <string name="results_filter_all_teams">All teams</string>
@@ -524,6 +526,7 @@
 
     <!-- Transfers (2027 market, apps 4.0) -->
     <string name="transfers_heading">%1$d Transfer Market</string>
+    <string name="transfers_moves">Moves</string>
     <string name="transfers_feed_signings">Signings</string>
     <string name="transfers_mid_season">Mid-season</string>
     <string name="transfers_feed_renewals">Renewals</string>
@@ -588,10 +591,12 @@
     <string name="cx_not_found">Race unavailable</string>
     <string name="cx_no_general">No published standings</string>
     <string name="cx_races">Races</string>
+    <string name="cx_round_list">Rounds</string>
     <string name="cx_more_rounds">More rounds</string>
     <string name="cx_dropped_result">Dropped result</string>
     <string name="cx_points">Points</string>
     <string name="cx_time">Time</string>
+    <string name="cx_bonuses">Bonuses</string>
     <string name="cx_no_categories">No published categories</string>
     <string name="cx_device_time">Device time</string>
     <string name="cx_no_startlist">No published startlist</string>

@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.today
 
+import app.calendariociclismo.android.ui.components.FinishedVideoTargets
+import app.calendariociclismo.android.ui.components.FinishedVideoAction
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -444,7 +446,8 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                         else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                             val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
                             // Las destacadas solo cambian el orden: misma tarjeta y
-                            // misma columna. Una tarjeta suelta conserva media anchura.
+                            // misma columna. Una tarjeta suelta, también la única del
+                            // día, conserva media anchura a la izquierda, como Resultados.
                             val rows = AdaptiveLayoutPolicy.rows(data.raceDays, columns)
                             val isPhone = adaptiveInfo.widthClass == AdaptiveWidthClass.Compact
                             val renderDay: @Composable (EnrichedRaceDay, Modifier) -> Unit = { day, cardModifier ->
@@ -454,7 +457,10 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                 val hasInhouse = inhouseByDay.containsKey(day.id)
                                 // Revive/TV solo acompaña a Resultados: alcanzar
                                 // la hora de meta sin clasificaciones no lo activa.
-                                val reviveUrl = if (hasInhouse) RaceLogic.reviveUrl(day.broadcasts) else null
+                                // Vídeos propios y emisión íntegra (docs/plans/videos-5-2.md):
+                                // con los dos, el botón de TV es un menú «Vídeos» / «Completa».
+                                val videoTargets = FinishedVideoTargets.of(day, hasInhouse)
+                                val reviveUrl = videoTargets.reviveUrl
                                 val raceState = RaceLogic.todayRaceState(
                                     day.raceDay,
                                     hasInhouseResults = hasInhouse,
@@ -484,6 +490,11 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                         haptic(Haptics.Event.PrimaryAction)
                                         openExternalUrl(context, url)
                                     } },
+                                    onShowVideos = if (videoTargets.hasVideos) { {
+                                        haptic(Haptics.Event.Navigation)
+                                        navController.navigate(Routes.stage(day.raceDay.id, raceId = day.raceDay.raceId,
+                                            title = Routes.jornadaTitle(day.race?.localizedName, day.raceDay), section = "videos"))
+                                    } } else null,
                                     onShowStartlist = if (day.race?.startlistImportedAt != null) { {
                                         haptic(Haptics.Event.PrimaryAction)
                                         navController.navigate(Routes.startlist(day.race!!.id))
@@ -514,12 +525,7 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 items(rows, key = { row -> row.items.joinToString("|") { it.id } }) { row ->
-                                    if (columns > 1 && data.raceDays.size == 1) {
-                                        // Jornada única en pantalla ancha: media anchura, centrada.
-                                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                            Box(Modifier.width((this@BoxWithConstraints.maxWidth - 24.dp - 8.dp) / 2)) { renderDay(row.items.first(), Modifier) }
-                                        }
-                                    } else if (columns == 1 || row.spansAllColumns) {
+                                    if (columns == 1 || row.spansAllColumns) {
                                         renderDay(row.items.first(), Modifier)
                                     } else {
                                         // Misma altura para las tarjetas de la fila: la fila
@@ -737,6 +743,7 @@ private fun RaceCard(
     modifier: Modifier = Modifier,
     onShowResults: (() -> Unit)? = null,
     onRevive: (() -> Unit)? = null,
+    onShowVideos: (() -> Unit)? = null,
     onShowStartlist: (() -> Unit)? = null,
     onShowStartOrder: (() -> Unit)? = null,
     onShowCompetition: (() -> Unit)? = null,
@@ -750,7 +757,7 @@ private fun RaceCard(
     val rd = day.raceDay
     val raceColor = colorFromHex(race?.colorHex, fallback = MaterialTheme.colorScheme.primary)
     val liveTextUrl = day.assets.firstOrNull { it.type == "live_text" }?.url
-    val isFinishedMode = onShowResults != null || onRevive != null
+    val isFinishedMode = onShowResults != null || onRevive != null || onShowVideos != null
     val isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt"
     val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
         activeFilter == Constants.CategoryFilter.WWT
@@ -870,7 +877,7 @@ private fun RaceCard(
                     trailing = {
                         if (!rd.isRestDay && !rd.isCancelledDay) {
                             when {
-                                isFinishedMode -> FinishedActions(onShowResults, onRevive, isPhone)
+                                isFinishedMode -> FinishedActions(onShowResults, onRevive, onShowVideos, isPhone)
                                 isWaitingForResults -> Box(
                                     Modifier.semantics {
                                         contentDescription = LocaleHolder.t("Esperando resultados", "Awaiting results")
@@ -1113,7 +1120,7 @@ private fun RaceNameRow(name: String, onShowCompetition: (() -> Unit)?, showFema
 
 /** Copa (resultados) y TV (Revive) juntas arriba a la derecha. */
 @Composable
-private fun FinishedActions(onShowResults: (() -> Unit)?, onRevive: (() -> Unit)?, isPhone: Boolean) {
+private fun FinishedActions(onShowResults: (() -> Unit)?, onRevive: (() -> Unit)?, onShowVideos: (() -> Unit)?, isPhone: Boolean) {
     val glyph = if (isPhone) 20.dp else 22.dp
     // El botón nativo conserva su área táctil; se desplaza hacia arriba para que
     // el glifo quede a la altura de la primera línea del nombre.
@@ -1128,16 +1135,7 @@ private fun FinishedActions(onShowResults: (() -> Unit)?, onRevive: (() -> Unit)
                 )
             }
         }
-        onRevive?.let { action ->
-            IconButton(onClick = action, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Tv,
-                    contentDescription = stringResource(R.string.today_revive_cd),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(glyph),
-                )
-            }
-        }
+        FinishedVideoAction(onShowVideos = onShowVideos, onRevive = onRevive, glyph = glyph, buttonSize = 40.dp)
     }
 }
 

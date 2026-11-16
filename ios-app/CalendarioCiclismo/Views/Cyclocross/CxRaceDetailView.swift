@@ -480,34 +480,37 @@ struct CxRaceDetailView: View {
         }
         let website = CyclocrossPresentation.link(race.websiteUrl)
         let notifies = CyclocrossPresentation.awaitsResults(race)
-        Divider()
-        ResultsFittingRail(height: 60) {
-            if let website {
-                Button { safariURL = website } label: {
-                    ActionStripTile(icon: "globe", label: CyclocrossPresentation.t("Web oficial", "Official website"),
-                                    showsTrailingSeparator: !documents.isEmpty || notifies)
-                }
-                    .accessibilityLabel(CyclocrossPresentation.t("Web oficial", "Official website"))
-                    .accessibilityHint(CyclocrossPresentation.t("Se abrirá en el navegador", "Will open in browser"))
-            }
-            ForEach(Array(documents.enumerated()), id: \.element.id) { index, asset in
-                if let url = CyclocrossPresentation.link(asset.url) {
-                    Button { safariURL = url } label: {
-                        ActionStripTile(icon: asset.type == "map" ? "map" : "doc",
-                                        label: asset.type == "map" ? CyclocrossPresentation.t("Mapa", "Map") : CyclocrossPresentation.t("Libro de ruta", "Technical Guide"),
-                                        showsTrailingSeparator: index < documents.count - 1 || notifies)
+        // Sin web, libro de ruta, mapa ni avisos, la tira quedaría vacía: no se pinta.
+        if website != nil || !documents.isEmpty || notifies {
+            Divider()
+            ResultsFittingRail(height: 60) {
+                if let website {
+                    Button { safariURL = website } label: {
+                        ActionStripTile(icon: "globe", label: CyclocrossPresentation.t("Web oficial", "Official website"),
+                                        showsTrailingSeparator: !documents.isEmpty || notifies)
                     }
-                        .accessibilityLabel(CyclocrossPresentation.t("Ver \(asset.type == "map" ? "mapa" : "libro de ruta")", "View \(asset.type == "map" ? "map" : "technical guide")"))
+                        .accessibilityLabel(CyclocrossPresentation.t("Web oficial", "Official website"))
                         .accessibilityHint(CyclocrossPresentation.t("Se abrirá en el navegador", "Will open in browser"))
                 }
-            }
-            // Los avisos de ciclocross solo se ofrecen en las pruebas con
-            // resultados en directo (Mundial, Continental, Copa del Mundo,
-            // Superprestige y X2O), igual que el indicador de espera.
-            if notifies {
-                CxRaceNotificationChip(raceId: race.id)
-            }
-        }.padding(.top, 4)
+                ForEach(Array(documents.enumerated()), id: \.element.id) { index, asset in
+                    if let url = CyclocrossPresentation.link(asset.url) {
+                        Button { safariURL = url } label: {
+                            ActionStripTile(icon: asset.type == "map" ? "map" : "doc",
+                                            label: asset.type == "map" ? CyclocrossPresentation.t("Mapa", "Map") : CyclocrossPresentation.t("Libro de ruta", "Technical Guide"),
+                                            showsTrailingSeparator: index < documents.count - 1 || notifies)
+                        }
+                            .accessibilityLabel(CyclocrossPresentation.t("Ver \(asset.type == "map" ? "mapa" : "libro de ruta")", "View \(asset.type == "map" ? "map" : "technical guide")"))
+                            .accessibilityHint(CyclocrossPresentation.t("Se abrirá en el navegador", "Will open in browser"))
+                    }
+                }
+                // Los avisos de ciclocross solo se ofrecen en las pruebas con
+                // resultados en directo (Mundial, Continental, Copa del Mundo,
+                // Superprestige y X2O), igual que el indicador de espera.
+                if notifies {
+                    CxRaceNotificationChip(raceId: race.id)
+                }
+            }.padding(.top, 4)
+        }
     }
     private func header(_ race: CxRace, assets: [CxAsset]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -706,7 +709,7 @@ private struct CxStartlistSection: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Franjas de equipación y nombre del equipo (subtítulo de Resultados); la
+    /// Cuadrado de colores y nombre del equipo (subtítulo de Resultados); la
     /// selección nacional va sin franjas.
     private func teamLabel(_ team: (name: String, team: CxTeam?)) -> some View {
         HStack(spacing: 5) {
@@ -736,9 +739,18 @@ private struct CxResultsSection: View {
             ResultsClassificationTable(rows: vms.map { vm in
                 (vm: vm, kind: vm.valueKind, value: vm.valueKind == .sameTime ? CyclocrossPresentation.t("m.t.", "s.t.") : vm.valueText)
             }, showTeam: vms.contains { !$0.teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, showUciPoints: rows.contains { $0.points != nil }, valueHeader: CyclocrossPresentation.t("Tiempo", "Time"))
-            ForEach(rows.filter { $0.bonusSeconds != nil }) { row in
-                Text(row.riderDisplay + " · " + CyclocrossPresentation.t("Bonificación: ", "Bonus: ") + String(row.bonusSeconds!) + " s")
-                    .ccFont(.s12).foregroundStyle(AppTheme.textMuted)
+            // Bonificaciones X2O: tabla propia bajo la clasificación, solo con las concedidas.
+            let bonusBase = CyclocrossPresentation.bonusRows(rows, matcher: matcher)
+            let bonusVms = CyclocrossPresentation.competesBySelection(detail.race) ? CyclocrossPresentation.withSelections(bonusBase) : bonusBase
+            if !bonusVms.isEmpty {
+                Text(CyclocrossPresentation.t("Bonificaciones", "Bonuses"))
+                    .ccFont(.s16, weight: .semibold)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, 20)
+                    .padding(.bottom, 4)
+                ResultsClassificationTable(rows: bonusVms.map { vm in (vm: vm, kind: vm.valueKind, value: vm.valueText) },
+                                           showTeam: bonusVms.contains { !$0.teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
+                                           showUciPoints: false, valueHeader: CyclocrossPresentation.t("Bonif.", "Bonus"))
             }
         }
     }
@@ -824,6 +836,34 @@ struct CxStandingsTable: View {
                 return (vm: vm, kind: entry.value.kind, value: entry.value.text)
             }, showTeam: showTeam, showUciPoints: false, valueHeader: valueHeader)
         }
+    }
+}
+
+/// Pruebas del torneo con su número de ronda y su fecha, y nada más: columna
+/// lateral de la general del torneo en pantalla ancha (web: `cxRoundsContextHtml`).
+/// Cada fila abre la prueba, como las cabeceras «#n» de la tabla.
+struct CxRoundsCard: View {
+    let items: [CxRoundListItem]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(CyclocrossPresentation.t("Pruebas", "Rounds")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
+            ForEach(items) { item in
+                NavigationLink(value: CxDestination(raceId: item.raceId)) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("#\(item.number)").ccFont(.s14).monospacedDigit().foregroundStyle(AppTheme.textMuted)
+                        Text(item.title).ccFont(.s14).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(item.date).ccFont(.s14).monospacedDigit().foregroundStyle(AppTheme.textMuted)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
     }
 }
 
@@ -1067,7 +1107,8 @@ private struct CxBroadcastSection: View {
 
     /// Presentación de carretera, dividida por categorías: emisiones comunes
     /// (sin categoría) sin encabezado y un bloque por categoría en directo, en
-    /// el orden del programa. Filas y mensaje vacío salen de `programmeMedia`.
+    /// el orden ME, WE, MU, WU, MJ, WJ. Filas y mensaje vacío salen de
+    /// `programmeMedia`.
     /// Mismo panel que Televisión de la jornada: filas a sangre separadas por
     /// filete, sin huecos añadidos entre ellas.
     private func tvCard(_ selection: CxMediaSelection) -> some View {
@@ -1133,8 +1174,9 @@ private struct CxBroadcastSection: View {
         StagePanel {
             StagePanelTitle(CyclocrossPresentation.t("Revive la carrera", "Race replay"))
         } content: {
-            // Un encabezado por categoría, como en TV y streaming; las filas
-            // comunes van delante sin encabezado.
+            // Un encabezado por categoría, como en TV y streaming, en el orden
+            // ME, WE, MU, WU, MJ, WJ; las filas comunes van delante sin
+            // encabezado.
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(links.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Divider() }
@@ -1203,7 +1245,13 @@ private struct CxVideosSection: View {
     private func card(_ item: Item) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(CyclocrossPresentation.title(item.video)).ccFont(.s16, weight: .semibold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(CyclocrossPresentation.title(item.video)).ccFont(.s16, weight: .semibold)
+                    // Emisor del vídeo, como en la web (`.cx-video-card__channel`).
+                    if let channel = item.video.channel, !channel.isEmpty {
+                        Text(channel).ccFont(.s13).foregroundStyle(.secondary)
+                    }
+                }
                 CxYouTubePlayer(id: item.youtubeId)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))

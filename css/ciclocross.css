@@ -24,7 +24,7 @@
 .cx-day-list:has(.loading) {min-height:calc(100svh - 200px)}
 .cx-day-list .empty-state .btn {margin-top:1rem}
 @media(max-width:600px){.cx-day-list {padding-bottom:1rem}}
-@media(min-width:761px){.cx-day-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-day-list>:is(.loading,.empty-state,.day-load-error) {grid-column:1/-1}.cx-day-list>.race-card:only-child {grid-column:1/-1;justify-self:center;width:calc((100% - .5rem)/2)}}
+@media(min-width:761px){.cx-day-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-day-list>:is(.loading,.empty-state,.day-load-error) {grid-column:1/-1}}
 .cx-empty {color:var(--text-muted);font-size: var(--fs-3);line-height:1.5}#cxAgendaError:empty {display:none}#cxAgendaError {color:var(--red)}
 .race-card--cx .race-card__name a:not(.race-card__overview-btn) {color:inherit;text-decoration:none}.race-card--cx .race-card__name a:not(.race-card__overview-btn):hover {text-decoration:underline}.race-card--cx .race-card__name {display:flex;gap:.4rem;align-items:center;flex-wrap:nowrap}.race-card--cx .cat-badge {font-size: var(--fs-1);color:var(--text-muted)}
 .race-card--cx .race-card__logo {flex:0 0 32px;width:32px;position:static;transform:none}.race-card--cx [data-cx-logo-race] {display:block;width:32px;height:32px}.race-card--cx .race-logo-img {width:32px;height:32px;object-fit:contain}
@@ -93,7 +93,7 @@
 /* Vídeos: una columna hasta 760 px; desde 761 px, tantas de ≥340px como quepan. */
 .cx-video-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:20px}
 @media(max-width:760px){.cx-video-grid {grid-template-columns:minmax(0,1fr)}}
-.cx-video-card {min-width:0;display:flex;flex-direction:column}.cx-video-card h3 {font: 600 var(--fs-4)/1.35 var(--font-body);margin:0 0 9px}.cx-video-card iframe {display:block;width:100%;aspect-ratio:16/9;border:0;border-radius: var(--radius);background:#000}.cx-video-card .tv-link-btn {margin-top:9px;align-self:flex-end}
+.cx-video-card {min-width:0;display:flex;flex-direction:column}.cx-video-card h3 {font: 600 var(--fs-4)/1.35 var(--font-body);margin:0 0 9px}.cx-video-card h3:has(+ .cx-video-card__channel) {margin-bottom:2px}.cx-video-card__channel {font: 400 var(--fs-2)/1.35 var(--font-body);color:var(--text-muted);margin:0 0 9px}.cx-video-card iframe {display:block;width:100%;aspect-ratio:16/9;border:0;border-radius: var(--radius);background:#000}.cx-video-card .tv-link-btn {margin-top:9px;align-self:flex-end}
 /* Subtítulo de categoría dentro del cajón de TV. */
 .cx-tv-group__title {font: 600 var(--fs-2)/1.35 var(--font-body);margin:0;padding:10px 12px 2px;color:var(--text-muted)}
 @media(max-width:600px){.cx-category-section .res-th--rider {min-width:0}}
@@ -113,6 +113,17 @@
 
 /* TV y dorsales de la tarjeta de Agenda, en la fila de badges de Hoy. */
 .cx-card-badges {display:contents}
+/* Fila de badges en una sola línea, como las apps: en una tarjeta estrecha
+   (media pantalla de un plegable, móvil pequeño o columna de dos) Resumen y
+   Dorsales quedan solo con icono (la etiqueta sigue para lectores de pantalla)
+   y el Resumen añade el de retroceso junto al de TV. Se mide el ancho de la
+   propia tarjeta, no el de la ventana. */
+.race-card--cx .race-card__main {container-type:inline-size}
+.race-card--cx .badge--summary .badge__rewind {display:none;margin-left:2px}
+@container (max-width: 320px) {
+  .race-card--cx .badge--summary .badge__text,.race-card--cx .badge--startlist .badge__text {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .race-card--cx .badge--summary .badge__rewind {display:inline-block}
+}
 .cx-card-chevron {position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none}
 .cx-programme-row {padding:.5rem 12px;border-bottom:1px solid var(--border)}
 .cx-programme-row:last-child {border-bottom:0}
@@ -167,6 +178,20 @@
 .cx-classification-page {padding-top:8px}
 .cx-classification-page .res-main .res-publication:first-child {margin-top:0}
 .cx-classification-page .res-main .cx-empty {margin:0;padding:14px 16px;box-shadow:var(--card-shadow);border-radius: var(--radius);background:var(--bg-card)}
+/* General de un torneo: las pruebas con número y fecha van en una segunda
+   columna desde 761 px; en pantalla estrecha no se muestran (las cabeceras
+   «#n» de la tabla conservan el nombre en su título). */
+.cx-rounds-context {display:none}
+@media(min-width:761px){.cx-rounds-context {display:block}}
+.cx-rounds dl>div {flex-wrap:nowrap;align-items:baseline;padding:2px 0}
+.cx-rounds dt {min-width:0}
+.cx-rounds dt a {color:var(--text);text-decoration:none}
+.cx-rounds dt a:hover {text-decoration:underline}
+.cx-rounds .cx-round-n {font-family:var(--font-display);font-variant-numeric:tabular-nums;color:var(--text-muted)}
+.cx-rounds dd {flex:none;white-space:nowrap;color:var(--text-muted)}
+/* Bonificaciones de la ronda (X2O): tabla propia bajo la clasificación. */
+.cx-bonuses {margin-top:20px}
+.cx-bonuses__title {font:600 var(--fs-3) var(--font-body);margin:0 0 8px}
 /* Columna lateral como en carretera (dos columnas desde 761px): mapa reducido
    y horario de la jornada, apilados; en una columna, bajo la clasificación. */
 .cx-results-context {display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}

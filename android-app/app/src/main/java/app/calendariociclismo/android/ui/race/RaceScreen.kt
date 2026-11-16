@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.race
 
+import app.calendariociclismo.android.ui.components.FinishedVideoTargets
+import app.calendariociclismo.android.ui.components.FinishedVideoAction
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -221,7 +223,8 @@ fun RaceScreen(raceId: String, navController: NavController, raceName: String? =
                         val showResults = hasInhouse
                         // Revive/TV solo acompaña a Resultados; alcanzar la hora
                         // de meta sin clasificaciones no lo activa.
-                        val reviveUrl = if (showResults) RaceLogic.reviveUrl(day.broadcasts) else null
+                        val videoTargets = FinishedVideoTargets.of(day, showResults)
+                        val reviveUrl = videoTargets.reviveUrl
                         StageRow(
                                 day = day,
                                 race = s.race,
@@ -243,6 +246,12 @@ fun RaceScreen(raceId: String, navController: NavController, raceName: String? =
                                         openExternalUrl(context, url)
                                     }
                                 },
+                                onShowVideos = if (videoTargets.hasVideos) {
+                                    {
+                                        navController.navigate(Routes.stage(day.id, raceId = s.race.id,
+                                            title = Routes.jornadaTitle(s.race.localizedName, day.raceDay), section = "videos"))
+                                    }
+                                } else null,
                         )
                     }
                 }
@@ -484,6 +493,7 @@ private fun StageRow(
     onClick: () -> Unit,
     onShowResults: (() -> Unit)? = null,
     onRevive: (() -> Unit)? = null,
+    onShowVideos: (() -> Unit)? = null,
 ) {
     val rd = day.raceDay
     // La jornada cancelada NO se atenúa ni deja de ser pulsable: el aviso
@@ -493,7 +503,7 @@ private fun StageRow(
     val isInteractive = !rd.isRestDay
     // Modo terminado: hay resultados o revive. Igual que en "Hoy" (y la web),
     // cambia el accesorio derecho (chevron → iconos) y completa el miniperfil.
-    val isFinishedMode = onShowResults != null || onRevive != null
+    val isFinishedMode = onShowResults != null || onRevive != null || onShowVideos != null
 
     val app = rememberApp()
     // Mini-perfil liberado al plan gratuito: visible siempre (featuresUnlocked).
@@ -640,16 +650,7 @@ private fun StageRow(
                         )
                     }
                 }
-                onRevive?.let { action ->
-                    IconButton(onClick = action) {
-                        Icon(
-                            imageVector = Icons.Outlined.Tv,
-                            contentDescription = stringResource(R.string.today_revive_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
+                FinishedVideoAction(onShowVideos = onShowVideos, onRevive = onRevive, glyph = 22.dp)
             }
         } else if (isInteractive) {
             Icon(

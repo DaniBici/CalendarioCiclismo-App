@@ -60,9 +60,9 @@ object TransfersLogic {
          *  corredor deja, que se llama como se llama ESTA temporada). */
         val teamNamePrev: Map<String, String> = emptyMap(),
         /** teamId → fila team_seasons de la temporada EN CURSO (2026). Sus
-         *  colores son los "antiguos" que se muestran mientras la chapa del
-         *  mercado está oculta. Un equipo NUEVO (nacido en la temporada del
-         *  mercado) no tiene entrada aquí → chapa vacía (mig. 129). */
+         *  colores son los "antiguos" que se muestran mientras los colores del
+         *  mercado no están publicados. Un equipo NUEVO (nacido en la temporada del
+         *  mercado) no tiene entrada aquí → sin colores (mig. 129). */
         val prevSeasonsByTeamId: Map<String, TeamSeason> = emptyMap(),
     )
 
@@ -70,7 +70,7 @@ object TransfersLogic {
     enum class TeamSide { FROM, TO }
 
     /**
-     * Colores de equipación EFECTIVOS de un equipo del mercado (decisión Dani
+     * Colores EFECTIVOS de un equipo del mercado (decisión Dani
      * 2026-07-18):
      *  - Colores del mercado PUBLICADOS (badgeVisible) → la fila del mercado (2027).
      *  - Sin publicar pero el equipo YA existía la temporada anterior → su fila
@@ -88,7 +88,7 @@ object TransfersLogic {
     }
 
     /**
-     * Equipo que alimenta las franjas de maillot (`TeamColorBands`) de una
+     * Equipo que alimenta el cuadrado de colores (`TeamColorBands`) de una
      * tarjeta o cabecera del mercado: los colores de [badgeSeason]. Espejo de
      * `marketStripesHtml` en `js/fichajes.js`.
      */

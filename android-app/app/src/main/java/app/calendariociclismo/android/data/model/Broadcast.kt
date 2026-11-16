@@ -15,6 +15,8 @@ data class Broadcast(
     val sortOrder: Int = 0,
     val showInRevive: Boolean = false,
     val country: String? = null,
+    /** Inserción permitida en YouTube (oEmbed): `false` impide el reproductor y la conversión a «Emisión de la etapa». */
+    val embeddable: Boolean? = null,
 ) {
     /** Hora de inicio formateada en la zona horaria del dispositivo (HH:mm). */
     val startTimeLocal: String?

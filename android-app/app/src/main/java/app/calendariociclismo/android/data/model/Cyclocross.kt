@@ -173,7 +173,7 @@ data class CxTeam(
     val colorHex: String,
     val countryCode: String? = null,
     // Identidad cromática alineada con carretera (teams). Defaults = paleta
-    // neutra de la base de datos: sin colores curados no se dibuja chapa.
+    // neutra de la base de datos: sin colores curados no se dibuja el cuadrado.
     val headerBg: String = "#1f2937",
     val headerText: String = "#ffffff",
     val badgeTorsoCenter: String = "#ffffff",
@@ -192,7 +192,7 @@ data class CxTeam(
             nameAliases = nameAliases?.joinToString("\n"),
         )
 
-    /** La chapa solo se muestra con colores de equipación curados (regla de carretera). */
+    /** El cuadrado solo se muestra con colores curados del equipo (regla de carretera). */
     val hasVisibleBadge: Boolean get() = roadTeam.hasVisibleBadge
 }
 
@@ -258,6 +258,8 @@ data class CxVideo(
     val titleEn: String? = null,
     val url: String,
     val sortOrder: Int = 0,
+    /** Emisor del vídeo (canal de YouTube, cadena); null sin identificar. */
+    val channel: String? = null,
 )
 
 @Serializable

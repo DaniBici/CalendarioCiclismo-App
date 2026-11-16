@@ -39,7 +39,7 @@ function birthDate(value) {
 
 /** Preparación sin efectos. context procede del catálogo CX, nunca de carretera. */
 export function prepareCxResults(document, context, { status = 'provisional', category = null, officialUciResults = false } = {}) {
-  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb', 'golazo', 'zone4', 'chronorace_xco', 'fotofiniss', 'raceresult'].includes(document.source)
+  if (document?.schemaVersion !== 1 || document.disciplineId !== 3 || !['dataride', 'pdf', 'manual', 'acn', 'wiclax', 'kbwb', 'smartweb', 'golazo', 'zone4', 'chronorace_xco', 'fotofiniss', 'raceresult', 'eqtiming'].includes(document.source)
     || !Array.isArray(document.categories) || !['pending', 'provisional', 'official'].includes(status)
     || category != null && !CATEGORIES.includes(category)
     || officialUciResults && (document.source !== 'dataride' || status !== 'official')) throw new Error('Contrato CX, categoría, fuente o estado inválidos');
@@ -88,6 +88,11 @@ export function prepareCxResults(document, context, { status = 'provisional', ca
     || document.categories.some(item => item.evidence?.raceresult?.sourceUrl !== timing.sourceUrl
       || timing.categoryKeys?.[item.evidence?.raceresult?.contest] !== item.category))) {
     throw new Error('Correspondencia RaceResult no verificada en cx_race_timing_links');
+  }
+  if (document.source === 'eqtiming' && (!timing || timing.raceId !== race.id || timing.provider !== 'eqtiming' || !timing.sourceUrl
+    || document.categories.some(item => item.evidence?.eqtiming?.sourceUrl !== timing.sourceUrl
+      || timing.categoryKeys?.[item.evidence?.eqtiming?.class] !== item.category))) {
+    throw new Error('Correspondencia EQ Timing no verificada en cx_race_timing_links');
   }
   // Golazo tiene su propio enlace, además del de cronometraje de la carrera.
   const golazo = context.golazoLink;
@@ -153,6 +158,12 @@ export function prepareCxResults(document, context, { status = 'provisional', ca
       if (row.bonusSeconds != null && BigInt(row.bonusSeconds) > 2147483647n) throw new Error('Bono en segundos fuera del rango INTEGER');
       if (row.bonusSeconds != null && !evidence.bonusSourceUrl || Number(row.bonusPoints) !== 0 && (!evidence.adjustmentSourceUrl || !text(evidence.adjustmentReason))) throw new Error('Bono/ajuste sin evidencia oficial');
       const resolved = resolveCxResultIdentity({ ...row, uciLicenseId }, riders); row.globalRiderId = resolved.id;
+      if (!resolved.id) {
+        // Datos de la fuente que la ingesta usa para crear una ficha completa; no se persisten en cx_results.
+        if (/^\d{11}$/.test(uciLicenseId ?? '')) row.uciLicenseId = uciLicenseId;
+        const birthYear = Number(raw.birthYear);
+        if (Number.isInteger(birthYear) && birthYear >= 1900 && birthYear <= new Date().getUTCFullYear()) row.birthYear = birthYear;
+      }
       if (resolved.id && identities.has(resolved.id) || row.bib && bibs.has(row.bib)) throw new Error('Ficha CX o dorsal duplicados');
       if (resolved.id) identities.add(resolved.id); if (row.bib) bibs.add(row.bib);
       if (!['verified_name', 'verified_uci_id', 'explicit'].includes(resolved.reason)) prepared.warnings.push({ category: source.category, sourceRow: index,
@@ -206,9 +217,9 @@ export async function loadCxResultsContext(client, raceId) {
     'timingLink',(SELECT to_jsonb(t) FROM public.cx_race_timing_links t WHERE t."raceId"=r.id AND t.provider<>'golazo'),
     'golazoLink',(SELECT to_jsonb(t) FROM public.cx_race_timing_links t WHERE t."raceId"=r.id AND t.provider='golazo'),
     'riders',jsonb_build_object('men',(SELECT coalesce(jsonb_agg(to_jsonb(m)),'[]') FROM
-      (SELECT id,"firstName","lastName","otherNames",nationality,"birthDate","birthDatePrecision",verified,"uciProfileId" FROM public.cx_riders_men) m),
+      (SELECT id,"firstName","lastName","otherNames",nationality,"birthDate","birthDatePrecision",verified,"uciProfileId","uciLicenseId" FROM public.cx_riders_men) m),
     'women',(SELECT coalesce(jsonb_agg(to_jsonb(w)),'[]') FROM
-      (SELECT id,"firstName","lastName","otherNames",nationality,"birthDate","birthDatePrecision",verified,"uciProfileId" FROM public.cx_riders_women) w))) AS context
+      (SELECT id,"firstName","lastName","otherNames",nationality,"birthDate","birthDatePrecision",verified,"uciProfileId","uciLicenseId" FROM public.cx_riders_women) w))) AS context
     FROM public.cx_races r WHERE r.id=$1`, [raceId]);
   const context = rows[0]?.context;
   if (!context) throw new Error('Carrera CX no encontrada'); return context;

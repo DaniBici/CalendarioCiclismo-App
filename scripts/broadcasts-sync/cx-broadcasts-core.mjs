@@ -189,10 +189,15 @@ export function parseSporzaCxSchedule(payload) {
     if (item && item.sport === 'cycling' && item.matchId != null && fold(item.type) === 'veldrijden') {
       const matchId = String(item.matchId);
       if (/^\d+$/.test(matchId)) {
+        // En el HG Cross `competitionName` es la sede; en el X²O Trofee es el torneo y
+        // la prueba y la sede vienen en `displayName` («Bollekescross») y en
+        // `startLabel` («15:00 Hamme-Zogge»).
+        const startVenue = stripHtml(item.startLabel).replace(/^\d{1,2}:\d{2}\s*/, '');
         matches.push({
           matchId,
           competition: stripHtml(item.competition),
-          venueLabel: stripHtml(item.competitionName),
+          venueLabel: [stripHtml(item.competitionName), stripHtml(item.displayName), startVenue]
+            .filter(Boolean).join(' '),
           tournamentLabel: sporzaTournamentLabel(item.competition),
           category: sporzaCategory(item.competition),
           url: `https://sporza.be/nl/sport/wielrennen/~${matchId}/`,

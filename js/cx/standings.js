@@ -72,6 +72,25 @@ export function recomputeCxStandings(snapshot) {
         || derived.rankPolicy !== 'preserveSourceRank' || rule.review.derivedCategory !== true
         || JSON.stringify(derived.ages) !== '[19,22]'))) throw new Error('General derivada sin regla verificada');
     if (!Array.isArray(snapshot.rounds) || !Array.isArray(snapshot.riders)) throw new Error('Snapshot incompleto');
+    // General intermedia (queda una ronda sin resultados oficiales): con `sharedRank` los empatados a total
+    // comparten puesto sin desempates, porque el reglamento solo desempata la final (Superprestige); con
+    // `tieBreakersThenSharedRank` se desempata y comparten puesto solo los empates que persisten, cuyo último
+    // criterio remite a la última prueba del torneo (Superprestixio).
+    const intermediateTies = rule.review?.intermediateTiesPolicy;
+    if (intermediateTies !== undefined && !['sharedRank', 'tieBreakersThenSharedRank'].includes(intermediateTies)) {
+      throw new Error('Empates de general intermedia sin cotejar');
+    }
+    // Rondas de otro torneo que el reglamento de la categoría incorpora (la Copa Catalana puntúa una ronda
+    // de la Copa de España). Sin la lista, solo cuentan las carreras del propio torneo.
+    const externalRounds = new Set();
+    if (rule.extras?.externalRounds !== undefined) {
+      if (!Array.isArray(rule.extras.externalRounds)) throw new Error('Rondas externas inválidas');
+      for (const item of rule.extras.externalRounds) {
+        if (typeof item?.raceId !== 'string' || !item.raceId || externalRounds.has(item.raceId)) throw new Error('Ronda externa inválida');
+        externalRounds.add(item.raceId);
+      }
+    }
+    let pendingRounds = 0;
     const rounds = [];
     const seenRaces = new Set();
     for (const round of snapshot.rounds) {
@@ -79,14 +98,17 @@ export function recomputeCxStandings(snapshot) {
       const manga = round?.manga;
       if (!race?.id || seenRaces.has(race.id) || manga?.category !== sourceCategory) throw new Error('Ronda duplicada o categoría incorrecta');
       seenRaces.add(race.id);
-      const excluded = race.tournamentId !== tournament.id || race.seasonKey !== tournament.seasonKey
+      const excluded = (race.tournamentId !== tournament.id && !externalRounds.has(race.id)) || race.seasonKey !== tournament.seasonKey
         || race.editorialStatus !== 'published' || race.isCancelled || manga.isCancelled
         || !cxDateInSeason(tournament.seasonKey, race.dateKey)
         || !cxDateInSeason(tournament.seasonKey, race.endDateKey || race.dateKey)
         || !cxDateInSeason(tournament.seasonKey, effectiveDate(round))
         || effectiveDate(round) < race.dateKey || effectiveDate(round) > (race.endDateKey || race.dateKey)
         || manga.resultsStatus !== 'official';
-      if (excluded) { output.excludedRounds.push(race.id); continue; }
+      if (excluded) {
+        if (!race.isCancelled && !manga.isCancelled) pendingRounds++;
+        output.excludedRounds.push(race.id); continue;
+      }
       if (!url(manga.resultsSourceUrl) || !Array.isArray(round.results) || !round.results.length) {
         issue('round_source', 'Ronda oficial sin resultados o fuente verificable', { raceId: race.id }); continue;
       }
@@ -149,10 +171,11 @@ export function recomputeCxStandings(snapshot) {
     if (rule.mode === 'points') calculatePoints(entries, rounds, rule);
     else calculateTime(entries, rounds, rule);
     const ranked = entries.filter(entry => entry.eligible);
-    const tieKeys = (rule.tieBreakers || []).map(tie => tieKey(tie, rule));
+    const tieKeys = (rule.tieBreakers || []).map(tie => tieKey(tie, rule, entries));
     if (!tieKeys.length) throw new Error('Desempates sin configurar');
+    const byTotal = (a, b) => compare(a.total, b.total) * (rule.mode === 'points' ? -1 : 1);
     const comparator = (a, b) => {
-      let result = compare(a.total, b.total) * (rule.mode === 'points' ? -1 : 1);
+      let result = byTotal(a, b);
       for (const key of tieKeys) {
         if (result) break;
         const aKeys = key(a); const bKeys = key(b);
@@ -160,8 +183,10 @@ export function recomputeCxStandings(snapshot) {
       }
       return result;
     };
-    ranked.sort(comparator);
-    for (let index = 1; index < ranked.length; index++) {
+    const sharedRanks = intermediateTies !== undefined && pendingRounds > 0;
+    const sameRank = sharedRanks && intermediateTies === 'sharedRank' ? byTotal : comparator;
+    ranked.sort(sameRank);
+    for (let index = 1; index < ranked.length && !sharedRanks; index++) {
       if (!comparator(ranked[index - 1], ranked[index])) {
         issue('unresolved_tie', 'Empate no resuelto por el reglamento; requiere clasificación oficial',
           { globalRiderIds: [ranked[index - 1].id, ranked[index].id] });
@@ -183,6 +208,9 @@ export function recomputeCxStandings(snapshot) {
       rounds: entry.rounds.map(({ result: _result, ...round }) => round) }));
     if (output.issues.length) return output;
     output.rows = ranked.map((entry, index) => ({ ...entry.row, rank: index + 1 }));
+    for (let index = 1; index < ranked.length && sharedRanks; index++) {
+      if (!sameRank(ranked[index - 1], ranked[index])) output.rows[index].rank = output.rows[index - 1].rank;
+    }
     output.status = output.rows.length ? 'ready' : 'empty';
     return output;
   } catch (error) {
@@ -215,7 +243,20 @@ function calculatePoints(entries, rounds, rule) {
       adjustments.push(adjustment);
     }
   }
-  const scale = Math.max(...table.map(point => point.scale), ...adjustments.map(point => point.scale));
+  // Escala propia de una ronda (el Campeonato de Cataluña puntúa con su tabla dentro de la Copa Catalana).
+  const roundTables = new Map();
+  if (rule.extras?.roundScales !== undefined) {
+    if (!Array.isArray(rule.extras.roundScales)) throw new Error('Escalas de ronda inválidas');
+    for (const item of rule.extras.roundScales) {
+      if (typeof item?.raceId !== 'string' || !item.raceId || roundTables.has(item.raceId)
+        || !Array.isArray(item.perRank) || !item.perRank.length) throw new Error('Escala de ronda inválida');
+      const points = item.perRank.map(decimal);
+      if (points.some(point => point.coefficient < 0n)) throw new Error('Escala de ronda negativa');
+      roundTables.set(item.raceId, points);
+    }
+  }
+  const scale = Math.max(...table.map(point => point.scale), ...[...roundTables.values()].flat().map(point => point.scale),
+    ...adjustments.map(point => point.scale));
   // Rondas que multiplican los puntos de puesto (p. ej. la última prueba puntúa doble). No altera ajustes ni sanciones.
   const multipliers = new Map();
   if (rule.extras?.roundMultipliers !== undefined) {
@@ -248,7 +289,8 @@ function calculatePoints(entries, rounds, rule) {
     for (const round of entry.rounds) {
       const row = round.result;
       const position = placed(row) ? row.rank : null;
-      const base = (position && position <= table.length ? aligned(table[position - 1], scale) : 0n)
+      const points = roundTables.get(round.raceId) || table;
+      const base = (position && position <= points.length ? aligned(points[position - 1], scale) : 0n)
         * (multipliers.get(round.raceId) ?? 1n);
       // Una sanción de general no desaparece al descartar el resultado de la ronda.
       round.base = base; round.adjustment = aligned(decimal(row?.bonusPoints ?? 0), scale);
@@ -335,15 +377,19 @@ function calculateTime(entries, rounds, rule) {
   }
 }
 
-function tieKey(tie, rule) {
+function tieKey(tie, rule, entries) {
   const rank = round => round?.sourceRank ?? Infinity;
   const last = entry => entry.rounds.at(-1);
   if (tie.type === 'countPlacings') {
-    if (tie.direction !== 'desc' || !Number.isInteger(tie.ranksFrom) || !Number.isInteger(tie.ranksTo)
-      || tie.ranksFrom < 1 || tie.ranksTo > rule.perRank.length || tie.ranksTo < tie.ranksFrom) throw new Error('Conteo de puestos inválido');
+    // `ranksTo: "all"` cuenta también los puestos sin puntos (Coupe de France: «nombre de meilleures places»).
+    const ranksTo = tie.ranksTo === 'all'
+      ? Math.max(tie.ranksFrom, ...entries.flatMap(entry => entry.rounds.map(round => round.sourceRank ?? 0)))
+      : tie.ranksTo;
+    if (tie.direction !== 'desc' || !Number.isInteger(tie.ranksFrom) || !Number.isInteger(ranksTo) || tie.ranksFrom < 1
+      || (tie.ranksTo !== 'all' && ranksTo > rule.perRank.length) || ranksTo < tie.ranksFrom) throw new Error('Conteo de puestos inválido');
     const policy = rule.review.droppedPlacingsPolicy;
     if (rule.drops.mode !== 'none' && !['all', 'retained'].includes(policy)) throw new Error('Desempate con puestos descartados sin cotejar');
-    return entry => Array.from({ length: tie.ranksTo - tie.ranksFrom + 1 }, (_, offset) =>
+    return entry => Array.from({ length: ranksTo - tie.ranksFrom + 1 }, (_, offset) =>
       -entry.rounds.filter(round => (rule.drops.mode === 'none' || policy === 'all' || round.retained)
         && round.sourceRank === offset + tie.ranksFrom).length);
   }

@@ -306,6 +306,23 @@ describe('Sporza: livestreams de veldrijden', () => {
     ]);
   });
 
+  it('une el X²O Trofee, cuyo calendario da el torneo en competitionName y la sede en startLabel', () => {
+    const matches = new Map([['2026-11-15', parseSporzaCxSchedule(fixture('sporza-cx-schedule-20261115.json'))]]);
+    const livestream = (category, localTime, competition) => ({
+      source: 'sporza_cx', dateKey: '2026-11-15', localTime, venueLabel: 'Bollekescross Hamme',
+      competition, tournamentLabel: 'X²O Trofee', category,
+    });
+    const { events, diagnostics } = joinSporzaCx([
+      livestream('WE', '13:30', 'X²O Trofee vrouwen'),
+      livestream('ME', '14:40', 'X²O Trofee mannen'),
+    ], matches);
+    expect(diagnostics).toEqual([]);
+    expect(events.map((event) => [event.category, event.externalEventId, event.broadcastUrl])).toEqual([
+      ['WE', '3305685', 'https://sporza.be/nl/sport/wielrennen/~3305685/'],
+      ['ME', '3305677', 'https://sporza.be/nl/sport/wielrennen/~3305677/'],
+    ]);
+  });
+
   it('no genera enlace cuando el calendario no contiene el partido', () => {
     const { events } = parseSporzaCxLivestreams(fixture('sporza-cx-livestream.html'), { todayKey: '2026-10-11' });
     const joined = joinSporzaCx(events.filter((event) => event.dateKey === '2026-10-24'), new Map([['2026-10-24', []]]));

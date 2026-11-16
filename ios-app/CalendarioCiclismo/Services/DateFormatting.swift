@@ -39,16 +39,6 @@ enum DateFormatting {
         return f
     }()
 
-    /// Crea un parser ISO 8601 para timestamps de Supabase.
-    /// Se crea por invocación porque ISO8601DateFormatter (NSObject) no es thread-safe.
-    private static func makeISOFormatter(fractionalSeconds: Bool = true) -> ISO8601DateFormatter {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = fractionalSeconds
-            ? [.withInternetDateTime, .withFractionalSeconds]
-            : [.withInternetDateTime]
-        return f
-    }
-
     /// Locale actual de la UI (español o inglés). Se resuelve en cada llamada
     /// leyendo directamente de UserDefaults — la fuente de verdad es la misma
     /// que usa `LocaleService` y la lectura es ~µs (cacheado por el sistema).
@@ -84,9 +74,18 @@ enum DateFormatting {
         toDateKey(Date())
     }
 
-    /// Parsea YYYY-MM-DD a Date.
+    /// Parsea YYYY-MM-DD a Date. Las vistas lo llaman varias veces por día y por
+    /// pintura (barra de fechas, etiquetas): los resultados se memorizan.
     static func date(from dateKey: String) -> Date? {
-        dateKeyFormatter.date(from: dateKey)
+        DateKeyMemo.shared.date(from: dateKey, using: dateKeyFormatter)
+    }
+
+    /// Formateador reutilizado por idioma, formato y zona horaria. Crear un
+    /// `DateFormatter` cuesta del orden de 0,1 ms y las listas lo hacían por
+    /// fila y por pintura. Los formateadores del caché no se modifican después
+    /// de crearlos, por lo que pueden usarse desde varios hilos.
+    static func formatter(locale: Locale, format: String, timeZone: TimeZone = .current) -> DateFormatter {
+        DateFormatterCache.shared.formatter(locale: locale, format: format, timeZone: timeZone)
     }
 
     // MARK: - Etiquetas de fecha
@@ -94,9 +93,7 @@ enum DateFormatting {
     /// "Miércoles, 8 de abril" / "Wednesday, 8 April"
     static func formatDateLabel(_ dateKey: String) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
-        let f = DateFormatter()
-        f.locale = nonIsolatedUILocale
-        f.dateFormat = isSpanish ? "EEEE, d 'de' MMMM" : "EEEE, d MMMM"
+        let f = formatter(locale: nonIsolatedUILocale, format: isSpanish ? "EEEE, d 'de' MMMM" : "EEEE, d MMMM")
         let str = f.string(from: date)
         return str.prefix(1).uppercased() + str.dropFirst()
     }
@@ -105,18 +102,14 @@ enum DateFormatting {
     /// ya muestra el día de la semana.
     static func formatDayMonth(_ dateKey: String) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
-        let f = DateFormatter()
-        f.locale = nonIsolatedUILocale
-        f.dateFormat = isSpanish ? "d 'de' MMMM" : "d MMMM"
+        let f = formatter(locale: nonIsolatedUILocale, format: isSpanish ? "d 'de' MMMM" : "d MMMM")
         return f.string(from: date)
     }
 
     /// "Mié 8 abr" / "Wed 8 Apr"
     static func formatDateShort(_ dateKey: String) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
-        let f = DateFormatter()
-        f.locale = nonIsolatedUILocale
-        f.dateFormat = "EEE d MMM"
+        let f = formatter(locale: nonIsolatedUILocale, format: "EEE d MMM")
         let str = f.string(from: date)
         return str.prefix(1).uppercased() + str.dropFirst()
     }
@@ -141,11 +134,10 @@ enum DateFormatting {
     ) -> String {
         let prefix = isEnglish ? "Updated" : "Actualizado"
         guard let date = date(from: dateKey) else { return "\(prefix): \(dateKey)" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: isEnglish ? "en_GB" : "es_ES")
-        f.dateFormat = isEnglish
-            ? "EEEE, d MMMM yyyy"
-            : "EEEE, d 'de' MMMM 'de' yyyy"
+        let f = formatter(
+            locale: Locale(identifier: isEnglish ? "en_GB" : "es_ES"),
+            format: isEnglish ? "EEEE, d MMMM yyyy" : "EEEE, d 'de' MMMM 'de' yyyy"
+        )
         return "\(prefix): \(f.string(from: date))"
     }
 
@@ -154,20 +146,17 @@ enum DateFormatting {
     /// fichajes. Paridad con web (`dayHeading`) y Android.
     static func formatDateWeekdayNoYear(_ dateKey: String) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
-        let f = DateFormatter()
-        f.locale = contentLocale
-        let isEs = contentLocale.language.languageCode?.identifier == "es"
-        f.dateFormat = isEs ? "EEEE d 'de' MMMM" : "EEEE d MMMM"
+        let locale = contentLocale
+        let isEs = locale.language.languageCode?.identifier == "es"
+        let f = formatter(locale: locale, format: isEs ? "EEEE d 'de' MMMM" : "EEEE d MMMM")
         let str = f.string(from: date)
         return str.prefix(1).uppercased() + str.dropFirst()
     }
 
     private static func formatDateLong(_ dateKey: String, locale: Locale) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
-        let f = DateFormatter()
-        f.locale = locale
         let isEs = locale.language.languageCode?.identifier == "es"
-        f.dateFormat = isEs ? "EEEE, d 'de' MMMM 'de' yyyy" : "EEEE, d MMMM yyyy"
+        let f = formatter(locale: locale, format: isEs ? "EEEE, d 'de' MMMM 'de' yyyy" : "EEEE, d MMMM yyyy")
         let str = f.string(from: date)
         return str.prefix(1).uppercased() + str.dropFirst()
     }
@@ -185,9 +174,7 @@ enum DateFormatting {
         let eMonth = cal.component(.month, from: endDate)
         let eYear = cal.component(.year, from: endDate)
 
-        let monthFmt = DateFormatter()
-        monthFmt.locale = nonIsolatedUILocale
-        monthFmt.dateFormat = "MMM"
+        let monthFmt = formatter(locale: nonIsolatedUILocale, format: "MMM")
 
         if s == (end ?? s) {
             return "\(sDay) \(monthFmt.string(from: startDate))"
@@ -204,18 +191,14 @@ enum DateFormatting {
     /// "Abril de 2026" / "April 2026"
     static func formatMonthYear(year: Int, month: Int) -> String {
         guard let date = Calendar.current.date(from: DateComponents(year: year, month: month + 1, day: 1)) else { return "" }
-        let f = DateFormatter()
-        f.locale = nonIsolatedUILocale
-        f.dateFormat = isSpanish ? "MMMM 'de' yyyy" : "MMMM yyyy"
+        let f = formatter(locale: nonIsolatedUILocale, format: isSpanish ? "MMMM 'de' yyyy" : "MMMM yyyy")
         let str = f.string(from: date)
         return str.prefix(1).uppercased() + str.dropFirst()
     }
 
     /// Nombre corto del mes (1-based): "Ene"/"Jan", "Feb", etc.
     static func shortMonthName(_ month: Int) -> String {
-        let f = DateFormatter()
-        f.locale = nonIsolatedUILocale
-        let symbols = f.shortMonthSymbols ?? []
+        let symbols = formatter(locale: nonIsolatedUILocale, format: "MMM").shortMonthSymbols ?? []
         guard month >= 1, month <= symbols.count else { return "" }
         let name = symbols[month - 1]
         return name.prefix(1).uppercased() + name.dropFirst()
@@ -227,16 +210,12 @@ enum DateFormatting {
     /// parámetro (por defecto, la del dispositivo). Pensado para el widget
     /// "Hoy en el ciclismo", que renderiza para el usuario allá donde esté.
     ///
-    /// Nota: se crea un `DateFormatter` por llamada porque el `TimeZone`
-    /// puede variar entre invocaciones (viaje del usuario, pruebas). Si en
-    /// el futuro esto pesa en un hot path, memorizar por `timeZone.identifier`.
+    /// El formateador se memoriza por zona horaria (`timeZone.identifier`):
+    /// un viaje del usuario o una prueba con otra zona usan otro formateador.
     static func formatTimeLocal(_ isoString: String, timeZone: TimeZone = .current) -> String? {
         guard let date = parseISO(isoString) else { return nil }
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        f.timeZone = timeZone
         // 24h numérico — locale es irrelevante.
-        f.locale = Locale(identifier: "es_ES")
+        let f = formatter(locale: Locale(identifier: "es_ES"), format: "HH:mm", timeZone: timeZone)
         return f.string(from: date)
     }
 
@@ -268,10 +247,7 @@ enum DateFormatting {
     /// (`showPublication` en js/resultados.js) y Android.
     static func formatResultsSyncedAt(_ isoString: String, timeZone: TimeZone = .current) -> String? {
         guard let date = parseISO(isoString) else { return nil }
-        let f = DateFormatter()
-        f.dateFormat = "d MMM, HH:mm"
-        f.timeZone = timeZone
-        f.locale = contentLocale
+        let f = formatter(locale: contentLocale, format: "d MMM, HH:mm", timeZone: timeZone)
         return f.string(from: date).replacingOccurrences(of: ".", with: "")
     }
 
@@ -281,11 +257,11 @@ enum DateFormatting {
         return date.timeIntervalSince1970
     }
 
-    /// Parsea un string ISO 8601.
+    /// Parsea un string ISO 8601 (con fracciones de segundo y, si no, sin ellas).
+    /// Las vistas y las ordenaciones lo llaman cientos de veces por pintura con
+    /// las mismas horas: usa un parser compartido con memoria de resultados.
     static func parseISO(_ string: String) -> Date? {
-        if let d = makeISOFormatter(fractionalSeconds: true).date(from: string) { return d }
-        // Fallback sin fracciones de segundo
-        return makeISOFormatter(fractionalSeconds: false).date(from: string)
+        ISOInstantParser.shared.parse(string)
     }
 
     // MARK: - Navegación de fechas
@@ -318,5 +294,79 @@ enum DateFormatting {
             Calendar.current.date(byAdding: .day, value: delta, to: center)
                 .map { toDateKey($0) }
         }
+    }
+}
+
+/// Parser compartido de instantes ISO 8601 de Supabase. `ISO8601DateFormatter`
+/// cuesta unos 0,3 ms de creación y no es seguro entre hilos: un parser propio
+/// por llamada saturaba el hilo principal al abrir Hoy y Vídeos (miles de
+/// llamadas por pintura). Dos formateadores únicos bajo un cerrojo y una
+/// memoria acotada de resultados (las horas se repiten entre pintura y
+/// pintura) dan el mismo resultado sin recrearlos.
+private final class ISOInstantParser: @unchecked Sendable {
+    static let shared = ISOInstantParser()
+
+    private let lock = NSLock()
+    private let fractional: ISO8601DateFormatter
+    private let plain: ISO8601DateFormatter
+    private var results: [String: Date?] = [:]
+    private static let capacity = 4096
+
+    private init() {
+        fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+    }
+
+    func parse(_ string: String) -> Date? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = results[string] { return known }
+        let date = fractional.date(from: string) ?? plain.date(from: string)
+        if results.count >= Self.capacity { results.removeAll(keepingCapacity: true) }
+        results[string] = .some(date)
+        return date
+    }
+}
+
+/// Caché de `DateFormatter` por idioma, formato y zona horaria (ver
+/// `DateFormatting.formatter`).
+private final class DateFormatterCache: @unchecked Sendable {
+    static let shared = DateFormatterCache()
+
+    private let lock = NSLock()
+    private var formatters: [String: DateFormatter] = [:]
+
+    func formatter(locale: Locale, format: String, timeZone: TimeZone) -> DateFormatter {
+        let key = "\(locale.identifier)|\(format)|\(timeZone.identifier)"
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = formatters[key] { return known }
+        let created = DateFormatter()
+        created.locale = locale
+        created.timeZone = timeZone
+        created.dateFormat = format
+        formatters[key] = created
+        return created
+    }
+}
+
+/// Memoria de `YYYY-MM-DD` → `Date` (ver `DateFormatting.date(from:)`).
+private final class DateKeyMemo: @unchecked Sendable {
+    static let shared = DateKeyMemo()
+
+    private let lock = NSLock()
+    private var results: [String: Date?] = [:]
+    private static let capacity = 4096
+
+    func date(from key: String, using formatter: DateFormatter) -> Date? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = results[key] { return known }
+        let date = formatter.date(from: key)
+        if results.count >= Self.capacity { results.removeAll(keepingCapacity: true) }
+        results[key] = .some(date)
+        return date
     }
 }

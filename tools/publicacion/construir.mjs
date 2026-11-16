@@ -365,7 +365,8 @@ export async function construirActivos(salida, config, publicadas) {
   const prePintadoOrden = (await build({
     entryPoints: [join(HERE, 'cliente/pre-pintado-orden.js')], bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
   })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
-  const prePintadoCarrera = (await transform(readFileSync(join(HERE, 'cliente/pre-pintado-carrera.js'), 'utf8'), { loader: 'js', minify: true, legalComments: 'none', target: 'es2020' })).code.replace(/<\/script/g, '<\\/script').trim();
+  const preCarrera = readFileSync(join(HERE, 'cliente/pre-pintado-carrera.js'), 'utf8').replace('/*__GRUPOS__*/', () => shared.slice(desde, hasta));
+  const prePintadoCarrera = (await transform(preCarrera, { loader: 'js', minify: true, legalComments: 'none', target: 'es2020' })).code.replace(/<\/script/g, '<\\/script').trim();
 
   // La fuente, incrustada en una hoja propia que bloquea el primer pintado: nunca se ve la de reserva
   // ni se mueve el texto al llegar. Es una sola hoja para toda la web: se descarga una vez.

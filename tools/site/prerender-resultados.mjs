@@ -84,7 +84,8 @@ const MAX_PAGE_BYTES = 48 * 1024;
 // Formato de la caché (ficheros y manifiesto). Cambiarlo la descarta.
 const CACHE_FORMAT = 1;
 // Versión de los datos de la firma: RESULTADOS_CACHE_CONTRACT de site_data.py.
-const SIGNATURE_CONTRACT = 1;
+// 2: las páginas llevan los vídeos de la jornada de contexto (2026-11-11).
+const SIGNATURE_CONTRACT = 2;
 // Carreras leídas por build como máximo: RESULTADOS_MAX_READS de site_data.py.
 const RESULTADOS_MAX_READS = 150;
 // RESULTADOS_ROTATION_DAYS de site_data.py.
@@ -169,6 +170,8 @@ const BASE_QUERIES = {
   races: 'races?select=*&order=id.asc',
   race_days: 'race_days?select=*&editorialStatus=eq.published&order=id.asc',
   assets: 'assets?select=*&order=id.asc',
+  broadcasts: 'broadcasts?select=*&order=id.asc',
+  race_day_videos: 'race_day_videos?select=*&order=id.asc',
   guides: 'assets?select=*,race_days!inner(raceId,dateKey)&type=eq.technicalGuide&order=id.asc',
   resultados_stages: 'race_uci_stages?select=*&keepForWeb=eq.true&rowCount=gt.0&order=id.asc',
   resultados_classifications: 'race_classifications?select=*&order=raceId.asc,classKind.asc',
@@ -264,6 +267,7 @@ function groupBy(rows, key) {
 }
 
 const without = (row, column) => { const { [column]: _omit, ...rest } = row; return rest; };
+const sortedBySortOrder = rows => [...rows].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 const nullsLast = (a, b) => (a == null) - (b == null);
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 // race_days: dateKey asc, neutralStartTimeUtc asc con NULL primero (como el
@@ -294,6 +298,10 @@ export function buildIndex(tables) {
     daysByRace,
     classificationsByRace: groupBy(rows('resultados_classifications'), 'raceId'),
     assetsByDay: groupBy(rows('assets'), 'raceDayId'),
+    // Emisiones y vídeos de la jornada de contexto (columna Vídeos), por sortOrder
+    // estable sobre el orden por id, como el navegador.
+    broadcastsByDay: groupBy(sortedBySortOrder(rows('broadcasts')), 'raceDayId'),
+    videosByDay: groupBy(sortedBySortOrder(rows('race_day_videos')), 'raceDayId'),
     guideByRace,
   };
 }
@@ -570,7 +578,9 @@ function scopePage(html, index, source, file, site, now, dir) {
   if (active.activeStages.some(row => !row._cancelledStage && (row.publicationStatus !== 'official' || row.updating))) return { out: 'sin cerrar' };
   const contextDay = active.contextDayId ? index.days.get(active.contextDayId) || null : null;
   const inputs = { segment: segment || '', race, stagesAll, allRaceDays, classificationConfig, contextDay,
-    assets: active.contextDayId ? index.assetsByDay.get(active.contextDayId) || [] : [], guide: index.guideByRace.get(raceId) || null };
+    assets: active.contextDayId ? index.assetsByDay.get(active.contextDayId) || [] : [], guide: index.guideByRace.get(raceId) || null,
+    broadcasts: active.contextDayId ? index.broadcastsByDay.get(active.contextDayId) || [] : [],
+    videos: active.contextDayId ? index.videosByDay.get(active.contextDayId) || [] : [] };
   return { race, stages, active, inputs };
 }
 
@@ -613,6 +623,7 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
   const skeleton = html.resultsPageHtml({
     race, stages, active, raceDay, contextDay, contextAssets, actionAssets,
     canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn,
+    contextBroadcasts: inputs.broadcasts || [], contextVideos: inputs.videos || [],
   });
   const hasTabs = activeStages.length > 1;
   const bar = hasTabs || !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);

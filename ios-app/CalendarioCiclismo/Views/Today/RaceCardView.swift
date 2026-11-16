@@ -23,6 +23,9 @@ struct RaceCardView: View {
     /// Llamada cuando el usuario pulsa el icono de Revive (TV).
     /// Nil = no mostrar botón de Revive.
     var onRevive: (() -> Void)? = nil
+    /// Abre la jornada en su panel Vídeos. Con `onRevive`, el botón de TV es un
+    /// menú «Vídeos» / «Completa». Nil = sin vídeos propios.
+    var onShowVideos: (() -> Void)? = nil
     /// Llamada cuando el usuario pulsa la etiqueta de dorsales. Nil = sin
     /// etiqueta. Solo se renderiza además si `race.startlistImportedAt` no es nulo.
     var onShowStartlist: (() -> Void)? = nil
@@ -98,7 +101,7 @@ struct RaceCardView: View {
     }
 
     /// True cuando estamos en modo terminado (mostrar iconos en lugar de horario).
-    private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil }
+    private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil || onShowVideos != nil }
     private var isTimeTrial: Bool { rd.primaryType == "itt" || rd.primaryType == "ttt" }
 
     /// True si la jornada tiene perfil de elevación cargado. Feature liberada
@@ -288,6 +291,9 @@ struct RaceCardView: View {
         .accessibilityActions {
             if let onShowResults {
                 Button(LocaleService.t("Resultados", "Results"), action: onShowResults)
+            }
+            if let onShowVideos {
+                Button(LocaleService.t("Vídeos", "Videos"), action: onShowVideos)
             }
             if let onRevive {
                 Button(LocaleService.t("Revive la carrera", "Relive the race"), action: onRevive)
@@ -520,9 +526,8 @@ struct RaceCardView: View {
             if let onShowResults {
                 finishedIcon("trophy", label: LocaleService.t("Resultados", "Results"), action: onShowResults)
             }
-            if let onRevive {
-                finishedIcon("tv", label: LocaleService.t("Revive la carrera", "Relive the race"), action: onRevive)
-            }
+            FinishedVideoAction(onShowVideos: onShowVideos, onRevive: onRevive,
+                                font: .system(size: isPhone ? 17 : 20), size: CGSize(width: 36, height: 40), alignment: .top)
         }
         .padding(.trailing, -6)
     }

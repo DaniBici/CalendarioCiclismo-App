@@ -2,13 +2,23 @@
 /**
  * Enlaza las carreras CX propias del día con competiciones DataRide CRO cuando
  * todavía no tienen fuente de resultados. Es el equivalente CX de
- * dataride-live-linker.mjs y aplica los mismos criterios conservadores:
+ * dataride-live-linker.mjs.
+ *
+ * Una carrera con `uciCalendarId` se enlaza solo por la vía determinista
+ * (`uci-directory-link.mjs`: directorio de competiciones UCI → DataRide por
+ * nombre exacto normalizado, fecha, clase y país); sin resultado único queda
+ * sin enlace hasta la pasada siguiente. Las carreras sin `uciCalendarId`
+ * aplican la heurística conservadora:
  * país ISO, solape de fecha con margen, categoría UCI coincidente y una señal
  * nominal (nombre o lugar) o de clase fuerte (nacionales, continentales y Copa del Mundo).
  * Las coincidencias ambiguas o sin señal quedan intactas para revisión manual.
  *
+ * Cada pasada evalúa todas las candidatas de la ventana; `--limit` acota los
+ * enlaces creados por pasada, no las candidatas. Las carreras que DataRide no
+ * publica (NAC, pruebas aún sin clasificación) no dejan fuera a las siguientes.
+ *
  * Uso en producción (runner cc-cx-results como cc_results_worker):
- *   node scripts/results-fetchers/cx-live-linker.mjs
+ *   node scripts/results-fetchers/cx-live-linker.mjs [--dry-run] [--limit 8]
  *
  * Requiere DATABASE_URL con el rol `cc_results_worker`.
  */
@@ -16,6 +26,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { createCxDataRideClient } from './cx-dataride-results.mjs';
+import { dataRideCategoryCodes, directoryByCalendarId, directoryWindow, resolveByCalendarId } from './uci-directory-link.mjs';
 import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
@@ -86,8 +97,7 @@ async function loadCandidateRaces(client) {
       AND EXISTS(SELECT 1 FROM public.cx_race_categories c WHERE c."raceId"=r.id AND NOT c."isCancelled"
         AND coalesce(c."dateKey",r."dateKey") BETWEEN (now() AT TIME ZONE 'Europe/Madrid')::date - 1
           AND (now() AT TIME ZONE 'Europe/Madrid')::date + 1)
-    ORDER BY r."dateKey",r.id
-    LIMIT $1`, [MAX_LINKS]);
+    ORDER BY r."dateKey",r.id`);
   return rows.map((row) => ({ race: row.race, today: row.today || [] })).filter((item) => item.today.length);
 }
 
@@ -117,19 +127,50 @@ async function main() {
     const [candidates, occupied, seasons] = await Promise.all([
       loadCandidateRaces(client), loadOccupiedCompetitions(client), dataRide.seasons()]);
     summary.candidates = candidates.length;
+    // Directorio UCI de los días en torno a hoy, solo si alguna candidata tiene
+    // uciCalendarId. Sin directorio esas carreras esperan a la pasada siguiente.
+    let directory = null;
+    let directoryError = null;
+    if (candidates.some(({ race }) => race.uciCalendarId != null)) {
+      try {
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+        directory = await directoryByCalendarId({ query: { disciplineCode: 'CRO', ...directoryWindow(today) } });
+      } catch (error) { directoryError = error.message; }
+    }
+    const categoryCache = new Map();
+    const categoriesOf = (competitionId) => {
+      if (!categoryCache.has(competitionId)) {
+        categoryCache.set(competitionId, dataRide.pages('Races/', { competitionId: String(competitionId) }, 'Id').then(dataRideCategoryCodes));
+      }
+      return categoryCache.get(competitionId);
+    };
     const catalogs = new Map();
     for (const { race } of candidates) {
+      if (summary.linked.length >= MAX_LINKS) break;
       const suffix = String(race.seasonKey || '').split('-')[1];
       const season = suffix ? seasons.find((row) => String(row.Year).slice(-2) === suffix.slice(-2)) : null;
       if (!season) { summary.skipped.push({ raceId: race.id, reason: 'Temporada DataRide CX no encontrada' }); continue; }
       if (!catalogs.has(season.Id)) catalogs.set(season.Id, await dataRide.competitionsForSeason(season.Id));
-      const result = matchCxCompetition(race, catalogs.get(season.Id));
-      if (result.status !== 'match') { summary.skipped.push({ raceId: race.id, reason: result.reason }); continue; }
-      if (occupied.has(result.competition.CompetitionId)) { summary.skipped.push({ raceId: race.id, reason: 'Competición ya enlazada' }); continue; }
-      if (DRY_RUN) { summary.linked.push({ raceId: race.id, competitionId: result.competition.CompetitionId, dryRun: true }); continue; }
+      let result;
+      let method = 'heuristic';
+      if (race.uciCalendarId != null) {
+        method = 'uci-calendar-id';
+        try {
+          result = directory
+            ? await resolveByCalendarId(race, { directory, competitions: catalogs.get(season.Id), categoriesOf })
+            : { status: 'none', reason: `Directorio UCI no disponible: ${directoryError}` };
+        } catch (error) {
+          result = { status: 'none', reason: `Desempate DataRide fallido: ${error.message}` };
+        }
+      } else {
+        result = matchCxCompetition(race, catalogs.get(season.Id));
+      }
+      if (result.status !== 'match') { summary.skipped.push({ raceId: race.id, method, reason: result.reason }); continue; }
+      if (occupied.has(result.competition.CompetitionId)) { summary.skipped.push({ raceId: race.id, method, reason: 'Competición ya enlazada' }); continue; }
+      if (DRY_RUN) { summary.linked.push({ raceId: race.id, competitionId: result.competition.CompetitionId, method, dryRun: true }); continue; }
       const inserted = await insertLink(client, race, result.competition, season.Id);
-      if (inserted) { occupied.add(result.competition.CompetitionId); summary.linked.push(inserted); }
-      else summary.skipped.push({ raceId: race.id, reason: 'Conflicto de enlace; requiere revisión' });
+      if (inserted) { occupied.add(result.competition.CompetitionId); summary.linked.push({ ...inserted, method }); }
+      else summary.skipped.push({ raceId: race.id, method, reason: 'Conflicto de enlace; requiere revisión' });
     }
     console.log(JSON.stringify(summary));
   } finally {

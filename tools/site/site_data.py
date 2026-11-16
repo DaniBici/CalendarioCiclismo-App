@@ -61,6 +61,7 @@ TABLES = {
     "assets": ("assets?select=*", ()),
     "cx_races": ("cx_races?select=" + CX_SELECT + "&editorialStatus=eq.published", ("editorialStatus=eq.published",)),
     "broadcasts": ("broadcasts?select=*", ()),
+    "race_day_videos": ("race_day_videos?select=*", ()),
 }
 # Lecturas que solo consumen los prerender, sin consultas locales.
 EXTRA = {
@@ -127,7 +128,7 @@ RESULTADOS_NAMES = (*RESULTADOS_BASE, RESULTADOS_RIDERS[0], RESULTADOS_TEAMS[0],
                     *RESULTADOS_CATALOG, RESULTADOS_SEASONS[0])
 # Versión del formato de los datos de la caché: entra en la firma de cada
 # carrera, de modo que cambiarla obliga a leerlas todas.
-RESULTADOS_CACHE_CONTRACT = 1
+RESULTADOS_CACHE_CONTRACT = 2
 # Días con los mismos datos antes de volver a leer una carrera (más 0–13 según
 # su id, para repartir las lecturas): cambios de fichas o equipos que no tocan
 # sus clasificaciones (listas y catálogo no tienen marca de modificación).

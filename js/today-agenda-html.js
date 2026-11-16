@@ -106,8 +106,8 @@ const NO_POINTER = ';cursor:default';
 // grupos en plantillas, que el script previo al primer pintado aplica.
 function regionSlot(cls, html, render, variantes) {
   if (!variantes) return html;
-  const plantillas = variantes.map(({ claves, broadcasts, blocked }) => {
-    const propia = render(broadcasts, blocked);
+  const plantillas = variantes.map(({ claves, broadcasts, blocked, videos }) => {
+    const propia = render(broadcasts, blocked, videos);
     return propia === html ? '' : `<template data-tv="${claves.join(' ')}">${propia}</template>`;
   }).join('');
   return `<span class="${cls}">${html}${plantillas}</span>`;
@@ -258,7 +258,7 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
     }
   }
 
-  const resultsOf = broadcasts => resultsActionsHtml(rd, broadcasts);
+  const resultsOf = (broadcasts, _blocked, videos = rd._videos || []) => resultsActionsHtml(rd, broadcasts, videos);
   const meta = showResults
     ? regionSlot('race-card__revive', resultsOf(rd._broadcasts || []), resultsOf, otras)
     : rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU);

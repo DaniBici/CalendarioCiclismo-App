@@ -13,7 +13,9 @@ import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, routeBlockDayHt
 import { fixedDecimal } from './fixed-number.js';
 import { t, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
-import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
+import { shouldShowBroadcastNote } from './broadcast-priority.js';
+import { stageMediaState } from './services/stage-videos.js';
+import { stageVideosPanelHtml } from './stage/videos-html.js';
 import { stageProfileHtml } from './stage/profile.js';
 import { tvStatusChipHtml } from './services/race-presentation.js';
 
@@ -64,11 +66,13 @@ function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
  */
 /**
  * HTML de #jornadaContent y si la jornada tiene clasificaciones propias.
+ * `videos` (race_day_videos de la región) y `allVideos` (todos), como
+ * `broadcasts` y `allBroadcasts`.
  * `timeZoneLabel` («GMT»): el build de las páginas EN, que pinta las horas en
  * esa zona, y el navegador en ella (visitorTimeZoneLabel). Sin él, las horas
  * van en la zona del visitante sin etiqueta.
  */
-export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set(), { timeZoneLabel = null } = {}) {
+export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set(), { timeZoneLabel = null, videos = [], allVideos = videos } = {}) {
   const _isEn = getLang() === 'en';
   let html = buildRaceHero(rd, race, { showCancelledBanner: true });
 
@@ -206,14 +210,14 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
     </div>`;
   } // fin bloque unificado
 
-  // Perfil y Puntos clave (js/stage/profile.js): el HTML lleva el panel del
-  // perfil con el gráfico vacío y la lista de puntos; el montaje dibuja el
-  // gráfico. Sin perfil, el contenedor queda oculto como al montarlo. Las
-  // horas de paso llevan la misma etiqueta de zona que Horarios.
-  const profile = stageProfileHtml({ ...rd, _hasInhouse: hasActualResults }, race, assets, { points: true, timeZoneLabel });
-  html += profile
-    ? `<div data-integrated-profile class="${profile.className}">${profile.html}</div>`
-    : '<div data-integrated-profile hidden></div>';
+  // Vídeos de la jornada (js/services/stage-videos.js): con clasificaciones
+  // propias, la emisión de YouTube con vídeo fijo pasa de Revive a Vídeos.
+  // `media` con la región del visitante; `allMedia` sin filtro decide la
+  // mampostería, que así no cambia entre las variantes regionales del HTML.
+  const media = stageMediaState({ broadcasts, videos, hasResults: hasActualResults, isCancelled: rd.isCancelledDay });
+  const allMedia = stageMediaState({ broadcasts: allBroadcasts, videos: allVideos, hasResults: hasActualResults, isCancelled: rd.isCancelledDay });
+  const masonry = allMedia.entries.length > 0;
+  const extraAttr = column => (masonry ? ` data-profile-extra="${column}"` : '');
 
   // Televisión — sección independiente, siempre con título fijo
   // En la versión EN (/en/), "unavailable_es" es irrelevante: el usuario no está en España.
@@ -223,11 +227,11 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   const tvLabel = _tvStatus ? TV_STATUS_LABELS[_tvStatus] : null;
   const hasBroadcasts = broadcasts && broadcasts.length > 0;
   const isRaceConcluded = _currentResultsAvailable || rd.raceStatus === 'finished';
-  // Revive depende de clasificaciones de ESTA jornada y de un enlace persistente.
-  // La general de la etapa anterior y el estado/horario de meta no lo activan.
-  const hasReviveBroadcast = hasReviveBroadcastsForDay(broadcasts, hasActualResults, rd.isCancelledDay);
-  // Jornada cancelada: solo se conserva el replay explícito si aun así se
-  // publicaron clasificaciones propias de lo disputado.
+  // Revive depende de clasificaciones de ESTA jornada y de un enlace persistente
+  // que no esté ya en Vídeos. La general de la etapa anterior y el estado o el
+  // horario de meta no lo activan. Jornada cancelada: solo se conserva el
+  // replay explícito si aun así se publicaron clasificaciones propias.
+  const hasReviveBroadcast = media.hasRevive;
   const liveText = !rd.isCancelledDay && !rd.isRestDay && !isRaceConcluded ? assets.find(a => a.type === 'live_text' && (a.url || a.filePath)) : null;
   const hasTvInfo = liveText || (rd.isCancelledDay ? hasReviveBroadcast : (isRaceConcluded
     ? hasReviveBroadcast
@@ -238,6 +242,7 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   const hiddenBroadcasts = allBroadcasts.filter(b => !filteredOutIds.has(b.id));
   const hasHiddenBroadcasts = hiddenBroadcasts.length > 0;
 
+  let tvHtml = '';
   if (hasTvInfo) {
     const reviveTitle = race.raceFormat === 'one_day' ? t('tv.reviveRaceTitle') : t('tv.reviveStageTitle');
     const tvSectionTitle = hasReviveBroadcast ? reviveTitle : t('tv.title');
@@ -251,7 +256,7 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
       : '';
     // Mismo panel que Puntos clave: título y acciones en la cabecera, emisoras
     // como filas separadas por filetes.
-    html += `<section class="jornada-section tv-panel">
+    tvHtml += `<section class="jornada-section tv-panel${hasReviveBroadcast ? ' tv-panel--revive' : ''}"${extraAttr('main')}>
       <header class="stage-profile-heading">
         <div class="tv-panel__title">
           <h2>${tvSectionTitle}</h2>
@@ -262,14 +267,12 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
       <div class="tv-panel__list">`;
 
     if (hasBroadcasts || hasHiddenBroadcasts) {
-      const visibleBroadcasts = hasReviveBroadcast
-        ? reviveBroadcastsForDay(broadcasts, rd.isCancelledDay)
-        : broadcasts;
+      const visibleBroadcasts = hasReviveBroadcast ? media.revive : broadcasts;
 
       // Si el filtro regional dejó sin broadcasts visibles, avisar al usuario antes
       // de listar los que están ocultos (los muestra al pulsar el toggle "Todas").
       if (!hasReviveBroadcast && visibleBroadcasts.length === 0 && hasHiddenBroadcasts) {
-        html += `<div class="info-row tv-no-region-msg">
+        tvHtml += `<div class="info-row tv-no-region-msg">
           <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noTvRegion')}</span>
         </div>`;
       }
@@ -296,12 +299,12 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
         </div>`;
       };
 
-      visibleBroadcasts.forEach(b => { html += renderEntry(b, false); });
+      visibleBroadcasts.forEach(b => { tvHtml += renderEntry(b, false); });
       if (!hasReviveBroadcast) {
-        hiddenBroadcasts.forEach(b => { html += renderEntry(b, true); });
+        hiddenBroadcasts.forEach(b => { tvHtml += renderEntry(b, true); });
       }
     } else if (tvLabel) {
-      html += `<div class="info-row">
+      tvHtml += `<div class="info-row">
         <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">
           ${tvLabel}
         </span>
@@ -309,12 +312,12 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
     } else if (!_tvStatus) {
       // Solo Live texto: sin emisiones ni estado de TV, el panel indica que no
       // hay televisión en lugar de quedarse con la cabecera y la lista vacía.
-      html += `<div class="info-row">
+      tvHtml += `<div class="info-row">
         <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noBroadcast')}</span>
       </div>`;
     }
 
-    html += `</div></section>`;
+    tvHtml += `</div></section>`;
   } // fin hasTvInfo
 
   // Editorial — en EN usar solo traducción EN (sin fallback ES)
@@ -322,9 +325,10 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   const _desc    = _isEn ? (_enTr.description?.value || '') : rd.description;
   const _bonuses = _isEn ? (_enTr.bonuses?.value     || '') : rd.bonuses;
   const _notes   = _isEn ? (_enTr.notes?.value       || '') : rd.notes;
+  let infoHtml = '';
   if (_desc || _bonuses || _notes) {
     // Mismo panel que Perfil, Puntos clave y Televisión.
-    html += `<section class="jornada-section stage-panel stage-text-panel">
+    infoHtml = `<section class="jornada-section stage-panel stage-text-panel"${extraAttr('main')}>
       <header class="stage-profile-heading"><h2>${race.raceFormat === 'one_day' ? t('stage.descriptionRace') : t('stage.descriptionStage')}${_isEn && _enTr.description?.status !== 'manual' ? ' <span class="jornada-section__ai-note">AI translated from Spanish, might contain errors</span>' : ''}</h2></header>
       ${_desc    ? `<div class="jornada-description">${descriptionHtml(_desc)}</div>` : ''}
       ${_bonuses ? `<div class="info-row"><span class="info-row__label">${t('stage.bonuses')}</span>
@@ -333,6 +337,24 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
                     <span class="info-row__value info-row__value--secondary">${esc(_notes)}</span></div>` : ''}
     </section>`;
   }
+
+  // Terminada (Revive), la Información va antes que la TV; sin terminar, la TV
+  // va encima de la Información.
+  const mainPanels = hasReviveBroadcast ? `${infoHtml}${tvHtml}` : `${tvHtml}${infoHtml}`;
+
+  // Perfil y Puntos clave (js/stage/profile.js): el HTML lleva el panel del
+  // perfil con el gráfico vacío y la lista de puntos; el montaje dibuja el
+  // gráfico. Sin perfil, el contenedor queda oculto como al montarlo. Las
+  // horas de paso llevan la misma etiqueta de zona que Horarios. Con vídeos,
+  // la mampostería reúne en el mismo contenedor Perfil, Información y Revive
+  // (principal) y Puntos clave, Vídeos y las acciones (lateral).
+  const videosHtml = stageVideosPanelHtml(media.entries, race, { extra: masonry });
+  const profile = stageProfileHtml({ ...rd, _hasInhouse: hasActualResults }, race, assets,
+    { points: true, timeZoneLabel, extras: masonry ? { main: mainPanels, side: videosHtml } : null });
+  html += profile
+    ? `<div data-integrated-profile class="${profile.className}">${profile.html}</div>`
+    : '<div data-integrated-profile hidden></div>';
+  if (!masonry) html += mainPanels;
 
   // Assets ya integrados en sección Recorrido
 

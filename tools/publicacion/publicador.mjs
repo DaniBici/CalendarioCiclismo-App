@@ -108,7 +108,7 @@ export class Publicador {
     escribirAtomico(this.estado, JSON.stringify({ familias, grupos: this.grupos }));
   }
 
-  /** Procesos nuevos: la fecha que los módulos fijan al cargarse (CX_HOME) se vuelve a calcular. */
+  /** Procesos nuevos: la fecha que los módulos fijan al cargarse (temporada de Hoy y del calendario) se vuelve a calcular. */
   async reiniciar() {
     this.cerrar();
     await this.iniciar();

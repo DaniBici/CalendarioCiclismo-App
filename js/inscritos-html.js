@@ -43,7 +43,7 @@ function riderHtml(r, riderOutMap) {
 
 function teamHtml(race, team, data) {
   // Estado sin equipo → ocultación cosmética: los corredores se listan, pero
-  // la tarjeta va SIN cabecera de equipo (ni nombre, ni chapa).
+  // la tarjeta va SIN cabecera de equipo (ni nombre, ni cuadrado de colores).
   let header = '';
   if (!isNoTeamPlaceholderTeam(team)) {
     const gTeam = team.teamId ? data.globalTeamById[team.teamId] : null;

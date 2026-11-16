@@ -40,6 +40,7 @@ final class NotificationManager: NSObject {
         case tab(Int)          // Hoy, Resultados, Fichajes, CX y Calendario
         case race(String)      // raceId
         case stage(String)     // raceDayId
+        case stageVideos(String) // raceDayId → jornada desplazada a su panel Vídeos (`#videos`)
         case startlist(String) // raceId → vista de inscritos
         case startOrder(String) // raceDayId → orden de salida
         case profile(String)    // raceDayId → perfil de elevación de la jornada
@@ -53,7 +54,7 @@ final class NotificationManager: NSObject {
         // Enlace universal de carretera: /competicion/<slug>/ y /jornada/<slug>/ (`slug`)
         // o /en/race/<slug>/ y /en/stage/<slug>/ (`slugEn`).
         case raceSlug(String, english: Bool)
-        case stageSlug(String, english: Bool)
+        case stageSlug(String, english: Bool, videos: Bool = false)
         /// Resultados nativos de una jornada (copa del widget): etapa nil = final
         /// o última clasificación; sufijo A/B de doble sector.
         case results(raceId: String, stageNumber: Int?, stageSuffix: String?)
@@ -82,8 +83,11 @@ final class NotificationManager: NSObject {
                 return id.isEmpty ? nil : .race(id)
             }
             if value.hasPrefix("stage/") {
-                let id = String(value.dropFirst(6))
-                return id.isEmpty ? nil : .stage(id)
+                let parts = value.dropFirst(6).split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+                let id = String(parts.first ?? "")
+                guard !id.isEmpty else { return nil }
+                if parts.count == 2 { return parts[1] == "videos" ? .stageVideos(id) : nil }
+                return .stage(id)
             }
             if value.hasPrefix("startlist/") {
                 let id = String(value.dropFirst(10))
@@ -108,11 +112,12 @@ final class NotificationManager: NSObject {
                 let id = String(value.dropFirst(5))
                 return id.isEmpty ? nil : .team(id)
             }
-            // Apps 5.0: CX ocupa la cuarta pestaña; Calendario pasa a la quinta.
+            // Valores fijos de pestaña (`RoadTodayAvailability`): Hoy y
+            // Ciclocross comparten la pestaña Hoy; Vídeos (5.2) es el 7.
             let tabMap: [String: Int] = [
                 "today": 0, "results": 1, "transfers": 2, "cyclocross": 3,
                 "month": 4, "season": 4, "calendar": 4, "search": 0,
-                "subscribe": 5, "notifications": 6
+                "subscribe": 5, "notifications": 6, "videos": 7
             ]
             if let tabIndex = tabMap[value] {
                 return .tab(tabIndex)
@@ -154,6 +159,7 @@ final class NotificationManager: NSObject {
             if host == "race" || host == "stage" || host == "startlist"
                 || host == "startOrder" || host == "perfil" || host == "mapa" || host == "team" {
                 guard let id = extraSegments.first, !id.isEmpty else { return nil }
+                if host == "stage", url.fragment == "videos" { return parse("stage/\(id)#videos") }
                 return parse("\(host)/\(id)")
             }
             if host == "results" {
@@ -207,7 +213,7 @@ final class NotificationManager: NSObject {
             }
             if path.count == 2, validWebSlug(path[1]) {
                 if path[0] == (english ? "race" : "competicion") { return .raceSlug(path[1], english: english) }
-                if path[0] == (english ? "stage" : "jornada") { return .stageSlug(path[1], english: english) }
+                if path[0] == (english ? "stage" : "jornada") { return .stageSlug(path[1], english: english, videos: url.fragment == "videos") }
             }
             return fromCxWebPath(path, english: english, url: url)
         }

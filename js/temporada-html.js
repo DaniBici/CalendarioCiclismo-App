@@ -1,7 +1,7 @@
 // HTML y filtros de Temporada, sin DOM: lo usan el navegador y el servidor que publica
 // la página. El estado vive en `S`, compartido con js/temporada.js.
 import { categoryRank, countryFlag, jornadaUrl, raceUrl, raceName, categoryBadge, femaleMark, needsFemaleMark, cleanFeminineName } from './shared.js';
-import { isTourDelPorvenir } from './category-filter.js';
+import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
 import { t, getLang } from './i18n.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData } from './race-data-modal.js';
@@ -269,9 +269,9 @@ function _applyCategoryFilter(races) {
   } else if (S.activeCat === 'wwt') {
     races = races.filter(r => r.uciCategory === '1.WWT' || r.uciCategory === '2.WWT');
   } else if (S.activeCat === 'male') {
-    races = races.filter(r => (r.gender === 'male' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
+    races = races.filter(r => (r.gender === 'male' || isGenderNeutral(r) || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
   } else if (S.activeCat === 'female') {
-    races = races.filter(r => (r.gender === 'female' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
+    races = races.filter(r => (r.gender === 'female' || isGenderNeutral(r) || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
   }
   if (S.activeCat !== 'all') {
     races = races.filter(r => {

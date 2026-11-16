@@ -355,7 +355,7 @@ function readTeamSeasonFromForm(team) {
     headerText: team.headerText,
     badgeTorsoCenter: team.badgeTorsoCenter,
     badgeTorsoSides: team.badgeTorsoSides,
-    badgeInnerCircle: panelState._season27Row?.badgeInnerCircle || null,
+    badgeInnerCircle: null,
     badgeShorts: team.badgeShorts,
     translations: panelState._season27Row?.translations || {},
     badgeVisible: panelState._season27Row ? panelState._season27Row.badgeVisible !== false : true,
@@ -674,15 +674,9 @@ function teamEditorBodyHtml() {
               </div>
             </div>
           </div>
-          <div class="field-row field-row--2">
-            <div class="field">
-              <label>Círculo interior <span class="u-dim">— opcional, #RRGGBB</span></label>
-              <input type="text" id="ts27-innerCircle-text" placeholder="Sin círculo" class="u-w-full">
-            </div>
-            <div class="field">
-              <label>Traducciones <span class="u-dim">— JSON</span></label>
-              <textarea id="ts27-translations" rows="3" class="u-w-full" spellcheck="false">{}</textarea>
-            </div>
+          <div class="field">
+            <label>Traducciones <span class="u-dim">— JSON</span></label>
+            <textarea id="ts27-translations" rows="3" class="u-w-full" spellcheck="false">{}</textarea>
           </div>
           <div class="team-season-colors-preview">
             <div id="ts27ColorsPreview" class="team-color-squares team-color-squares--small" aria-label="Tres colores cromáticos de la temporada"><i></i><i></i><i></i></div>

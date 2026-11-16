@@ -470,6 +470,42 @@ final class SupabaseService {
             .value
     }
 
+    // MARK: - Vídeos de jornada
+
+    static let raceDayVideoColumns = "id,raceDayId,kind,title,titleEn,channel,url,embeddable,country,sortOrder"
+
+    /// Vídeos de una jornada (`race_day_videos`).
+    func raceDayVideos(byRaceDayId id: String) async throws -> [RaceDayVideo] {
+        try await client.from("race_day_videos")
+            .select(SupabaseService.raceDayVideoColumns)
+            .eq("raceDayId", value: id)
+            .order("sortOrder", ascending: true)
+            .execute()
+            .value
+    }
+
+    /// Vídeos de las jornadas publicadas de una fecha.
+    func raceDayVideos(byPublishedDate dateKey: String) async throws -> [RaceDayVideo] {
+        try await client.from("race_day_videos")
+            .select("\(SupabaseService.raceDayVideoColumns),race_days!inner(dateKey)")
+            .eq("race_days.dateKey", value: dateKey)
+            .eq("race_days.editorialStatus", value: "published")
+            .order("sortOrder", ascending: true)
+            .execute()
+            .value
+    }
+
+    /// Vídeos de las jornadas publicadas de una carrera.
+    func raceDayVideos(byPublishedRaceId raceId: String) async throws -> [RaceDayVideo] {
+        try await client.from("race_day_videos")
+            .select("\(SupabaseService.raceDayVideoColumns),race_days!inner(raceId)")
+            .eq("race_days.raceId", value: raceId)
+            .eq("race_days.editorialStatus", value: "published")
+            .order("sortOrder", ascending: true)
+            .execute()
+            .value
+    }
+
     // MARK: - Assets
 
     /// Assets de una jornada.
@@ -683,10 +719,13 @@ final class SupabaseService {
         async let assetsResult = assets(byPublishedDate: dateKey)
         async let elevResult = raceDaysElevation(byDate: dateKey)
         async let featuredResult = featuredRaces(for: [dateKey])
+        // Vídeos: sin ellos la tarjeta conserva Revive (tabla nueva en la 5.2).
+        async let videosResult = (try? raceDayVideos(byPublishedDate: dateKey)) ?? []
 
         var (raceDays, fetchedRaces, fetchedBroadcasts, fetchedAssets, fetchedElev, featured) = try await (
             daysResult, racesResult, broadcastsResult, assetsResult, elevResult, featuredResult
         )
+        let fetchedVideos = await videosResult
 
         // Una jornada publicada entre consultas podría referir una carrera que
         // no llegó en la tanda: se recupera por ID.
@@ -698,6 +737,7 @@ final class SupabaseService {
         let raceMap = Dictionary(fetchedRaces.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let broadcastsByRd = Dictionary(grouping: fetchedBroadcasts, by: \.raceDayId)
         let assetsByRd = Dictionary(grouping: fetchedAssets, by: \.raceDayId)
+        let videosByRd = Dictionary(grouping: fetchedVideos, by: \.raceDayId)
         let elevMap = Dictionary(fetchedElev.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         // Aplicar datos de elevación sobre el resultado slim
@@ -711,7 +751,8 @@ final class SupabaseService {
                 raceDay: rd,
                 race: rd.raceId.flatMap { raceMap[$0] },
                 broadcasts: broadcastsByRd[rd.id] ?? [],
-                assets: assetsByRd[rd.id] ?? []
+                assets: assetsByRd[rd.id] ?? [],
+                videos: videosByRd[rd.id] ?? []
             )
         }
 
@@ -794,10 +835,11 @@ final class SupabaseService {
         async let daysResult = raceDays(byRaceId: raceId)
         async let broadcastsResult = broadcasts(byPublishedRaceId: raceId)
         async let assetsResult = assets(byPublishedRaceId: raceId)
+        async let videosResult = (try? raceDayVideos(byPublishedRaceId: raceId)) ?? []
         let (race, days, fetchedBroadcasts, fetchedAssets) = try await (
             raceResult, daysResult, broadcastsResult, assetsResult
         )
-        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets))
+        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets, videos: await videosResult))
     }
 
     /// Variante para quien ya tiene la carrera (p. ej. resuelta por slug).
@@ -805,8 +847,9 @@ final class SupabaseService {
         async let daysResult = raceDays(byRaceId: race.id)
         async let broadcastsResult = broadcasts(byPublishedRaceId: race.id)
         async let assetsResult = assets(byPublishedRaceId: race.id)
+        async let videosResult = (try? raceDayVideos(byPublishedRaceId: race.id)) ?? []
         let (days, fetchedBroadcasts, fetchedAssets) = try await (daysResult, broadcastsResult, assetsResult)
-        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets))
+        return (race, Self.enrichRaceDays(days, race: race, broadcasts: fetchedBroadcasts, assets: fetchedAssets, videos: await videosResult))
     }
 
     /// Ordena las jornadas de una carrera, anota dobles sectores y les asocia
@@ -815,7 +858,8 @@ final class SupabaseService {
         _ raceDays: [RaceDay],
         race: Race,
         broadcasts: [Broadcast],
-        assets: [Asset]
+        assets: [Asset],
+        videos: [RaceDayVideo] = []
     ) -> [EnrichedRaceDay] {
         var days = raceDays
         days.sort { a, b in
@@ -834,13 +878,15 @@ final class SupabaseService {
 
         let broadcastsByRd = Dictionary(grouping: broadcasts, by: \.raceDayId)
         let assetsByRd = Dictionary(grouping: assets, by: \.raceDayId)
+        let videosByRd = Dictionary(grouping: videos, by: \.raceDayId)
 
         return days.map { rd in
             EnrichedRaceDay(
                 raceDay: rd,
                 race: race,
                 broadcasts: broadcastsByRd[rd.id] ?? [],
-                assets: assetsByRd[rd.id] ?? []
+                assets: assetsByRd[rd.id] ?? [],
+                videos: videosByRd[rd.id] ?? []
             )
         }
     }

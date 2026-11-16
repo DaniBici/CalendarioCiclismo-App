@@ -14,6 +14,8 @@ object Routes {
     // activa se recuerda en AppPreferences.calendarSubview).
     const val CALENDAR = "calendar"
     const val CYCLOCROSS = "cyclocross"
+    // Sección Vídeos (apps 5.2), tercera pestaña.
+    const val VIDEOS = "videos"
     const val CX_TOURNAMENT = "cx_tournament/{tournamentId}?season={season}&name={name}&logo={logo}"
     fun cxTournament(tournamentId: String, season: String, name: String, logo: String? = null): String =
         "cx_tournament/${android.net.Uri.encode(tournamentId)}?season=${android.net.Uri.encode(season)}&name=${android.net.Uri.encode(name)}${logo?.let { "&logo=${android.net.Uri.encode(it)}" } ?: ""}"
@@ -36,7 +38,8 @@ object Routes {
     const val RACE = "race/{raceId}"
     // raceId es opcional — se usa como hint para prefetchear si la jornada no está en caché local
     // title: «Carrera · Etapa 3» para rotular la pantalla de carga.
-    const val STAGE = "stage/{stageId}?raceId={raceId}&title={title}"
+    // section: «videos» abre la jornada desplazada a su panel Vídeos.
+    const val STAGE = "stage/{stageId}?raceId={raceId}&title={title}&section={section}"
     // La ruta registrada en AppNavHost es "elevation_profile/{rdId}"; mantener
     // sincronizados constante, helper y el `composable` de AppNavHost.
     const val ELEVATION_PROFILE = "elevation_profile/{rdId}"
@@ -56,10 +59,11 @@ object Routes {
     const val TRANSFERS_TEAM = "transfers_team/{teamId}"
 
     fun race(raceId: String) = "race/$raceId"
-    fun stage(stageId: String, raceId: String? = null, title: String? = null): String {
+    fun stage(stageId: String, raceId: String? = null, title: String? = null, section: String? = null): String {
         val params = buildList {
             raceId?.let { add("raceId=$it") }
             title?.takeIf { it.isNotBlank() }?.let { add("title=${android.net.Uri.encode(it)}") }
+            section?.let { add("section=$it") }
         }
         return if (params.isEmpty()) "stage/$stageId" else "stage/$stageId?${params.joinToString("&")}"
     }
@@ -84,13 +88,12 @@ object Routes {
     val followedCxRaces = FOLLOWED_CX_RACES
     fun transfersTeam(teamId: String) = "transfers_team/$teamId"
 
-    /** Destinos principales de la suite adaptativa de navegación, en orden.
-     *  Con Hoy oculta ([app.calendariociclismo.android.util.RoadTodayAvailability]),
-     *  Ciclocross encabeza la barra. */
-    fun mainTabs(todayVisible: Boolean): List<String> =
-        if (todayVisible) listOf(TODAY, RESULTS_FEED, TRANSFERS, CYCLOCROSS, CALENDAR)
-        else listOf(CYCLOCROSS, RESULTS_FEED, TRANSFERS, CALENDAR)
+    /** Destinos principales de la suite adaptativa de navegación, en orden,
+     *  todo el año (docs/plans/videos-5-2.md, D1): Hoy (la ruta [CYCLOCROSS],
+     *  con la agenda de Ciclocross y Hoy de carretera tras el conmutador
+     *  «CX | Ruta»), Resultados, Vídeos, Fichajes y Calendario. */
+    val MAIN_TABS: List<String> = listOf(CYCLOCROSS, RESULTS_FEED, VIDEOS, TRANSFERS, CALENDAR)
 
-    /** Pestaña inicial: la primera de la barra. */
-    fun home(todayVisible: Boolean): String = mainTabs(todayVisible).first()
+    /** Pestaña inicial: Hoy. */
+    const val HOME = CYCLOCROSS
 }

@@ -33,55 +33,65 @@ function stageLabel(sn, isEn, suffix = '') {
   return '';   // pruebas de un día: sin etiqueta (decisión 2026-06-11)
 }
 
-// ── Render de una fila ─────────────────────────────────────────────
-function entryRowHtml(e, isEn, locale) {
-  const gcFinalLabel = isEn ? 'Final GC' : 'General final';
+// ── Piezas de una fila de carretera ────────────────────────────────
+// Las comparte la sección Vídeos (js/videos-feed-html.js).
+/** Columna izquierda (logo y bandera), nombre con el símbolo femenino y color de la fila. */
+export function roadRowHead(race, rd) {
   // País efectivo: la jornada puede transcurrir en un país distinto al de la
   // carrera (etapa que sale de otro país) → prevalece el de la jornada.
-  const flagCc = effectiveCountryCode(e.rd, e.race);
+  const flagCc = effectiveCountryCode(rd, race);
   const flag = flagCc ? `<span class="feed-row__flag">${countryFlag(flagCc)}</span>` : '';
   // Todas las filas reservan la misma columna para el logo y la bandera.
   // Sin logo (o si no carga), el hueco de la marca; nunca en los Nacionales.
-  const national = e.race.uciCategory === 'CN';
-  const logo = e.race.logoUrl
-    ? `<img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" ${national ? `onerror="this.style.display='none'"` : LOGO_ONERROR}>`
+  const national = race.uciCategory === 'CN';
+  const logo = race.logoUrl
+    ? `<img class="race-logo-img" src="${esc(race.logoUrl)}" alt="" loading="lazy" ${national ? `onerror="this.style.display='none'"` : LOGO_ONERROR}>`
     : (national ? '' : logoPlaceholderHtml('race-logo-img'));
-  const leftCol = `<span class="feed-row__logo">${logo}${flag}</span>`;
-  const fem = (e.race.gender === 'female' && !nameImpliesFemale(e.race.name || ''))
+  const fem = (race.gender === 'female' && !nameImpliesFemale(race.name || ''))
     ? femaleMark({ cls: 'feed-row__fem' }) : '';
   // Nombre en una línea con puntos suspensivos; el símbolo femenino, visible.
-  const name = `<span class="feed-row__race-name">${esc(getRaceName(e.race))}</span>${fem}`;
-  const color = safeCardColor(e.race.colorHex);
+  return {
+    leftCol: `<span class="feed-row__logo">${logo}${flag}</span>`,
+    name: `<span class="feed-row__race-name">${esc(getRaceName(race))}</span>${fem}`,
+    color: safeCardColor(race.colorHex),
+  };
+}
+
+/** Línea secundaria de una jornada: etapa, km y desnivel + badge solo para CRI/CRE/cronoescalada. Un día: sin etiqueta. */
+export function roadRowSubHtml(rd, race, { sn, suffix = '', isEn, locale }) {
+  const km = rd?.distanceKm
+    ? `${Number(rd.distanceKm).toLocaleString(locale)} km` : '';
+  const gain = rd?.elevationGain;
+  const elevation = gain != null
+    // Separador de millares también con cuatro cifras («+1.810 m»), como en Hoy:
+    // es-ES no agrupa por defecto por debajo de 10.000.
+    ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`
+    : '';
+  const stagePart = stageLabel(sn, isEn, suffix || '');
+  const seg = [];
+  if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
+  if (km) seg.push(`<strong>${esc(km)}</strong>`);
+  if (elevation) seg.push(esc(elevation));
+  const text = seg.join(' · ');
+  const showType = rd?.primaryType === 'itt' || rd?.primaryType === 'ttt';
+  const resultSecondary = rd?.primaryType === 'itt' && ['chrono_climb', 'summit_finish'].includes(rd?.secondaryType)
+    ? rd.secondaryType : null;
+  const badges = showType
+    ? `<span class="feed-row__badges">${resolveTypeBadges(rd.primaryType, resultSecondary, race.countryCode)}</span>` : '';
+  return `${text}${badges}`;
+}
+
+// ── Render de una fila ─────────────────────────────────────────────
+function entryRowHtml(e, isEn, locale) {
+  const gcFinalLabel = isEn ? 'Final GC' : 'General final';
+  const { leftCol, name, color } = roadRowHead(e.race, e.rd);
 
   // Línea 2: etapa, km y desnivel + badge solo para CRI/CRE/cronoescalada.
   // Las generales finales solo llevan su etiqueta. Un
   // día: sin etiqueta.
-  let subHtml = '';
-  if (e.isGcFinal) {
-    subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>`;
-  } else {
-    const rd = e.rd;
-    const km = rd?.distanceKm
-      ? `${Number(rd.distanceKm).toLocaleString(locale)} km` : '';
-    const gain = rd?.elevationGain;
-    const elevation = gain != null
-      // Separador de millares también con cuatro cifras («+1.810 m»), como en Hoy:
-      // es-ES no agrupa por defecto por debajo de 10.000.
-      ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`
-      : '';
-    const stagePart = stageLabel(e.sn, isEn, e.suffix || '');
-    const seg = [];
-    if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
-    if (km) seg.push(`<strong>${esc(km)}</strong>`);
-    if (elevation) seg.push(esc(elevation));
-    const text = seg.join(' · ');
-    const showType = rd?.primaryType === 'itt' || rd?.primaryType === 'ttt';
-    const resultSecondary = rd?.primaryType === 'itt' && ['chrono_climb', 'summit_finish'].includes(rd?.secondaryType)
-      ? rd.secondaryType : null;
-    const badges = showType
-      ? `<span class="feed-row__badges">${resolveTypeBadges(rd.primaryType, resultSecondary, e.race.countryCode)}</span>` : '';
-    subHtml = `${text}${badges}`;
-  }
+  const subHtml = e.isGcFinal
+    ? `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>`
+    : roadRowSubHtml(e.rd, e.race, { sn: e.sn, suffix: e.suffix, isEn, locale });
 
   const winnerHtml = e.winner
     ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong></span>` : '';
@@ -111,9 +121,10 @@ function entryRowHtml(e, isEn, locale) {
 // clasificaciones complementarias, una línea por categoría con su código y
 // el ganador o la ganadora. La línea secundaria identifica torneo, manga y
 // sede, como la tarjeta de Hoy de Ciclocross.
-function cxEntryRowHtml(e, isEn, rounds) {
+/** Logo, bandera, nombre y línea secundaria (torneo, manga y sede) de una prueba CX. Las comparte la sección Vídeos. */
+export function cxRowHead(race, isEn, rounds) {
   const lang = isEn ? 'en' : 'es';
-  const race = e.race, tournament = race.cx_tournaments;
+  const tournament = race.cx_tournaments;
   const logoUrl = race.logoUrl || tournament?.logoUrl;
   const national = race.class === 'CN';
   const logo = logoUrl
@@ -122,6 +133,13 @@ function cxEntryRowHtml(e, isEn, rounds) {
   const flag = race.countryCode ? `<span class="feed-row__flag">${countryFlag(race.countryCode)}</span>` : '';
   const name = cxRaceName(race, lang);
   const sub = [tournament ? esc(cxRaceName(tournament, lang)) : '', cxRoundBadge(rounds?.get(race.id)), race.venue && race.venue !== name ? esc(race.venue) : ''].filter(Boolean).join(' · ');
+  return { logo, flag, name, sub };
+}
+
+function cxEntryRowHtml(e, isEn, rounds) {
+  const lang = isEn ? 'en' : 'es';
+  const race = e.race;
+  const { logo, flag, name, sub } = cxRowHead(race, isEn, rounds);
   const leaders = e.categories.map(c => `<span class="feed-row__leader"><span class="feed-row__leader-label" title="${esc(t(`cx.category.${c.category}`))}">${esc(c.category)}</span><span class="feed-row__leader-name">${esc(c.winnerName)}</span></span>`).join('');
   return `
       <a class="feed-row feed-row--featured feed-row--cx" href="${esc(cxRacePageUrl(race, lang, 'results', e.categories[0].category))}">
@@ -133,7 +151,7 @@ function cxEntryRowHtml(e, isEn, rounds) {
       </a>`;
 }
 
-const dayHeaderText = (dk, locale) => {
+export const dayHeaderText = (dk, locale) => {
   const [y, m, d] = dk.split('-').map(Number);
   const s = new Date(y, m - 1, d).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
   return s.charAt(0).toUpperCase() + s.slice(1);

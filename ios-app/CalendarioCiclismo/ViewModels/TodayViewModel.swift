@@ -10,22 +10,20 @@ enum RoadTodayAvailability {
 
     /// Valores (`Tab.value`) de cada sección; identidad estable con
     /// independencia de la posición, coincidente con `DeepLink.tab`.
-    static let todayTab = 0, resultsTab = 1, transfersTab = 2, cyclocrossTab = 3, calendarTab = 4
+    /// 5 y 6 corresponden a los enlaces retirados `subscribe` y `notifications`.
+    static let todayTab = 0, resultsTab = 1, transfersTab = 2, cyclocrossTab = 3, calendarTab = 4, videosTab = 7
 
+    /// Temporada de carretera: Hoy abre en Ruta; antes, en Ciclocross.
     static func isVisible(today: String = DateFormatting.todayKey()) -> Bool {
         today >= returnDate
     }
 
-    /// Pestañas en el orden de la barra.
-    static func tabs(todayVisible: Bool) -> [Int] {
-        todayVisible
-            ? [todayTab, resultsTab, transfersTab, cyclocrossTab, calendarTab]
-            : [cyclocrossTab, resultsTab, transfersTab, calendarTab]
-    }
+    /// Pestañas en el orden de la barra, todo el año (docs/plans/videos-5-2.md,
+    /// D1): Hoy (agenda de Ciclocross y Hoy de carretera con el conmutador
+    /// «CX | Ruta»), Resultados, Vídeos, Fichajes y Calendario.
+    static let tabs = [cyclocrossTab, resultsTab, videosTab, transfersTab, calendarTab]
 
-    static func initialTab(todayVisible: Bool) -> Int {
-        todayVisible ? todayTab : cyclocrossTab
-    }
+    static let initialTab = cyclocrossTab
 
     /// Pantalla de portada para las invitaciones a contribuir y a valorar la
     /// app: Hoy o, mientras está retirada, la agenda de Ciclocross.

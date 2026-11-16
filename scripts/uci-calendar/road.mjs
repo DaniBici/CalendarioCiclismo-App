@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Calendario oficial UCI de carretera. No consulta DataRide ni escribe en BD:
-// descarga el calendario y las fichas, normaliza las competiciones y emite un
-// manifiesto y, opcionalmente, el SQL idempotente del alta de fichas.
+// lee el directorio de competiciones UCI (uci-competition.tech.uci.ch),
+// normaliza las competiciones y emite un manifiesto y, opcionalmente, el SQL
+// idempotente del alta de fichas.
 //
 //   node scripts/uci-calendar/road.mjs --year 2027 --races races.json \
 //     --out manifiesto.json --sql alta.sql
@@ -12,28 +13,10 @@
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-export const UCI_ROAD_CALENDAR_URL = 'https://www.uci.org/calendar/road';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// Categoría de la ficha UCI a `races`: género y edad.
-const CATEGORY_GENDER = {
-  'Men Elite': 'male',
-  'Women Elite': 'female',
-  'Men Under 23': 'male',
-  'Women Under 23': 'female',
-  'Men Junior': 'male',
-  'Women Junior': 'female',
-};
-const CATEGORY_AGE = {
-  'Men Elite': 'elite',
-  'Women Elite': 'elite',
-  'Men Under 23': 'u23',
-  'Women Under 23': 'u23',
-  'Men Junior': 'junior',
-  'Women Junior': 'junior',
-};
+import {
+  UCI_CATEGORY, UCI_COMPETITION_DIRECTORY_URL, getUciCompetition, listUciCompetitions, mapLimited,
+  organizerWebsite, uciCalendarIdOf, uciDates,
+} from '../../supabase/functions/_shared/uci-competition-api.mjs';
 
 // Clases del calendario UCI de carretera. `excluded` nombra el motivo de
 // descarte; el resto se traduce a `races."uciCategory"`.
@@ -58,6 +41,7 @@ export const ROAD_CLASSES = {
   '1.2S': { excluded: 'unsupported_class' },
   JC: { excluded: 'unsupported_class' },
   JR: { excluded: 'unsupported_class' },
+  JOJ: { excluded: 'unsupported_class' },
   CRT: { excluded: 'unsupported_class' },
   CRTP: { excluded: 'unsupported_class' },
 };
@@ -68,79 +52,11 @@ export function roadYear(year) {
   return value;
 }
 
-export function roadClass(text) {
-  const code = String(text || '').split(' - ')[0].trim();
-  const entry = ROAD_CLASSES[code];
-  if (!entry) return { code, excluded: 'unknown_class' };
-  return { code, ...entry };
-}
-
-export function uciCivilDate(text) {
-  const m = /^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/.exec(String(text).trim());
-  if (!m || !MONTHS.includes(m[2])) throw new Error(`Fecha UCI no reconocida: ${text}`);
-  const year = Number(m[3]), month = MONTHS.indexOf(m[2]) + 1, day = Number(m[1]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
-    throw new Error(`Fecha UCI inválida: ${text}`);
-  }
-  return date.toISOString().slice(0, 10);
-}
-
-const monthOf = text => MONTHS.indexOf(String(text).trim().split(' ')[1]);
-const yearOf = text => Number(String(text).trim().slice(-4));
-
-// «03 Oct 2026», «27 Sep - 04 Oct 2026» o «28 Dec 2026 - 02 Jan 2027». El tramo
-// final lleva el año; el inicial lo lleva solo si cruza de año y, si falta, se
-// deduce del mes.
-export function uciDateRange(text) {
-  const parts = String(text || '').split(' - ').map(part => part.trim());
-  if (parts.length === 1) {
-    const date = uciCivilDate(parts[0]);
-    return { startDate: date, endDate: date };
-  }
-  if (parts.length !== 2) throw new Error(`Rango de fechas UCI no reconocido: ${text}`);
-  const endDate = uciCivilDate(parts[1]);
-  const endYear = yearOf(parts[1]);
-  const startYear = monthOf(parts[0]) > monthOf(parts[1]) ? endYear - 1 : endYear;
-  const startDate = uciCivilDate(/ \d{4}$/.test(parts[0]) ? parts[0] : `${parts[0]} ${startYear}`);
-  if (startDate > endDate) throw new Error(`Rango de fechas UCI invertido: ${text}`);
-  return { startDate, endDate };
-}
-
-function decodeAttribute(value) {
-  return value.replace(/&(#x[0-9a-f]+|#\d+|quot|apos|amp|lt|gt);/gi, (_, entity) => {
-    if (entity.startsWith('#')) return String.fromCodePoint(entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : Number(entity.slice(1)));
-    return { quot: '"', apos: "'", amp: '&', lt: '<', gt: '>' }[entity.toLowerCase()];
-  });
-}
-
-export function uciCompetitionProps(html) {
-  for (const match of String(html).matchAll(/data-props="([^"]+)"/g)) {
-    let props;
-    try { props = JSON.parse(decodeAttribute(match[1])); } catch { continue; }
-    if (props.competitionDetails && props.schedule) return props;
-  }
-  throw new Error('La ficha UCI no contiene competición y programa reconocibles.');
-}
-
-export function flattenUciCalendar(response, year) {
-  const target = roadYear(year);
-  if (!Array.isArray(response?.items)) throw new Error('Respuesta del calendario UCI inválida.');
-  const entries = [];
-  for (const month of response.items) {
-    if (!Array.isArray(month.items)) throw new Error('Mes del calendario sin días.');
-    for (const day of month.items) {
-      if (!Array.isArray(day.items)) throw new Error('Día del calendario sin pruebas.');
-      for (const item of day.items) {
-        const path = item.detailsLink?.url;
-        const m = /^\/competition-details\/(\d{4})\/ROA\/(\d+)$/.exec(path || '');
-        if (!m) throw new Error(`Prueba UCI inesperada: ${path || item.name}`);
-        if (Number(m[1]) !== target) continue;
-        entries.push({ ...item, uciCalendarId: Number(m[2]), calendarSourceUrl: `https://www.uci.org${path}` });
-      }
-    }
-  }
-  return entries;
+export function roadClass(code) {
+  const key = String(code || '').trim();
+  const entry = ROAD_CLASSES[key];
+  if (!entry) return { code: key, excluded: 'unknown_class' };
+  return { code: key, ...entry };
 }
 
 export function slugBase(text) {
@@ -149,115 +65,101 @@ export function slugBase(text) {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-// Competición UCI normalizada. `manual` marca lo que no se puede volcar sin
-// decisión editorial: campeonatos y competiciones con varias categorías o
-// géneros en una sola ficha.
-export function normalizeRoadCompetition(entry, props, { year, countryCode }) {
+// Competición del directorio UCI normalizada. `manual` marca lo que no se
+// puede volcar sin decisión editorial: campeonatos y competiciones con varias
+// categorías o géneros en una sola ficha.
+export function normalizeRoadCompetition(item, { year, countryCode }) {
   const target = roadYear(year);
-  const details = props.competitionDetails;
-  if (!details?.name || !Array.isArray(props.schedule?.items)) throw new Error('Ficha UCI sin nombre o programa.');
-  const klass = roadClass(details.competitionClass);
-  const categories = [];
-  for (const day of props.schedule.items) {
-    const dateKey = uciCivilDate(day.date);
-    for (const race of day.races || []) {
-      categories.push({ category: race.category || null, ageCategory: CATEGORY_AGE[race.category] || null, raceType: race.raceType || null, dateKey });
-    }
-  }
-  // El listado trae el rango completo; la ficha de una vuelta por etapas solo
-  // programa el primer día. El programa queda como respaldo.
-  const { startDate, endDate } = entry.dates
-    ? uciDateRange(entry.dates)
-    : (categories.length ? dateRangeFromDays(props.schedule.items) : uciDateRange(details.dates));
-  if (!startDate.startsWith(`${target}-`)) {
-    // El calendario UCI del año N incluye pruebas de octubre–diciembre de N-1.
-    // La web archiva por año de inicio: se descartan y se conservan en su edición.
-    return { excludedCompetition: { uciCalendarId: entry.uciCalendarId, name: details.name, classCode: klass.code, reason: 'outside_year', startDate, countryCode: countryCode(entry.country)?.toUpperCase() || null } };
-  }
-  const genders = [...new Set(categories.map(c => CATEGORY_GENDER[c.category]).filter(Boolean))];
-  const gender = genders.length === 1 ? genders[0] : null;
+  const uciCalendarId = uciCalendarIdOf(item);
+  if (!uciCalendarId) throw new Error(`Competición UCI sin ID de calendario (v1Code): ${item?.name}`);
+  const name = String(item.name || '').trim();
+  if (!name) throw new Error(`Competición UCI sin nombre: ${uciCalendarId}`);
+  if (!Number.isInteger(item.seasonYear)) throw new Error(`Competición UCI sin temporada: ${name}`);
+  const klass = roadClass(item.classCode);
+  const { startDate, endDate } = uciDates(item, name);
+  const country = countryCode(item.countryCode);
+  const iso = country ? country.toUpperCase() : null;
+  const excluded = reason => ({ excludedCompetition: { uciCalendarId, name, classCode: klass.code, reason, startDate, countryCode: iso } });
+  // El filtro de fechas solapa el año civil: las pruebas que empezaron el año
+  // anterior se conservan en su edición.
+  if (!startDate.startsWith(`${target}-`)) return excluded('outside_year');
+  if (klass.excluded) return excluded(klass.excluded);
+  const categories = (item.categoryCodes || []).map(code => ({
+    category: code, gender: UCI_CATEGORY[code]?.gender || null, ageCategory: UCI_CATEGORY[code]?.age || null,
+  }));
+  // `races` no distingue la categoría de edad: las fichas solo junior quedan fuera.
+  if (categories.length && categories.every(c => c.ageCategory === 'junior')) return excluded('junior');
+  const genders = [...new Set(categories.map(c => c.gender).filter(Boolean))];
   const manualReasons = [];
-  if (klass.excluded) manualReasons.push(klass.excluded);
   if (klass.championship) manualReasons.push('championship');
   if (!genders.length) manualReasons.push('unknown_category');
   if (genders.length > 1) manualReasons.push('multi_gender');
-  if (categories.length && new Set(categories.map(c => c.category)).size > 1) manualReasons.push('multi_category');
-  const raceFormat = klass.uciCategory === 'WC' || klass.uciCategory === 'CC'
+  if (categories.length > 1) manualReasons.push('multi_category');
+  const raceFormat = klass.championship
     ? (startDate === endDate ? 'one_day' : 'stage_race')
-    : (klass.code?.[0] === '2' ? 'stage_race' : 'one_day');
-  const country = countryCode(entry.country);
-  const name = details.name;
-  const base = {
-    uciCalendarId: entry.uciCalendarId,
-    calendarSourceUrl: entry.calendarSourceUrl,
+    : (klass.code[0] === '2' ? 'stage_race' : 'one_day');
+  const race = {
+    uciCalendarId,
+    uciCompetitionId: item.id,
+    calendarSourceUrl: `https://www.uci.org/competition-details/${item.seasonYear}/ROA/${uciCalendarId}`,
     name,
     nameEn: name,
     originalName: name,
-    uciCategory: klass.uciCategory || null,
+    uciCategory: klass.uciCategory,
     classCode: klass.code,
-    gender,
+    gender: genders.length === 1 ? genders[0] : null,
     raceFormat,
-    countryCode: country ? country.toUpperCase() : null,
+    countryCode: iso,
     startDate,
     endDate,
     year: target,
-    venue: details.venue || entry.venue || null,
-    websiteUrl: /^https?:\/\//i.test(details.website?.url || '') ? details.website.url : null,
+    venue: String(item.venue || '').trim() || null,
+    websiteUrl: organizerWebsite(item.website),
     slug: `${slugBase(name) || 'carrera'}-${target}`,
     slugEn: `${slugBase(name) || 'race'}-${target}`,
     categories,
+    raceTypes: (item.raceTypes || []).map(type => type.code).filter(Boolean),
   };
-  const manual = manualReasons.length > 0;
-  if (klass.excluded) {
-    return { excludedCompetition: { uciCalendarId: entry.uciCalendarId, name, classCode: klass.code, reason: klass.excluded, startDate, countryCode: base.countryCode } };
-  }
-  // `races` no distingue la categoría de edad: las fichas solo junior quedan fuera.
-  if (categories.length && categories.every(c => c.ageCategory === 'junior')) {
-    return { excludedCompetition: { uciCalendarId: entry.uciCalendarId, name, classCode: klass.code, reason: 'junior', startDate, countryCode: base.countryCode } };
-  }
-  return { race: base, manual, manualReasons, categories };
+  return { race, manual: manualReasons.length > 0, manualReasons };
 }
 
-function dateRangeFromDays(days) {
-  const keys = days.map(day => uciCivilDate(day.date)).sort();
-  return { startDate: keys[0], endDate: keys.at(-1) };
+// Programa de una competición: una carrera por etapa o por categoría y tipo.
+// Sirve para desdoblar a mano campeonatos y fichas con varias categorías.
+export function uciProgramme(detail) {
+  if (!Array.isArray(detail?.races)) throw new Error('Ficha del directorio UCI sin carreras.');
+  return detail.races.map(race => ({
+    name: race.name || null, category: race.categoryCode || null, raceType: race.raceTypeCode || null,
+    classCode: race.classCode || null, ...uciDates(race, race.name),
+  })).sort((a, b) => a.startDate.localeCompare(b.startDate) || String(a.category).localeCompare(String(b.category)));
 }
 
 export async function collectUciRoadCalendar({ year, fetcher = fetch, countryCode, concurrency = 4, onProgress = () => {} }) {
   const target = roadYear(year);
   if (typeof countryCode !== 'function') throw new Error('Falta conversor ISO3 a ISO2.');
-  const headers = { 'User-Agent': 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)' };
-  const endpoints = ['upcoming', 'past'].map(kind => `https://www.uci.org/api/calendar/${kind}?discipline=ROA&year=${target}`);
-  const catalogs = await Promise.all(endpoints.map(async url => {
-    const response = await fetcher(url, { headers, signal: AbortSignal.timeout(45000) });
-    if (!response.ok) throw new Error(`Calendario UCI: HTTP ${response.status}`);
-    return flattenUciCalendar(await response.json(), target);
-  }));
-  const unique = new Map();
-  for (const entry of catalogs.flat()) {
-    const previous = unique.get(entry.uciCalendarId);
-    if (previous && previous.name !== entry.name) throw new Error(`Nombres incompatibles en calendario UCI: ${entry.uciCalendarId}`);
-    unique.set(entry.uciCalendarId, entry);
+  // El año civil completo, sin filtrar por temporada: incluye las pruebas de
+  // octubre–diciembre que la UCI asigna a la temporada siguiente.
+  const { items, url } = await listUciCompetitions({ fetcher, query: { disciplineCode: 'ROA', dateFrom: `${target}-01-01`, dateTo: `${target}-12-31` } });
+  if (!items.length) throw new Error('Calendario UCI vacío: no se genera una importación vacía.');
+  const errors = [], byCalendarId = new Map();
+  for (const item of items) {
+    const id = uciCalendarIdOf(item);
+    if (!id) errors.push({ uciCompetitionId: item.id, name: item.name, error: 'Sin ID de calendario (v1Code)' });
+    else if (byCalendarId.has(id)) errors.push({ uciCalendarId: id, name: item.name, error: 'ID de calendario repetido' });
+    else byCalendarId.set(id, item);
   }
-  if (!unique.size) throw new Error('Calendario UCI vacío: no se genera una importación vacía.');
-  const entries = [...unique.values()].sort((a, b) => a.uciCalendarId - b.uciCalendarId);
-  const races = [], manual = [], exclusions = [], errors = [];
-  let next = 0, completed = 0;
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(4, concurrency, entries.length)) }, async () => {
-    while (next < entries.length) {
-      const entry = entries[next++];
-      try {
-        const response = await fetcher(entry.calendarSourceUrl, { headers, signal: AbortSignal.timeout(45000) });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const normalized = normalizeRoadCompetition(entry, uciCompetitionProps(await response.text()), { year: target, countryCode });
-        if (normalized.excludedCompetition) exclusions.push(normalized.excludedCompetition);
-        else if (normalized.manual) manual.push({ ...normalized.race, manualReasons: normalized.manualReasons });
-        else races.push(normalized.race);
-      } catch (error) { errors.push({ uciCalendarId: entry.uciCalendarId, name: entry.name, error: error.message }); }
-      onProgress({ completed: ++completed, total: entries.length });
-    }
-  }));
-  if (errors.length) throw new Error(`Importación incompleta; ${errors.length} fichas requieren revisión: ${JSON.stringify(errors)}`);
+  const races = [], manual = [], exclusions = [];
+  for (const [uciCalendarId, item] of [...byCalendarId].sort(([a], [b]) => a - b)) {
+    try {
+      const normalized = normalizeRoadCompetition(item, { year: target, countryCode });
+      if (normalized.excludedCompetition) exclusions.push(normalized.excludedCompetition);
+      else if (normalized.manual) manual.push({ ...normalized.race, manualReasons: normalized.manualReasons });
+      else races.push(normalized.race);
+    } catch (error) { errors.push({ uciCalendarId, name: item.name, error: error.message }); }
+  }
+  const programmes = await mapLimited(manual, async race => uciProgramme(await getUciCompetition({ fetcher, id: race.uciCompetitionId })), { concurrency, onProgress });
+  manual.forEach((race, index) => { race.programme = programmes.results[index] ?? null; });
+  errors.push(...programmes.errors.map(({ item, error }) => ({ uciCalendarId: item.uciCalendarId, name: item.name, error })));
+  if (errors.length) throw new Error(`Importación incompleta; ${errors.length} competiciones requieren revisión: ${JSON.stringify(errors)}`);
   const slugCount = { slug: new Map(), slugEn: new Map() };
   const uniqueSlugs = item => {
     for (const field of ['slug', 'slugEn']) {
@@ -271,14 +173,14 @@ export async function collectUciRoadCalendar({ year, fetcher = fetch, countryCod
   manual.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.uciCalendarId - b.uciCalendarId);
   manual.forEach(uniqueSlugs);
   return {
-    version: 1,
-    source: 'uci_web_calendar_road',
-    sourceUrl: UCI_ROAD_CALENDAR_URL,
+    version: 2,
+    source: 'uci_competition_directory_road',
+    sourceUrl: UCI_COMPETITION_DIRECTORY_URL,
     year: target,
     checkedAt: new Date().toISOString(),
-    sourceUrls: endpoints,
+    sourceUrls: [url],
     summary: {
-      listedCompetitions: entries.length,
+      listedCompetitions: byCalendarId.size,
       races: races.length,
       manual: manual.length,
       excludedCompetitions: exclusions.length,
@@ -298,14 +200,14 @@ export function foldName(text) {
 }
 
 // Categoría de edad de una edición: sufijo U de la clase, categoría UCI
-// «Under 23» o, en `races`, Copa de Naciones (sub-23; no hay junior) y nombres
+// MU/WU o, en `races`, Copa de Naciones (sub-23; no hay junior) y nombres
 // con la marca sub-23.
 const U23_NAME = /\b(u23|under 23|sub ?23|espoirs|beloften)\b/;
 
 export function raceAge({ classCode, uciCategory, categories, name, nameEn } = {}) {
   const code = String(classCode || uciCategory || '');
   if (/U$/.test(code) || /Ncup$/.test(code)) return 'u23';
-  if ((categories || []).some(c => /Under 23/.test(c.category || ''))) return 'u23';
+  if ((categories || []).some(c => c.ageCategory === 'u23')) return 'u23';
   if (U23_NAME.test(foldName(name)) || U23_NAME.test(foldName(nameEn))) return 'u23';
   return 'elite';
 }
@@ -484,7 +386,7 @@ async function main() {
   const year = roadYear(value('--year') || new Date().toISOString().slice(0, 4));
   const { countryCode } = await import('../uci-catalog/countries.mjs');
   const manifest = await collectUciRoadCalendar({ year, countryCode, onProgress: ({ completed, total }) => {
-    if (completed % 25 === 0 || completed === total) console.log(`Fichas UCI: ${completed}/${total}`);
+    if (completed % 10 === 0 || completed === total) console.log(`Programas UCI de fichas manuales: ${completed}/${total}`);
   } });
   const racesDump = readJson(value('--races'), null) || [];
   const seriesIndex = buildSeriesIndex(racesDump);

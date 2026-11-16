@@ -20,22 +20,24 @@ export async function crearFamiliaHoy({ lang, t, headerHtml, pie, huella, grupos
   const { agendaCardHtml, dateBarHtml, emptyDayHtml } = await load('js/today-agenda-html.js');
   const { agendaPlaceholders, findNextDayWithRaces, prepareAgendaDays } = await load('js/services/today-nav.js');
   const { sortAgenda } = await load('js/services/today-agenda-order.js');
-  const { cyclocrossHome, cyclocrossLanding } = await load('js/services/today-season.js');
+  const { cyclocrossLanding } = await load('js/services/today-season.js');
   const { isChampWeekFilterLock } = await load('js/campeonatos-config.js');
   const { disciplineSwitchHtml } = await load('js/components/discipline-switch.js');
   const cintillo = await crearCintillo();
   const dir = lang === 'en' ? 'en' : '';
   const BASE = grupos.find(grupo => grupo.clave === 'ES');
 
-  // El resto de grupos de una jornada, agrupados por las emisiones que ven.
+  // El resto de grupos de una jornada, agrupados por las emisiones y los vídeos que ven.
   function variantes(rd) {
     const todas = rd._allBroadcasts || [];
+    const todos = rd._allVideos || [];
     const porEmisiones = new Map();
     for (const grupo of grupos) {
       if (grupo === BASE) continue;
       const broadcasts = todas.filter(b => visiblePara(b, grupo));
-      const firma = broadcasts.map(b => b.id).join();
-      if (!porEmisiones.has(firma)) porEmisiones.set(firma, { claves: [], broadcasts, blocked: todas.length > 0 && broadcasts.length === 0 });
+      const videos = todos.filter(v => visiblePara(v, grupo));
+      const firma = `${broadcasts.map(b => b.id).join()}|${videos.map(v => v.id).join()}`;
+      if (!porEmisiones.has(firma)) porEmisiones.set(firma, { claves: [], broadcasts, videos, blocked: todas.length > 0 && broadcasts.length === 0 });
       porEmisiones.get(firma).claves.push(grupo.clave);
     }
     return [...porEmisiones.values()];
@@ -66,7 +68,7 @@ export async function crearFamiliaHoy({ lang, t, headerHtml, pie, huella, grupos
     if (!partes) throw new Error('Portada del sitio base sin la estructura esperada');
     const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(fuente.slice(fuente.indexOf('<main')))?.[1];
     const franja = await cintillo({ ...input.cintillo, cx_races: [] }, 'road');
-    const conmutador = cyclocrossHome(hoy) ? disciplineSwitchHtml('road', hoy) : '';
+    const conmutador = disciplineSwitchHtml('road', hoy);
     const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'today' }).replace('href="#main"', 'href="#raceList"')}</header>`;
 
     const documento = (slug, ruta, contenido) => {

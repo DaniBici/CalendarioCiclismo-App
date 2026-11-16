@@ -746,8 +746,12 @@ struct StageDetailView: View {
     /// Carrera y etapa («Nombre · Etapa 3») si el llamador los conoce: rotulan
     /// la pantalla de carga mientras la ficha no está en caché.
     var titleHint: String? = nil
+    /// «videos»: la jornada se desplaza una vez a su panel Vídeos (tarjeta
+    /// terminada, sección Vídeos, enlace `#videos`).
+    var initialSection: String? = nil
 
     @State private var viewModel = StageDetailViewModel()
+    @State private var didScrollToSection = false
     @State private var localeService = LocaleService.shared
     @State private var safariURL: URL?
     /// Si el asset está descargado en local (R2), se muestra con QuickLook
@@ -795,14 +799,18 @@ struct StageDetailView: View {
                 }
             } else if let rd = viewModel.raceDay {
                 GeometryReader { proxy in
-                    ScrollView {
-                        stageContent(rd, proxy: proxy)
-                            // La revisión cambia solo después de una respuesta
-                            // remota completa.
-                            .id(viewModel.refreshToken)
-                            .padding()
+                    ScrollViewReader { reader in
+                        ScrollView {
+                            stageContent(rd, proxy: proxy)
+                                // La revisión cambia solo después de una respuesta
+                                // remota completa.
+                                .id(viewModel.refreshToken)
+                                .padding()
+                        }
+                        .background(AppTheme.background)
+                        .onAppear { scrollToSection(reader) }
+                        .onChange(of: viewModel.refreshToken) { _, _ in scrollToSection(reader) }
                     }
-                    .background(AppTheme.background)
                 }
             }
         }
@@ -910,10 +918,50 @@ struct StageDetailView: View {
         // el ancho del panel de perfil.
         let mainWidth = hasSide ? contentWidth - Self.sideColumnWidth - gap : contentWidth
         let readoutInline = proxy.size.width > 600
+        let media = mediaState(rd)
+        // Terminada (Revive), la Información va antes que la TV.
+        let infoFirst = media.hasRevive
         VStack(spacing: 16) {
             StageHeaderCard(viewModel: viewModel, safariURL: $safariURL,
                             quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
-            if wide {
+            if wide && !media.entries.isEmpty {
+                // Jornada con vídeos (docs/plans/videos-5-2.md, D9): dos
+                // columnas que crecen por separado. Principal: Perfil,
+                // Información y Revive; lateral: Puntos clave (o Datos del
+                // perfil) y Vídeos.
+                if hasTimes(rd) && hasMetrics(rd) {
+                    HStack(alignment: .top, spacing: gap) {
+                        timeSection(rd).frame(maxWidth: .infinity)
+                        metricsSection(rd).frame(maxWidth: .infinity)
+                    }
+                } else {
+                    timeSection(rd)
+                    metricsSection(rd)
+                }
+                HStack(alignment: .top, spacing: gap) {
+                    VStack(spacing: 16) {
+                        profileSection(rd, readoutInline: readoutInline)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { profilePanelHeight = $0 }
+                        if infoFirst {
+                            if hasDescription(rd) { descriptionSection(rd) }
+                            broadcastSection(rd, media: media)
+                        } else {
+                            broadcastSection(rd, media: media)
+                            if hasDescription(rd) { descriptionSection(rd) }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    VStack(spacing: 16) {
+                        if !points.all.isEmpty {
+                            keyPointsSection(rd, points: points, maxHeight: max(160, profilePanelHeight))
+                        } else if !summary.isEmpty {
+                            profileSummarySection(summary)
+                        }
+                        videosSection(media: media)
+                    }
+                    .frame(width: Self.sideColumnWidth, alignment: .top)
+                }
+            } else if wide {
                 if hasTimes(rd) && hasMetrics(rd) {
                     HStack(alignment: .top, spacing: gap) {
                         timeSection(rd).frame(maxWidth: .infinity)
@@ -941,19 +989,32 @@ struct StageDetailView: View {
                     profileSection(rd, readoutInline: readoutInline)
                     keyPointsSection(rd, points: points, maxHeight: nil)
                 }
-                broadcastSection(rd, columns: 2, singleWidth: hasSide ? mainWidth : (contentWidth - gap) / 2)
+                if !infoFirst {
+                    broadcastSection(rd, media: media, columns: 2, singleWidth: hasSide ? mainWidth : (contentWidth - gap) / 2)
+                }
                 if hasDescription(rd) {
                     descriptionSection(rd)
                         .frame(width: mainWidth)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if infoFirst {
+                    broadcastSection(rd, media: media, columns: 2, singleWidth: hasSide ? mainWidth : (contentWidth - gap) / 2)
+                }
             } else {
+                // Una columna: Perfil, Puntos clave, Información, Revive y Vídeos
+                // (sin terminar, la TV va encima de la Información).
                 timeSection(rd)
                 profileSection(rd, readoutInline: readoutInline)
                 keyPointsSection(rd, points: points, maxHeight: nil)
                 metricsSection(rd)
-                broadcastSection(rd)
-                descriptionSection(rd)
+                if infoFirst {
+                    descriptionSection(rd)
+                    broadcastSection(rd, media: media)
+                } else {
+                    broadcastSection(rd, media: media)
+                    descriptionSection(rd)
+                }
+                videosSection(media: media)
             }
         }
     }
@@ -1441,29 +1502,57 @@ struct StageDetailView: View {
         }
     }
 
+    // MARK: - Vídeos
+
+    /// Desplaza una vez la jornada a su panel Vídeos si se abrió con esa sección.
+    private func scrollToSection(_ reader: ScrollViewProxy) {
+        guard initialSection == "videos", !didScrollToSection, let rd = viewModel.raceDay,
+              !mediaState(rd).entries.isEmpty else { return }
+        didScrollToSection = true
+        Task { @MainActor in
+            // El panel se coloca tras la primera pasada de maquetación.
+            try? await Task.sleep(for: .milliseconds(200))
+            withAnimation(.easeInOut(duration: 0.3)) { reader.scrollTo("videos", anchor: .top) }
+        }
+    }
+
+    /// Vídeos y Revive de la jornada en la región del usuario
+    /// (`StageVideoLogic`, espejo de `js/services/stage-videos.js`).
+    private func mediaState(_ rd: RaceDay) -> StageVideoLogic.MediaState {
+        StageVideoLogic.mediaState(broadcasts: viewModel.broadcasts, videos: viewModel.videos,
+                                   hasResults: viewModel.hasActualResults, isCancelled: rd.isCancelledDay)
+    }
+
+    @ViewBuilder
+    private func videosSection(media: StageVideoLogic.MediaState) -> some View {
+        if !media.entries.isEmpty {
+            StageVideosPanel(entries: media.entries, oneDay: viewModel.race?.isOneDay == true) { url in
+                tapBroadcast(url: url)
+            }
+        }
+    }
+
     // MARK: - Televisión
 
     @ViewBuilder
-    private func broadcastSection(_ rd: RaceDay, columns: Int = 1, singleWidth: CGFloat? = nil) -> some View {
+    private func broadcastSection(_ rd: RaceDay, media: StageVideoLogic.MediaState, columns: Int = 1, singleWidth: CGFloat? = nil) -> some View {
         // Una jornada cancelada solo ofrece Revive si tiene clasificaciones
-        // propias y una emisión seleccionada para su reproducción.
-        let cancelledReviveBroadcasts = rd.isCancelledDay
-            ? RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: true)
-            : []
-        let isRevive = RaceLogic.hasReviveBroadcasts(
-            viewModel.broadcasts, hasCurrentResults: viewModel.hasActualResults,
-            isCancelled: rd.isCancelledDay)
-        let regionalBroadcasts = rd.isCancelledDay ? [] : viewModel.broadcasts
-        let completeBroadcasts = rd.isCancelledDay ? [] : viewModel.allBroadcasts
+        // propias y una emisión seleccionada para su reproducción. Revive no
+        // repite lo que ya está en Vídeos (la emisión de YouTube convertida).
+        let cancelledReviveBroadcasts = rd.isCancelledDay ? media.revive : []
+        let isRevive = media.hasRevive
+        let videoKeys = Set(media.entries.map { StageVideoLogic.videoKey($0.url) })
+        let regionalBroadcasts = rd.isCancelledDay ? []
+            : viewModel.broadcasts.filter { !viewModel.hasActualResults || !videoKeys.contains(StageVideoLogic.videoKey($0.url)) }
+        let completeBroadcasts = rd.isCancelledDay ? []
+            : viewModel.allBroadcasts.filter { !viewModel.hasActualResults || !videoKeys.contains(StageVideoLogic.videoKey($0.url)) }
         let regionalIds = Set(regionalBroadcasts.map(\.id))
         let hiddenBroadcasts = completeBroadcasts.filter { !regionalIds.contains($0.id) }
         let hasHiddenBroadcasts = !hiddenBroadcasts.isEmpty
         // Con «Todas», las emisiones de otras regiones siguen a las propias.
         let selectedBroadcasts = showAllBroadcasts ? regionalBroadcasts + hiddenBroadcasts : regionalBroadcasts
         let visibleBroadcasts = isRevive
-            ? (rd.isCancelledDay
-                ? cancelledReviveBroadcasts
-                : RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: false))
+            ? (rd.isCancelledDay ? cancelledReviveBroadcasts : media.revive)
             : selectedBroadcasts
         // En web, Live texto pertenece a la cabecera de Televisión. No forma
         // parte del carril documental de la cabecera y desaparece en

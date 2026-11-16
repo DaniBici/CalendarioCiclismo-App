@@ -91,7 +91,7 @@ struct TransfersTeamView: View {
         let unknownTeam = localeService.t("Por confirmar", "To be confirmed")
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                // Cabecera sobre superficie neutra con las franjas de maillot
+                // Cabecera sobre superficie neutra con el cuadrado de colores
                 // de Resultados delante del nombre (`.tr-team-header` web).
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {

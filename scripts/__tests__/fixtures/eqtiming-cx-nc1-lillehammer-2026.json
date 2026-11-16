@@ -1,0 +1,1574 @@
+{
+ "event": {
+  "UID": 84082,
+  "Navn": "NC 1 Sykkelkross 2026",
+  "Dato": "2026-10-03T00:00:00",
+  "TidsSone": "Europe/Oslo",
+  "Publiseres": true,
+  "Sted": "Lillehammer",
+  "Klasser": {
+   "1310292": {
+    "UID": 1310292,
+    "Navn": "K15-16",
+    "Kjonn": "f",
+    "AlderFom": 15,
+    "AlderTom": 16
+   },
+   "1310293": {
+    "UID": 1310293,
+    "Navn": "K Junior",
+    "Kjonn": "f",
+    "AlderFom": 17,
+    "AlderTom": 18
+   },
+   "1310294": {
+    "UID": 1310294,
+    "Navn": "K Elite",
+    "Kjonn": "f",
+    "AlderFom": 19,
+    "AlderTom": 99
+   },
+   "1310295": {
+    "UID": 1310295,
+    "Navn": "M15-16",
+    "Kjonn": "m",
+    "AlderFom": 15,
+    "AlderTom": 16
+   },
+   "1310296": {
+    "UID": 1310296,
+    "Navn": "M Junior",
+    "Kjonn": "m",
+    "AlderFom": 17,
+    "AlderTom": 18
+   },
+   "1310298": {
+    "UID": 1310298,
+    "Navn": "M Elite",
+    "Kjonn": "m",
+    "AlderFom": 19,
+    "AlderTom": 99
+   }
+  },
+  "Etapper": {
+   "340869": {
+    "UID": 340869,
+    "Navn": "Heat 3 (K Elite)",
+    "Nummer": 0,
+    "Klasser": {
+     "1310292": {
+      "UID": "1310292"
+     },
+     "1310293": {
+      "UID": "1310293"
+     },
+     "1310294": {
+      "UID": "1310294"
+     }
+    }
+   },
+   "340870": {
+    "UID": 340870,
+    "Navn": "Heat 5 (M Junior, M15-16)",
+    "Nummer": 0,
+    "Klasser": {
+     "1310295": {
+      "UID": "1310295"
+     },
+     "1310296": {
+      "UID": "1310296"
+     }
+    }
+   },
+   "340872": {
+    "UID": 340872,
+    "Navn": "Heat 4 (M Elite)",
+    "Nummer": 0,
+    "Klasser": {
+     "1310298": {
+      "UID": "1310298"
+     }
+    }
+   },
+   "342108": {
+    "UID": 342108,
+    "Navn": "Heat 3 (K Junior, K15-16)",
+    "Nummer": 0,
+    "Klasser": {
+     "1310292": {
+      "UID": "1310292"
+     },
+     "1310293": {
+      "UID": "1310293"
+     }
+    }
+   }
+  },
+  "Puljer": {
+   "451094": {
+    "UID": 451094,
+    "Navn": "Heat 3 (K Elite)",
+    "Runder": 7,
+    "StartTid": "2026-10-03T13:00:00",
+    "EtappeUID": 340869
+   },
+   "451095": {
+    "UID": 451095,
+    "Navn": "Heat 5 (M Junior, M15-16)",
+    "Runder": 9,
+    "StartTid": "2026-10-03T14:16:00",
+    "EtappeUID": 340870
+   },
+   "451097": {
+    "UID": 451097,
+    "Navn": "Heat 4 (M Elite)",
+    "Runder": 11,
+    "StartTid": "2026-10-03T14:15:00",
+    "EtappeUID": 340872
+   },
+   "452845": {
+    "UID": 452845,
+    "Navn": "Heat 3 (K Junior, K15-16",
+    "Runder": 6,
+    "StartTid": "2026-10-03T13:00:00",
+    "EtappeUID": 342108
+   }
+  }
+ },
+ "results": {
+  "340872/1310298": {
+   "TotalItems": 8,
+   "ItemCount": 8,
+   "Items": [
+    {
+     "Deltaker": {
+      "UID": 14911768,
+      "Startnummer": 69,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 678360,
+       "Fornavn": "Aksel",
+       "Etternavn": "Laforce",
+       "Kjonn": "m",
+       "Aar": 2006,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Ringerike SK"
+       },
+       "Team": {
+        "Navn": "TEAM RINGERIKE"
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 614 377 60",
+        "Roles": {}
+       },
+       "44": {
+        "Type": "UCI ID MANUEL",
+        "Kode": "10061437760",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 1,
+      "Klasse": 1,
+      "Kjonn": 1
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 11,
+     "AkkumulertTid": 3643277,
+     "Formatert": "1:00:43"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904387,
+      "Startnummer": 67,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 2589445,
+       "Fornavn": "Håvard",
+       "Etternavn": "Øiom",
+       "Kjonn": "m",
+       "Aar": 2006,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Ringerike SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 931 092 70",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4183778",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "9192186",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "129567723",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 2,
+      "Klasse": 2,
+      "Kjonn": 2
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 11,
+     "AkkumulertTid": 3683846,
+     "Formatert": "1:01:23"
+    },
+    {
+     "Deltaker": {
+      "UID": 14906344,
+      "Startnummer": 70,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 3523559,
+       "Fornavn": "Jesper",
+       "Etternavn": "Moen-Hansen",
+       "Kjonn": "m",
+       "Aar": 2008,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Lørenskog CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 130 062 93",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 3,
+      "Klasse": 3,
+      "Kjonn": 3
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 11,
+     "AkkumulertTid": 3803474,
+     "Formatert": "1:03:23"
+    },
+    {
+     "Deltaker": {
+      "UID": 14907561,
+      "Startnummer": 68,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 6996811,
+       "Fornavn": "Sebastian",
+       "Etternavn": "Molund",
+       "Kjonn": "m",
+       "Aar": 2005,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Lillehammer CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 707 928 33",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "8562298",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "146420534",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 4,
+      "Klasse": 4,
+      "Kjonn": 4
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 11,
+     "AkkumulertTid": 3810046,
+     "Formatert": "1:03:30"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904805,
+      "Startnummer": 71,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 715439,
+       "Fornavn": "Martin Lund",
+       "Etternavn": "Sjøen",
+       "Kjonn": "m",
+       "Aar": 2001,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Smaalenene SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 200 828 22",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "3658002",
+        "Roles": {}
+       },
+       "31": {
+        "Type": "BIRKID",
+        "Kode": "141956",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 5,
+      "Klasse": 5,
+      "Kjonn": 5
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 11,
+     "AkkumulertTid": 4510201,
+     "Formatert": "1:15:10"
+    },
+    {
+     "Deltaker": {
+      "UID": 14890943,
+      "Startnummer": 65,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 595634,
+       "Fornavn": "Thomas",
+       "Etternavn": "Rem",
+       "Kjonn": "m",
+       "Aar": 1986,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "IK Hero"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 125 239 93",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4315446",
+        "Roles": {}
+       },
+       "31": {
+        "Type": "BIRKID",
+        "Kode": "259630",
+        "Roles": {}
+       },
+       "44": {
+        "Type": "UCI ID MANUEL",
+        "Kode": "100 125 239 93",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 6,
+      "Klasse": 6,
+      "Kjonn": 6
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 10,
+     "AkkumulertTid": 3767886,
+     "Formatert": "1:02:47"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904592,
+      "Startnummer": 72,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 4909032,
+       "Fornavn": "Sigve",
+       "Etternavn": "Ulberg",
+       "Kjonn": "m",
+       "Aar": 2008,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "CK Valdres"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 009 919 36",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4283123",
+        "Roles": {}
+       },
+       "44": {
+        "Type": "UCI ID MANUEL",
+        "Kode": "10100991936",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "6964578",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 7,
+      "Klasse": 7,
+      "Kjonn": 7
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 10,
+     "AkkumulertTid": 3863143,
+     "Formatert": "1:04:23"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904122,
+      "Startnummer": 66,
+      "Klasse": {
+       "UID": 1310298,
+       "Navn": "M Elite",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451097,
+       "Navn": "Heat 4 (M Elite)",
+       "Runder": 11,
+       "StartTid": "2026-10-03T14:15:00"
+      },
+      "Utover": {
+       "UID": 946769,
+       "Fornavn": "Sindre",
+       "Etternavn": "Moe Landén",
+       "Kjonn": "m",
+       "Aar": 2006,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Romeriksåsen SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 938 941 62",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4238796",
+        "Roles": {}
+       },
+       "31": {
+        "Type": "BIRKID",
+        "Kode": "194994",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 8,
+      "Klasse": 8,
+      "Kjonn": 8
+     },
+     "StatusTekst": "DNF",
+     "Rundenummer": 7,
+     "AkkumulertTid": 2396567,
+     "Formatert": "39:56"
+    }
+   ]
+  },
+  "340869/1310294": {
+   "TotalItems": 4,
+   "ItemCount": 4,
+   "Items": [
+    {
+     "Deltaker": {
+      "UID": 14910477,
+      "Startnummer": 53,
+      "Klasse": {
+       "UID": 1310294,
+       "Navn": "K Elite",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 2858674,
+       "Fornavn": "Oda",
+       "Etternavn": "Laforce",
+       "Kjonn": "f",
+       "Aar": 2003,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "IF Frøy"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 195 527 56",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "3649605",
+        "Roles": {}
+       },
+       "14": {
+        "Type": "FISCODE",
+        "Kode": "3427566",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 1,
+      "Klasse": 1,
+      "Kjonn": 1
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 7,
+     "AkkumulertTid": 2617249,
+     "Formatert": "43:37"
+    },
+    {
+     "Deltaker": {
+      "UID": 14905770,
+      "Startnummer": 50,
+      "Klasse": {
+       "UID": 1310294,
+       "Navn": "K Elite",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 5867178,
+       "Fornavn": "Tiril",
+       "Etternavn": "Frostestad-Stenbrenden",
+       "Kjonn": "f",
+       "Aar": 2008,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "SK Rye sykkel"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 182 982 51",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4275517",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "8515285",
+        "Roles": {}
+       },
+       "8": {
+        "Type": "MYLAPS-PROCHIP",
+        "Kode": "RK-40235",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 2,
+      "Klasse": 2,
+      "Kjonn": 2
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 7,
+     "AkkumulertTid": 2925043,
+     "Formatert": "48:45"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904212,
+      "Startnummer": 52,
+      "Klasse": {
+       "UID": 1310294,
+       "Navn": "K Elite",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 732031,
+       "Fornavn": "Maja Tangen",
+       "Etternavn": "Risheim",
+       "Kjonn": "f",
+       "Aar": 2008,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "IF Frøy"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 206 874 54",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 6,
+      "Klasse": 3,
+      "Kjonn": 6
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 6,
+     "AkkumulertTid": 2648982,
+     "Formatert": "44:08"
+    },
+    {
+     "Deltaker": {
+      "UID": 14905812,
+      "Startnummer": 48,
+      "Klasse": {
+       "UID": 1310294,
+       "Navn": "K Elite",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 6526700,
+       "Fornavn": "Maria Nordal",
+       "Etternavn": "Berg",
+       "Kjonn": "f",
+       "Aar": 2008,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "SK Rye sykkel"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 495 135 58",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4397493",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "6195494",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 8,
+      "Klasse": 4,
+      "Kjonn": 8
+     },
+     "StatusTekst": "DNS",
+     "Rundenummer": 1,
+     "AkkumulertTid": 0,
+     "Formatert": "0:00"
+    }
+   ]
+  },
+  "340869/1310293": {
+   "TotalItems": 2,
+   "ItemCount": 2,
+   "Items": [
+    {
+     "Deltaker": {
+      "UID": 14899716,
+      "Startnummer": 51,
+      "Klasse": {
+       "UID": 1310293,
+       "Navn": "K Junior",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 5954097,
+       "Fornavn": "Ingeborg",
+       "Etternavn": "Snopestad",
+       "Kjonn": "f",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Halden CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 416 746 45",
+        "Roles": {}
+       },
+       "44": {
+        "Type": "UCI ID MANUEL",
+        "Kode": "101 416 746 45",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "7503111",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 3,
+      "Klasse": 1,
+      "Kjonn": 3
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 7,
+     "AkkumulertTid": 2934424,
+     "Formatert": "48:54"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904131,
+      "Startnummer": 47,
+      "Klasse": {
+       "UID": 1310293,
+       "Navn": "K Junior",
+       "Kjonn": "f"
+      },
+      "Pulje": {
+       "UID": 451094,
+       "Navn": "Heat 3 (K Elite)",
+       "Runder": 7,
+       "StartTid": "2026-10-03T13:00:00"
+      },
+      "Utover": {
+       "UID": 3856547,
+       "Fornavn": "Therese Moe",
+       "Etternavn": "Landén",
+       "Kjonn": "f",
+       "Aar": 2009,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Romeriksåsen SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 260 978 59",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4092037",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 4,
+      "Klasse": 2,
+      "Kjonn": 4
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 7,
+     "AkkumulertTid": 3047075,
+     "Formatert": "50:47"
+    }
+   ]
+  },
+  "340870/1310296": {
+   "TotalItems": 7,
+   "ItemCount": 7,
+   "Items": [
+    {
+     "Deltaker": {
+      "UID": 14835216,
+      "Startnummer": 82,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 4119179,
+       "Fornavn": "Linus Gregersen",
+       "Etternavn": "Bolstad",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Sandefjord SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 414 628 61",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4552584",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "9937455",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "130119928",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 1,
+      "Klasse": 1,
+      "Kjonn": 1
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 9,
+     "AkkumulertTid": 2941623,
+     "Formatert": "49:01"
+    },
+    {
+     "Deltaker": {
+      "UID": 14907134,
+      "Startnummer": 89,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 3854279,
+       "Fornavn": "Patrick",
+       "Etternavn": "Mørk",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "IF Frøy"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "100 945 007 17",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4627915",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "7554642",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "132897174",
+        "Roles": {}
+       },
+       "8": {
+        "Type": "MYLAPS-PROCHIP",
+        "Kode": "RH-67533",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 3,
+      "Klasse": 2,
+      "Kjonn": 3
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 9,
+     "AkkumulertTid": 3122076,
+     "Formatert": "52:02"
+    },
+    {
+     "Deltaker": {
+      "UID": 14905435,
+      "Startnummer": 77,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 5504336,
+       "Fornavn": "Halvor Stedje",
+       "Etternavn": "Lier",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Asker CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 528 112 55",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4512323",
+        "Roles": {}
+       },
+       "31": {
+        "Type": "BIRKID",
+        "Kode": "317231",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "9400269",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "136413267",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 4,
+      "Klasse": 3,
+      "Kjonn": 4
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 9,
+     "AkkumulertTid": 3124407,
+     "Formatert": "52:04"
+    },
+    {
+     "Deltaker": {
+      "UID": 14905706,
+      "Startnummer": 80,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 3847949,
+       "Fornavn": "Thomas",
+       "Etternavn": "Hellerud",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "SK Rye sykkel"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 422 108 72",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4396867",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "8810736",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "132997248",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 5,
+      "Klasse": 4,
+      "Kjonn": 5
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 9,
+     "AkkumulertTid": 3209977,
+     "Formatert": "53:29"
+    },
+    {
+     "Deltaker": {
+      "UID": 14844524,
+      "Startnummer": 85,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 4301102,
+       "Fornavn": "Marcus G.",
+       "Etternavn": "Tregde",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Mandal CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 091 368 05",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 6,
+      "Klasse": 5,
+      "Kjonn": 6
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 9,
+     "AkkumulertTid": 3235171,
+     "Formatert": "53:55"
+    },
+    {
+     "Deltaker": {
+      "UID": 14892877,
+      "Startnummer": 78,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 4113950,
+       "Fornavn": "Felix Nygård",
+       "Etternavn": "Jacobsen",
+       "Kjonn": "m",
+       "Aar": 2009,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Romeriksåsen SK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 296 679 64",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4299814",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "7234948",
+        "Roles": {}
+       },
+       "40": {
+        "Type": "NIF BUYPASSID",
+        "Kode": "136668373",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 10,
+      "Klasse": 6,
+      "Kjonn": 10
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 8,
+     "AkkumulertTid": 3045093,
+     "Formatert": "50:45"
+    },
+    {
+     "Deltaker": {
+      "UID": 14904685,
+      "Startnummer": 88,
+      "Klasse": {
+       "UID": 1310296,
+       "Navn": "M Junior",
+       "Kjonn": "m"
+      },
+      "Pulje": {
+       "UID": 451095,
+       "Navn": "Heat 5 (M Junior, M15-16)",
+       "Runder": 9,
+       "StartTid": "2026-10-03T14:16:00"
+      },
+      "Utover": {
+       "UID": 6587643,
+       "Fornavn": "Mathias",
+       "Etternavn": "Nøst-Hegge",
+       "Kjonn": "m",
+       "Aar": 2010,
+       "Land": {
+        "ISO2": "NO",
+        "ISO3": "NOR"
+       },
+       "Klubb": {
+        "Navn": "Asker CK"
+       },
+       "Team": {
+        "Navn": ""
+       },
+       "Klubbnavn": ""
+      },
+      "Klubbnavn": "",
+      "Lisens": {
+       "1": {
+        "Type": "UCI ID",
+        "Kode": "101 530 287 96",
+        "Roles": {}
+       },
+       "11": {
+        "Type": "EMITAGID",
+        "Kode": "4472692",
+        "Roles": {}
+       },
+       "45": {
+        "Type": "NIF PERSONID",
+        "Kode": "8727474",
+        "Roles": {}
+       }
+      }
+     },
+     "Plassering": {
+      "Total": 12,
+      "Klasse": 7,
+      "Kjonn": 12
+     },
+     "StatusTekst": "TIME",
+     "Rundenummer": 8,
+     "AkkumulertTid": 3184849,
+     "Formatert": "53:04"
+    }
+   ]
+  },
+  "342108/1310293": {
+   "TotalItems": 0,
+   "ItemCount": 0,
+   "Items": []
+  }
+ },
+ "startlist": {
+  "340872/1310298": {
+   "TotalItems": 8,
+   "ItemCount": 8,
+   "Items": [
+    {
+     "Startnummer": 65,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 66,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 67,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 68,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 69,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 70,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 71,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    },
+    {
+     "Startnummer": 72,
+     "Klasse": {
+      "UID": 1310298,
+      "Navn": "M Elite"
+     },
+     "Status": {
+      "Navn": "Registrert"
+     }
+    }
+   ]
+  }
+ }
+}

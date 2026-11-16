@@ -5,6 +5,7 @@ import android.util.Log
 import app.calendariociclismo.android.data.local.AppDatabase
 import app.calendariociclismo.android.data.local.entity.AssetEntity
 import app.calendariociclismo.android.data.local.entity.BroadcastEntity
+import app.calendariociclismo.android.data.local.entity.RaceDayVideoEntity
 import app.calendariociclismo.android.data.local.entity.RaceDayEntity
 import app.calendariociclismo.android.data.local.entity.RaceEntity
 import app.calendariociclismo.android.data.model.Asset
@@ -67,6 +68,7 @@ class CalendarRepository(
     private val raceDaysDao = db.raceDaysDao()
     private val broadcastsDao = db.broadcastsDao()
     private val assetsDao = db.assetsDao()
+    private val videosDao = db.raceDayVideosDao()
     private val ledger = RefreshLedger(clock)
 
     // ─────────── Observables (Room → UI) ───────────
@@ -136,9 +138,11 @@ class CalendarRepository(
         val dayIds = days.map { it.id }
         val broadcasts = broadcastsDao.getByRaceDayIds(dayIds).map { it.toModel() }
         val assets = assetsDao.getByRaceDayIds(dayIds).map { it.toModel() }
+        val videos = videosDao.getByRaceDayIds(dayIds).map { it.toModel() }
 
         val broadcastsByRd = broadcasts.groupBy { it.raceDayId }
         val assetsByRd = assets.groupBy { it.raceDayId }
+        val videosByRd = videos.groupBy { it.raceDayId }
 
         RaceLogic.annotateDoubleSectors(days)
 
@@ -148,6 +152,7 @@ class CalendarRepository(
                 race = rd.raceId?.let { raceMap[it] },
                 broadcasts = broadcastsByRd[rd.id].orEmpty(),
                 assets = assetsByRd[rd.id].orEmpty(),
+                videos = videosByRd[rd.id].orEmpty(),
             )
         }
         return DayData(raceDays = enriched, raceMap = raceMap)
@@ -205,12 +210,14 @@ class CalendarRepository(
         // Borrar datos previos para evitar duplicados si los IDs cambiaron en el backend
         broadcastsDao.deleteByRaceDayIds(dayIds)
         assetsDao.deleteByRaceDayIds(dayIds)
+        videosDao.deleteByRaceDayIds(dayIds)
 
         val allBroadcasts = data.raceDays.flatMap { it.broadcasts }
         val allAssets = data.raceDays.flatMap { it.assets }
             .distinctBy { Pair(it.raceDayId, it.type) }
         broadcastsDao.upsertAll(allBroadcasts.map { BroadcastEntity.from(it, now) })
         assetsDao.upsertAll(allAssets.map { AssetEntity.from(it, now) })
+        videosDao.upsertAll(data.raceDays.flatMap { it.videos }.map { RaceDayVideoEntity.from(it, now) })
         ledger.mark(RefreshLedger.dayKey(dateKey))
         return data
     }
@@ -268,12 +275,14 @@ class CalendarRepository(
         val affectedDayIds = (previousDays.keys + dayIds).distinct()
         broadcastsDao.deleteByRaceDayIds(affectedDayIds)
         assetsDao.deleteByRaceDayIds(affectedDayIds)
+        videosDao.deleteByRaceDayIds(affectedDayIds)
 
         val allBroadcasts = days.flatMap { it.broadcasts }
         val allAssets = days.flatMap { it.assets }
             .distinctBy { Pair(it.raceDayId, it.type) }
         broadcastsDao.upsertAll(allBroadcasts.map { BroadcastEntity.from(it, now) })
         assetsDao.upsertAll(allAssets.map { AssetEntity.from(it, now) })
+        videosDao.upsertAll(days.flatMap { it.videos }.map { RaceDayVideoEntity.from(it, now) })
         // Solo una instantánea con todos los perfiles cuenta como completa para
         // la apertura inmediata de Carrera.
         if (snapshot.profileDayIds == null) ledger.mark(RefreshLedger.raceKey(raceId))
@@ -308,12 +317,14 @@ class CalendarRepository(
             .sortedBy { it.sortOrder }
             .groupBy { it.raceDayId }
         val assetsByRd = assetsDao.getByRaceDayIds(dayIds).map { it.toModel() }.groupBy { it.raceDayId }
+        val videosByRd = videosDao.getByRaceDayIds(dayIds).map { it.toModel() }.groupBy { it.raceDayId }
         return race to days.map { rd ->
             EnrichedRaceDay(
                 raceDay = rd,
                 race = race,
                 broadcasts = broadcastsByRd[rd.id].orEmpty(),
                 assets = assetsByRd[rd.id].orEmpty(),
+                videos = videosByRd[rd.id].orEmpty(),
             )
         }
     }
@@ -371,8 +382,8 @@ class CalendarRepository(
         seasons.forEach { s -> s.name?.let { names[s.teamId] = it } }
         val namesPrev = HashMap<String, String>()
         prevSeasons.forEach { s -> s.name?.let { namesPrev[s.teamId] = it } }
-        // Fila de la temporada previa por equipo → colores "antiguos" para la
-        // chapa mientras el kit del mercado no se publica (mig. 129).
+        // Fila de la temporada previa por equipo → colores "antiguos" para el
+        // cuadrado mientras los colores del mercado no se publican (mig. 129).
         val prevByTeamId = prevSeasons.associateBy { it.teamId }
 
         // Último recurso: equipos sin fila en NINGUNA de las dos temporadas.
@@ -487,7 +498,7 @@ class CalendarRepository(
         val riders = ridersDeferred.await()
         val teams = StartlistLogic.teamsByFirstDorsal(slTeamsDeferred.await(), riders)
         // Render temporal: globalTeams con los atributos visuales del año de la carrera
-        // (team_seasons). Fallback a `teams` por equipo sin season → nunca pierde chapa.
+        // (team_seasons). Fallback a `teams` por equipo sin season → nunca pierde los colores.
         // 2026 == teams. La UI no cambia: recibe globalTeams ya fusionados.
         val teamIds = teams.mapNotNull { it.teamId }.distinct()
         val base = async { api.teamsByIds(teamIds) }
@@ -598,7 +609,7 @@ class CalendarRepository(
      * pestaña Equipos casa por nombre (sus filas no llevan dorsal).
      *
      * OJO: `startlist_riders.teamId` apunta al **PK** de `startlist_teams`, NO a
-     * su columna `teamId` (la ref canónica a `teams`). La chapa del equipo sale
+     * su columna `teamId` (la ref canónica a `teams`). El cuadrado de colores del equipo sale
      * de ese teamId canónico.
      */
     private suspend fun buildByDorsal(raceId: String, year: Int?): Pair<Map<Int, ResolvedRider>, List<Team>> {
@@ -629,7 +640,7 @@ class CalendarRepository(
             val slTeam = r.teamId?.let { slTeamByPk[it] }
             val canon = slTeam?.teamId?.let { teamById[it] }
             // Estado sin equipo → ocultación cosmética: sin nombre de equipo,
-            // y en cascada sin chapa ni opción en el filtro por equipo.
+            // y en cascada sin cuadrado de colores ni opción en el filtro por equipo.
             val slName = slTeam?.takeUnless { it.isNoTeamPlaceholder }?.teamName.orEmpty()
             out[dorsal] = ResolvedRider(
                 name = "${r.firstName.orEmpty()} ${r.lastName.orEmpty()}".trim(),
@@ -648,7 +659,7 @@ class CalendarRepository(
      * desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
      * actual solo se incluye cuando el llamador confirma que consulta el año vigente.
      * Silencioso: si una query falla, esos ids
-     * no entran en el mapa (la fila se renderiza sin bandera/chapa, como antes).
+     * no entran en el mapa (la fila se renderiza sin bandera ni colores, como antes).
      */
     suspend fun enrichRidersByGlobalId(ids: List<String>, includeCurrentTeam: Boolean = true): Map<String, ResolvedRider> {
         val need = ids.filter { it.isNotEmpty() }.distinct()
@@ -674,7 +685,7 @@ class CalendarRepository(
 
     /**
      * Override MANUAL de equipo (mig. 112): resuelve los `teamId` de override de
-     * las filas de resultados a su equipo canónico (nombre + chapa). Espejo de
+     * las filas de resultados a su equipo canónico (nombre + colores). Espejo de
      * `enrichOverrideTeams` en `js/resultados.js`. Silencioso: ids sin equipo
      * simplemente no entran en el mapa (la fila cae a la resolución por dorsal).
      */
@@ -1237,6 +1248,7 @@ class CalendarRepository(
         raceDaysDao.deleteStale(olderThan)
         broadcastsDao.deleteStale(olderThan)
         assetsDao.deleteStale(olderThan)
+        videosDao.deleteStale(olderThan)
         racesDao.deleteOlderThan(olderThan)
     }
 
@@ -1245,6 +1257,7 @@ class CalendarRepository(
         ledger.clear()
         assetsDao.clear()
         broadcastsDao.clear()
+        videosDao.clear()
         raceDaysDao.clear()
         racesDao.clear()
     }

@@ -337,7 +337,7 @@ html.light .res-table thead .so-th { background: #fff; }
 .res-table .res-pts { font-weight: 600; color: var(--text); }
 .res-rank-dnf { color: var(--text-muted); font-weight: 600; }
 .res-team-link { color: var(--text-muted); }
-/* Celda de equipo con chapa, en línea y sin elevar la fila. */
+/* Celda de equipo con cuadrado de colores, en línea y sin elevar la fila. */
 .res-team-cell {
   display: inline-flex;
   align-items: center;
@@ -391,6 +391,42 @@ html.light .res-table thead .so-th { background: #fff; }
 }
 .res-stage-data dt { color: var(--text-muted); }
 .res-stage-data dd { margin: 0; font-variant-numeric: tabular-nums; }
+/* Sección Vídeos (js/videos-feed-html.js): cada carrera es una tarjeta que se
+   despliega hacia abajo con el acordeón de vídeos de la jornada. La tarjeta
+   lleva la superficie; la fila de cabecera, el contenido de la del feed. */
+.video-card {
+  margin: 0.35rem 0;
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.video-card > summary { list-style: none; cursor: pointer; margin: 0; background: none; box-shadow: none; border-radius: 0; }
+.video-card > summary::-webkit-details-marker { display: none; }
+.video-card > summary:hover { background: var(--bg-card-hover); }
+.video-card__chevron { width: 1.1rem; height: 1.1rem; flex-shrink: 0; align-self: center; color: var(--text-dim); }
+.video-card--static > .feed-row { margin: 0; background: none; box-shadow: none; border-radius: 0; }
+.video-card--static > .feed-row:hover { background: none; }
+.video-card__full { flex-shrink: 0; align-self: center; white-space: nowrap; }
+.video-card__body { border-top: 1px solid var(--border); }
+.video-card__body .video-list { margin-bottom: 0; }
+.video-card__go {
+  display: block;
+  padding: 10px 12px;
+  font: 600 var(--fs-2) var(--font-body);
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.video-card__go:hover { background: var(--hover-bg); }
+/* Una sola columna de hasta 760px, centrada, a cualquier ancho, como la lista
+   de Vídeos de las apps en iPad y tabletas: sin la rejilla de dos columnas de
+   .feed-day desde 761px. El conmutador se alinea con la columna. */
+.feed-day.feed-day--videos { display: block; max-width: 760px; }
+#videosContent > .feed-hero { max-width: 760px; }
+
+/* Vídeos de la jornada bajo sus datos: el acordeón de la jornada
+   (js/stage/videos-html.js, estilos en app.css), con el primero desplegado. */
+.res-videos { margin-top: 20px; }
 
 /* Últimos resultados (/resultados/, js/resultados-feed.js). */
 .feed-hero {

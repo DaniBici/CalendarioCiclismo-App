@@ -10,6 +10,10 @@ export const COVERED_STAGE_REFRESH_SOURCES = Object.freeze([...LIVE_RESULT_SOURC
 // Fuentes de volcado manual: el cron no las selecciona nunca y su upsert del
 // enlace no debe sobrescribir un enlace automático existente.
 export const MANUAL_RESULT_SOURCES = Object.freeze(['pdf', 'sportstiming']);
+// Respaldo manual desde el directorio de competiciones UCI
+// (uci-directory-results.mjs): documento sin `source`, sin dorsales, con IDs
+// sintéticos negativos; nunca lo selecciona el cron.
+export const UCI_DIRECTORY_PROVIDER = 'uci-directory';
 // Proveedores con que resultObservation registra un volcado manual: un
 // placeholder sin --source queda como 'unknown'.
 export const MANUAL_OBSERVATION_PROVIDERS = Object.freeze([...MANUAL_RESULT_SOURCES, 'unknown']);
