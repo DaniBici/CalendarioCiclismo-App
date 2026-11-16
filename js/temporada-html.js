@@ -506,7 +506,7 @@ function renderRaceRow(race, name = raceName(race)) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
       : logoPlaceholderHtml('t-race__logo-empty')
     }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, S.activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, S.activeCat)}${isFemale ? femaleMark({ cls: 't-race__female' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -545,7 +545,7 @@ function renderChallengeGroup(cg) {
   const showFemale = needsFemaleMark(cg, S.activeCat);
   const displayName = cleanFeminineName(cg.name, S.activeCat);
   const femaleSuffix = showFemale
-    ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
+    ? femaleMark({ cls: 't-race__female' })
     : '';
 
   const noLogo = cat === 'CN';
