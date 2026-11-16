@@ -59,7 +59,8 @@ function ensureSkipTarget() {
 
 // Pie del rediseño, montado sobre el de cada página (que conserva su línea de
 // copyright): marca, secciones y «Más» (Acerca de mí, Datos abiertos, Calendario
-// iCal, Apoyar, Apps y Privacidad en todas las páginas, y Gestión de cookies, que
+// iCal, Apoyar, Apps, Privacidad y Términos en todas las páginas, y Gestión de
+// cookies, que
 // js/cookie-consent.js añade a esa misma lista antes o después) y, abajo,
 // autoría y firma del rediseño.
 function buildFooterNav(s) {
@@ -76,7 +77,8 @@ function buildFooterNav(s) {
     `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.supportHref}" target="_blank" rel="noopener">${PRIMARY_ICONS.support}<span>${s.supportText}</span></a>` +
     `<button class="footer-link footer-link--icon footer-link--apps" type="button">${PRIMARY_ICONS.apps}<span>${s.appsText}</span></button>` +
-    `<a class="footer-link footer-link--icon" href="${s.privacyHref}">${PRIMARY_ICONS.privacy}<span>${s.privacyText}</span></a>`);
+    `<a class="footer-link footer-link--icon" href="${s.privacyHref}">${PRIMARY_ICONS.privacy}<span>${s.privacyText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.termsHref}">${PRIMARY_ICONS.terms}<span>${s.termsText}</span></a>`);
   // apps-modal.js (script clásico) deja window.openAppsModal; se consulta al pulsar.
   actions.querySelector('.footer-link--apps').addEventListener('click', () => {
     if (typeof window.openAppsModal === 'function') window.openAppsModal();
@@ -96,19 +98,18 @@ function buildFooterNav(s) {
   bottom.className = 'site-footer__bottom';
   if (copyright) {
     copyright.classList.add('site-footer__legal');
-    // El dueño en Bebas Neue (la tipografía de su web) y, tras él, la firma del
-    // rediseño en Style Script. Privacidad pasa a la columna «Más».
+    // Tras el dueño (con la letra y el tamaño de la línea, como en producción),
+    // la firma del rediseño en Style Script. Privacidad y Términos pasan a «Más»:
+    // la línea queda solo para la autoría.
     const owner = copyright.querySelector('a[href*="danisanchez"]');
     if (owner) {
-      owner.classList.add('site-footer__owner');
       owner.insertAdjacentHTML('afterend',
-        ` · ${s.designText} <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a>`);
+        ` - ${s.designText} <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a>`);
     }
-    const privacy = copyright.querySelector('a[href*="privacidad"], a[href*="privacy"]');
-    if (privacy) {
-      const sep = privacy.previousSibling;
+    for (const legal of copyright.querySelectorAll('a[href*="privacidad"], a[href*="privacy"], a[href*="terminos"], a[href*="/terms"]')) {
+      const sep = legal.previousSibling;
       if (sep && sep.nodeType === 3) sep.textContent = sep.textContent.replace(/\s*-\s*$/, '');
-      privacy.remove();
+      legal.remove();
     }
     bottom.append(copyright);
   }

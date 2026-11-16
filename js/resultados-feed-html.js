@@ -67,8 +67,9 @@ function entryRowHtml(e, isEn, locale) {
   // Las generales finales solo llevan su etiqueta. Un
   // día: sin etiqueta.
   let subHtml = '';
+  let typeHtml = '';
   if (e.isGcFinal) {
-    subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>${catBadge ? `<span class="feed-row__badges">${catBadge}</span>` : ''}`;
+    subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>`;
   } else {
     const rd = e.rd;
     const km = rd?.distanceKm
@@ -87,8 +88,8 @@ function entryRowHtml(e, isEn, locale) {
     const resultSecondary = rd?.primaryType === 'itt' && ['chrono_climb', 'summit_finish'].includes(rd?.secondaryType)
       ? rd.secondaryType : null;
     const typeBadges = showType ? resolveTypeBadges(rd.primaryType, resultSecondary, e.race.countryCode) : '';
-    const badges = catBadge || typeBadges ? `<span class="feed-row__badges">${catBadge}${typeBadges}</span>` : '';
-    subHtml = `${text}${badges}`;
+    typeHtml = typeBadges;
+    subHtml = text;
   }
 
   // Equipo entre paréntesis y en peso normal tras el nombre (solo corredores).
@@ -117,6 +118,7 @@ function entryRowHtml(e, isEn, locale) {
         ${leftCol}
         <span class="feed-row__main"><span class="feed-row__race">${name}</span>
           ${subHtml ? `<span class="feed-row__sub">${subHtml}</span>` : ''}
+          ${catBadge || typeHtml ? `<span class="feed-row__badges">${catBadge}${typeHtml}</span>` : ''}
           ${winnerHtml}${leaders ? `<span class="feed-row__leaders">${leaders}</span>` : ''}</span>
         <span class="feed-row__chevron" aria-hidden="true">›</span>
       </a>`;
@@ -137,7 +139,7 @@ function cxEntryRowHtml(e, isEn, rounds, teams) {
     : (national ? '' : logoPlaceholderHtml('race-logo-img'));
   const flag = race.countryCode ? `<span class="feed-row__flag">${countryFlag(race.countryCode)}</span>` : '';
   // Clase UCI (C2, CDM…) como badge de la fila de distintivos, como en Hoy.
-  const catBadge = race.class ? `<span class="feed-row__badges"><span class="badge badge--1">${esc(cxClassLabel(race.class, lang))}</span></span>` : '';
+  const catBadge = race.class ? `<span class="badge badge--1">${esc(cxClassLabel(race.class, lang))}</span>` : '';
   const name = cxRaceName(race, lang);
   const sub = [tournament ? esc(cxRaceName(tournament, lang)) : '', cxRoundBadge(rounds?.get(race.id)), race.venue && race.venue !== name ? esc(race.venue) : ''].filter(Boolean).join(' · ');
   // Código de categoría en mini-badge con contorno; ganador en negrita y, si se
@@ -150,7 +152,8 @@ function cxEntryRowHtml(e, isEn, rounds, teams) {
       <a class="feed-row feed-row--featured feed-row--cx" href="${esc(cxRacePageUrl(race, lang, 'results', e.categories[0].category))}">
         <span class="feed-row__logo">${logo}${flag}</span>
         <span class="feed-row__main"><span class="feed-row__race"><span class="feed-row__race-name">${esc(name)}</span></span>
-          ${sub || catBadge ? `<span class="feed-row__sub">${sub}${catBadge}</span>` : ''}
+          ${sub ? `<span class="feed-row__sub">${sub}</span>` : ''}
+          ${catBadge ? `<span class="feed-row__badges">${catBadge}</span>` : ''}
           <span class="feed-row__leaders">${leaders}</span></span>
       </a>`;
 }

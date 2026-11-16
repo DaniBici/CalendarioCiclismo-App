@@ -40,6 +40,7 @@ export const PRIMARY_ICONS = {
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg>',
   support: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>',
   apps: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  terms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   privacy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>',
 };
 
@@ -52,6 +53,7 @@ export const STRINGS = {
     openHref: '/abierto/', openText: 'Datos abiertos',
     icalHref: '/suscripcion/', icalText: 'Calendario iCal',
     designText: 'Apariencia gráfica', privacyHref: '/privacidad.html', privacyText: 'Privacidad',
+    termsHref: '/terminos.html', termsText: 'Términos',
     footerSections: 'Secciones', footerMore: 'Más',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
     appsText: 'Apps', appsLabel: 'Abrir opciones de apps',
@@ -71,6 +73,7 @@ export const STRINGS = {
     openHref: '/en/open/', openText: 'Open Data',
     icalHref: '/en/subscription/', icalText: 'iCal calendar',
     designText: 'Visual design', privacyHref: '/en/privacy/', privacyText: 'Privacy',
+    termsHref: '/en/terms/', termsText: 'Terms',
     footerSections: 'Sections', footerMore: 'More',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
     appsText: 'Apps', appsLabel: 'Open app options',

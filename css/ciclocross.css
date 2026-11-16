@@ -19,7 +19,7 @@
 /* Si Dorsales viaja a la columna lateral y no quedan más pestañas, la barra sobra. */
 .cx-section-nav:not(:has(.res-tab)) {display:none}
 /* Dorsales en la fila de enlaces de la columna lateral (≥1100px): mismo aspecto que Web oficial. */
-@media(min-width:1100px){.race-side-links .res-tab {min-height:28px;margin:0;padding:0 .75rem;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:none;color:var(--text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:none}.race-side-links .res-tab:hover {border-color:var(--text);background:var(--hover-bg);color:var(--text)}.race-side-links .res-tab--active,.race-side-links .res-tab--active:hover {border-color:var(--inverse-border);background:var(--inverse-bg);color:var(--inverse-text);font-weight:700}}
+@media(min-width:1100px){.race-side-links .res-tab {border:1px solid var(--control-border);background:none;color:var(--text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:none}.race-side-links .res-tab:hover {border-color:var(--text);background:var(--hover-bg);color:var(--text)}.race-side-links .res-tab--active,.race-side-links .res-tab--active:hover {border-color:var(--inverse-border);background:var(--inverse-bg);color:var(--inverse-text);font-weight:700}}
 @media(max-width:600px){.cx-section-nav .res-tab {min-height:44px}}
 /* Sin pestañas ni selector de categorías visibles (jornada con solo Programa),
    las secciones, con padding-top:0, quedan pegadas a la tira de documentos:

@@ -708,20 +708,15 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
   transition: color var(--transition), text-decoration-color var(--transition);
 }
 .site-footer a:hover { color: var(--text); text-decoration-color: currentColor; }
-/* Los dos nombres de la línea de autoría, del mismo alto visual: el dueño en
-   Bebas Neue (la tipografía de su web, condensada y alta) y la firma del
-   rediseño en Style Script (pequeña de caja). */
-.site-footer a.site-footer__owner {
-  font: 400 1.2rem/1 'Bebas Neue', var(--font-body);
-  letter-spacing: 0.04em;
-  color: var(--text);
-}
+/* Línea de autoría con la letra y el tamaño de producción; el nombre del
+   dueño la hereda. La firma del rediseño (Style Script, de caja baja muy
+   pequeña) se escala para igualar el alto visual del texto de la línea. */
+.site-footer p.site-footer__legal { font-family: var(--font-display); }
 .site-footer a.site-footer__signature {
-  font: 400 1.125rem/1 'Style Script', cursive;
-  color: var(--text);
+  font: 400 1.4em/1 'Style Script', cursive;
   text-decoration: none;
+  white-space: nowrap;
 }
-.site-footer a.site-footer__signature:hover { color: var(--text); }
 .footer-link {
   padding: 0;
   border: 0;
@@ -3518,24 +3513,29 @@ body:has(#jornadaContent) .ical-bar .btn-ical--report:hover {
   .race-layout--facts .race-header__detail,
   .race-layout--facts .race-header__date { display: none; }
   .race-layout--facts .race-header__subtitle:not(:has(.race-header__label)) { display: none; }
-  /* Web oficial · Libro de ruta · Dorsales: botones con contorno, como las
-     celdas de la fila de pestañas, en una fila que baja de línea si no caben. */
-  .race-side-links { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; padding: 0 1rem 0.75rem; }
+  /* Web oficial · Libro de ruta · Dorsales: la misma tira segmentada que la
+     fila de pestañas (celdas unidas con contorno compartido), con el icono
+     sobre el texto para que quepan en la columna a partes iguales. */
+  .race-side-links { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 0 1rem 0.75rem; }
   /* La fila mezcla botones de recurso y, en ciclocross, la pestaña Dorsales:
      misma caja para todos, con el texto centrado en ella. */
   .race-side-links > * {
-    display: inline-flex;
-    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 28px;
+    gap: 4px;
+    min-height: 48px;
+    padding: 6px 4px;
     font-size: var(--fs-1);
     line-height: 1.2;
+    text-align: center;
+    white-space: normal;
   }
   .race-side-links[hidden] { display: none; }
-  /* Un solo enlace: centrado en la columna. */
-  .race-side-links:has(> :only-child) { justify-content: center; }
-  .race-side-links > :only-child { flex: 0 0 auto; }
+  /* Un solo enlace: una celda centrada, del ancho de su texto. */
+  .race-side-links:has(> :only-child) { display: flex; justify-content: center; }
+  .race-side-links > :only-child { flex-direction: row; gap: 8px; min-height: 32px; padding: 0 1rem; }
   /* Web oficial, libro de ruta e inscritos vienen dos veces en el marcado
      (también prerenderizado): en la fila de pestañas, marcados con
      data-side-link, y en la columna lateral. Desde 1100 px solo se ven en la
@@ -3545,9 +3545,13 @@ body:has(#jornadaContent) .ical-bar .btn-ical--report:hover {
   .race-layout .cx-race-docs:not(:has(.asset-links > :not([data-side-link]))) { display: none; }
   /* Ciclocross: la pestaña Dorsales también vive en la columna lateral. */
   .race-layout .res-tabs__inner > [data-side-link] { display: none; }
-  /* Cada botón es una celda propia (no comparte contorno con la vecina). */
-  .race-side-links .asset-btn { margin: 0; padding: 0 0.75rem; border-radius: var(--radius-sm); }
-  .race-side-links .asset-btn:hover { border-color: var(--text); }
+  /* Celdas unidas: cada una solapa 1 px con la anterior y solo los extremos
+     llevan esquina redondeada, como en .asset-links. */
+  .race-side-links > * { position: relative; margin: 0 0 0 -1px; border-radius: 0; }
+  .race-side-links > :first-child { margin-left: 0; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .race-side-links > :last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .race-side-links > :only-child { border-radius: var(--radius-sm); }
+  .race-side-links > :hover { z-index: 1; border-color: var(--text); }
 }
 @media (min-width: 1280px) {
   .race-layout { --side-w: 312px; }

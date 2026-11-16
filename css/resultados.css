@@ -518,6 +518,15 @@ button.feed-row {
   margin-left: 0.4rem;
   vertical-align: 1px;
 }
+/* Categoría (y tipo de crono) en su propia fila bajo el subtítulo, con los
+   mismos badges y la misma separación que las tarjetas de Hoy. */
+.feed-row__main > .feed-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.3rem 0 0.15rem;
+}
 .feed-row__winner {
   display: block;
   font-size: var(--fs-4);
@@ -575,7 +584,7 @@ button.feed-row {
 .feed-day>.feed-row .feed-row__race { position: relative; }
 .feed-row__fem { font-size: 0.75em; opacity: 0.7; font-weight: 400; }
 /* «Etapa X» tras el nombre, en peso normal. */
-.feed-row__stage { font-weight: 400; }
+.feed-row__stage { margin-left: 0.3em; font-weight: 400; }
 .feed-row__sub {
   font-size: var(--fs-1);
   color: var(--text-muted);

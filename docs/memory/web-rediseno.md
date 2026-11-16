@@ -116,12 +116,14 @@ textos e i18n son los mismos.
   composición que la jornada: columna lateral, migas, pestañas y teselas.
 
 ## Pie
-- Montado por `js/header.js` sobre el pie de cada página (conserva su
-  copyright, Privacidad e iCal): marca, columnas «Secciones» (las de la
-  barra) y «Más» (Acerca de mí, Datos abiertos, iCal y Gestión de cookies,
-  que añade `js/cookie-consent.js`) y, abajo, la autoría (Dani Sánchez en
-  negrita) y la firma del rediseño en Style Script, gris y a la escala del
-  texto del pie, enlazada a su perfil de X.
+- Montado por `js/header.js` sobre el pie de cada página (conserva su línea
+  de copyright): marca, columnas «Secciones» (las de la barra) y «Más»
+  (Acerca de mí, Datos abiertos, Calendario iCal, Apoyar, Apps, Privacidad,
+  Términos y Gestión de cookies, que añade `js/cookie-consent.js`) y, abajo,
+  la línea de autoría con la letra y el tamaño de producción: «Ideado y
+  editado por Dani Sánchez - Apariencia gráfica» y la firma del rediseño en
+  Style Script, escalada al alto visual del texto y enlazada a su perfil de X.
+  Privacidad y Términos salen de esa línea y pasan a «Más».
 - Siempre bajo el pliegue: el pie va al fondo del cuerpo (posición absoluta)
   y el cuerpo mide al menos una pantalla (`100lvh`) más el pie
   (`--site-footer-h`, medido en `header.js`); en móvil, además, la barra
@@ -166,7 +168,8 @@ textos e i18n son los mismos.
 
 ## Decisiones
 - Tipografía del Figma: Montserrat para el texto y Momo Trust Display para el
-  logotipo (nombre y «by Dani Sánchez»), autoalojadas (fonts/web/README.md);
+  nombre del logotipo (sin «by Dani Sánchez», por decisión del dueño),
+  autoalojadas (fonts/web/README.md);
   Style Script solo para la firma del rediseño.
   El panel y el PDF de inscritos siguen con Google Sans.
 - Logo: los iconos de siempre en placa más el nombre del Figma en escritorio y

@@ -50,10 +50,3 @@ externos) a leerlas del propio dominio.
    `src: url('../fonts/web/<fichero>') format('woff2')`.
 
 Los avisos de licencia están en `THIRD-PARTY-NOTICES.md`.
-
-## Bebas Neue
-
-- Nombre del dueño del sitio en el pie (`.site-footer__owner`), la tipografía
-  de su web. Un peso (400), solo `latin`: `bebas-neue-latin.woff2`.
-- Origen: `https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap`,
-  con el mismo `User-Agent` de Chrome. Descarga: 2026-11-16.
