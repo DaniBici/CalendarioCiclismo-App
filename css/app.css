@@ -79,13 +79,13 @@
   --accent-text:   #6aa6f8;
   --accent-dim:    rgba(26,115,232,0.20);
   --brand:         #b7f34a;
-  --control-border: #f2f3f5;
-  --selected-bg:   transparent;
-  --selected-text: #b7f34a;
-  --selected-border: #b7f34a;
-  --day-selected-bg:     #f2f3f5;
-  --day-selected-text:   #0b0c0f;
-  --day-selected-border: #f2f3f5;
+  --control-border: color-mix(in srgb, var(--text) 42%, var(--bg));
+  --selected-bg:   var(--inverse-bg);
+  --selected-text: var(--inverse-text);
+  --selected-border: var(--inverse-border);
+  --day-selected-bg:     var(--inverse-bg);
+  --day-selected-text:   var(--inverse-text);
+  --day-selected-border: var(--inverse-border);
   --card-shadow:   0 0 0 1px var(--border-strong);
   /* Pasar el puntero tiñe (--hover-bg); los neutros de badges y botones de
      panel (tokens.css) usan el mismo tono. */
@@ -147,13 +147,13 @@ html.light {
   --accent-text:   #1455c0;
   --accent-dim:    rgba(23,105,224,0.10);
   --brand:         #1769e0;
-  --control-border: #10233f;
-  --selected-bg:   #10233f;
-  --selected-text: #ffffff;
-  --selected-border: #10233f;
-  --day-selected-bg:     #e8f1ff;
-  --day-selected-text:   #10233f;
-  --day-selected-border: #10233f;
+  --control-border: color-mix(in srgb, var(--text) 42%, var(--bg));
+  --selected-bg:   var(--inverse-bg);
+  --selected-text: var(--inverse-text);
+  --selected-border: var(--inverse-border);
+  --day-selected-bg:     var(--inverse-bg);
+  --day-selected-text:   var(--inverse-text);
+  --day-selected-border: var(--inverse-border);
   --card-shadow:   0 0 0 1px var(--border-strong);
   --hover-bg:      var(--bg-tint);
   --profile-dark-correction: 0;
@@ -379,7 +379,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   line-height: 1;
   letter-spacing: -0.01em;
 }
-.site-logo__by { margin-top: 0.15em; font-size: 0.5em; letter-spacing: 0; }
 
 /* Botón atrás. El insertado por ccHeaderBack() puede ser un <button> (Fichajes
    vuelve a la lista sin recargar): se neutralizan los estilos de UA. */
@@ -651,7 +650,6 @@ body:has(> .site-footer) {
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
-.site-footer__brand-by { margin-top: 0.15em; font-size: 0.5em; letter-spacing: 0; }
 .site-footer a.site-footer__brand, .site-footer a.site-footer__brand:hover { color: var(--brand); text-decoration: none; }
 .site-footer__brand:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: var(--radius-sm); }
 .site-footer__heading {
@@ -710,13 +708,17 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
   transition: color var(--transition), text-decoration-color var(--transition);
 }
 .site-footer a:hover { color: var(--text); text-decoration-color: currentColor; }
-/* El dueño del sitio, el nombre que más pesa de la línea de autoría. */
-.site-footer__legal a[href*="danisanchez"] { color: var(--text); font-weight: 600; }
-/* Firma del rediseño: Style Script, como en el pie de su web, del alto visual
-   del texto que la acompaña y en el gris del pie (no compite con el dueño). */
+/* Los dos nombres de la línea de autoría, del mismo alto visual: el dueño en
+   Bebas Neue (la tipografía de su web, condensada y alta) y la firma del
+   rediseño en Style Script (pequeña de caja). */
+.site-footer a.site-footer__owner {
+  font: 400 1.2rem/1 'Bebas Neue', var(--font-body);
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
 .site-footer a.site-footer__signature {
-  font: 400 0.9375rem/1 'Style Script', cursive;
-  color: var(--text-muted);
+  font: 400 1.125rem/1 'Style Script', cursive;
+  color: var(--text);
   text-decoration: none;
 }
 .site-footer a.site-footer__signature:hover { color: var(--text); }
@@ -1523,7 +1525,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 .date-pill__num { font-size: var(--fs-4); font-weight: 600; line-height: 1.1; }
 .date-pill:hover { background: var(--hover-bg); }
 /* Hoy sin seleccionar: solo contorno. */
-.date-pill.is-today:not(.active) { border-color: var(--border-strong); }
+.date-pill.is-today:not(.active) { border-color: var(--control-border); }
 /* Día seleccionado: relleno y contorno propios del tema. */
 .date-pill.active { background: var(--day-selected-bg); border-color: var(--day-selected-border); }
 .date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { color: var(--day-selected-text); }
@@ -1712,10 +1714,10 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
 /* Con perfil de elevación: fondo sólido (sin gradiente de progreso) y hueco para el marco del SVG. */
 .race-card--elevation {
   background: var(--bg-card);
-  padding-bottom: calc(58px + var(--card-py) + 0.75rem);
+  padding-bottom: calc(58px + 0.75rem);
 }
 .race-card--elevation:hover { background: var(--bg-card-hover); }
-/* Silueta del perfil, dentro del marco .race-card__profile. */
+/* Silueta del perfil, anclada al pie de la tarjeta. */
 .race-card__elevation {
   position: absolute;
   bottom: 0;
@@ -2060,15 +2062,12 @@ html.dark .race-card__elevation--time path:last-of-type { fill-opacity: 0.5; }
    km y desnivel fluyen en el subtítulo. */
 .race-card__profile {
   position: absolute;
-  inset: auto var(--card-px) var(--card-py);
+  inset: auto 0 0 0;
+  width: 100%;
   height: 58px;
   min-width: 0;
-  border-radius: var(--radius-sm);
-  background: var(--bg-tint);
-  box-shadow: 0 0 0 1px var(--border-strong);
 }
 .race-card__profile>.race-card__elevation, .race-card__profile>.race-card__ep-inds { height: 100%; }
-.race-card__profile>.race-card__elevation { border-radius: var(--radius-sm); }
 .race-card__schedule {
   display: flex;
   flex-wrap: wrap;
@@ -2225,7 +2224,7 @@ html.dark .race-card__elevation--time path:last-of-type { fill-opacity: 0.5; }
      de 40 px (::after) se mantiene. */
   .race-card .race-card__overview-btn, .race-card .badge--icon { width: 28px; height: 28px; border-color: transparent; }
   /* Miniperfil: banda de 36 px. */
-  #raceList .race-card--elevation, #raceList .race-card:has(.race-card__profile) { padding-bottom: calc(36px + var(--card-py) + 0.75rem); }
+  #raceList .race-card--elevation, #raceList .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
   #raceList :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
   /* Competición: mismas medidas de tarjeta que Hoy (relleno, interlineado,
      iconos arriba a la derecha y banda de perfil de 36 px). */
@@ -2238,7 +2237,7 @@ html.dark .race-card__elevation--time path:last-of-type { fill-opacity: 0.5; }
   #competicionContent .race-card__route-wrap { white-space: normal; overflow: visible; text-overflow: clip; flex-basis: 100%; }
   #competicionContent .race-card__sep--after-route { display: none; }
   #competicionContent .race-card:not(.race-card--placeholder)>.race-card__meta { align-self: start; margin-top: 0; }
-  #competicionContent .race-card--elevation, #competicionContent .race-card:has(.race-card__profile) { padding-bottom: calc(36px + var(--card-py) + 0.75rem); }
+  #competicionContent .race-card--elevation, #competicionContent .race-card:has(.race-card__profile) { padding-bottom: calc(36px + 0.75rem); }
   #competicionContent :is(.race-card__profile, .race-card__elevation, .race-card__ep-inds) { height: 36px; }
 }
 
@@ -2274,11 +2273,11 @@ div.stage-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0.5re
 
 @media (min-width: 761px) {
   .race-card { --card-px: 1.5rem; --card-py: 1.25rem; }
-  /* Tableta: dos columnas estrechas; el título crece a partir de 1100 px. */
+  /* Tableta: dos columnas estrechas; el título conserva el cuerpo de móvil. */
   .race-card__name { font-weight: 600; }
   .race-card__sub { font-size: var(--fs-1); }
   .race-card .race-logo-img { width: 64px; height: 64px; }
-  #raceList>.race-card { align-items: start; padding-bottom: calc(58px + var(--card-py) + 0.75rem); }
+  #raceList>.race-card { align-items: start; padding-bottom: calc(58px + 0.75rem); }
   /* Competición: contenido e iconos alineados arriba, como en Hoy. */
   #competicionContent .race-card:not(.race-card--placeholder) { align-items: start; }
   /* Sin diseño propio para las destacadas: la ordenación por categoría ya las
@@ -2291,13 +2290,8 @@ div.stage-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0.5re
   #raceList .race-card__route-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
 }
 
-@media (min-width: 1100px) {
-  .race-card__name { font-size: var(--fs-5); }
-}
-
 @media (min-width: 1280px) {
   .race-card { --card-px: 2rem; --card-py: 2rem; }
-  .race-card__name { font-size: var(--fs-6); }
 }
 
 
@@ -2495,7 +2489,7 @@ nav.stage-list { display: none; }
   border-color: var(--race-accent, var(--selected-border));
   color: var(--race-accent-ink, var(--selected-text));
 }
-:root .res-tab--active { border-bottom-color: var(--race-accent, var(--text)); }
+:root .res-tab--active, :root .res-tab--active:hover { background: var(--race-accent, var(--selected-bg)); color: var(--race-accent-ink, var(--selected-text)); }
 
 /* Migas de pan (shared.buildRaceBreadcrumb). Por debajo de 1100px van las
    primeras de la página (order); en escritorio abren la columna principal. */
@@ -3016,7 +3010,7 @@ h2.jornada-section__title { margin: 0 0 0.85rem; }
   margin: 0 -1px -1px 0;
   padding: 0 1rem;
   overflow: hidden;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 0;
   font-family: var(--font-body);
   font-size: var(--fs-1);
@@ -3518,28 +3512,30 @@ body:has(#jornadaContent) .ical-bar .btn-ical--report:hover {
   .race-layout__side .race-header__date,
   .race-layout__side .race-header__stats { font-size: var(--fs-1); font-weight: 400; margin-top: 0.2rem; }
   .race-layout__side .race-header__flag { font-size: var(--fs-4); }
-  /* Con datos de carrera (categoría, fechas, país) el detalle de etapa y la
-     bandera bajo el logo sobran: la etapa ya la marca la lista de etapas. */
+  /* Con datos de carrera (categoría y fechas) el detalle de etapa sobra: la
+     etapa ya la marca la lista de etapas. La bandera queda bajo el logo. */
   .race-layout--facts .race-header__facts { display: flex; flex-direction: column; margin-top: 0.2rem; font-size: var(--fs-1); line-height: 1.4; color: var(--text); }
-  .race-layout--facts .race-header__fact--country { display: inline-flex; align-items: center; gap: 0.35rem; }
   .race-layout--facts .race-header__detail,
-  .race-layout--facts .race-header__date,
-  .race-layout--facts .race-header__flag { display: none; }
+  .race-layout--facts .race-header__date { display: none; }
   .race-layout--facts .race-header__subtitle:not(:has(.race-header__label)) { display: none; }
-  /* Web oficial · Libro de ruta · Dorsales: enlaces subrayados bajo la cabecera. */
-  .race-side-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 2rem; padding: 0 1rem 0.75rem; }
+  /* Web oficial · Libro de ruta · Dorsales: botones con contorno, como las
+     celdas de la fila de pestañas, en una fila que baja de línea si no caben. */
+  .race-side-links { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; padding: 0 1rem 0.75rem; }
   /* La fila mezcla botones de recurso y, en ciclocross, la pestaña Dorsales:
      misma caja para todos, con el texto centrado en ella. */
   .race-side-links > * {
     display: inline-flex;
+    flex: 1 1 auto;
     align-items: center;
-    min-height: 24px;
+    justify-content: center;
+    min-height: 28px;
     font-size: var(--fs-1);
     line-height: 1.2;
   }
   .race-side-links[hidden] { display: none; }
   /* Un solo enlace: centrado en la columna. */
   .race-side-links:has(> :only-child) { justify-content: center; }
+  .race-side-links > :only-child { flex: 0 0 auto; }
   /* Web oficial, libro de ruta e inscritos vienen dos veces en el marcado
      (también prerenderizado): en la fila de pestañas, marcados con
      data-side-link, y en la columna lateral. Desde 1100 px solo se ven en la
@@ -3549,21 +3545,9 @@ body:has(#jornadaContent) .ical-bar .btn-ical--report:hover {
   .race-layout .cx-race-docs:not(:has(.asset-links > :not([data-side-link]))) { display: none; }
   /* Ciclocross: la pestaña Dorsales también vive en la columna lateral. */
   .race-layout .res-tabs__inner > [data-side-link] { display: none; }
-  .race-side-links .asset-btn {
-    min-height: 24px;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: none;
-    color: var(--accent-text);
-    font-weight: 500;
-    text-decoration: underline;
-  }
-  /* !important: los iconos de competicion.js llevan display en línea. */
-  .race-side-links .asset-btn svg { display: none !important; }
-  .race-side-links .asset-btn:hover { border: 0; background: none; color: var(--text); }
+  /* Cada botón es una celda propia (no comparte contorno con la vecina). */
+  .race-side-links .asset-btn { margin: 0; padding: 0 0.75rem; border-radius: var(--radius-sm); }
+  .race-side-links .asset-btn:hover { border-color: var(--text); }
 }
 @media (min-width: 1280px) {
   .race-layout { --side-w: 312px; }

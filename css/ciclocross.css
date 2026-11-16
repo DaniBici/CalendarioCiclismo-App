@@ -10,7 +10,7 @@
 /* Info / Resultados: pestañas segmentadas como la barra de documentos
    (.asset-links); la activa como un filtro activo. */
 .cx-section-nav .res-tabs__inner {flex:0 1 auto;gap:0;padding:0 1px 1px 0}
-.cx-section-nav .res-tab {display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;min-height:24px;margin:0 -1px -1px 0;padding:0 1rem;border:1px solid var(--border-strong);border-radius:0;color:var(--text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:none}
+.cx-section-nav .res-tab {display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;min-height:24px;margin:0 -1px -1px 0;padding:0 1rem;border:1px solid var(--control-border);border-radius:0;color:var(--text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:none}
 .cx-section-nav .res-tab:first-child {border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
 .cx-section-nav .res-tab:last-child {border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .cx-section-nav .res-tab:only-child {border-radius:var(--radius-sm)}
@@ -19,7 +19,7 @@
 /* Si Dorsales viaja a la columna lateral y no quedan más pestañas, la barra sobra. */
 .cx-section-nav:not(:has(.res-tab)) {display:none}
 /* Dorsales en la fila de enlaces de la columna lateral (≥1100px): mismo aspecto que Web oficial. */
-@media(min-width:1100px){.race-side-links .res-tab {min-height:24px;margin:0;padding:0;border:0;background:none;color:var(--accent-text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:underline}.race-side-links .res-tab:hover {background:none;color:var(--text)}.race-side-links .res-tab--active,.race-side-links .res-tab--active:hover {color:var(--text);font-weight:700}}
+@media(min-width:1100px){.race-side-links .res-tab {min-height:28px;margin:0;padding:0 .75rem;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:none;color:var(--text);font:500 var(--fs-1)/1.2 var(--font-body);text-decoration:none}.race-side-links .res-tab:hover {border-color:var(--text);background:var(--hover-bg);color:var(--text)}.race-side-links .res-tab--active,.race-side-links .res-tab--active:hover {border-color:var(--inverse-border);background:var(--inverse-bg);color:var(--inverse-text);font-weight:700}}
 @media(max-width:600px){.cx-section-nav .res-tab {min-height:44px}}
 /* Sin pestañas ni selector de categorías visibles (jornada con solo Programa),
    las secciones, con padding-top:0, quedan pegadas a la tira de documentos:
@@ -259,3 +259,12 @@ html.light .cx-standings-rounds {--cx-table-bg:#fff}
 .cx-scroll-next {position:absolute;top:.4rem;right:0;z-index:4;display:flex;align-items:center;justify-content:center;width:1.75rem;height:2rem;padding:0;border:0;background:var(--cx-table-bg);color:var(--text-muted);cursor:pointer}
 .cx-scroll-next:hover {color:var(--text)}
 .cx-scroll-next[hidden] {display:none}
+
+/* Tarjetas en dos columnas (tableta): con cinco categorías las horas no
+   caben a tamaño completo en sus celdas; se reducen hasta que la tarjeta
+   vuelve a tener ancho. */
+@media (min-width: 761px) and (max-width: 1279px) {
+  .cx-category-cell {min-width:0}
+  .cx-category-hour {font-size: var(--fs-2)}
+  .cx-category-box {padding-inline:2px}
+}

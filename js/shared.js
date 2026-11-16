@@ -1171,21 +1171,16 @@ export function regionName(code) {
   } catch { return ''; }
 }
 
-// Datos de carrera de la columna lateral (categoría UCI, fechas, bandera y
-// país). `countryCode: ''` oculta la bandera (misma regla que hideFlag).
+// Datos de carrera de la columna lateral (categoría UCI y fechas; la bandera
+// va bajo el logo de la cabecera).
 // Solo se ven en escritorio; el CSS los oculta por debajo de 1100px, donde la
 // cabecera sigue con su detalle de etapa.
-export function buildRaceFacts(race, { startKey = '', endKey = '', countryCode } = {}) {
+export function buildRaceFacts(race, { startKey = '', endKey = '' } = {}) {
   const cat = uciCategoryName(race?.uciCategory || '');
   const range = raceDateRangeText(startKey, endKey);
-  const code = countryCode != null ? countryCode : (race?.countryCode || '');
-  const country = code
-    ? `<span class="race-header__fact race-header__fact--country">${countryFlag(code)}<span>${esc(regionName(code) || String(code).toUpperCase())}</span></span>`
-    : '';
   const lines = [
     cat ? `<span class="race-header__fact">${esc(cat)}</span>` : '',
     range ? `<span class="race-header__fact">${esc(range)}</span>` : '',
-    country,
   ].filter(Boolean).join('');
   return lines ? `<div class="race-header__facts">${lines}</div>` : '';
 }
@@ -1794,7 +1789,7 @@ export function buildRaceHeader({
 
   // Subtítulo: label destacado + detalle, unidos por " · "
   // El detalle va en su propio span: en la columna lateral de escritorio se
-  // oculta (la carrera ya aparece descrita por categoría, fechas y país) y
+  // oculta (la carrera ya aparece descrita por categoría y fechas) y
   // solo queda la etiqueta («Inscritos», «Orden de salida»).
   const subParts = (label ? `<span class="race-header__label">${label}</span>` : '')
     + (detail ? `<span class="race-header__detail">${label ? ' · ' : ''}${esc(detail)}</span>` : '');

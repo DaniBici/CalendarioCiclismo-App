@@ -158,10 +158,11 @@
   background: var(--class-color);
   box-shadow: 0 0 0 1px var(--border);
 }
-/* Activa como el menú principal: texto y subrayado de acento, sin fondo. */
-.res-tab--active {
-  color: var(--text);
-  border-bottom: 2px solid var(--text);
+/* Activa: relleno de tinta, como el resto de selectores. */
+.res-tab--active, .res-tab--active:hover {
+  color: var(--selected-text);
+  background: var(--selected-bg);
+  border-radius: var(--radius-sm);
   font-weight: 700;
 }
 /* Filtro por equipo: mismo desplegable que .agenda-sort-select. */
@@ -413,7 +414,7 @@
   .feed-hero > .feed-view-switch .discipline-switch__option { flex: 1 0 auto; padding: 0 0.85rem; }
 }
 .feed-hero > .feed-view-switch .discipline-switch__option--active,
-.feed-hero > .feed-view-switch .discipline-switch__option--active:hover { background: var(--bg-tint); color: var(--text); }
+.feed-hero > .feed-view-switch .discipline-switch__option--active:hover { background: var(--selected-bg); color: var(--selected-text); }
 @media (min-width: 761px) {
   .feed-hero > .feed-view-switch { min-height: 48px; }
   .feed-hero > .feed-view-switch .discipline-switch__option { flex: 0 0 182px; font-size: var(--fs-5); }
@@ -429,7 +430,7 @@
   justify-content: center;
   min-height: 44px;
   padding: 0 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
@@ -439,9 +440,10 @@
 .feed-hero > .feed-view-tabs .feed-view-tab:hover { background: var(--hover-bg); }
 .feed-hero > .feed-view-tabs .feed-view-tab--active,
 .feed-hero > .feed-view-tabs .feed-view-tab--active:hover {
-  border-color: var(--control-border);
-  background: var(--bg-tint);
-  color: var(--text);
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--selected-text);
+  font-weight: 700;
 }
 @media (min-width: 761px) {
   /* Figma: cajas de 182×48 separadas 16 px. */
@@ -535,8 +537,8 @@ button.feed-row {
   display: block;
   border-radius: var(--radius-sm);
 }
-/* Columna de 32px aunque no haya logo (64px desde 761); categoría UCI y
-   bandera, centradas debajo. */
+/* Columna de 32px aunque no haya logo (64px desde 761); bandera centrada
+   debajo. */
 .feed-row__logo {
   display: flex;
   flex-direction: column;
@@ -546,16 +548,6 @@ button.feed-row {
   flex-shrink: 0;
 }
 .feed-row__logo .feed-row__flag { width: auto; }
-/* Categoría UCI bajo el logo (solo con la columna de 64px). */
-.feed-row__cat {
-  display: none;
-  max-width: 100%;
-  font-size: var(--fs-1);
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--text);
-  white-space: nowrap;
-}
 .feed-row__main {
   display: flex;
   flex-direction: column;
@@ -937,13 +929,10 @@ button.feed-row {
 }
 
 @media (min-width: 761px) {
-  /* Tarjetas del feed: columna de logo de 64px con la categoría UCI y la
-     bandera debajo; título de 20px (28px desde 1100). */
+  /* Tarjetas del feed: columna de logo de 64px con la bandera debajo. */
   .feed-row { gap: 1rem; padding: 1rem 1.25rem; }
   .feed-row__logo { width: 64px; gap: 0.3rem; }
   .feed-row__logo .race-logo-img { width: 64px; height: 64px; }
-  .feed-row__cat { display: block; }
-  .feed-row__race { font-size: var(--fs-5); }
 }
 @media (min-width: 761px) {
   /* Dos columnas aunque el día tenga un solo resultado, desde el mismo punto
@@ -977,9 +966,6 @@ button.feed-row {
   /* Ciclocross: relleno de la tarjeta de Figma (32 px arriba, abajo y a la
      izquierda; 22 px a la derecha, sin flecha). */
   .feed-row--cx { align-items: flex-start; padding: 1.5rem; column-gap: 1.25rem; }
-}
-@media (min-width: 1100px) {
-  .feed-row__race { font-size: var(--fs-6); }
 }
 
 @media (min-width: 761px) {
@@ -1084,7 +1070,7 @@ button.feed-row {
 .uci-ranking .uci-ranking-gender-tabs .feed-view-tab + .feed-view-tab { border-left: 1px solid var(--control-border); }
 .uci-ranking .uci-ranking-gender-tabs .feed-view-tab:hover { background: var(--hover-bg); }
 .uci-ranking .uci-ranking-gender-tabs .feed-view-tab--active,
-.uci-ranking .uci-ranking-gender-tabs .feed-view-tab--active:hover { background: var(--inverse-bg); color: var(--inverse-text); }
+.uci-ranking .uci-ranking-gender-tabs .feed-view-tab--active:hover { background: var(--selected-bg); color: var(--selected-text); }
 .uci-ranking .uci-ranking-key { padding: 0; overflow: hidden; }
 .uci-ranking .uci-ranking-key__title {
   margin: 0;

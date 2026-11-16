@@ -74,20 +74,22 @@ html.light {
   justify-content: center;
   min-height: 44px;
   padding: 0 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: 600 var(--fs-4)/1.25 var(--font-display);
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 .tr-view-btn:hover { background: var(--hover-bg); }
 .tr-view-btn--active,
 .tr-view-btn--active:hover {
-  border-color: var(--control-border);
-  background: var(--bg-tint);
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--selected-text);
+  font-weight: 700;
 }
 @media (min-width: 761px) {
   /* Figma: cajas de 182×48 separadas 16 px, título y subtítulo en líneas de
@@ -406,7 +408,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   text-align: left;
   background: var(--bg-card);
   color: var(--text);
-  border: 2px solid var(--control-border);
+  border: 2px solid var(--text);
   border-radius: var(--radius-sm);
   overflow: hidden;
   font: 400 var(--fs-4)/1.3 var(--font-body);
@@ -425,7 +427,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   display: flex;
   flex: none;
   width: 26px;
-  border-right: 2px solid var(--control-border);
+  border-right: 2px solid var(--text);
 }
 .tr-team-card__stripes .team-stripes,
 .tr-team-banner__stripes .team-stripes {
@@ -470,7 +472,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   align-items: stretch;
   min-height: 52px;
   margin-top: 1rem;
-  border: 2px solid var(--control-border);
+  border: 2px solid var(--text);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }

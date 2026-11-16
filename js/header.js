@@ -57,9 +57,9 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Pie del rediseño, montado sobre el de cada página (que conserva su copyright
-// y su enlace de Privacidad): marca, secciones y «Más» (Acerca de mí, Datos
-// abiertos, Calendario iCal en todas las páginas y Gestión de cookies, que
+// Pie del rediseño, montado sobre el de cada página (que conserva su línea de
+// copyright): marca, secciones y «Más» (Acerca de mí, Datos abiertos, Calendario
+// iCal, Apoyar, Apps y Privacidad en todas las páginas, y Gestión de cookies, que
 // js/cookie-consent.js añade a esa misma lista antes o después) y, abajo,
 // autoría y firma del rediseño.
 function buildFooterNav(s) {
@@ -73,7 +73,14 @@ function buildFooterNav(s) {
   actions.insertAdjacentHTML('afterbegin',
     `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>` +
-    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>`);
+    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.supportHref}" target="_blank" rel="noopener">${PRIMARY_ICONS.support}<span>${s.supportText}</span></a>` +
+    `<button class="footer-link footer-link--icon footer-link--apps" type="button">${PRIMARY_ICONS.apps}<span>${s.appsText}</span></button>` +
+    `<a class="footer-link footer-link--icon" href="${s.privacyHref}">${PRIMARY_ICONS.privacy}<span>${s.privacyText}</span></a>`);
+  // apps-modal.js (script clásico) deja window.openAppsModal; se consulta al pulsar.
+  actions.querySelector('.footer-link--apps').addEventListener('click', () => {
+    if (typeof window.openAppsModal === 'function') window.openAppsModal();
+  });
   const copyright = footer.querySelector(':scope > p:not(.site-footer__actions)');
   const sections = PRIMARY_NAV_ITEMS.map(key =>
     `<li><a class="footer-link" href="${s[key].href}">${s[key].text}</a></li>`).join('');
@@ -87,11 +94,24 @@ function buildFooterNav(s) {
 
   const bottom = document.createElement('div');
   bottom.className = 'site-footer__bottom';
-  if (copyright) { copyright.classList.add('site-footer__legal'); bottom.append(copyright); }
-  // Firma del rediseño: Style Script, como en el pie de su web, a la escala
-  // del resto del texto del pie.
-  bottom.insertAdjacentHTML('beforeend',
-    `<p class="site-footer__design">${s.designText} · <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a></p>`);
+  if (copyright) {
+    copyright.classList.add('site-footer__legal');
+    // El dueño en Bebas Neue (la tipografía de su web) y, tras él, la firma del
+    // rediseño en Style Script. Privacidad pasa a la columna «Más».
+    const owner = copyright.querySelector('a[href*="danisanchez"]');
+    if (owner) {
+      owner.classList.add('site-footer__owner');
+      owner.insertAdjacentHTML('afterend',
+        ` · ${s.designText} <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a>`);
+    }
+    const privacy = copyright.querySelector('a[href*="privacidad"], a[href*="privacy"]');
+    if (privacy) {
+      const sep = privacy.previousSibling;
+      if (sep && sep.nodeType === 3) sep.textContent = sep.textContent.replace(/\s*-\s*$/, '');
+      privacy.remove();
+    }
+    bottom.append(copyright);
+  }
   footer.replaceChildren(top, bottom);
 
   // Alto del pie para colocarlo siempre bajo el pliegue (css/app.css).

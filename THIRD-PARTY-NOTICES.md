@@ -145,6 +145,17 @@ en `fonts/web/` (subconjunto latino).
 
 ---
 
+## Bebas Neue
+
+Tipografía del nombre del dueño del sitio en el pie de la web pública (la que
+usa su propia web), autoalojada en `fonts/web/` (subconjunto latino).
+
+- Proyecto: https://github.com/dharmatype/Bebas-Neue
+- Copyright: Copyright 2019 The Bebas Neue Project Authors (https://github.com/dharmatype/Bebas-Neue)
+- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
+
+---
+
 ## Google Sans
 
 Google Sans Medium se redistribuye en las cabeceras nativas de iOS y Android.

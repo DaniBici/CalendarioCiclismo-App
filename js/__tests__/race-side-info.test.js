@@ -82,13 +82,12 @@ describe('teselas de la ficha de etapa', () => {
 });
 
 describe('datos de carrera de la columna lateral', () => {
-  it('categoría, fechas y país; sin país si se oculta la bandera', () => {
+  it('categoría y fechas; el país ya no es un dato (la bandera va bajo el logo)', () => {
     const race = { uciCategory: 'UWT', countryCode: 'CN' };
     const html = buildRaceFacts(race, { startKey: '2026-10-13', endKey: '2026-10-18' });
     expect(html).toContain('UCI WorldTour');
     expect(html).toContain('13 - 18 octubre 2026');
-    expect(html).toContain('race-header__fact--country');
-    expect(buildRaceFacts(race, { startKey: '2026-10-13', countryCode: '' })).not.toContain('--country');
+    expect(html).not.toContain('--country');
   });
 });
 
