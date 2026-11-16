@@ -1082,7 +1082,8 @@ html.cc-booting::before {
 
 /* Franja de la agenda (Hoy y Ciclocross), como la fila de la fecha de las
    apps: conmutador «CX | Ruta» (mientras exista) y fecha a la izquierda,
-   categoría y «Ordenar» a la derecha y filete antes de las tarjetas. */
+   categoría y «Ordenar» a la derecha. Sin filete: al desplazar, la sombra de
+   la barra fija separa los controles de las tarjetas. */
 .agenda-filters__inner {
   display: flex;
   flex-wrap: nowrap;
@@ -1092,7 +1093,6 @@ html.cc-booting::before {
   max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.25rem 0 0.6rem;
-  border-bottom: 1px solid var(--border);
   background: transparent;
 }
 /* El margen automático empuja categoría y «Ordenar» al extremo derecho. */
