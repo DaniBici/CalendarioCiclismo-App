@@ -121,7 +121,7 @@ textos e i18n son los mismos.
   (Acerca de mí, Datos abiertos, Calendario iCal, Apoyar, Apps, Privacidad,
   Términos y Gestión de cookies, que añade `js/cookie-consent.js`) y, abajo,
   la línea de autoría con la letra y el tamaño de producción: «Ideado y
-  editado por Dani Sánchez - Apariencia gráfica Alejandro Monteagudo Niella»,
+  editado por Dani Sánchez - Apariencia gráfica por Alejandro Monteagudo Niella»,
   los dos nombres con la letra y el tamaño de la línea y su enlace.
   Privacidad y Términos salen de esa línea y pasan a «Más».
 - Siempre bajo el pliegue: el pie va al fondo del cuerpo (posición absoluta)
