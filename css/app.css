@@ -713,7 +713,7 @@ body:has(> .page-loading:not(.page-loading--hide)) > :is(#raceList, #cxAgendaCon
    pequeña) se escala para igualar el alto visual del texto de la línea. */
 .site-footer p.site-footer__legal { font-family: var(--font-display); }
 .site-footer a.site-footer__signature {
-  font: 400 1.25em/1 'Style Script', cursive;
+  font: 400 1em/1 'Style Script', cursive;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1445,12 +1445,21 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--giro-h, 0px));
   z-index: 90;
   background: var(--bg);
-  /* Al fijarse, las tarjetas pasan por debajo de la barra: una sombra suave en
-     su borde inferior separa los planos y el corte no se lee como un recorte. */
-  box-shadow: 0 10px 14px -12px rgba(16, 35, 63, 0.35);
   padding-bottom: 0.5rem;
+  --sticky-shadow: 0 10px 14px -12px rgba(16, 35, 63, 0.35);
 }
-html:not(.light) :is(.hoy-sticky, .cx-agenda-sticky) { box-shadow: 0 10px 14px -12px rgba(0, 0, 0, 0.8); }
+html:not(.light) :is(.hoy-sticky, .cx-agenda-sticky) { --sticky-shadow: 0 10px 14px -12px rgba(0, 0, 0, 0.8); }
+/* La sombra solo aparece al desplazar, cuando las tarjetas empiezan a pasar
+   por debajo de la barra (animación ligada al scroll de la página); sin
+   soporte, la barra queda sin sombra, como en reposo. */
+@supports (animation-timeline: scroll()) {
+  .hoy-sticky, .cx-agenda-sticky {
+    animation: sticky-shadow-in linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 120px;
+  }
+}
+@keyframes sticky-shadow-in { from { box-shadow: none; } to { box-shadow: var(--sticky-shadow); } }
 
 /* Selector de día. */
 /* La barra de días la genera JS tras el primer pintado: se reserva su alto

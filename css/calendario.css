@@ -137,39 +137,44 @@ button.t-race {
 }
 
 .t-race__name {
+  display: flex;
+  align-items: center;
   font-family: var(--font-body);
   font-size: var(--fs-3);
   font-weight: 500;
-  /* Una sola línea con puntos suspensivos: todas las filas miden lo mismo. */
+  /* Una sola línea con puntos suspensivos en el texto: todas las filas miden
+     lo mismo y la marca de género no se recorta. */
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.t-race__name > .t-race__name-text { white-space: nowrap; }
 /* Carrera cancelada: nombre tachado; conserva contraste AA (0,65 de opacidad). */
-.t-race__name--cancelled { text-decoration: line-through; opacity: 0.65; }
+.t-race__name--cancelled { opacity: 0.65; }
+.t-race__name--cancelled > .t-race__name-text { text-decoration: line-through; }
 /* Campeonatos Nacionales: sin logo ni hueco; el nombre ocupa también su columna.
    La fila «Campeonatos Nacionales» tampoco lleva bandera. */
 .t-race--no-logo .t-race__name { grid-column: 2 / 4; }
 .t-race--no-flag .t-race__name { grid-column: 1 / 4; }
-/* Pruebas femeninas: el símbolo en una pastilla magenta (contraste 5,6:1),
-   reconocible de un vistazo en la lista. */
-.t-race__female, .cal-race__female {
+/* Género (shared.genderMark, solo en la lista mixta): ♀ y ♂ por igual, en un
+   círculo de tinte suave con el símbolo en su color; discretos junto al
+   nombre, distinguibles de un vistazo. */
+.gender-mark {
   display: inline-grid;
   flex: none;
   place-items: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-left: 0.4rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-left: 0.35rem;
   border-radius: 50%;
-  background: #c2185b;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 600;
   line-height: 1;
-  vertical-align: middle;
-  opacity: 1;
+  vertical-align: 0.05em;
 }
+.gender-mark--f { color: #ad1457; background: color-mix(in srgb, #ad1457 12%, transparent); }
+.gender-mark--m { color: #1565c0; background: color-mix(in srgb, #1565c0 12%, transparent); }
+html:not(.light) .gender-mark--f { color: #f48fb1; background: color-mix(in srgb, #f48fb1 16%, transparent); }
+html:not(.light) .gender-mark--m { color: #90caf9; background: color-mix(in srgb, #90caf9 16%, transparent); }
 
 .t-race__dates {
   font-family: var(--font-display);

@@ -1672,6 +1672,19 @@ export const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[e�
 
 // ♀ explícito solo cuando nada más lo indica: ni el nombre, ni la categoría
 // WWT ni el filtro femenino/WWT activo (misma regla que categoryBadge).
+// Marca de género del calendario. Solo con la lista mixta (Todas o Pro):
+// ♀ y ♂ en todas las pruebas por igual, sutiles; con un filtro de un solo
+// género (masculino, femenino, WorldTour o WWT) no aporta nada y no sale.
+export function genderMark({ gender } = {}, activeCat = '') {
+  if (activeCat !== 'all' && activeCat !== 'pro') return '';
+  if (gender !== 'female' && gender !== 'male') return '';
+  const female = gender === 'female';
+  const en = getLang() === 'en';
+  const label = female ? (en ? 'Women' : 'Femenino') : (en ? 'Men' : 'Masculino');
+  return ` <span class="gender-mark gender-mark--${female ? 'f' : 'm'}" aria-hidden="true">${female ? '♀' : '♂'}</span>` +
+         `<span class="sr-only">${label}</span>`;
+}
+
 export function needsFemaleMark({ gender, name, uciCategory } = {}, activeCat = '') {
   return gender === 'female' && !nameImpliesFemale(name || '') && !/WWT$/.test(uciCategory || '')
     && activeCat !== 'female' && activeCat !== 'wwt';
