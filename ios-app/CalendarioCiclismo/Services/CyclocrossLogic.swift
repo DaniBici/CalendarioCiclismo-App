@@ -151,11 +151,7 @@ enum CyclocrossLogic {
 
     static func instant(_ value: String?) -> Date? {
         guard let value else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
+        return DateFormatting.parseISO(value)
     }
 
     static func timing(race: CxRace, category: CxCategory, at: Date = Date()) -> CxTiming {
@@ -235,7 +231,11 @@ enum CyclocrossLogic {
         }
         var rounds: [String: CxRound] = [:]
         for group in groups.values {
-            let ordered = group.sorted { roundKey($0, season: season) < roundKey($1, season: season) }
+            // La clave de cada fila se calcula una sola vez: dentro del
+            // comparador se recalculaba (con el análisis de horas) en cada
+            // comparación.
+            let keyed = group.map { (key: roundKey($0, season: season), row: $0) }
+            let ordered = keyed.sorted { $0.key < $1.key }.map(\.row)
             for (index, row) in ordered.enumerated() { rounds[row.id] = CxRound(n: index + 1, total: ordered.count) }
         }
         return rounds

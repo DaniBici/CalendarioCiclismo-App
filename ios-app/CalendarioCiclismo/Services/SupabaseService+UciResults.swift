@@ -127,7 +127,7 @@ extension SupabaseService {
             .value
     }
 
-    /// Fila mínima de startlist_teams para resolver la chapa canónica.
+    /// Fila mínima de startlist_teams para resolver el equipo canónico.
     private struct SlimStartlistTeam: Codable, Sendable {
         let id: String
         let teamId: String?
@@ -183,7 +183,7 @@ extension SupabaseService {
     /// pestaña Equipos casa por nombre (sus filas no llevan dorsal).
     ///
     /// OJO: `startlist_riders.teamId` apunta al **PK** de `startlist_teams`, NO a
-    /// su columna `teamId` (la ref canónica a `teams`). La chapa del equipo sale
+    /// su columna `teamId` (la ref canónica a `teams`). El cuadrado de colores del equipo sale
     /// de ese teamId canónico.
     private func buildByDorsal(
         slRiders: [StartlistRiderResolved],
@@ -203,7 +203,7 @@ extension SupabaseService {
             let slTeam = r.teamId.flatMap { slTeamByPk[$0] }
             let canon = slTeam?.teamId.flatMap { teamById[$0] }
             // Estado sin equipo → ocultación cosmética: sin nombre de equipo,
-            // y en cascada sin chapa ni opción en el filtro por equipo.
+            // y en cascada sin cuadrado de colores ni opción en el filtro por equipo.
             let isPlaceholder = slTeam.map { isNoTeamPlaceholderTeam(teamId: $0.teamId, teamName: $0.teamName) } ?? false
             let slName = isPlaceholder ? "" : (slTeam?.teamName ?? "")
             out[dorsal] = ResolvedRider(
@@ -231,7 +231,7 @@ extension SupabaseService {
     /// desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
     /// actual solo se incluye cuando el llamador confirma que consulta el año vigente.
     /// Fail-silent: si una query falla, esos ids
-    /// no entran en el mapa (la fila se renderiza sin bandera/chapa, como antes).
+    /// no entran en el mapa (la fila se renderiza sin bandera ni colores, como antes).
     func enrichRidersByGlobalId(_ ids: [String], includeCurrentTeam: Bool = true) async -> [String: ResolvedRider] {
         let need = Array(Set(ids.filter { !$0.isEmpty }))
         guard !need.isEmpty else { return [:] }
@@ -276,7 +276,7 @@ extension SupabaseService {
     }
 
     /// Override MANUAL de equipo (mig. 112): resuelve los `teamId` de override de
-    /// las filas de resultados a su equipo canónico (nombre + chapa). Espejo de
+    /// las filas de resultados a su equipo canónico (nombre + colores). Espejo de
     /// `enrichOverrideTeams` en `js/resultados.js`. Silencioso: ids sin equipo
     /// no entran en el mapa (la fila cae a la resolución por dorsal).
     func enrichTeamsByIds(_ ids: [String], year: Int?) async -> [String: Team] {

@@ -86,4 +86,20 @@ describe('RaceResult CX', () => {
     expect(doc.categories).toEqual([]);
     expect(doc.skipped).toEqual([{ category: 'MJ', reason: 'Concurso «Junior Men» aún sin clasificados en RaceResult' }]);
   });
+
+  // Boulder Cup 14-15/11/2026 (evento 432622): servidor regional `my-us-1` y selector de día.
+  it('acepta el servidor regional de listas y rechaza otro dominio', async () => {
+    const config = JSON.parse(readFileSync(new URL('./fixtures/raceresult-boulder-2026-config.json', import.meta.url), 'utf8'));
+    const salida = JSON.parse(readFileSync(new URL('./fixtures/raceresult-boulder-2026-wj-salida.json', import.meta.url), 'utf8'));
+    const { urls, fetchImpl } = fakeFetch(config, { 20: salida });
+    const fetched = await fetchRaceresultContests('https://my.raceresult.com/432622/', ['20/1', '29/1'], { fetchImpl });
+    expect(urls[1]).toMatch(/^https:\/\/my-us-1\.raceresult\.com\/432622\/results\/list\?key=[0-9a-f]+&listname=.+&contest=20&r=all&l=0&selectorResult=1$/);
+    const doc = buildRaceresultCxDocument({ ...fetched, map: { '20/1': 'WJ', '29/1': 'ME' }, raceId: 'r', seasonKey: '2026-27', dateKey: '2026-11-14', source: 'raceresult' });
+    expect(doc.skipped).toEqual([{ category: 'WJ', reason: 'Concurso «UCI Junior Women 17-18» aún sin clasificados en RaceResult' }]);
+    expect(doc.invalid).toEqual([{ category: 'ME', reason: 'Concurso 29/1: Sin lista de clasificación visible para el concurso 29' }]);
+    for (const server of ['my-us-1.raceresult.com.example.org', 'evil.example.org', 'my-us.raceresult.com']) {
+      await expect(fetchRaceresultContests('https://my.raceresult.com/432622/', ['20/1'], { fetchImpl: fakeFetch({ ...config, server }, {}).fetchImpl }))
+        .rejects.toThrow('servidor reconocido');
+    }
+  });
 });

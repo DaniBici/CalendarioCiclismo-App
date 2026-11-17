@@ -227,7 +227,8 @@ async function getJson(url, fetchImpl) {
 export async function fetchRaceresultContests(url, keys, { fetchImpl = fetch } = {}) {
   const eventUrl = raceresultEventUrl(url); const eventId = raceresultEventId(eventUrl);
   const config = await getJson(`https://my.raceresult.com/${eventId}/results/config?lang=en`, fetchImpl);
-  if (!config?.key || !/^my\d*\.raceresult\.com$/.test(config.server || '')) throw new Error('Configuración RaceResult sin clave ni servidor reconocido');
+  // Servidores de listas: `my1`…`my4` y los regionales (`my-us-1`, Boulder Cup 2026).
+  if (!config?.key || !/^my(?:\d+|-[a-z]{2}-\d+)?\.raceresult\.com$/.test(config.server || '')) throw new Error('Configuración RaceResult sin clave ni servidor reconocido');
   const listUrl = (listName, contest, selector) => `https://${config.server}/${eventId}/results/list?key=${encodeURIComponent(config.key)}`
     + `&listname=${encodeURIComponent(listName)}&page=results&contest=${contest}&r=all&l=0${selector ? `&selectorResult=${selector}` : ''}`;
   const contests = [];

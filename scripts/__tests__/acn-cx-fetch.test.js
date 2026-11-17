@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { acnCategories, acnSeconds, acnSplitName, acnTarget, buildAcnCxDocument, parseAcnTable } from '../results-fetchers/acn-cx-fetch.mjs';
+import { acnCategories, acnContextEvent, acnSeconds, acnSplitName, acnTarget, buildAcnCxDocument, parseAcnTable } from '../results-fetchers/acn-cx-fetch.mjs';
+
+const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/chronorace-bollekescross-2026-${name}.json`, import.meta.url), 'utf8'));
 
 const columns = ['sR_Pos', 'sR_Nr', 'Name / Team', 'dI_sC_#NOC', 'sC_Laps', 'sR_Time', 'w10000_Temps']
   .map((Name, FieldIdx) => ({ Name, FieldIdx }));
@@ -79,6 +82,29 @@ describe('ACN Timing CX', () => {
     expect(document.categories[0]).toMatchObject({ category: 'MJ', dateKey: '2026-10-11', evidence: {
       sourceUrl: 'https://www.acn-timing.com/?lng=EN#/events/2156533144205845/ctx/20261011_hg/generic/197998_34/home/RES34' } });
     expect(document.skipped).toEqual([{ category: 'WJ', key: 'RES35', reason: 'Clasificación sin filas' }]);
+  });
+
+  it('lee un contexto X2O sin evento ACN: fecha del contexto y manga sin salir apartada', () => {
+    const tree = fixture('tree');
+    const event = acnContextEvent(tree, '20261115_x2o');
+    expect(event).toEqual({ EventId: null, Title: 'Bollekescross', Location: 'Hamme-Zogge', Country: 'BEL', StartDate: '2026-11-15', EndDate: '2026-11-15' });
+    expect(() => acnContextEvent(tree, '20261114_x2o')).toThrow('no corresponde');
+    expect(() => acnContextEvent({ ...tree, Name: '20261114_x2o' }, '20261114_x2o')).toThrow('otra fecha');
+    expect(() => acnContextEvent(null, '20261115_x2o')).toThrow('aún no publica');
+    const keys = acnCategories(tree).found.filter(item => /^RES\d+$/.test(item.key)).map(item => [item.category, item.key]);
+    expect(keys).toEqual([['ME', 'RES31'], ['WE', 'RES32'], ['MU', 'RES33'], ['MJ', 'RES34'], ['WJ', 'RES35']]);
+    const document = buildAcnCxDocument({ event, ctx: '20261115_x2o', raceId: 'race', seasonKey: '2026-27', dateKey: '2026-11-15',
+      sourceUrl: 'https://prod.chronorace.be/angular/results.html#/uci/event/20261115_x2o', source: 'acn',
+      tables: [{ category: 'MJ', key: 'RES34', groupId: '197998_34', name: 'Men Junior', table: fixture('mj') },
+        { category: 'ME', key: 'RES31', groupId: '197998_31', name: 'Men Elite', table: fixture('me-salida') }] });
+    expect(document.evidence).toMatchObject({ eventId: null, ctx: '20261115_x2o', eventName: 'Bollekescross', acn: { eventId: null, ctx: '20261115_x2o' } });
+    expect(document.skipped).toEqual([{ category: 'ME', key: 'RES31', reason: 'La clasificación ACN no tiene ganador con tiempo' }]);
+    const [mj] = document.categories;
+    expect(mj.evidence.sourceUrl).toBe('https://prod.chronorace.be/angular/results.html#/uci/event/20261115_x2o');
+    expect(mj.rows).toHaveLength(45);
+    expect(mj.rows[0]).toMatchObject({ rank: 1, riderDisplay: 'Emiel Osaer', uciLicenseId: '10074876708', timeSeconds: '2316' });
+    expect(mj.rows.filter(row => row.irm === 'LAP').map(row => row.rank)).toEqual([42, 43]);
+    expect(mj.rows.filter(row => row.irm === 'DNF')).toHaveLength(2);
   });
 });
 

@@ -255,6 +255,8 @@ enum AccessibilityID {
     static let tabResults = "tab_results"
     static let tabTransfers = "tab_transfers"
     static let tabCyclocross = "tab_cyclocross"
+    static let tabVideos = "tab_videos"
+    static let videosDisciplinePicker = "videos_discipline_picker"
     static let tabCalendar = "tab_calendar"
 
     // Settings
@@ -285,6 +287,7 @@ enum AccessibilityID {
     static let timeSection = "time_section"
     static let timetableToggle = "timetable_toggle"
     static let broadcastSection = "broadcast_section"
+    static let stageVideosSection = "stage_videos_section"
     static let assetSection = "asset_section"
 
     // SettingsView

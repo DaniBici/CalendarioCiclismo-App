@@ -37,8 +37,8 @@ export async function checkYouTubeEmbeddable(url) {
     const res = await fetch(endpoint);
     if (res.ok) return true;
     // 401 → embed explícitamente deshabilitado por el creador.
-    // 404 → vídeo no existe / privado / borrado: tampoco se puede embeber.
-    if (res.status === 401 || res.status === 404) return false;
+    // 403 → vídeo privado. 404 → vídeo inexistente o borrado. Ninguno se embebe.
+    if (res.status === 401 || res.status === 403 || res.status === 404) return false;
     return null;
   } catch {
     return null;
@@ -80,6 +80,8 @@ export function getBroadcastEmbed(url, embeddable = null) {
   if (ytId) {
     return {
       provider: 'youtube',
+      // Arranca solo: lo abre el modal de TV al pulsar. Los acordeones de vídeos
+      // no la usan (js/stage/videos-html.js, sin reproducción automática).
       src: `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1`,
       externalUrl: url,
       externalLabel: 'YouTube',

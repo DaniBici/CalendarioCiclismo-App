@@ -645,6 +645,8 @@ def generate_full():
     entries = static_entries() + sections["competicion"] + sections["inscritos"]
     # Feed de últimos resultados (índice /resultados/ + /en/results/)
     add_bilingual(entries, f"{BASE_URL}/resultados/", f"{BASE_URL_EN}/results/", today, "hourly", "0.8")
+    # Vídeos por día (/videos/ + /en/videos/)
+    add_bilingual(entries, f"{BASE_URL}/videos/", f"{BASE_URL_EN}/videos/", today, "daily", "0.7")
     # Mercado de fichajes (/fichajes/ + /en/transfers/)
     add_bilingual(entries, f"{BASE_URL}/fichajes/", f"{BASE_URL_EN}/transfers/", today, "daily", "0.8")
     for name in ("jornada", "perfil", "mapa", "orden", "resultados"):

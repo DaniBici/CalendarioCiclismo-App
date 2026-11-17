@@ -3,7 +3,6 @@
 //  Lo usa js/header.js (montaje en el navegador) y lo usará el paso de build
 //  que escribe la cabecera en las páginas generadas, que así coinciden.
 // ─────────────────────────────────────────────────────────────────
-import { cyclocrossHome } from './services/today-season.js';
 
 // Marca: los dos iconos del logotipo de siempre (calendario y bicicleta,
 // Lucide, trazo 2) calados juntos en una placa del color de la marca, junto
@@ -31,6 +30,9 @@ export const PRIMARY_ICONS = {
   // Mismo vector que la pestaña Hoy de Android: Icons.Filled.CalendarToday.
   today: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 16H5V9h14v11ZM7 11h5v5H7Z"/></svg>',
   results: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+  // Reproducción en un rectángulo: mismo vector que play.rectangle (iOS) e
+  // Icons.Outlined.SmartDisplay (Android).
+  videos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>',
   transfers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg>',
   // Monograma CX exclusivo del submenú; misma geometría que ic_cyclocross.xml
   // (Android) y CyclocrossEmblem (iOS).
@@ -61,6 +63,7 @@ export const STRINGS = {
     skipText: 'Saltar al contenido',
     today:  { href: '/',              text: 'Hoy' },
     results:{ href: '/resultados/',   text: 'Resultados' },
+    videos: { href: '/videos/',      text: 'Vídeos' },
     transfers:{ href: '/fichajes/',   text: 'Fichajes' },
     cyclocross:{ href: '/ciclocross/', text: 'Ciclocross' },
     calendar:{ href: '/calendario/', text: 'Calendario' },
@@ -81,27 +84,19 @@ export const STRINGS = {
     skipText: 'Skip to content',
     today:  { href: '/en/',           text: 'Home' },
     results:{ href: '/en/results/',   text: 'Results' },
+    videos: { href: '/en/videos/',   text: 'Videos' },
     transfers:{ href: '/en/transfers/', text: 'Transfers' },
     cyclocross:{ href: '/en/cyclocross/', text: 'Cyclocross' },
     calendar:{ href: '/en/calendar/', text: 'Calendar' },
   },
 };
 
-// Tras el cierre de la temporada de carretera la home es Ciclocross
-// (services/today-season.js): Hoy abre la agenda de Ciclocross, que alterna
-// con Hoy de carretera, y sustituye a Ciclocross en el menú.
-const _now = new Date();
-export const CX_HOME = cyclocrossHome(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
-
-// Cinco destinos fijos (cuatro con la home cedida a Ciclocross, en la que
-// Hoy alberga Ciclocross y carretera): en escritorio comparten fila con la
-// marca y las acciones; en móvil forman la barra inferior, sin
-// desplazamiento. «Acerca de mí» y «Datos abiertos» viven en el pie.
-// Orden del diseño (Figma): Fichajes · Resultados · Hoy · Calendario ·
-// Ciclocross, con Hoy en el centro.
-export const PRIMARY_NAV_ITEMS = CX_HOME
-  ? ['transfers', 'results', 'today', 'calendar']
-  : ['transfers', 'results', 'today', 'calendar', 'cyclocross'];
+// Cinco destinos fijos todo el año (docs/plans/videos-5-2.md, D1): Ciclocross
+// vive dentro de Hoy, con el conmutador CX / Ruta, y Hoy está activo en sus
+// páginas. En escritorio comparten fila con la marca y las acciones; en móvil
+// forman la barra inferior, sin desplazamiento. «Acerca de mí» y «Datos
+// abiertos» viven en el pie.
+export const PRIMARY_NAV_ITEMS = ['today', 'results', 'videos', 'transfers', 'calendar'];
 
 // Selector ES/EN escrito con la cabecera (también en el HTML generado en el
 // build): montarlo al cargar desplazaba la cabecera. js/lang-switch.js solo le

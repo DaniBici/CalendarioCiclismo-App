@@ -33,6 +33,7 @@ Documentación técnica de Google Analytics.
   - `today` — `category_filter`.
   - `month` — `year`, `category_filter`.
   - `season` — `year`, `category_filter`, `country_code`.
+  - `videos` / `videos_cx` — sin parámetros (5.2.0).
   - `search` — `search_query`.
   - `race_detail` — `race_id`, `race_name`.
   - `stage_detail` — `race_day_id`, `stage_name`, `race_name`.
@@ -53,6 +54,7 @@ Documentación técnica de Google Analytics.
   - `today` — `category_filter`.
   - `month` — `year`, `category_filter`.
   - `season` — `year`, `category_filter`, `country_code`.
+  - `videos` / `videos_cx` — sin parámetros (5.2.0).
   - `search` — `search_query`.
   - `race_detail` — `race_id`, `race_name`.
   - `stage_detail` — `race_day_id`, `stage_name`, `race_name`.
@@ -102,8 +104,11 @@ Ambas plataformas emiten, con el mismo nombre:
 | `results_feed_cx` | — | Pestaña Ciclocross de Resultados. En iOS desde 5.1.1. |
 | `results` | `race_id`, `race_name`, `race_day_id`, `stage_name` | Clasificación de una carrera de carretera. |
 | `cyclocross` | — | Pestaña Ciclocross (agenda general). |
+| `videos`, `videos_cx` | — | Sección Vídeos: Carretera y Ciclocross, al abrir y en cada cambio de disciplina. Desde 5.2.0. |
 | `cx_tournament` | `race_id`, `race_name` | Página de torneo. `race_id` es el id del torneo. Desde 5.1.1. |
 | `cx_race` | `race_id`, `race_name` | Ficha de carrera de ciclocross. Desde 5.1.1. |
+
+Evento `video_open` (5.2.0, web y apps): `platform` (`youtube`, `rtve_play`, `etb_on`, `raiplay`, `auvio`, `other`) y `video_kind` (`full`, `summary`, `last_km`, `other`) al abrir un vídeo o una emisión desde los paneles y la sección Vídeos (`docs/memory/videos.md`).
 
 `cx_race` y `cx_tournament` reutilizan `race_id` y `race_name`, ya registrados como dimensiones personalizadas; no llevan `race_day_id`. Antes de la 5.1.1, iOS no registraba la ficha ni el torneo y Android registraba la plantilla de la ruta (`cx_race/{raceId}?…`). `AppNavHost` registra con `destination.route` cualquier ruta que no excluya, de modo que una pantalla nueva con argumentos debe excluirse allí y registrarse desde su composable; de otro modo llega la plantilla sin identidad. Hoy `startlist/…`, `start_order/…`, `results/…` y `transfers_team/…` registran además la plantilla; el panel la ignora.
 
@@ -118,9 +123,13 @@ La vista Métricas de `panel/app.html` (`js/panel/analytics.js`) consume la edge
 | La vuelta por etapas fuera de sus etapas | Ficha e inscritos | `race_detail`, `startlist` y las `results` sin `race_day_id`, agrupadas por `race_name` |
 | Una carrera de ciclocross | Carrera de ciclocross | `cx_race` (todas las categorías), agrupada por `race_id` |
 | Un torneo de ciclocross | Torneo de ciclocross | `cx_tournament`, agrupado por `race_id` |
+| Hoy de carretera | Pestaña | `today` (desde 5.2.0, Hoy alberga también la agenda CX, que es `cyclocross`) |
 | Ciclocross | Pestaña | `cyclocross` |
 | Resultados | Pestaña | `results_feed`, `results_feed_cx` y `uci_team_ranking`: las secciones Últimos resultados, Ciclocross y Ránking UCI son la misma pestaña |
+| Vídeos de carretera | Pestaña | `videos` (desde 5.2.0) |
+| Vídeos de ciclocross | Pestaña | `videos_cx` (desde 5.2.0) |
 | Fichajes | Pestaña | `transfers` y `transfers_team` |
+| Calendario | Pestaña | `month` y `season`: Mes y Temporada son la misma pestaña |
 | Fichas y torneos sin nombre | Ciclocross | Plantillas `cx_race/…` y `cx_tournament/…` de las apps anteriores a la 5.1.1 |
 
-Cada grupo se consulta aparte en GA4 para que los usuarios se deduplicen dentro del contenido; sumar los usuarios de pantallas distintas los contaría dos veces. Una carrera es una vuelta por etapas si alguna de sus jornadas tiene `stage_name`. La lista de inscritos es de toda la carrera y no se reparte entre etapas: va en «Ficha e inscritos». El nombre de etapa llega localizado («Etapa 3», «Stage 3»); se conserva el de más vistas. Las fichas y las pruebas de un día se identifican por `race_name`: dos ediciones con el mismo nombre dentro del rango se suman. Las vistas de la pestaña Resultados suman la apertura (`results_feed`) y cada cambio de sección. Quedan fuera del ranking Hoy, Calendario y Ajustes. Una pantalla de carrera nueva solo entra en el ranking si lleva `race_name` y se añade a `ROAD_RACE_SCREENS` en `ga-analytics`. `panel/health.html` cubre el estado editorial y no consume GA.
+Cada grupo se consulta aparte en GA4 para que los usuarios se deduplicen dentro del contenido; sumar los usuarios de pantallas distintas los contaría dos veces. Una carrera es una vuelta por etapas si alguna de sus jornadas tiene `stage_name`. La lista de inscritos es de toda la carrera y no se reparte entre etapas: va en «Ficha e inscritos». El nombre de etapa llega localizado («Etapa 3», «Stage 3»); se conserva el de más vistas. Las fichas y las pruebas de un día se identifican por `race_name`: dos ediciones con el mismo nombre dentro del rango se suman. Las vistas de la pestaña Resultados suman la apertura (`results_feed`) y cada cambio de sección. Queda fuera del ranking Ajustes; Hoy de carretera, Calendario y las dos disciplinas de Vídeos entran desde el 2026-11-11. Una pantalla de carrera nueva solo entra en el ranking si lleva `race_name` y se añade a `ROAD_RACE_SCREENS` en `ga-analytics`. `panel/health.html` cubre el estado editorial y no consume GA.

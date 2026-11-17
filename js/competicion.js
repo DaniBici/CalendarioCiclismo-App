@@ -19,6 +19,7 @@ import { enableGcFinalRow } from './race-gc-final.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { bindMenuButtons } from './components/menu-button.js';
 import { competitionCardHtml, competitionPageHtml, paintCompetitionCard, sortCompetitionDays } from './competicion-html.js';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
@@ -29,6 +30,8 @@ import './race-assets.js';
 // la jornada, modal de datos, Resultados y Revive embebible. Las insignias con
 // su propio enlace detienen la propagación.
 function wireCompetitionCards(content, rdMap, raceFor) {
+  // Menú Resumen / Revive de la tarjeta terminada (js/components/menu-button.js).
+  bindMenuButtons(document);
   const activate = (card, event) => {
     const rd = rdMap[card.dataset.dayId];
     if (!rd) return;
@@ -45,6 +48,13 @@ function wireCompetitionCards(content, rdMap, raceFor) {
     const rd = card && rdMap[card.dataset.dayId];
     if (!rd) return;
     if (e.target.closest('[data-card-results]')) { e.stopPropagation(); openResultsModal(rd, raceFor(rd)); return; }
+    // Opción del menú Resumen / Revive: YouTube en el modal de TV; el resto, pestaña nueva.
+    const item = e.target.closest('.menu-popover__item');
+    if (item) {
+      e.stopPropagation();
+      if (item.dataset.yt) { e.preventDefault(); openYoutubeTvModal(rd, raceFor(rd), item.dataset.yt); }
+      return;
+    }
     const revive = e.target.closest('.badge--revive');
     if (revive) {
       e.stopPropagation();
@@ -106,19 +116,27 @@ function wireTvEmbeds(content, rdMap, raceFor) {
 
 // Carrera con sus jornadas publicadas, emisiones y assets en una sola consulta
 // (el filtro `race_days.editorialStatus` acota solo las jornadas embebidas).
-const RACE_WITH_DAYS = '*,race_days(*,broadcasts(*),assets(*))';
+const RACE_WITH_DAYS = '*,race_days(*,broadcasts(*),assets(*),race_day_videos(id,kind,title,titleEn,channel,url,embeddable,country,sortOrder,raceDayId))';
 
 // Separa la fila embebida en la carrera y sus jornadas, con las emisiones y
 // assets de cada una aparte para que la jornada conserve sus columnas.
 function splitRaceWithDays(row) {
   const { race_days: dayRows, ...race } = row;
-  const broadcasts = [], assets = [];
-  const days = (dayRows || []).map(({ broadcasts: dayBroadcasts, assets: dayAssets, ...rd }) => {
+  const broadcasts = [], assets = [], videos = [];
+  const days = (dayRows || []).map(({ broadcasts: dayBroadcasts, assets: dayAssets, race_day_videos: dayVideos, ...rd }) => {
     broadcasts.push(...(dayBroadcasts || []));
     assets.push(...(dayAssets || []));
+    videos.push(...[...(dayVideos || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
     return rd;
   });
-  return { race, days, broadcasts, assets };
+  return { race, days, broadcasts, assets, videos };
+}
+
+// Vídeos de cada jornada (Resumen de la tarjeta terminada), filtrados por región.
+function attachDayVideos(days, videos) {
+  const byRd = {};
+  (videos || []).forEach(v => { (byRd[v.raceDayId] = byRd[v.raceDayId] || []).push(v); });
+  days.forEach(rd => { rd._videos = filterBroadcastsByRegion(byRd[rd.id] || []); });
 }
 
 async function init() {
@@ -211,7 +229,7 @@ async function init() {
       id = row.id;
     }
     if (!row) throw new Error('No existe');
-    const { race, days: daysData, broadcasts: allDayBroadcasts, assets: allDayAssets } = splitRaceWithDays(row);
+    const { race, days: daysData, broadcasts: allDayBroadcasts, assets: allDayAssets, videos: allDayVideos } = splitRaceWithDays(row);
     const [inhouseSet] = await Promise.all([inhouseRequest || loadInhouseStageSet([id]), i18nReady]);
     document.title = `${getRaceName(race)} - ${t('seo.siteName')}`;
 
@@ -232,6 +250,7 @@ async function init() {
     (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] = bByRd[b.raceDayId] || []).push(b); });
     (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] = aByRd[a.raceDayId] || []).push(a); });
     days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); });
+    attachDayVideos(days, allDayVideos);
     annotateDoubleSectors(days);
 
     const flag = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
@@ -512,7 +531,8 @@ async function loadChallenge(slug, content, params, i18nReady = Promise.resolve(
       ? await supabase.from('races').select(RACE_WITH_DAYS).in('id', raceIds).eq('race_days.editorialStatus', 'published')
       : { data: [] };
     (raceRows || []).forEach(row => {
-      const { race: raceData, days, broadcasts, assets } = splitRaceWithDays(row);
+      const { race: raceData, days, broadcasts, assets, videos } = splitRaceWithDays(row);
+      attachDayVideos(days, videos);
       const bByRd = {}, aByRd = {};
       broadcasts.forEach(b => { (bByRd[b.raceDayId] = bByRd[b.raceDayId] || []).push(b); });
       assets.forEach(a => { (aByRd[a.raceDayId] = aByRd[a.raceDayId] || []).push(a); });

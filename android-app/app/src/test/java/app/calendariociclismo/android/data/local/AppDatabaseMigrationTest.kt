@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import app.calendariociclismo.android.data.local.entity.RaceDayEntity
 import app.calendariociclismo.android.data.local.entity.CxMonthCacheEntity
 import app.calendariociclismo.android.data.local.entity.CxDetailCacheEntity
+import app.calendariociclismo.android.data.local.entity.RaceDayVideoEntity
+import app.calendariociclismo.android.data.model.RaceDayVideo
 import app.calendariociclismo.android.data.model.RaceDay
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -27,7 +29,7 @@ class AppDatabaseMigrationTest {
 
     private companion object {
         /** Versión de esquema de `@Database` en [AppDatabase]; subirla con cada migración. */
-        const val CURRENT_VERSION = 19
+        const val CURRENT_VERSION = 20
     }
 
     @After
@@ -82,6 +84,35 @@ class AppDatabaseMigrationTest {
             assertEquals("cx-1", database.cxCacheDao().detailBySlug("test")!!.id)
             assertEquals(5678L, database.cxCacheDao().detail("cx-1")!!.cachedAt)
             assertEquals(realStart, database.raceDaysDao().getById("cached-day")!!.realStartTimeUtc)
+        }
+    }
+
+    @Test
+    fun `actualizar desde v19 conserva las emisiones y guarda vídeos de la jornada`() = runBlocking {
+        createVersion15Fixture(schemaVersion = 19, realStartTimeUtc = realStart, userVersion = 19)
+        context.openOrCreateDatabase(databaseName, Context.MODE_PRIVATE, null).use { database ->
+            database.execSQL(
+                """
+                INSERT INTO broadcasts (id, raceDayId, channel, url, sortOrder, showInRevive, country, cachedAt)
+                VALUES ('b-1', 'cached-day', 'YouTube', 'https://www.youtube.com/watch?v=abcdefghijk', 0, 1, 'ALL', 1234)
+                """.trimIndent(),
+            )
+        }
+        withDatabase { database ->
+            assertEquals(CURRENT_VERSION, database.openHelper.writableDatabase.version)
+            val broadcast = database.broadcastsDao().getByRaceDay("cached-day").single()
+            assertEquals("b-1", broadcast.id)
+            assertNull(broadcast.embeddable)
+            assertEquals(realStart, database.raceDaysDao().getById("cached-day")!!.realStartTimeUtc)
+            val video = RaceDayVideo(id = "v-1", raceDayId = "cached-day", kind = "summary", title = "Resumen",
+                url = "https://www.youtube.com/watch?v=bcdefghijkl", embeddable = false, sortOrder = 1)
+            database.raceDayVideosDao().upsertAll(listOf(RaceDayVideoEntity.from(video, cachedAt = 5678L)))
+        }
+        withDatabase { database ->
+            val video = database.raceDayVideosDao().getByRaceDay("cached-day").single()
+            assertEquals("Resumen", video.title)
+            assertEquals(false, video.embeddable)
+            assertEquals(5678L, video.cachedAt)
         }
     }
 

@@ -121,7 +121,7 @@ async function fetchOurRaces(year) {
   // nameEn = nombre oficial/local (el MISMO que usa la UCI: "Tour de Suisse", "Ronde van Brugge"…)
   // → es el campo de matching por nombre; originalName como fallback; name (ES) ya no se usa para casar.
   // isCancelled: las carreras canceladas se EXCLUYEN del matcher (no hay resultados que enlazar) — ver main().
-  const url = `${SUPA_URL}/rest/v1/races?year=eq.${year}&select=id,slug,name,nameEn,originalName,uciCategory,gender,countryCode,startDate,endDate,isGrandTour,isCancelled`;
+  const url = `${SUPA_URL}/rest/v1/races?year=eq.${year}&select=id,slug,name,nameEn,originalName,uciCategory,gender,countryCode,startDate,endDate,isGrandTour,isCancelled,uciCalendarId`;
   const res = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } });
   if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
   return res.json();
@@ -300,7 +300,7 @@ async function main() {
     //      Si la prueba aún no está publicada → cae a 'none' y se reintenta en la próxima pasada.
     if (normClass(r.uciCategory) === 'CN') {
       const recCN = {
-        our: { id: r.id, name: r.name, nameEn: r.nameEn, matchName, slug: r.slug, class: r.uciCategory, gender: r.gender, country: r.countryCode, dates: [r.startDate, r.endDate] },
+        our: { id: r.id, name: r.name, nameEn: r.nameEn, matchName, slug: r.slug, class: r.uciCategory, gender: r.gender, country: r.countryCode, dates: [r.startDate, r.endDate], uciCalendarId: r.uciCalendarId ?? null },
       };
       // competiciones CN candidatas (clase CN) que solapan en fecha+país; normalmente 1.
       const cnComps = [...new Set(cands.filter((u) => normClass(u.c.ClassCode) === 'CN').map((u) => u.c.CompetitionId))];
@@ -339,7 +339,7 @@ async function main() {
 
     // 4) clasificar resultado
     const rec = {
-      our: { id: r.id, name: r.name, nameEn: r.nameEn, matchName, slug: r.slug, class: r.uciCategory, gender: r.gender, country: r.countryCode, dates: [r.startDate, r.endDate] },
+      our: { id: r.id, name: r.name, nameEn: r.nameEn, matchName, slug: r.slug, class: r.uciCategory, gender: r.gender, country: r.countryCode, dates: [r.startDate, r.endDate], uciCalendarId: r.uciCalendarId ?? null },
     };
     if (scored.length === 0) {
       buckets.none.push(rec);

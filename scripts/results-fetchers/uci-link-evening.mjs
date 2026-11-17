@@ -22,6 +22,11 @@
  * NO RE-IMPLEMENTA EL MATCHING: ejecuta uci-match-poc.mjs (única fuente de verdad) y lee
  * su match-report.json. Solo añade la capa de VALIDACIÓN por startlist para los ambiguos.
  *
+ * VÍA DETERMINISTA PRIMERO: antes del matcher, cada año pasa por uci-calendar-id-links.mjs
+ * (uciCalendarId → directorio de competiciones UCI → DataRide). Las carreras con
+ * uciCalendarId (salvo campeonatos CN/CC/WC) solo se enlazan por esa vía: los pasos (1),
+ * (1.b) y (2) las omiten.
+ *
  * QUÉ ESCRIBE
  *   INSERT en race_uci_links con autoMatched=TRUE, syncStatus='pending' y matchMethod
  *   (migración 107): 'unique' para los rezagados inequívocos, 'ambiguous-startlist' para
@@ -71,6 +76,8 @@ import { execFileSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { databaseUrl } from '../db/env.mjs';
+import { linkRoadYearByCalendarId } from './uci-calendar-id-links.mjs';
+import { usesCalendarIdLink } from './uci-directory-link.mjs';
 
 const args = process.argv.slice(2);
 const getArgs = (n) => args.reduce((acc, a, i) => (a === `--${n}` && args[i + 1] != null ? [...acc, args[i + 1]] : acc), []);
@@ -251,9 +258,23 @@ async function main() {
   }
 
   await seedCookie();
-  let linkedUnique = 0, linkedAmbig = 0, leftAmbig = 0, skippedNoStartlist = 0, linkedCN = 0;
+  let linkedUnique = 0, linkedAmbig = 0, leftAmbig = 0, skippedNoStartlist = 0, linkedCN = 0, linkedByCalendarId = 0;
+  const byCalendarId = (r) => usesCalendarIdLink({ uciCalendarId: r.our.uciCalendarId, uciCategory: r.our.class });
 
   try {
+    // (0) Vía determinista por uciCalendarId (no depende de ROAD_SEASON).
+    for (const year of years) {
+      try {
+        const summary = await linkRoadYearByCalendarId({ client, year, dryRun: DRY, log });
+        for (const link of summary.linked) { linkedRaceIds.add(link.raceId); linkedCompIds.add(link.competitionId); }
+        linkedByCalendarId += summary.linked.length;
+        log(`▶ ${year} por uciCalendarId: ${summary.linked.length} enlaces${DRY ? ' previstos' : ''}, ${summary.pending} pendientes de DataRide, ${summary.ambiguous.length} ambiguos, ${summary.incoherent.length} incoherentes, ${summary.collisions.length} colisiones`);
+        for (const item of [...summary.ambiguous, ...summary.incoherent]) log(`    ? «${item.name}» D2CP${item.uciCalendarId}: ${item.reason || 'varias competiciones DataRide'}`);
+      } catch (e) {
+        log(`  ✗ vía determinista ${year} falló: ${e.message}`);
+      }
+    }
+
     for (const year of known) {
       log(`\n▶ Año ${year}`);
       let report;
@@ -263,7 +284,7 @@ async function main() {
 
       // (1) UNIQUE ∩ horizonte rezagados → enlazar (idéntico al backfill).
       for (const r of (report.unique || [])) {
-        if (!r.inHorizon || !r.match || !r.match.competitionId) continue;
+        if (!r.inHorizon || !r.match || !r.match.competitionId || byCalendarId(r)) continue;
         if (linkedRaceIds.has(r.our.id) || linkedCompIds.has(r.match.competitionId)) continue;
         log(`  + UNIQUE «${r.our.name}» → #${r.match.competitionId} ${r.match.uciName}`);
         if (!DRY) {
@@ -289,7 +310,7 @@ async function main() {
       //       que es inequívoco. Des-colisión por (competitionId,uciRaceId), NO por
       //       competitionId solo (varias fichas CN comparten competición legítimamente).
       for (const r of (report.unique || [])) {
-        if (!r.inHorizon || !r.cnMatch || !r.cnMatch.uciRaceId) continue;
+        if (!r.inHorizon || !r.cnMatch || !r.cnMatch.uciRaceId || byCalendarId(r)) continue;
         if (linkedRaceIds.has(r.our.id)) continue;
         const evKey = `${r.cnMatch.competitionId}|${r.cnMatch.uciRaceId}`;
         if (linkedCompEvents.has(evKey)) continue;
@@ -311,7 +332,7 @@ async function main() {
       }
 
       // (2) AMBIGUOS ∩ horizonte, ya TERMINADOS y SIN enlace → validar por startlist.
-      const ambig = (report.ambiguous || []).filter((r) => r.inHorizon && !linkedRaceIds.has(r.our.id) && (r.candidates || []).length);
+      const ambig = (report.ambiguous || []).filter((r) => r.inHorizon && !linkedRaceIds.has(r.our.id) && !byCalendarId(r) && (r.candidates || []).length);
       if (ambig.length) {
         // ¿Cuáles han terminado ya? (hay resultados que validar solo si la carrera corrió).
         const ids = ambig.map((r) => r.our.id);
@@ -361,11 +382,11 @@ async function main() {
     await client.end().catch(() => {});
   }
 
-  log(`\n✅ Resumen: ${linkedUnique} unique rezagados + ${linkedCN} CN por prueba + ${linkedAmbig} ambiguos resueltos por startlist · ${leftAmbig} ambiguos quedan manuales` +
+  log(`\n✅ Resumen: ${linkedByCalendarId} por uciCalendarId + ${linkedUnique} unique rezagados + ${linkedCN} CN por prueba + ${linkedAmbig} ambiguos resueltos por startlist · ${leftAmbig} ambiguos quedan manuales` +
       (skippedNoStartlist ? ` (${skippedNoStartlist} sin startlist)` : '') + (DRY ? ' (DRY-RUN, nada escrito)' : ''));
   process.stdout.write(JSON.stringify({
-    years: known, linkedUnique, linkedCN, linkedAmbiguous: linkedAmbig, leftAmbiguous: leftAmbig,
-    skippedNoStartlist, changed: (linkedUnique + linkedCN + linkedAmbig) > 0, dryRun: DRY,
+    years: known, linkedByCalendarId, linkedUnique, linkedCN, linkedAmbiguous: linkedAmbig, leftAmbiguous: leftAmbig,
+    skippedNoStartlist, changed: (linkedByCalendarId + linkedUnique + linkedCN + linkedAmbig) > 0, dryRun: DRY,
   }) + '\n');
 }
 

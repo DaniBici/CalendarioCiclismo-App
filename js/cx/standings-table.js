@@ -1,8 +1,9 @@
-import {findMatchingTeam} from '../shared.js';
+import {findMatchingTeam,seoShortMonth} from '../shared.js';
+import {cxIsHidden} from '../services/cx-data.js';
 import {flagIconUrl} from '../flag-url.js';
 import {teamStripes} from '../team-appearance.js';
 import {t} from '../i18n.js';
-import {cxEsc as esc,cxRankSort,cxStandingValueCells,cxStandingsBreakdown} from './presentation.js';
+import {cxEsc as esc,cxRankSort,cxStandingValueCells,cxStandingsBreakdown,cxRaceName,cxRaceUrl} from './presentation.js';
 
 // Bandera sin estilo en línea (tamaño y recorte en `.so-flag > img`,
 // css/app.css) y diferida: las categorías ocultas no la piden.
@@ -29,9 +30,9 @@ export function cxStandingsTableHtml({rows,state,mode,lang='es',locale='es-ES',t
   const dropped=esc(t('cx.droppedResult'));
   const head=`<tr><th class="so-th res-th--rank">#</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}<th class="so-th res-th--result">${esc(mode==='time'?t('cx.time'):t('cx.points'))}</th>${rounds.map(roundTh).join('')}</tr>`;
   const body=sorted.map(row=>{
-    const team=findMatchingTeam(row.teamName,teamList),badge=team?teamStripes(team):'',value=values.get(row);
+    const team=findMatchingTeam(row.teamName,teamList),stripes=team?teamStripes(team):'',value=values.get(row);
     const cells=breakdown?breakdown.cells(row).map(cell=>`<td class="so-td cx-td--round">${cell.dropped?`<s class="cx-round-dropped" title="${dropped}">${esc(cell.text)}</s>`:esc(cell.text)}</td>`).join(''):'';
-    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(row.rank)}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${row.teamName?`<span class="res-rider-team">${badge}${esc(row.teamName)}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${row.teamName?`<span class="res-team-cell">${badge}${esc(row.teamName)}</span>`:''}</td>`:''}<td class="so-td res-td--result"><span class="${value.cls}">${esc(value.text)}</span></td>${cells}</tr>`;
+    return `<tr class="so-row"><td class="so-td res-td--rank">${esc(row.rank)}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${row.teamName?`<span class="res-rider-team">${stripes}${esc(row.teamName)}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${row.teamName?`<span class="res-team-cell">${stripes}${esc(row.teamName)}</span>`:''}</td>`:''}<td class="so-td res-td--result"><span class="${value.cls}">${esc(value.text)}</span></td>${cells}</tr>`;
   }).join('');
   const table=`<table class="so-table res-table cx-standings-table${breakdown?' cx-standings-table--rounds':''}"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   if(!breakdown)return `<div class="res-table-wrap">${table}</div>`;
@@ -65,4 +66,19 @@ export function cxWireStandingsScroll(root) {
     if(typeof ResizeObserver!=='undefined')new ResizeObserver(sync).observe(scroller);
     sync();
   }
+}
+
+// Columna lateral de la general de un torneo en pantalla ancha: las pruebas con
+// el número de ronda de las cabeceras «#n» de la tabla y su fecha, y nada más.
+// `races`: Map id → prueba del torneo; `rounds`: Map id → {n,total} (las
+// canceladas no tienen número y no se listan). Vacía sin pruebas numeradas.
+export function cxRoundsContextHtml({races,rounds,lang='es'}) {
+  const items=[...races.values()].filter(race=>rounds?.get(race.id)&&!cxIsHidden(race,lang))
+    .sort((a,b)=>rounds.get(a.id).n-rounds.get(b.id).n);
+  if(!items.length)return '';
+  const rows=items.map(race=>{
+    const [,month,day]=race.dateKey.split('-').map(Number),name=esc(cxRaceName(race,lang));
+    return `<div><dt><span class="cx-round-n">#${rounds.get(race.id).n}</span> <a href="${esc(cxRaceUrl(race,lang))}">${name}</a></dt><dd>${esc(`${day} ${seoShortMonth(month-1,lang)}`)}</dd></div>`;
+  }).join('');
+  return `<section class="res-stage-data cx-rounds"><h2>${esc(t('cx.roundList'))}</h2><dl>${rows}</dl></section>`;
 }

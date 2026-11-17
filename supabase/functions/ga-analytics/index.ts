@@ -547,7 +547,8 @@ async function buildAppContent(
   const dayFilter = gaAnd(gaScreenIn(ROAD_DAY_SCREENS), gaNotEmpty('customEvent:race_day_id'));
   const noDay = { filter: { fieldName: 'customEvent:race_day_id', inListFilter: { values: ['(not set)', ''] } } };
 
-  const [dayTotals, dayNames, raceTotals, raceInfo, cxRaces, cxTournaments, cyclocross, results, transfers, unnamed] = await Promise.all([
+  const [dayTotals, dayNames, raceTotals, raceInfo, cxRaces, cxTournaments, cyclocross, results, transfers, unnamed,
+    roadToday, calendar, roadVideos, cxVideos] = await Promise.all([
     // Usuarios y vistas de cada jornada, deduplicados por race_day_id.
     run({ dimensions: [{ name: 'customEvent:race_day_id' }], dimensionFilter: dayFilter, orderBys, limit: 250 }, true),
     // Nombre de la carrera y de la etapa de cada jornada. El nombre de etapa
@@ -595,6 +596,12 @@ async function buildAppContent(
         },
       },
     }, false),
+    // Apps 5.2.0: Hoy de carretera (la agenda CX de Hoy es `cyclocross`),
+    // Calendario (Mes y Temporada) y la sección Vídeos por disciplina.
+    run({ dimensionFilter: gaScreenIn(['today']) }, false),
+    run({ dimensionFilter: gaScreenIn(['month', 'season']) }, false),
+    run({ dimensionFilter: gaScreenIn(['videos']) }, false),
+    run({ dimensionFilter: gaScreenIn(['videos_cx']) }, false),
   ]);
 
   const num = (row: GARow, index: number) => Number(row.metricValues[index]?.value ?? 0);
@@ -651,7 +658,10 @@ async function buildAppContent(
   byId(cxRaces, 'cx_race');
   byId(cxTournaments, 'cx_tournament');
 
-  const tabs: [string, GARow[]][] = [['Ciclocross', cyclocross], ['Resultados', results], ['Fichajes', transfers]];
+  const tabs: [string, GARow[]][] = [
+    ['Hoy de carretera', roadToday], ['Ciclocross', cyclocross], ['Resultados', results],
+    ['Vídeos de carretera', roadVideos], ['Vídeos de ciclocross', cxVideos], ['Fichajes', transfers], ['Calendario', calendar],
+  ];
   for (const [name, rows] of tabs) {
     if (rows[0]) items.push({ kind: 'tab', name, views: num(rows[0], 0), users: num(rows[0], 1) });
   }

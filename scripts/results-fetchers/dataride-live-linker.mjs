@@ -3,15 +3,25 @@
  * Enlaza las carreras que se disputan hoy con UCI DataRide cuando todavía no
  * tienen ninguna fuente de resultados.
  *
- * El enlazador es deliberadamente más conservador que un backfill histórico:
+ * Una carrera con `uciCalendarId` se enlaza solo por la vía determinista
+ * (`uci-directory-link.mjs`: directorio de competiciones UCI → DataRide por
+ * nombre, fecha, clase y país); sin resultado único queda sin enlace hasta la
+ * pasada siguiente. Las carreras sin `uciCalendarId` y los campeonatos (CN,
+ * CC, WC, enlazados por prueba) usan la heurística.
+ *
+ * La heurística es deliberadamente más conservadora que un backfill histórico:
  * solo mira jornadas reales del día local en España, exige una señal de
  * identidad además de fecha/país/clase y no compite con un enlace existente.
  * Después de crear el enlace activa la herencia de ventanas automáticas y, si
  * se solicita, vuelca de inmediato la jornada actual. Las jornadas posteriores
  * quedan para `results-cron.mjs --configured`.
  *
+ * Cada pasada evalúa todas las carreras del día sin enlace; `--limit` acota los
+ * enlaces creados (y volcados) por pasada, no las candidatas. Las carreras que
+ * DataRide aún no publica no dejan fuera a las siguientes.
+ *
  * Uso en producción:
- *   node scripts/results-fetchers/dataride-live-linker.mjs --process-linked
+ *   node scripts/results-fetchers/dataride-live-linker.mjs --process-linked [--dry-run] [--limit 8]
  *
  * Requiere DATABASE_URL con el rol `cc_results_worker`.
  */
@@ -23,6 +33,15 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 import { eventKindFromText, eventKindsConflict, ourEventKind } from './uci-event-kind.mjs';
+import {
+  DIRECTORY_DISCIPLINE,
+  UCI_CALENDAR_MATCH_METHOD,
+  dataRideCategoryCodes,
+  directoryByCalendarId,
+  directoryWindow,
+  resolveByCalendarId,
+  usesCalendarIdLink,
+} from './uci-directory-link.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => {
@@ -322,37 +341,65 @@ async function fetchJson(path, init = {}) {
   }
 }
 
-async function fetchSeasons() {
+export async function fetchSeasons() {
   const payload = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
   return Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
 }
 
-async function fetchCompetitions(seasonId) {
+// Catálogo completo de una temporada, paginado: una temporada de carretera
+// supera las 500 competiciones y una sola página dejaría fuera las primeras.
+export async function fetchCompetitions(seasonId) {
+  const PAGE = 500;
+  const all = [];
+  for (let page = 1; ; page++) {
+    const body = new URLSearchParams({
+      disciplineId: String(DISCIPLINE_ID),
+      take: String(PAGE),
+      skip: String((page - 1) * PAGE),
+      page: String(page),
+      pageSize: String(PAGE),
+      'sort[0][field]': 'StartDate',
+      'sort[0][dir]': 'desc',
+      'filter[logic]': 'and',
+      'filter[filters][0][field]': 'RaceTypeId',
+      'filter[filters][0][operator]': 'eq',
+      'filter[filters][0][value]': '0',
+      'filter[filters][1][field]': 'CategoryId',
+      'filter[filters][1][operator]': 'eq',
+      'filter[filters][1][value]': '0',
+      'filter[filters][2][field]': 'SeasonId',
+      'filter[filters][2][operator]': 'eq',
+      'filter[filters][2][value]': String(seasonId),
+    }).toString();
+    const payload = await fetchJson('/Competitions/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body,
+    });
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    all.push(...rows);
+    const total = Number(payload?.total);
+    if (!rows.length || rows.length < PAGE || !Number.isFinite(total) || all.length >= total) break;
+  }
+  const unique = new Map(all.map((row) => [row.CompetitionId, row]));
+  return [...unique.values()];
+}
+
+export async function fetchCategoryCodes(competitionId) {
   const body = new URLSearchParams({
     disciplineId: String(DISCIPLINE_ID),
-    take: '500',
+    competitionId: String(competitionId),
+    take: '100',
     skip: '0',
     page: '1',
-    pageSize: '500',
-    'sort[0][field]': 'StartDate',
-    'sort[0][dir]': 'desc',
-    'filter[logic]': 'and',
-    'filter[filters][0][field]': 'RaceTypeId',
-    'filter[filters][0][operator]': 'eq',
-    'filter[filters][0][value]': '0',
-    'filter[filters][1][field]': 'CategoryId',
-    'filter[filters][1][operator]': 'eq',
-    'filter[filters][1][value]': '0',
-    'filter[filters][2][field]': 'SeasonId',
-    'filter[filters][2][operator]': 'eq',
-    'filter[filters][2][value]': String(seasonId),
+    pageSize: '100',
   }).toString();
-  const payload = await fetchJson('/Competitions/', {
+  const payload = await fetchJson('/Races/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
     body,
   });
-  return Array.isArray(payload?.data) ? payload.data : [];
+  return dataRideCategoryCodes(Array.isArray(payload?.data) ? payload.data : []);
 }
 
 async function loadTodayRaces(client) {
@@ -371,6 +418,7 @@ async function loadTodayRaces(client) {
      )
      SELECT r.id, r.name, r."nameEn", r."originalName", r."startDate", r."endDate",
             r."uciCategory", r.gender, r."countryCode", r.year, r."raceFormat", r."resultsOnly",
+            r."uciCalendarId",
             jsonb_agg(jsonb_build_object(
               'id', d.id,
               'stageNumber', d."stageNumber",
@@ -385,10 +433,9 @@ async function loadTodayRaces(client) {
          SELECT 1 FROM public.race_uci_links l WHERE l."raceId" = r.id
        )
      GROUP BY r.id, r.name, r."nameEn", r."originalName", r."startDate", r."endDate",
-              r."uciCategory", r.gender, r."countryCode", r.year, r."raceFormat", r."resultsOnly"
-     ORDER BY min(d."estimatedFinishTimeUtc") ASC NULLS LAST, r.id
-     LIMIT $1`,
-    [MAX_LINKS],
+              r."uciCategory", r.gender, r."countryCode", r.year, r."raceFormat", r."resultsOnly",
+              r."uciCalendarId"
+     ORDER BY min(d."estimatedFinishTimeUtc") ASC NULLS LAST, r.id`,
   );
   return rows.map((race) => ({ ...race, todayDays: jsonDays(race.todayDays) }));
 }
@@ -403,16 +450,16 @@ async function loadOccupiedCompetitions(client) {
   return new Set(rows.map((row) => Number(row.competitionId)));
 }
 
-async function insertLink(client, race, candidate, seasonId) {
+async function insertLink(client, race, candidate, seasonId, matchMethod) {
   const { rows } = await client.query(
     `INSERT INTO public.race_uci_links
        ("raceId", "competitionId", "disciplineId", "seasonId", "uciRaceId",
         "autoMatched", "syncStatus", "source", "matchMethod",
         "syncStartOffsetMinutes", "syncStopOffsetMinutes")
-     VALUES ($1, $2, $3, $4, 0, true, 'pending', 'uci', 'live-today', -15, 720)
+     VALUES ($1, $2, $3, $4, 0, true, 'pending', 'uci', $5, -15, 720)
      ON CONFLICT ("raceId") DO NOTHING
      RETURNING "raceId", "competitionId"`,
-    [race.id, candidate.competitionId, DISCIPLINE_ID, seasonId],
+    [race.id, candidate.competitionId, DISCIPLINE_ID, seasonId, matchMethod],
   );
   return rows[0] || null;
 }
@@ -476,15 +523,17 @@ async function main() {
   await client.connect();
 
   let linked = 0;
+  let byCalendarId = 0;
   let ambiguous = 0;
   let notFound = 0;
   let collisions = 0;
+  let deferred = 0;
   let processErrors = 0;
   try {
     const races = await loadTodayRaces(client);
     if (!races.length) {
       log('Enlace DataRide del día: no hay carreras actuales sin fuente.');
-      process.stdout.write(JSON.stringify({ candidates: 0, linked: 0, ambiguous: 0, notFound: 0, collisions: 0, processed: 0, changed: false }) + '\n');
+      process.stdout.write(JSON.stringify({ candidates: 0, linked: 0, byCalendarId: 0, ambiguous: 0, notFound: 0, collisions: 0, deferred: 0, processed: 0, changed: false }) + '\n');
       return;
     }
 
@@ -504,18 +553,69 @@ async function main() {
       }
     }
 
+    // Directorio UCI de los días en torno a hoy (por solape de fechas), solo si
+    // alguna carrera tiene uciCalendarId. Un fallo deja esas carreras para la
+    // pasada siguiente: nunca pasan a la heurística.
+    let directory = null;
+    let directoryError = null;
+    if (races.some(usesCalendarIdLink)) {
+      try {
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+        directory = await directoryByCalendarId({ query: { disciplineCode: DIRECTORY_DISCIPLINE[DISCIPLINE_ID], ...directoryWindow(today) } });
+      } catch (error) {
+        directoryError = error.message;
+        log(`  · Directorio UCI no disponible: ${error.message}`);
+      }
+    }
+    const categoryCache = new Map();
+    const categoriesOf = (competitionId) => {
+      if (!categoryCache.has(competitionId)) categoryCache.set(competitionId, fetchCategoryCodes(competitionId));
+      return categoryCache.get(competitionId);
+    };
+
     const proposals = [];
     for (const race of races) {
       const season = seasonByRace.get(race.id);
       if (!season) continue;
       const competitions = competitionsBySeason.get(season.Id) || [];
+      if (usesCalendarIdLink(race)) {
+        if (!directory) {
+          notFound++;
+          log(`  ∅ ${race.id} «${race.name}»: sin directorio UCI (${directoryError}); se reintenta`);
+          continue;
+        }
+        let decision;
+        try {
+          decision = await resolveByCalendarId(race, { directory, competitions, categoriesOf, gender: race.gender });
+        } catch (error) {
+          decision = { status: 'none', reason: `desempate DataRide fallido (${error.message}); se reintenta` };
+        }
+        if (decision.status === 'match') {
+          const competition = decision.competition;
+          proposals.push({
+            race,
+            seasonId: Number(season.Id),
+            matchMethod: UCI_CALENDAR_MATCH_METHOD,
+            note: `uciCalendarId ${race.uciCalendarId}, regla ${decision.rule}`,
+            candidate: { competitionId: Number(competition.CompetitionId), uciName: String(competition.CompetitionName || '').trim(), uciClass: competition.ClassCode },
+          });
+          log(`  ? ${race.id} «${race.name}» → #${competition.CompetitionId} «${competition.CompetitionName}» (uciCalendarId ${race.uciCalendarId}, ${decision.rule})`);
+        } else if (decision.status === 'ambiguous') {
+          ambiguous++;
+          log(`  ? ${race.id} «${race.name}»: uciCalendarId ${race.uciCalendarId} con varias competiciones DataRide; revisión manual`);
+        } else {
+          notFound++;
+          log(`  ∅ ${race.id} «${race.name}»: ${decision.reason}`);
+        }
+        continue;
+      }
       if (!competitions.length) {
         notFound++;
         continue;
       }
       const decision = matchTodayRace(race, competitions, { slackDays: SLACK_DAYS });
       if (decision.status === 'unique') {
-        proposals.push({ race, seasonId: Number(season.Id), ...decision });
+        proposals.push({ race, seasonId: Number(season.Id), matchMethod: 'live-today', ...decision });
         log(`  ? ${race.id} «${race.name}» → #${decision.candidate.competitionId} «${decision.candidate.uciName}» (${decision.note})`);
       } else if (decision.status === 'ambiguous') {
         ambiguous++;
@@ -548,13 +648,19 @@ async function main() {
 
     for (const proposal of proposals) {
       if (proposal.skip) continue;
+      if (linked >= MAX_LINKS) {
+        deferred++;
+        log(`  · ${proposal.race.id} «${proposal.race.name}»: límite de ${MAX_LINKS} enlaces por pasada; queda para la siguiente`);
+        continue;
+      }
       if (DRY_RUN) {
         linked++;
+        if (proposal.matchMethod === UCI_CALENDAR_MATCH_METHOD) byCalendarId++;
         continue;
       }
       let row;
       try {
-        row = await insertLink(client, proposal.race, proposal.candidate, proposal.seasonId);
+        row = await insertLink(client, proposal.race, proposal.candidate, proposal.seasonId, proposal.matchMethod);
       } catch (error) {
         // Otra ejecución o el panel puede haber ocupado la competición después
         // de la lectura de control. La restricción única es la última defensa;
@@ -569,6 +675,7 @@ async function main() {
       if (!row) continue;
       await reserveTodayDays(client, proposal.race);
       linked++;
+      if (proposal.matchMethod === UCI_CALENDAR_MATCH_METHOD) byCalendarId++;
       const code = await processLinkedRace(proposal.race);
       if (code !== 0) processErrors++;
     }
@@ -576,13 +683,15 @@ async function main() {
     await client.end().catch(() => {});
   }
 
-  log(`Enlace DataRide del día: ${linked} enlaces${DRY_RUN ? ' previstos' : ' creados'}, ${ambiguous} ambiguos, ${notFound} sin coincidencia, ${collisions} colisiones`);
+  log(`Enlace DataRide del día: ${linked} enlaces${DRY_RUN ? ' previstos' : ' creados'} (${byCalendarId} por uciCalendarId), ${ambiguous} ambiguos, ${notFound} sin coincidencia, ${collisions} colisiones, ${deferred} aplazados por el límite`);
   process.stdout.write(JSON.stringify({
-    candidates: linked + ambiguous + notFound + collisions,
+    candidates: linked + ambiguous + notFound + collisions + deferred,
     linked,
+    byCalendarId,
     ambiguous,
     notFound,
     collisions,
+    deferred,
     processed: PROCESS_LINKED && !DRY_RUN ? linked - processErrors : 0,
     processErrors,
     changed: linked > 0 && !DRY_RUN,

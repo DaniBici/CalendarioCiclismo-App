@@ -553,8 +553,8 @@ struct StartlistRiderRowView: View {
 
 // MARK: - Team colors
 
-/// Tres franjas de la equipación efectiva (`teamStripes` de la web), en
-/// Resultados, orden de salida e inscritos. Sin chapas circulares.
+/// Tres franjas del cuadrado de colores (`teamStripes` de la web), en
+/// Resultados, orden de salida e inscritos.
 struct TeamColorBands: View {
     let team: Team
     var width: CGFloat = 14

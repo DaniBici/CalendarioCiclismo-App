@@ -10,6 +10,8 @@
  * el matcher, el backfill hereda la mejora sin tocar nada).
  *
  * QUÉ ENLAZA
+ *   Las carreras con `uciCalendarId` (salvo campeonatos) quedan fuera: se
+ *   enlazan solo por la vía determinista (uci-calendar-id-links.mjs).
  *   Solo los `unique` DENTRO DEL HORIZONTE UCI (las carreras futuras aún no
  *   publicadas por la UCI no tienen candidato → se enlazarán en un backfill
  *   posterior, o por el panel, cuando la UCI las publique). Los `ambiguous` y
@@ -47,6 +49,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 import { databaseUrl } from '../db/env.mjs';
+import { usesCalendarIdLink } from './uci-directory-link.mjs';
 
 // Todo lo que este script invoca o escribe va anclado a SU directorio, no al cwd:
 // con rutas relativas, ejecutarlo desde scripts/results-fetchers/ no encontraba
@@ -95,7 +98,8 @@ function buildPlan(report) {
   const seasonId = ROAD_SEASON[YEAR] ?? report.seasonId ?? null;
 
   // Enlazables = unique ∩ dentro del horizonte (con competitionId resuelto).
-  const linkable = (report.unique || []).filter((r) => r.inHorizon && r.match && r.match.competitionId);
+  const byCalendarId = (r) => usesCalendarIdLink({ uciCalendarId: r.our.uciCalendarId, uciCategory: r.our.class });
+  const linkable = (report.unique || []).filter((r) => r.inHorizon && r.match && r.match.competitionId && !byCalendarId(r));
   const uniqueBeyond = (report.unique || []).filter((r) => !r.inHorizon).length; // futuras, aún sin publicar
 
   const conflict = FORCE
@@ -120,6 +124,7 @@ ${conflict}`,
     seasonId,
     counts: {
       linkable: linkable.length,
+      calendarIdOnly: (report.unique || []).filter((r) => r.inHorizon && r.match && byCalendarId(r)).length,
       ambiguous: (report.ambiguous || []).length,
       noneWithinHorizon: report.counts?.noneWithinHorizon ?? null,
       uniqueBeyondHorizon: uniqueBeyond,
@@ -192,7 +197,7 @@ async function main() {
     const OUT_SQL = getArg('emit-sql') || join(dirname(path), 'backfill-links.sql');
     if (OUT_SQL === '-') process.stdout.write(sql + '\n');
     else { mkdirSync(dirname(OUT_SQL), { recursive: true }); writeFileSync(OUT_SQL, sql); log(`✅ ${counts.linkable} INSERT → ${OUT_SQL}`); }
-    log(`\nResumen: ${counts.linkable} enlazables · ${counts.ambiguous} ambiguas · ${counts.noneWithinHorizon ?? '?'} sin-match(horizonte) · ${counts.uniqueBeyondHorizon} futuras (aún sin publicar)`);
+    log(`\nResumen: ${counts.linkable} enlazables · ${counts.calendarIdOnly} solo por uciCalendarId · ${counts.ambiguous} ambiguas · ${counts.noneWithinHorizon ?? '?'} sin-match(horizonte) · ${counts.uniqueBeyondHorizon} futuras (aún sin publicar)`);
     printPending(res);
     return;
   }

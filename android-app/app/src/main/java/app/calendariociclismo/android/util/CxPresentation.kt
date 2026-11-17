@@ -95,6 +95,9 @@ class CxStandingsBreakdown(val roundIds: List<String>, private val riders: Map<S
     }
 }
 
+/** Prueba numerada de un torneo (número de ronda) para la lista de la general. */
+data class CxRoundListItem(val race: CxRace, val number: Int)
+
 object CxPresentation {
     fun categoryCardState(race: CxRace, category: CxCategory, at: Instant): CxCategoryCardState = when {
         race.isCancelled || category.isCancelled -> CxCategoryCardState.CANCELLED
@@ -186,7 +189,18 @@ object CxPresentation {
         }
         return id?.takeIf { Regex("^[A-Za-z0-9_-]{11}$").matches(it) }
     }
-    /** Vídeos de la ficha: los de la prueba y, tras ellos, las emisiones de
+    /**
+     * Posición de una categoría en TV, Revive y vídeos: ME, WE, MU, WU, MJ, WJ.
+     * Lo común (sin categoría) va delante (-1) y una categoría desconocida, al
+     * final (decisión de Dani, 2026-11-14). Espejo de `cxCategoryRank` (web).
+     */
+    fun categoryRank(code: String?): Int {
+        if (code.isNullOrEmpty()) return -1
+        val index = CyclocrossLogic.categories.indexOf(code)
+        return if (index < 0) CyclocrossLogic.categories.size else index
+    }
+
+    /** Vídeos de la ficha: los de la prueba y, al final, las emisiones de
      *  YouTube que ya son vídeo ([replayVideoRows]), sin repetir un vídeo. */
     fun videos(detail: CxDetail, allowedGroups: Set<String> = RegionDetector.allowedBroadcastGroups()): List<CxVideo> {
         val categories = actualCategories(detail).toSet()
@@ -194,8 +208,13 @@ object CxPresentation {
             .sortedBy { it.sortOrder }.distinctBy { youtubeVideoId(it.url) ?: it.id }
             .filter { youtubeVideoId(it.url) != null }
         val seen = own.mapNotNull { youtubeVideoId(it.url) }.toMutableSet()
-        return own + replayVideoRows(detail.broadcasts, mediaUnits(detail, Instant.now()), allowedGroups)
+        val fullRaces = replayVideoRows(detail.broadcasts, mediaUnits(detail, Instant.now()), allowedGroups)
             .filter { (_, id) -> seen.add(id) }.map { (row, id) -> fullRaceVideo(row, id) }
+        // Primero los vídeos de la prueba y, al final, las emisiones convertidas en
+        // «Carrera completa»; unos y otras por categoría, con orden estable
+        // (decisión de Dani, 2026-11-14, que sustituye a la de 2026-11-11:
+        // carrera completa delante). Espejo de `cxRaceMedia` (web).
+        return own.sortedBy { categoryRank(it.category) } + fullRaces.sortedBy { categoryRank(it.category) }
     }
     /** Emisiones que la ficha muestra en Vídeos y no en Revive, espejo de
      *  `cxRaceMedia` (web): de la región del usuario, de YouTube con vídeo fijo
@@ -213,14 +232,18 @@ object CxPresentation {
         "MU" to ("Sub23 masculina" to "Men Under 23"), "WU" to ("Sub23 femenina" to "Women Under 23"),
         "MJ" to ("Júnior masculina" to "Men Junior"), "WJ" to ("Júnior femenina" to "Women Junior"),
     )
-    /** «Carrera completa <categoría>» o, si la emisión es global,
-     *  «Retransmisión completa», con su rótulo inglés. */
-    private fun fullRaceVideo(row: CxBroadcast, videoId: String): CxVideo {
-        val code = row.category?.takeIf { it.isNotEmpty() }
-        val (title, titleEn) = code?.let { FULL_RACE_CATEGORIES[it] ?: (it to it) }
+    /** «Carrera completa <categoría>» o, sin categoría, «Retransmisión
+     *  completa», en castellano y en inglés. */
+    fun fullRaceTitle(category: String?): Pair<String, String> =
+        category?.takeIf { it.isNotEmpty() }?.let { FULL_RACE_CATEGORIES[it] ?: (it to it) }
             ?.let { (es, en) -> "Carrera completa $es" to "$en full race" }
             ?: ("Retransmisión completa" to "Full broadcast")
-        return CxVideo(row.id, row.raceId, code, title, titleEn, "https://www.youtube.com/watch?v=$videoId", row.sortOrder)
+
+    /** Emisión de YouTube convertida en vídeo de la ficha, con su canal. */
+    private fun fullRaceVideo(row: CxBroadcast, videoId: String): CxVideo {
+        val code = row.category?.takeIf { it.isNotEmpty() }
+        val (title, titleEn) = fullRaceTitle(code)
+        return CxVideo(row.id, row.raceId, code, title, titleEn, "https://www.youtube.com/watch?v=$videoId", row.sortOrder, row.channel)
     }
     /** Manga n/total de una prueba en su torneo; sin ella o con total ≤ 1, nada. */
     fun roundLabel(round: CxRound?): String? = round?.takeIf { it.total > 1 }?.let { "${it.n}/${it.total}" }
@@ -327,6 +350,16 @@ object CxPresentation {
     }
     /** Cabecera de ronda: número de la prueba en el torneo o, sin él, la posición. */
     fun roundHeader(raceId: String, index: Int, rounds: Map<String, CxRound>): String = "#${rounds[raceId]?.n ?: (index + 1)}"
+    /**
+     * Pruebas del torneo con el número de ronda de las cabeceras «#n» de la
+     * general, por número; las canceladas no tienen número y las ocultas en el
+     * idioma activo no se listan. Espejo de `cxRoundsContextHtml` (web).
+     */
+    fun roundList(races: List<CxRace>, rounds: Map<String, CxRound>): List<CxRoundListItem> =
+        races.mapNotNull { race ->
+            val round = rounds[race.id]?.takeUnless { isHidden(race) } ?: return@mapNotNull null
+            CxRoundListItem(race, round.n)
+        }.sortedBy { it.number }
     /** Diferencia de tiempo con el líder en formato prensa; 0 → m.t. / s.t. */
     fun standingGap(gapSeconds: Long, english: Boolean): String =
         if (gapSeconds == 0L) (if (english) "s.t." else "m.t.") else UciResultsLogic.secondsToGap(gapSeconds.toInt()).orEmpty()
@@ -369,6 +402,22 @@ object CxPresentation {
             vm
         }
     }
+    /**
+     * Bonificaciones concedidas en la ronda (X2O: sprint y vuelta rápida, en
+     * segundos): solo las filas con `bonusSeconds` positivo, que es 0 en las demás
+     * y nulo si se desconoce; de mayor a menor y, a igualdad, por puesto. Espejo de
+     * `cxBonusRows` (web).
+     */
+    fun bonusRows(rows: List<CxResult>, locale: Locale, matcher: UciResultsLogic.TeamMatcher): List<UciResultsLogic.ResultRowVM> =
+        rows.filter { (it.bonusSeconds ?: 0) > 0 }
+            .sortedWith(compareByDescending<CxResult> { it.bonusSeconds }.thenBy { it.rank ?: Int.MAX_VALUE }.thenBy { it.sortOrder })
+            .map { row ->
+                val irm = row.irm?.takeIf(String::isNotBlank)
+                val rank = row.rank.takeUnless { UciResultsLogic.isAbandonIrm(irm) }
+                val badge = if (rank != null) null else irm?.let { UciResultsLogic.irmLabel(it, locale.language == "en") } ?: row.rankText ?: "–"
+                classificationRow(rank, badge, row.riderDisplay, row.isoCode2, row.teamName, matcher, null,
+                    UciResultsLogic.ValueKind.POINTS, "${row.bonusSeconds}\"")
+            }
     fun resultRow(row: CxResult, locale: Locale, winnerSeconds: Double? = null, head: Boolean = true, teams: List<Team> = emptyList()): UciResultsLogic.ResultRowVM =
         resultRow(row, locale, winnerSeconds, head, UciResultsLogic.TeamMatcher(teams))
     private fun resultRow(row: CxResult, locale: Locale, winnerSeconds: Double?, head: Boolean, matcher: UciResultsLogic.TeamMatcher): UciResultsLogic.ResultRowVM {
@@ -631,7 +680,9 @@ object CxPresentation {
      * resultados o cancelación y el criterio de carretera (o Sporza), sin
      * repetir las que siguen en directo por otra categoría. El estado de TV
      * `pending`, `none` o `unavailable_es` (este, no en inglés) se conserva
-     * mientras quede alguna categoría en directo.
+     * mientras quede alguna categoría en directo. Los bloques de TV y las filas
+     * de Revive siguen el orden canónico de categorías ([categoryRank]); solo
+     * [mediaUnits] y la lista de horarios conservan el orden del programa.
      */
     fun programmeMedia(
         detail: CxDetail,
@@ -651,7 +702,9 @@ object CxPresentation {
         val visible = if (showAll) tv else tv.filterNot { it.foreign }
         val groups = buildList {
             visible.filter { it.broadcast.category.isNullOrEmpty() }.takeIf { it.isNotEmpty() }?.let { add(CxTVGroup(null, it)) }
-            for (unit in live) {
+            // Un bloque por categoría en directo en el orden ME, WE, MU, WU, MJ, WJ,
+            // no en el del programa (decisión de Dani, 2026-11-14).
+            for (unit in live.sortedBy { categoryRank(it.code) }) {
                 val code = unit.code ?: continue
                 visible.filter { it.broadcast.category == code }.takeIf { it.isNotEmpty() }?.let { add(CxTVGroup(code, it)) }
             }
@@ -666,9 +719,9 @@ object CxPresentation {
                 units.any { it.finished && applies(row, it) && replay(row, it) }
         }.distinctBy { it.second }.map { (row, url) -> CxReplayLink(row.channel ?: "TV", url, row.sortOrder, row.category?.takeIf { it.isNotEmpty() }) }
         // Como la TV: primero las filas comunes y después las de cada categoría
-        // en el orden del programa; la vista encabeza cada bloque.
-        val order = buildMap { units.forEachIndexed { index, unit -> unit.code?.let { putIfAbsent(it, index) } } }
-        val sortedRevive = revive.sortedBy { link -> link.category?.let(order::get) ?: -1 }
+        // en el orden ME, WE, MU, WU, MJ, WJ (decisión de Dani, 2026-11-14), con
+        // orden estable; la vista encabeza cada bloque.
+        val sortedRevive = revive.sortedBy { categoryRank(it.category) }
         val tvStatus = tvStatusChip(detail.race.tvStatus, english)?.takeIf { live.isNotEmpty() }
         return CxMediaSelection(groups, sortedRevive, hasHiddenTV = tv.any { it.foreign }, showsLiveTV = tv.isNotEmpty(), tvStatus = tvStatus)
     }

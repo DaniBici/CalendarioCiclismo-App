@@ -11,7 +11,10 @@
 //  sección de la URL, todos sus paneles de categoría y su columna lateral: la
 //  categoría va en el fragmento (#WE), que no llega al servidor, y el script
 //  en línea de la página (tools/site/prerender-cx.mjs) la muestra antes del
-//  primer pintado. El marcado de cada hueco no puede
+//  primer pintado; la vista de la consulta (?view=), que tampoco llega al
+//  servidor, la muestra el mismo script si su sección viene generada (el
+//  programa, en la raíz) o deja un marcador de carga hasta que llegan los
+//  datos. El marcado de cada hueco no puede
 //  depender del dispositivo, del ancho de pantalla ni de localStorage. Programa
 //  (horas, TV en directo, región) y columna lateral (horas) dependen de la zona
 //  y del momento: fuera de la zona del build se repintan solo esos huecos.
@@ -23,7 +26,7 @@ import {buildRaceHeader,buildCxRoundList,buildRaceFacts,buildRaceBreadcrumb,race
 import {logoPlaceholderHtml} from './components/logo-placeholder.js';
 import {t,getLang,getLocale} from './i18n.js';
 import {cxIsHidden} from './services/cx-data.js';
-import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxTournamentUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxTvStatus,CX_TV_STATUS_CHIPS,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank,cxCompetesBySelection} from './cx/presentation.js';
+import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxTournamentUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxTvStatus,CX_TV_STATUS_CHIPS,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank,cxCompetesBySelection,cxCategoryOrder,cxBonusRows,cxBonusSort,cxBonusText} from './cx/presentation.js';
 import {nationalSelectionName} from './services/national-team-name.js';
 import {cxStandingsTableHtml} from './cx/standings-table.js';
 import {teamStripes} from './team-appearance.js';
@@ -77,14 +80,14 @@ function resultTeamHtml(row,teamList,lang,bySelection) {
   const team=findMatchingTeam(row.teamName,teamList);
   return `${team?teamStripes(team):''}${esc(row.teamName)}`;
 }
-function table(rows,header,value,teamList,lang,bySelection=false) {
+function table(rows,header,value,teamList,lang,bySelection=false,order=cxRankSort) {
   const teamCells=new Map(rows.map(row=>[row,resultTeamHtml(row,teamList,lang,bySelection)]));
   const hasTeam=[...teamCells.values()].some(Boolean);
   const values=new Map(rows.map(row=>[row,value(row)]));
   // Las vueltas perdidas necesitan una columna de tiempo más ancha en móvil
   // para no partirse en dos líneas y descuadrar la altura de la fila.
   const hasLaps=[...values.values()].some(html=>html.includes('class="res-lap"'));
-  return `<div class="res-table-wrap"><table class="so-table res-table${hasLaps?' res-table--laps':''}"><thead><tr><th class="so-th res-th--rank">#</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}<th class="so-th res-th--result">${esc(header)}</th></tr></thead><tbody>${[...rows].sort(cxRankSort).map(row=>{
+  return `<div class="res-table-wrap"><table class="so-table res-table${hasLaps?' res-table--laps':''}"><thead><tr><th class="so-th res-th--rank">#</th><th class="so-th res-th--rider">${t('cx.rider')}</th>${hasTeam?`<th class="so-th res-th--team">${t('cx.team')}</th>`:''}<th class="so-th res-th--result">${esc(header)}</th></tr></thead><tbody>${[...rows].sort(order).map(row=>{
     const teamHtml=teamCells.get(row),rank=cxResultRank(row,lang);
     return `<tr class="so-row"><td class="so-td res-td--rank">${typeof rank==='number'?rank:`<span class="res-rank-dnf">${esc(rank)}</span>`}</td><td class="so-td res-td--rider"><span class="so-flag">${soFlag(row.isoCode2)}</span><span class="res-rider-main"><span class="res-rider-name">${esc(row.riderDisplay)}</span>${teamHtml?`<span class="res-rider-team">${teamHtml}</span>`:''}</span></td>${hasTeam?`<td class="so-td res-td--team">${teamHtml?`<span class="res-team-cell">${teamHtml}</span>`:''}</td>`:''}<td class="so-td res-td--result">${values.get(row)}</td></tr>`;
   }).join('')}</tbody></table></div>`;
@@ -115,7 +118,7 @@ function mediaBox(label,rows,locale,{mine=null,revive=false}={}) {
   if(!rows.length)return '';
   return `<div class="cx-tv-group"${mine&&!rows.some(row=>mine.has(row))?' data-cx-regional-hidden hidden':''}>${label?`<h3 class="cx-tv-group__title">${esc(label)}</h3>`:''}<div class="cx-media-list">${rows.map(row=>tvEntry(row,mine?!mine.has(row):false,locale,revive)).join('')}</div></div>`;
 }
-// Revive agrupado por categoría en el orden del programa; lo que no tiene una
+// Revive agrupado por categoría en el orden ME, WE, MU, WU, MJ, WJ; lo que no tiene una
 // categoría conocida va primero, sin cabecera.
 function reviveMedia(rows,categories,locale) {
   if(!rows.length)return '';
@@ -127,12 +130,12 @@ function videoMedia(rows,lang) {
   if(!rows.length)return '';
   return `<section class="jornada-section cx-video-section" aria-label="${esc(t('cx.videos'))}"><div class="cx-video-grid">${rows.map(row=>{
     const id=cxYouTubeVideoId(row.url),title=esc(lang==='en'&&row.titleEn||row.title);
-    return `<article class="cx-video-card"><h3>${title}</h3><iframe data-cx-video-src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>${external(row.url,'YouTube ↗')}</article>`;
+    return `<article class="cx-video-card"><h3>${title}</h3>${row.channel?`<p class="cx-video-card__channel">${esc(row.channel)}</p>`:''}<iframe data-cx-video-src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>${external(row.url,'YouTube ↗')}</article>`;
   }).join('')}</div></section>`;
 }
 // TV de la jornada CX en el cajón de carretera, dividida por
 // categorías: emisiones comunes (sin categoría) sin encabezado y un bloque
-// por categoría en directo, en el orden del programa. Como en la jornada de
+// por categoría en directo, en el orden ME, WE, MU, WU, MJ, WJ. Como en la jornada de
 // carretera, mientras quede alguna categoría en directo (`active`) el estado
 // 'pending' añade el chip «Sin confirmar» junto al título y, sin emisiones,
 // 'pending', 'none' y 'unavailable_es' muestran la sección con su etiqueta.
@@ -186,7 +189,7 @@ const scheduleBlock=rows=>rows?`<section class="cx-schedule"><h2 class="cx-block
 // emisiones (TV / Revive); en móvil, el orden es horarios, mapa y TV.
 function programme(model) {
   const {race,categories,docAssets:assets,lang,locale,media}=model;
-  const extra=tvGroups(media.tv,media.liveCategories,locale,{status:cxTvStatus(race,lang),active:media.active})+reviveMedia(media.revive,cxProgrammeOrder(race,categories),locale);
+  const extra=tvGroups(media.tv,media.liveCategories,locale,{status:cxTvStatus(race,lang),active:media.active})+reviveMedia(media.revive,cxCategoryOrder(categories),locale);
   const rows=scheduleRows(model);
   const map=mapPreview(assets),schedule=rows?scheduleBlock(rows).replace('class="cx-schedule"','class="cx-schedule cx-programme-schedule"'):extra?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
   if(map)return `<div class="cx-programme-layout">${map}<div class="cx-programme-side">${schedule}${extra}</div></div>`;
@@ -240,7 +243,7 @@ export function cxRaceSelection(model,{pathname,search='',hash=''}) {
   const codes=categories.map(c=>c.category);
   const availableCodes=page==='general'?generalCategories:page==='results'?publishedCategories:page==='startlist'?codes.filter(code=>inscritos.some(row=>row.category===code)):codes;
   const selected=cxClassificationSelection(hash,page==='general'||(!hash&&availableCodes.length)?availableCodes:codes);
-  return {page,tabsPage,selected,legacyGeneral};
+  return {page,tabsPage,selected,legacyGeneral,root:route.page==='race'};
 }
 
 // Categorías que conserva el enlace a cada sección: las que existen en el destino.
@@ -290,15 +293,19 @@ export function cxRacePanelHtml(model,key,code) {
     // resultsStatus=provisional mientras se completa la revisión interna.
     const source=String(c.resultsSourceUrl||'').toLowerCase(),inputSource=String(c.resultsEvidence?.inputSource||'').toLowerCase();
     const status=source.includes('dataride.uci.ch')||inputSource==='dataride'||cxCategoryDate(race,c)<todayKey||c.resultsStatus==='official'?'official':'provisional';
-    return `${publicationHtml(status,lang)}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList,lang,cxCompetesBySelection(race))}`;
+    // Bonificaciones X2O: tabla propia bajo la clasificación, solo con las concedidas.
+    const bonusRows=cxBonusRows(rows),bonuses=bonusRows.length?`<section class="cx-bonuses"><h3 class="cx-bonuses__title">${esc(t('cx.bonuses'))}</h3>${table(bonusRows,t('cx.bonus'),r=>`<span class="res-pts">${esc(cxBonusText(r.bonusSeconds))}</span>`,teamList,lang,cxCompetesBySelection(race),cxBonusSort)}</section>`:'';
+    return `${publicationHtml(status,lang)}${table(rows,t('cx.time'),r=>{const cell=cells.get(r);return `<span class="${cell.cls}">${esc(cell.text)}</span>`;},teamList,lang,cxCompetesBySelection(race))}${bonuses}`;
   }
   if(key==='general') {
+    const rows=standings.filter(s=>s.category===code),state=states.find(row=>row.category===code);
+    // Con una ronda de otro torneo (reglamento con rondas externas) las columnas se numeran por posición.
+    const external=(state?.roundIds||[]).some(id=>!tournamentRaces.has(id));
     const roundHeader=(raceId,index)=>{
-      const round=tournamentRaces.get(raceId),label=`#${rounds?.get(raceId)?.n??index+1}`;
+      const round=tournamentRaces.get(raceId),label=`#${external?index+1:(rounds?.get(raceId)?.n??index+1)}`;
       if(!round||cxIsHidden(round,lang))return {label};
       return {label,title:cxRaceName(round,lang),href:cxRaceUrl(round,lang)};
     };
-    const rows=standings.filter(s=>s.category===code),state=states.find(row=>row.category===code);
     return `${publicationHtml('official',lang)}${cxStandingsTableHtml({rows,state,mode:cxStandingMode(tournament,code,rows),lang,locale,teamList,roundHeader})}`;
   }
   return startlist(inscritos.filter(row=>row.category===code),teams,lang,cxCompetesBySelection(race));
@@ -391,7 +398,11 @@ const prerenderedPanels=new WeakMap();
  * Ficha generada en el build: la sección de la URL, todos sus paneles de
  * categoría (visible el de `sel`, la categoría por defecto) y la columna
  * lateral llenos, cada hueco con la huella (`fingerprint(html)`) del HTML que
- * pinta el navegador para él; el resto de secciones, vacías. Devuelve
+ * pinta el navegador para él. La raíz de la ficha trae además el programa,
+ * oculto, cuando la sección de la URL es otra y la ficha lo tiene: la vista
+ * ?view=programme (la que enlazan la agenda y el calendario) no llega al
+ * servidor y el script en línea lo muestra antes del primer pintado, sin
+ * esperar a los datos. El resto de secciones, vacías. Devuelve
  * { html, fingerprint } del esqueleto.
  * @public tools/site/prerender-cx.mjs lo usa como miembro del módulo cargado con import().
  */
@@ -404,7 +415,9 @@ export function cxRacePrerenderedHtml(model,sel,fingerprint) {
     panel,
     context:()=>slot(cxRaceContextHtml(model,sel)),
   };
-  const section=key=>key!==sel.page?{inner:''}
-    :{inner:cxRaceSectionHtml(model,key,sel,slots),prerendered:fingerprint(cxRaceSectionHtml(model,key,sel))};
+  const withProgramme=sel.root&&sel.page!=='programme'&&(model.hasProgramme||model.hasMedia);
+  const section=key=>key===sel.page?{inner:cxRaceSectionHtml(model,key,sel,slots),prerendered:fingerprint(cxRaceSectionHtml(model,key,sel))}
+    :key==='programme'&&withProgramme?slot(cxRaceSectionHtml(model,key,sel))
+      :{inner:''};
   return {html:cxRaceSkeletonHtml(model,sel,section),fingerprint:fingerprint(cxRaceSkeletonHtml(model,sel))};
 }

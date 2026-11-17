@@ -89,12 +89,8 @@ enum RaceLogic {
     /// Comprueba si la hora actual supera `estimatedFinishTimeUtc + offsetMinutes`.
     /// Fallback: `dateKey` 18:00 UTC + offset.
     static func raceTimeCheck(rd: RaceDay, offsetMinutes: Int) -> Bool {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let formatterBasic = ISO8601DateFormatter()
-
         if let finish = rd.estimatedFinishTimeUtc,
-           let date = formatter.date(from: finish) ?? formatterBasic.date(from: finish) {
+           let date = DateFormatting.parseISO(finish) {
             let parts = rd.dateKey.split(separator: "-").compactMap { Int($0) }
             var validFinish = true
             if parts.count == 3 {
@@ -255,13 +251,10 @@ enum RaceLogic {
     /// hora de inicio (`startTimeUtc`) más temprana de los broadcasts; si ya
     /// pasó → `.live`; si es futura → `.time`; si no hay ninguna → `.label`.
     static func championshipTvState(broadcasts: [Broadcast]) -> ChampionshipTvState {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fBasic = ISO8601DateFormatter()
         // Conservamos el ISO original junto a su Date para formatear sin
         // re-serializar (formatTimeLocal espera el string ISO).
         let pairs: [(ts: String, date: Date)] = broadcasts.compactMap { b in
-            guard let ts = b.startTimeUtc, let d = f.date(from: ts) ?? fBasic.date(from: ts) else { return nil }
+            guard let ts = b.startTimeUtc, let d = DateFormatting.parseISO(ts) else { return nil }
             return (ts, d)
         }
         guard let earliest = pairs.min(by: { $0.date < $1.date }) else { return .label }
@@ -491,13 +484,21 @@ enum RaceLogic {
             || name.localizedCaseInsensitiveContains("mixed relay")
     }
 
+    /// Carrera sin género (`gender` nulo): prueba mixta o campeonato con pruebas
+    /// de ambos sexos, como «Campeonatos de Europa».
+    static func isGenderNeutral(_ race: Race) -> Bool {
+        race.gender != "male" && race.gender != "female"
+    }
+
     /// Comprueba si una carrera coincide con un filtro de categoría (mismas reglas que web).
+    /// Una carrera sin género pasa Masculino y Femenino (Hoy, Mes y Temporada).
     static func matchesCategory(_ race: Race, filter: Constants.CategoryFilter) -> Bool {
         guard filter != .all else { return true }
         let cat = race.uciCategory ?? ""
         let gender = race.gender ?? ""
         let cc = (race.countryCode ?? "").uppercased()
         let name = race.name
+        let neutral = isGenderNeutral(race)
 
         // Campeonatos Nacionales: las élite (masc/fem) cuentan como "pro"; las
         // sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U). Masc/Fem
@@ -523,11 +524,11 @@ enum RaceLogic {
         case .wwt:
             baseMatch = cat == "1.WWT" || cat == "2.WWT"
         case .male:
-            baseMatch = (gender == "male" || isMixedRelayChampionship(category: cat, name: name))
+            baseMatch = (gender == "male" || neutral || isMixedRelayChampionship(category: cat, name: name))
                 && cat != "1.2" && cat != "2.2"
                 && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
         case .female:
-            baseMatch = (gender == "female" || isMixedRelayChampionship(category: cat, name: name))
+            baseMatch = (gender == "female" || neutral || isMixedRelayChampionship(category: cat, name: name))
                 && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
                 && ((cat != "1.2" && cat != "2.2") || Constants.europeCountries.contains(cc))
         }

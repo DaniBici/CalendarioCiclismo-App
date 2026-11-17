@@ -271,17 +271,17 @@ consultas nominales individuales durante la importación del archivo.
 
 Documentación técnica de equipos y startlists enriquecidas.
 
-Asignar un equipo global (tabla `teams`) a cada `startlist_teams.teamId` para pintar la cabecera con colores propios y mostrar una chapa ciclista (SVG) junto al nombre. Todas las listas se enriquecen: web, panel y apps actuales deciden el render por equipo, según exista `teamId` con ficha en `teams`, y no consultan `races.enrichedStartlist`.
+Asignar un equipo global (tabla `teams`) a cada `startlist_teams.teamId` para pintar la cabecera con colores propios y mostrar el cuadrado de colores del equipo junto al nombre. Todas las listas se enriquecen: web, panel y apps actuales deciden el render por equipo, según exista `teamId` con ficha en `teams`, y no consultan `races.enrichedStartlist`.
 
 ### Base de datos (`019_teams.sql`, `058_riders.sql`)
 
 | Tabla / columna | Qué es |
 |---|---|
-| `teams` | Equipos globales. `headerBg` guarda el fondo público y `headerText` se deriva automáticamente por contraste. Los campos históricos `badgeTorsoSides`, `badgeTorsoCenter` y `badgeShorts` almacenan, en ese orden, los tres cuadrados cromáticos. `badgeInnerCircle` queda como compatibilidad de esquema y el editor lo limpia. `nameAliases` = alias separados por `\n` para matching. |
+| `teams` | Equipos globales. `headerBg` guarda el fondo público y `headerText` se deriva automáticamente por contraste. Los tres colores del cuadrado se guardan en columnas con nombre heredado (equivalencias en `AGENTS.md`; detalle en «Colores de equipo», más abajo). `nameAliases` = alias separados por `\n` para matching. |
 | `teams.category` | Categoría UCI: `WT`, `WWT`, `PT`, `PRW`, `CT`, `CTW`, `CLUBM`, `CLUBW`, `NTM`, `NTW`. |
 | `teams.gender` | `'male'` / `'female'`. Se auto-rellena en el panel al seleccionar `category`. |
 | `startlist_teams.teamId` | FK nullable a `teams` (`ON DELETE SET NULL`). |
-| `startlist_teams.isDev` | ⛔ **RETIRADO — columna eliminada en producción el 2026-08-29.** Marcaba el equipo como filial añadiendo " (Devo)" al nombre. Redundante desde que cada filial tiene su **ficha propia** en `teams` (nombre y chapa propios): la condición vive en el `teamId` canónico. La 063 limpió los datos, la 128 ejecutó el `DROP COLUMN` tras publicar y adoptar la 4.0, y el checkbox del panel y la lectura en web/iOS/Android ya no existen. |
+| `startlist_teams.isDev` | ⛔ **RETIRADO — columna eliminada en producción el 2026-08-29.** Marcaba el equipo como filial añadiendo " (Devo)" al nombre. Redundante desde que cada filial tiene su **ficha propia** en `teams` (nombre y colores propios): la condición vive en el `teamId` canónico. La 063 limpió los datos, la 128 ejecutó el `DROP COLUMN` tras publicar y adoptar la 4.0, y el checkbox del panel y la lectura en web/iOS/Android ya no existen. |
 | `races.enrichedStartlist` | Columna generada `GENERATED ALWAYS AS (true) STORED` desde la migración `20260904062430_startlist_enrichment_default.sql`. Solo mantiene la lectura de apps anteriores; no representa un estado por carrera ni admite escritura. |
 
 Ver [Corredores](#corredores) para la BD de corredores y su matching en el editor de startlist.
@@ -292,11 +292,17 @@ Ver [Corredores](#corredores) para la BD de corredores y su matching en el edito
 2. Coincidencia exacta normalizada contra `name` o cualquier alias.
 3. Fallback: contención bidireccional (≥ 4 caracteres).
 
-### Colores — `teamStripes(team)` en `js/team-appearance.js`
+### Colores de equipo — `teamStripes(team)` en `js/team-appearance.js`
 
-- Un `<span class="team-stripes">` vacío con `badgeTorsoSides`, `badgeTorsoCenter` y `badgeShorts` como variables `--a`, `--b` y `--c`; las tres franjas son un degradado de `.team-stripes` (`css/app.css`, `css/panel.css`).
-- Sin colores curados (`hasCustomTeamBadgeColors` de `js/team-badge.js`) devuelve una cadena vacía.
-- Es la única representación de los colores de equipo en web y panel; la chapa SVG (`buildTeamBadgeSvg`) está retirada.
+Modelo y equivalencias de columnas heredadas: `AGENTS.md`, sección «Colores de equipo».
+
+- Cuadrado: un `<span class="team-stripes">` vacío de 14 × 15 px con borde de 1 px, cuyas tres franjas son un degradado con las variables `--a`, `--b` y `--c` (`css/app.css`, `css/panel.css`). Es la única representación de los colores de equipo en web y panel.
+- Orden de pintado: `--a` = `badgeTorsoSides`, `--b` = `badgeTorsoCenter`, `--c` = `badgeShorts`.
+- Visibilidad: `hasCustomTeamColors` (`js/team-colors.js`) devuelve falso, y `teamStripes` una cadena vacía, si falta una franja o si las tres coinciden con la paleta neutra de la base de datos (centro `#ffffff`; laterales y culote `#000000` o `#111111`). `resultTeamStripes` omite el cuadrado en las selecciones nacionales.
+- Cabecera: `teamHeaderColors` lee `headerBg` y `headerText`. Los editores solo piden el fondo; `automaticTeamHeaderText` calcula el texto por contraste WCAG.
+- Fichajes: `badgeVisible` publica los colores de la temporada de mercado y `prevColorsHidden` los suprime hasta confirmar la denominación (ver la sección de Fichajes).
+- Apps: `Team.hasVisibleBadge`, `Team.hasResultBadge` (iOS y Android) y `TransfersLogic.badgeSeason` conservan el nombre heredado; designan la visibilidad del cuadrado y la elección de la temporada de sus colores.
+- `badgeInnerCircle`: vaciada el 2026-11-10 en `teams`, `team_seasons` y `cx_teams` (436 filas; valores previos en la carpeta de notas de la sesión). Los editores de equipos, de temporada y de CX guardan `null`. Las apps publicadas y `Team.kt`/`Team.swift` conservan la lectura, que con `null` no tiene efecto. El trigger `sync_team_to_season` y la RPC `admin_save_team_season` siguen copiando la columna: al actualizar `teams` por SQL, `set_config('app.historical_catalog','on',true)` evita que el trigger reescriba la temporada en curso.
 
 ### Panel — sección "Equipos"
 
@@ -325,7 +331,7 @@ existentes. Procedimiento: [importación de inscritos](#importación-de-inscrito
 ### Render público (`js/inscritos.js`)
 
 `js/startlist/data.js` carga los `teams` referenciados por `teamId` (y su `team_seasons` del año) en una sola consulta, sin leer `race.enrichedStartlist`, y `js/inscritos.js` pinta:
-- Header con `background/color` del equipo + chapa 24px + clase `.startlist-team__header--enriched`.
+- Header con `background/color` del equipo + cuadrado de colores + clase `.startlist-team__header--enriched`.
 - Equipos sin `teamId` o sin ficha en `teams` → estilo estándar (gris).
 
 ### Orden de equipos — por dorsal del primer corredor (cliente, 2026-06-11)
@@ -343,7 +349,7 @@ No hay nada que tocar en el panel ni en BD; los corredores dentro del equipo ya 
 
 ### CSS (`css/app.css`)
 
-- `.startlist-team__header` ahora es `display:flex; align-items:center; gap:0.55rem` para acomodar la chapa.
+- `.startlist-team__header` ahora es `display:flex; align-items:center; gap:0.55rem` para acomodar el cuadrado de colores.
 
 ### Inscritos (startlists)
 
@@ -982,10 +988,10 @@ presentan el mercado el panel y la web.
   Llegan ni Se marchan.
 - Nombres de equipo: origen con `team_seasons` de la temporada en curso,
   destino con la de la temporada de mercado; un texto libre se muestra tal cual.
-- Franjas de equipo (lista y cabecera de la vista de equipo; iOS y Android con
-  `TransfersLogic.badgeSeason`): colores de la temporada de mercado con
-  `badgeVisible`; sin él, los de la temporada en curso del mismo `teamId`; sin
-  franjas si el equipo no tiene fila en la temporada en curso o si la fila del
+- Cuadrado de colores del equipo (lista y cabecera de la vista de equipo; iOS
+  y Android con `TransfersLogic.badgeSeason`): colores de la temporada de
+  mercado con `badgeVisible`; sin él, los de la temporada en curso del mismo
+  `teamId`; sin cuadrado si el equipo no tiene fila en la temporada en curso o si la fila del
   mercado tiene `prevColorsHidden` (estructura con denominación sin confirmar,
   casilla «Sin colores hasta confirmar la denominación» del editor de
   temporada).

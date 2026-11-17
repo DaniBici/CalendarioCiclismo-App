@@ -6,6 +6,7 @@ import { limitScrollToStickyStart } from '../../../js/results/dom.js';
 import { installScrollRail } from '../../../js/scroll-rail.js';
 import { patchHtml } from '../../../js/dom-patch.js';
 import { cabeceraFija, seguirVersion, visorDocumentos, volver, vistaDePagina } from './comun.js';
+import { bindStageVideos } from '../../../js/stage/videos-panel.js';
 
 const main = document.getElementById('resultsContent');
 const isEn = main.dataset.lang === 'en';
@@ -115,6 +116,9 @@ if (perfil && main.dataset.perfil) {
   }, { rootMargin: '400px' });
   observador.observe(perfil);
 }
+
+// Vídeos de la jornada: acordeón con el reproductor al abrir, como en la jornada.
+bindStageVideos(main);
 
 // Versión nueva, mientras la carrera está en curso: página y clasificaciones.
 seguirVersion(clave, () => main.dataset.sondeo === '1', async documento => {

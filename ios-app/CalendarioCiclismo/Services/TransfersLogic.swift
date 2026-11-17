@@ -56,16 +56,16 @@ enum TransfersLogic {
         /// corredor deja, que se llama como se llama ESTA temporada).
         var teamNamePrev: [String: String] = [:]
         /// teamId → fila team_seasons de la temporada EN CURSO (2026). Sus colores
-        /// son los "antiguos" que se muestran mientras la chapa del mercado está
-        /// oculta. Un equipo NUEVO (nacido en la temporada del mercado) no tiene
-        /// entrada aquí → chapa vacía (mig. 129).
+        /// son los "antiguos" que se muestran mientras los colores del mercado no
+        /// están publicados. Un equipo NUEVO (nacido en la temporada del mercado) no tiene
+        /// entrada aquí → sin colores (mig. 129).
         var prevSeasonsByTeamId: [String: TeamSeason] = [:]
     }
 
     /// Lado del movimiento del que se pide el nombre de un equipo.
     enum TeamSide { case from, to }
 
-    /// Colores de equipación EFECTIVOS de un equipo del mercado (decisión Dani
+    /// Colores EFECTIVOS de un equipo del mercado (decisión Dani
     /// 2026-07-18):
     ///  - Colores del mercado PUBLICADOS (`badgeVisible == true`) → la fila del
     ///    mercado (2027).
@@ -82,7 +82,7 @@ enum TransfersLogic {
         return prev[season.teamId]
     }
 
-    /// Equipo que alimenta las franjas de maillot (`TeamColorBands`) de una
+    /// Equipo que alimenta el cuadrado de colores (`TeamColorBands`) de una
     /// tarjeta o cabecera del mercado: los colores de `badgeSeason`. Espejo de
     /// `marketStripesHtml` en `js/fichajes.js`.
     static func stripesTeam(for season: TeamSeason, prev: [String: TeamSeason]) -> Team? {

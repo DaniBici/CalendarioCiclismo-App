@@ -495,12 +495,17 @@ object RaceLogic {
         (category == "WC" || category == "CC") &&
             (name.containsIgnoreCase("relevo mixto") || name.containsIgnoreCase("mixed relay"))
 
+    /** Carrera sin género (`gender` nulo): prueba mixta o campeonato con pruebas de ambos sexos, como «Campeonatos de Europa». */
+    fun isGenderNeutral(race: Race): Boolean = race.gender != "male" && race.gender != "female"
+
+    /** Una carrera sin género pasa Masculino y Femenino (Hoy, Mes y Temporada). */
     fun matchesCategory(race: Race, filter: Constants.CategoryFilter): Boolean {
         if (filter == Constants.CategoryFilter.ALL) return true
         val cat = race.uciCategory.orEmpty()
         val gender = race.gender.orEmpty()
         val cc = race.countryCode.orEmpty().uppercase()
         val name = race.name
+        val neutral = isGenderNeutral(race)
 
         // Campeonatos Nacionales: las élite (masc/fem) cuentan como "pro"; las
         // sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U). Masc/Fem
@@ -523,11 +528,11 @@ object RaceLogic {
             Constants.CategoryFilter.UWT -> cat == "1.UWT" || cat == "2.UWT"
             Constants.CategoryFilter.WWT -> cat == "1.WWT" || cat == "2.WWT"
             Constants.CategoryFilter.MALE ->
-                (gender == "male" || isMixedRelayChampionship(cat, name)) &&
+                (gender == "male" || neutral || isMixedRelayChampionship(cat, name)) &&
                     cat != "1.2" && cat != "2.2" &&
                     ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name))
             Constants.CategoryFilter.FEMALE ->
-                (gender == "female" || isMixedRelayChampionship(cat, name)) &&
+                (gender == "female" || neutral || isMixedRelayChampionship(cat, name)) &&
                     ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name)) &&
                     ((cat != "1.2" && cat != "2.2") || cc in Constants.EUROPE_COUNTRIES)
         }

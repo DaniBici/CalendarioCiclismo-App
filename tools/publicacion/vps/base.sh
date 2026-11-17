@@ -24,7 +24,7 @@ export PAGES_DATA="$REPO/.pages-data"
 export RESULTADOS_CACHE="$REPO/.pages-prerender/resultados"
 export EN_BASE_URL="$ORIGEN/en"
 export PRERENDER_JORNADAS=all PRERENDER_INSCRITOS=listas PRERENDER_RESULTADOS=all PRERENDER_AUXILIARES=all
-export PRERENDER_FICHAJES=all PRERENDER_CX=all PRERENDER_COMPETICION=all
+export PRERENDER_FICHAJES=all PRERENDER_CX=all PRERENDER_COMPETICION=all PRERENDER_VIDEOS=all
 inicio=$(date +%s)
 paso() { echo "[$(($(date +%s) - inicio)) s] $1"; }
 
@@ -36,7 +36,7 @@ python3 tools/site/build_generated.py prepare
 paso 'Fuentes'
 shopt -s nullglob dotglob
 SITE=( *.html *.txt CNAME .nojekyll favicon* apple-touch-icon.png manifest.json sw.js LICENSE THIRD-PARTY-NOTICES.md .well-known
-       css js flags fonts i18n abierto about apoyar apps calendario fichajes panel resultados suscripcion en )
+       css js flags fonts i18n abierto about apoyar apps calendario fichajes panel resultados suscripcion videos en )
 mkdir -p _site
 rsync -a --relative "${SITE[@]}" _site/ \
   --exclude '__tests__' --exclude '__pycache__' \
@@ -68,7 +68,7 @@ for bloque in og-races og-stages og-results og-extras og-cx sitemap feeds; do
   paso "Bloque $bloque"
   python3 tools/site/build_generated.py run "$bloque"
 done
-for paso_node in prerender-jornadas prerender-inscritos prerender-resultados prerender-auxiliares prerender-fichajes prerender-cx prerender-competicion; do
+for paso_node in prerender-jornadas prerender-inscritos prerender-resultados prerender-auxiliares prerender-fichajes prerender-cx prerender-competicion prerender-videos; do
   paso "$paso_node"
   node "tools/site/$paso_node.mjs" _site
 done

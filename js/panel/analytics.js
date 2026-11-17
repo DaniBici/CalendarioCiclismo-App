@@ -777,7 +777,8 @@ function renderTopPages(data) {
 // prueba de un día con todas sus pantallas; en una vuelta por etapas, cada
 // etapa con sus clasificaciones y pantallas y, aparte, la ficha e inscritos de
 // la carrera; una carrera o un torneo de ciclocross; o una pestaña global
-// (Ciclocross, Resultados, Fichajes). Ver `buildAppContent` en `ga-analytics`.
+// (Hoy de carretera, Ciclocross, Resultados, Vídeos de carretera y de
+// ciclocross, Fichajes, Calendario). Ver `buildAppContent` en `ga-analytics`.
 const GA_CONTENT_KINDS = {
   race: 'Carrera',
   stage: 'Etapa',

@@ -14,7 +14,7 @@ import { supabase, toDateKey, stageLabel, categoryRank, countryFlag, effectiveCo
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, genderMark,
          cleanFeminineName }
          from './shared.js';
-import { isTourDelPorvenir } from './category-filter.js';
+import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { readCalendarMonth, writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
@@ -136,6 +136,7 @@ function passesCategoryFilter(rd) {
   const gender = rd._race?.gender || '';
   const name   = rd._race?.name || '';
   const isMixedRelay = (cat === 'WC' || cat === 'CC') && /relevo mixto|mixed relay/i.test(name);
+  const isNeutral = isGenderNeutral(rd._race);
   // CN de la página de Campeonatos: van en su fila sintética. Las de fuera de su
   // ventana se listan sueltas, con las reglas de filtro de las CN.
   if (cat === 'CN') {
@@ -149,8 +150,8 @@ function passesCategoryFilter(rd) {
   if (activeCat === 'pro')    return !isAsia1 && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
   if (activeCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
   if (activeCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-  if (activeCat === 'male')   return !isAsia1 && (gender === 'male' || isMixedRelay) && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
-  if (activeCat === 'female') return !isAsia1 && (gender === 'female' || isMixedRelay) && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
+  if (activeCat === 'male')   return !isAsia1 && (gender === 'male' || isNeutral || isMixedRelay) && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
+  if (activeCat === 'female') return !isAsia1 && (gender === 'female' || isNeutral || isMixedRelay) && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
   return true; // 'all'
 }
 

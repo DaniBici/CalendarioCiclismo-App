@@ -43,6 +43,15 @@ describe('smartweb CX', () => {
     expect(omitted).toHaveLength(1);
     expect(warnings).toMatchObject([{ reason: expect.stringContaining('renumera') }]);
   });
+  it('lee el tiempo MM:SS.cc de la RFEC (rfec.com, G.P. KH7 - Dark Cross 2026, Junior)', () => {
+    const rfec = (pos, bib, first, last, team, region, time) => ({ pos, bib, firstName: first, lastName: last, team, region, time });
+    const { rows } = parseSmartwebRows([
+      rfec('1', '2001', 'PELAYO', 'GANCEDO CORRALES', 'MMR ACADEMY', 'AST', '44:12.75'),
+      rfec('2', '2002', 'AXEL', 'ROY MOLINA', 'HUESCA LA MAGIA JUNIOR', 'ARA', '44:18.30'),
+      rfec('30', '2027', 'JAN', 'COSTA CASAS', 'LES FRANQUESES V. C.E.UNIO CIC', 'CAT', '53:16.63'),
+      rfec('31', '2025', 'AYRTON', 'VIDAL PERELLON', 'MATARO, ESPORT CICLISTA', 'CAT', 'Vta. perdida')]);
+    expect(rows.map(row => [row.rank, row.timeSeconds, row.gapText])).toEqual([[1, '2652', null], [2, '2658', '+0:06'], [3, '3196', '+9:04'], [4, null, '-1 LAP']]);
+  });
   it('deja sin tiempo las llegadas que repiten el del ganador (Castilla y León)', () => {
     const { rows, warnings } = parseSmartwebRows([source(1, '00:38:12.000'), source(2, '00:38:12.000'), source(3, '00:38:12.000'),
       source(6, '00:38:12.000'), source(7, 'Vta. perdida')]);

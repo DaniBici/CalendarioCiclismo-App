@@ -26,10 +26,10 @@ struct Team: Codable, Identifiable {
     /// Selección nacional: en resultados se muestra como país, sin franjas.
     var isNationalSelection: Bool { teamKind == "selection" && selectionScope == "national" }
 
-    /// Franjas en una tabla de resultados: chapa curada y no selección nacional.
+    /// Franjas en una tabla de resultados: cuadrado con colores curados y no selección nacional.
     var hasResultBadge: Bool { hasVisibleBadge && !isNationalSelection }
 
-    /// La chapa solo se considera disponible cuando los colores del maillot
+    /// El cuadrado solo se considera disponible cuando los colores del equipo
     /// dejan de ser la paleta predeterminada del catálogo.
     var hasVisibleBadge: Bool {
         guard let center = Self.normalizedBadgeColor(badgeTorsoCenter),
@@ -68,7 +68,7 @@ struct Team: Codable, Identifiable {
     /// Render temporal: devuelve una copia con los atributos VISUALES de la temporada
     /// sobrescritos cuando la season los aporta (no nulos). Si `season` es nil, devuelve
     /// el equipo intacto. `teams` es siempre el fallback; la paleta por defecto
-    /// continúa sin producir una chapa visible.
+    /// continúa sin producir un cuadrado visible.
     func applyingSeason(_ season: TeamSeason?) -> Team {
         guard let s = season else { return self }
         return Team(

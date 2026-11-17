@@ -779,7 +779,7 @@ enum UciResultsLogic {
             // la fuente, sin dorsal). Espejo de la web: primero su `teamId` (equipo
             // de la startlist o, si no figura en ella, el resuelto por id); sin
             // teamId, se casa por NOMBRE contra los equipos canónicos de la
-            // startlist. Sin casar → el crudo de la fuente, sin chapa.
+            // startlist. Sin casar → el crudo de la fuente, sin colores.
             let matchedTeam: Team? = isTeams
                 ? (r.teamId.flatMap { id in raceTeams.first(where: { $0.id == id }) ?? byTeamOverride[id] }
                     ?? findMatchingTeam(r.riderDisplay, teams: raceTeams))

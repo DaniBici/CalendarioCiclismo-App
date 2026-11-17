@@ -19,6 +19,7 @@ data class BroadcastEntity(
     val sortOrder: Int,
     val showInRevive: Boolean,
     val country: String?,
+    val embeddable: Boolean?,
     val cachedAt: Long,
 ) {
     fun toModel(): Broadcast = Broadcast(
@@ -31,6 +32,7 @@ data class BroadcastEntity(
         sortOrder = sortOrder,
         showInRevive = showInRevive,
         country = country,
+        embeddable = embeddable,
     )
 
     companion object {
@@ -44,6 +46,7 @@ data class BroadcastEntity(
             sortOrder = b.sortOrder,
             showInRevive = b.showInRevive,
             country = b.country,
+            embeddable = b.embeddable,
             cachedAt = cachedAt,
         )
     }

@@ -14,6 +14,10 @@
  *     --race-id <cxRaceId> --season-key 2026-27 [--date 2026-10-11] [--only MJ,WJ] \
  *     [--map 'RES34=MJ,RES35=WJ'] [--out doc.json]
  *
+ * Contexto sin evento ACN público (X2O Badkamers Trofee, `AAAAMMDD_x2o`): `--ctx <contexto>` en
+ * lugar de `--url`. La fecha sale del contexto y el título, el lugar y el país, de la raíz del árbol
+ * («Bollekescross - 15 Nov 2026, Hamme-Zogge (BEL)»), que debe ser el mismo contexto y el mismo día.
+ *
  * El puesto, el estado y las vueltas perdidas vienen calculados por el cronometrador; el
  * documento los conserva sin reordenar. La nacionalidad procede de la bandera de la fila
  * (código de tres letras). No resuelve fichas ni equipos: conserva la grafía de la fuente.
@@ -29,6 +33,9 @@ const EVENT_API = 'https://prod.chronorace.be/api/Event/view/';
 const LISTING = 'https://prod.chronorace.be/Classements/ListeRapports.aspx';
 const RESULTS_API = 'https://results.chronorace.be/api/results/';
 const VIEWER = 'https://www.acn-timing.com/?lng=EN#/events/';
+const CONTEXT_VIEWER = 'https://prod.chronorace.be/angular/results.html#/uci/event/';
+const DATED_CONTEXT = /^(\d{4})(\d{2})(\d{2})_[a-z0-9]{2,20}$/;
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const CATEGORIES = new Set(['ME', 'WE', 'MU', 'WU', 'MJ', 'WJ']);
 const STATES = new Set(['DNS', 'DNF', 'DSQ', 'OTL', 'ABD']);
 const PARTICLES = new Set(['LE', 'LA', 'EL', 'AL', 'DE', 'DEL', 'DER', 'DEN', 'DI', 'DA', 'DU', 'DOS', 'DAS', 'VAN', 'VON', 'TER', 'TEN']);
@@ -157,13 +164,16 @@ export function buildAcnCxDocument({ event, ctx, tables, raceId, seasonKey, date
   for (const { category, key, groupId, name, table } of tables) {
     const count = table?.Groups?.[0]?.SlaveRows?.length || 0;
     if (!count) { skipped.push({ category, key, reason: 'Clasificación sin filas' }); continue; }
-    const viewerUrl = `${VIEWER}${event.EventId}/ctx/${ctx}/generic/${groupId}/home/${key}`;
+    // Una manga sin salir (lista de salida con «NA») o en curso no impide leer las demás.
+    let rows;
+    try { rows = parseAcnTable(table); } catch (error) { skipped.push({ category, key, reason: error.message }); continue; }
+    const viewerUrl = event.EventId == null ? acnViewerUrl({ eventId: null, ctx }) : `${VIEWER}${event.EventId}/ctx/${ctx}/generic/${groupId}/home/${key}`;
     categories.push({ category, dateKey, sourceKey: key, sourceGroup: name,
       evidence: { sourceUrl: viewerUrl, sourceVersion: String(table.Version ?? '') || null },
       sourceUpdatedAt: Number.isFinite(acnVersionMs(table.Version)) && table.Version ? new Date(acnVersionMs(table.Version)).toISOString() : null,
-      rows: parseAcnTable(table) });
+      rows });
   }
-  const eventId = String(event.EventId);
+  const eventId = event.EventId == null ? null : String(event.EventId);
   return { schemaVersion: 1, source, disciplineId: 3, raceId, seasonKey, fetchedAt: new Date().toISOString(),
     evidence: { sourceUrl, timer: 'acn-timing', eventId, ctx, eventName: clean(event.Title) || null,
       location: clean(event.Location) || null, country: event.Country || null, ...(source === 'acn' ? { acn: { eventId, ctx } } : {}) },
@@ -192,28 +202,57 @@ export async function resolveAcnContext(eventId) {
   return ctx;
 }
 
-/** Evento, árbol de categorías y tablas de las categorías pedidas (`only`). */
+/** Visor público: el del evento ACN o, sin evento, el visor UCI de Chronorace por contexto. */
+export const acnViewerUrl = ({ eventId, ctx }) => eventId ? `${VIEWER}${eventId}/ctx/${ctx}/cms` : `${CONTEXT_VIEWER}${ctx}`;
+
+/**
+ * Evento de un contexto con fecha sin evento ACN público (`20261115_x2o`): la fecha es la del
+ * contexto y la raíz del árbol («Bollekescross - 15 Nov 2026, Hamme-Zogge (BEL)») debe ser ese
+ * contexto y, si declara fecha, el mismo día.
+ */
+export function acnContextEvent(tree, ctx) {
+  const match = DATED_CONTEXT.exec(String(ctx ?? ''));
+  if (!match) throw new Error(`Contexto Chronorace sin fecha AAAAMMDD_<serie>: ${ctx}`);
+  const eventDate = `${match[1]}-${match[2]}-${match[3]}`;
+  if (!tree) throw new Error(`Chronorace aún no publica el contexto ${ctx}`);
+  if (tree.Name !== ctx) throw new Error(`El árbol de Chronorace no corresponde al contexto ${ctx}`);
+  const label = clean(tree.DisplayName);
+  const parts = /^(.*?)\s+-\s+(\d{1,2}) ([A-Za-z]{3}) (\d{4}),\s*(.*?)\s*\(([A-Z]{3})\)$/.exec(label);
+  if (parts) {
+    const month = MONTHS[parts[3].toLowerCase()];
+    const declared = month ? `${parts[4]}-${String(month).padStart(2, '0')}-${parts[2].padStart(2, '0')}` : null;
+    if (declared !== eventDate) throw new Error(`El contexto ${ctx} declara otra fecha: ${label}`);
+  }
+  return { EventId: null, Title: parts?.[1] || label || null, Location: parts?.[5] || null, Country: parts?.[6] || null,
+    StartDate: eventDate, EndDate: eventDate };
+}
+
+/** Evento, árbol de categorías y tablas de las categorías pedidas (`only`). Sin `eventId`, el contexto con fecha. */
 export async function fetchAcnTables({ eventId, ctx, only = null, map = {}, date = null }) {
-  const event = await fetchAcnEvent(eventId);
-  if (String(event.EventId) !== String(eventId)) throw new Error('El evento ACN devuelto no corresponde al solicitado');
+  const tree = eventId ? null : await fetchAcnTree(ctx);
+  const event = eventId ? await fetchAcnEvent(eventId) : acnContextEvent(tree, ctx);
+  if (eventId && String(event.EventId) !== String(eventId)) throw new Error('El evento ACN devuelto no corresponde al solicitado');
   const eventDate = String(event.StartDate || '').slice(0, 10);
   if (String(event.EndDate || '').slice(0, 10) !== eventDate) throw new Error('Evento ACN multidía: indicar categoría y fecha manualmente');
   if (date && date !== eventDate) throw new Error(`Fecha del evento ${eventDate} distinta de ${date}`);
-  const { found, skipped } = acnCategories(await fetchAcnTree(ctx), map);
+  const { found, skipped } = acnCategories(tree || await fetchAcnTree(ctx), map);
   const wanted = only ? new Set(only) : null;
   const tables = [];
   for (const item of found) {
     if (wanted && !wanted.has(item.category)) continue;
+    // Solo la clasificación de la manga: el árbol del X2O añade Ranking (RNK), Best lap (BEST) y tablas de administración.
+    if (!map[item.key] && !/^RES\d+$/.test(item.key)) continue;
     tables.push({ ...item, table: await fetchAcnTable(ctx, item.key) });
   }
   return { event, ctx, eventDate, tables, skipped };
 }
 
-export async function fetchAcnCx({ url, raceId, seasonKey, date, only = null, map = {}, source = 'manual' }) {
-  const target = acnTarget(url);
+export async function fetchAcnCx({ url = null, ctx: contextOnly = null, raceId, seasonKey, date, only = null, map = {}, source = 'manual' }) {
+  const target = contextOnly ? { eventId: null, ctx: contextOnly } : acnTarget(url);
   const ctx = target.ctx || await resolveAcnContext(target.eventId);
   const { event, eventDate, tables, skipped } = await fetchAcnTables({ eventId: target.eventId, ctx, only, map, date });
-  const document = buildAcnCxDocument({ event, ctx, tables, raceId, seasonKey, dateKey: date || eventDate, sourceUrl: url, source });
+  const document = buildAcnCxDocument({ event, ctx, tables, raceId, seasonKey, dateKey: date || eventDate,
+    sourceUrl: url || acnViewerUrl(target), source });
   document.skipped.push(...skipped);
   return document;
 }
@@ -224,14 +263,15 @@ function args(argv) {
     if (!argv[index].startsWith('--') || argv[index + 1] == null) throw new Error(`Argumento inválido: ${argv[index]}`);
     out[argv[index].slice(2)] = argv[index + 1];
   }
-  for (const key of ['url', 'race-id', 'season-key']) if (!out[key]) throw new Error(`Falta --${key}`);
+  for (const key of ['race-id', 'season-key']) if (!out[key]) throw new Error(`Falta --${key}`);
+  if (!out.url === !out.ctx) throw new Error('Indicar --url o --ctx');
   return out;
 }
 
 async function main() {
   const options = args(process.argv.slice(2));
   const map = options.map ? Object.fromEntries(options.map.split(',').map(pair => pair.split('=').map(clean))) : {};
-  const document = await fetchAcnCx({ url: options.url, raceId: options['race-id'], seasonKey: options['season-key'], date: options.date,
+  const document = await fetchAcnCx({ url: options.url, ctx: options.ctx, raceId: options['race-id'], seasonKey: options['season-key'], date: options.date,
     only: options.only ? options.only.split(',').map(clean) : null, map });
   const json = JSON.stringify(document, null, 2);
   if (options.out) writeFileSync(options.out, json); else process.stdout.write(json + '\n');

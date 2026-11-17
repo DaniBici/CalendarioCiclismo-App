@@ -113,7 +113,7 @@ export async function datosCampeonatos({ races, days, broadcasts, assets, stages
 }
 
 /** Hoy de carretera por días: lo que lee js/app.js de cada fecha y las carreras de cada año. `tablas`: hoy.sql. */
-export function datosHoy({ days, races, broadcasts, assets, stages, activas, anio, featured }) {
+export function datosHoy({ days, races, broadcasts, videos = [], assets, stages, activas, anio, featured }) {
   const agrupar = (filas, clave) => {
     const mapa = new Map();
     for (const fila of filas) (mapa.get(fila[clave]) || mapa.set(fila[clave], []).get(fila[clave])).push(fila);
@@ -122,6 +122,7 @@ export function datosHoy({ days, races, broadcasts, assets, stages, activas, ani
   const carreras = new Map(races.map(race => [race.id, race]));
   const etapas = agrupar(stages, 'raceId');
   const emisiones = agrupar(broadcasts, 'raceDayId');
+  const propios = agrupar(videos, 'raceDayId');
   const documentos = agrupar(assets, 'raceDayId');
   const destacadas = agrupar(featured, 'dateKey');
   const porDia = agrupar(days, 'dateKey');
@@ -138,6 +139,7 @@ export function datosHoy({ days, races, broadcasts, assets, stages, activas, ani
         race: carreras.has(rd.raceId) ? { ...carreras.get(rd.raceId), race_uci_stages: etapas.get(rd.raceId) || [] } : null,
         broadcasts: emisiones.get(rd.id) || [],
         assets: documentos.get(rd.id) || [],
+        race_day_videos: propios.get(rd.id) || [],
       })),
       activas: activas.filter(race => race.startDate <= dia && race.endDate >= dia && race.year === Number(dia.slice(0, 4))),
       featured: (destacadas.get(dia) || []).map(fila => fila.raceId),
@@ -164,11 +166,12 @@ export async function archivosFamiliasBase({ jornadas, cx }) {
   if (jornadas) {
     const dias = agrupar(jornadas.days, 'raceId');
     const emisiones = agrupar(jornadas.broadcasts, 'raceDayId');
+    const propios = agrupar(jornadas.videos, 'raceDayId');
     const documentos = agrupar(jornadas.assets, 'raceDayId');
     const clasificaciones = agrupar(jornadas.uci, 'raceId');
     for (const race of jornadas.races) {
       archivos[`d/competicion/${race.id}.json`] = JSON.stringify({
-        fila: { ...race, race_days: (dias.get(race.id) || []).map(dia => ({ ...dia, broadcasts: emisiones.get(dia.id) || [], assets: documentos.get(dia.id) || [] })) },
+        fila: { ...race, race_days: (dias.get(race.id) || []).map(dia => ({ ...dia, broadcasts: emisiones.get(dia.id) || [], assets: documentos.get(dia.id) || [], race_day_videos: propios.get(dia.id) || [] })) },
         clasificaciones: clasificaciones.get(race.id) || [],
       });
     }

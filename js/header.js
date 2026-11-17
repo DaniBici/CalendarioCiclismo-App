@@ -21,7 +21,7 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
-import { STRINGS, PRIMARY_ICONS, CX_HOME, headerHtml, PRIMARY_NAV_ITEMS, footerBrandHtml } from './header-html.js';
+import { STRINGS, PRIMARY_ICONS, headerHtml, PRIMARY_NAV_ITEMS, footerBrandHtml } from './header-html.js';
 import { headerBack } from './header-back.js';
 
 function detectLang() {
@@ -31,7 +31,7 @@ function detectLang() {
 
 function detectActive() {
   const p = window.location.pathname;
-  if (p.startsWith('/ciclocross') || p.startsWith('/en/cyclocross')) return CX_HOME ? 'today' : 'cyclocross';
+  if (p.startsWith('/ciclocross') || p.startsWith('/en/cyclocross')) return 'today';
   // Mes y Temporada se fusionaron en Calendario (2026-06-12); las rutas
   // antiguas siguen mapeando aquí mientras viven como shells de redirección.
   if (p.includes('/calendario') || p.includes('/en/calendar') ||
@@ -40,6 +40,7 @@ function detectActive() {
   // El feed y las páginas de carrera de resultados comparten sección.
   if (p.startsWith('/resultados') || p.startsWith('/en/results')) return 'results';
   if (p.startsWith('/fichajes') || p.startsWith('/en/transfers')) return 'transfers';
+  if (p.startsWith('/videos') || p.startsWith('/en/videos')) return 'videos';
   if (p === '/' || p === '/index.html' || p === '/en/' || p === '/en' || p === '/en/index.html') return 'today';
   return null;
 }

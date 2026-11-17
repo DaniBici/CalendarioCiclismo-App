@@ -29,17 +29,17 @@ const TABLAS_MERCADO = new Set(['rider_transfers', 'rider_team_affiliations', 't
 // Fichas CX y torneos: se relee CX entero y se repinta la temporada en curso. Un mapa o una guía
 // (assets con cxRaceId) repinta solo su ficha y sus torneos, de cualquier temporada, y la agenda.
 const TABLAS_CX = new Set(['cx_races', 'cx_race_categories', 'cx_broadcasts', 'cx_videos', 'cx_results', 'cx_startlist_riders', 'cx_standings_state', 'cx_tournament_standings', 'cx_tournaments']);
-const TABLAS_COMPETICION = new Set(['races', 'race_days', 'broadcasts', 'assets', 'race_uci_stages']);
+const TABLAS_COMPETICION = new Set(['races', 'race_days', 'broadcasts', 'race_day_videos', 'assets', 'race_uci_stages']);
 // Hoy de carretera: lo que sale en las tarjetas de un día y en el cintillo.
-const TABLAS_HOY = new Set(['races', 'race_days', 'broadcasts', 'assets', 'race_uci_stages', 'race_featured_overrides', 'today_highlights']);
-const TABLAS_BASE = new Set(['races', 'race_days', 'broadcasts', 'assets', 'cx_races', 'cx_race_categories', 'cx_broadcasts', 'cx_videos', 'cx_results', 'cx_startlist_riders', 'cx_standings_state', 'cx_tournament_standings', 'cx_tournaments']);
+const TABLAS_HOY = new Set(['races', 'race_days', 'broadcasts', 'race_day_videos', 'assets', 'race_uci_stages', 'race_featured_overrides', 'today_highlights']);
+const TABLAS_BASE = new Set(['races', 'race_days', 'broadcasts', 'race_day_videos', 'assets', 'cx_races', 'cx_race_categories', 'cx_broadcasts', 'cx_videos', 'cx_results', 'cx_startlist_riders', 'cx_standings_state', 'cx_tournament_standings', 'cx_tournaments']);
 const TABLAS_FEED = new Set(['race_uci_stages', 'race_uci_results', 'race_days', 'races', 'race_classifications', 'uci_team_rankings', 'cx_results', 'cx_race_categories']);
 const TABLAS_TEMPORADA = new Set(['races', 'race_days', 'challenge_groups']);
 // Modal del calendario (pruebas de un día sin página): emisiones, documentos, clasificaciones y equipos.
 // Solo cuentan las carreras que tienen modal.
 const TABLAS_MODAL = new Set(['broadcasts', 'assets', 'race_uci_stages', 'startlist_teams']);
 const TABLAS_ETAPA = new Set(['race_days', 'races', 'assets', 'start_order_entries', 'startlist_teams']);
-const TABLAS_CARRERA = new Set(['race_uci_stages', 'race_uci_results', 'race_classifications', 'race_days', 'races', 'assets', 'startlist_teams', 'startlist_riders', 'teams', 'team_seasons', 'riders_men', 'riders_women']);
+const TABLAS_CARRERA = new Set(['race_uci_stages', 'race_uci_results', 'race_classifications', 'race_days', 'races', 'assets', 'broadcasts', 'race_day_videos', 'startlist_teams', 'startlist_riders', 'teams', 'team_seasons', 'riders_men', 'riders_women']);
 
 mkdirSync(trabajo, { recursive: true });
 const registro = join(trabajo, 'servicio.jsonl');
@@ -268,7 +268,7 @@ async function principal() {
               datos.reemplazarCarrera(raceId, filas);
               await publicador.publicarCarrera(raceId, [...datos.entradas(raceId), ...inscritos.entradas(raceId)]);
               if (conCompeticion && filas.race) {
-                await publicarCompeticiones(publicador, { races: [filas.race], days: filas.days, broadcasts: filas.broadcasts, assets: filas.assets, uci: filas.uci }, [raceId], generacionBase);
+                await publicarCompeticiones(publicador, { races: [filas.race], days: filas.days, broadcasts: filas.broadcasts, videos: filas.videos, assets: filas.assets, uci: filas.uci }, [raceId], generacionBase);
               }
             }
             if ([...tablas].some(tabla => TABLAS_CARRERA.has(tabla))) await publicarCarrerasPorLotes(publicador, cliente, carreras);
@@ -291,7 +291,7 @@ async function principal() {
           await publicarResultados(publicador, feed, portada);
           const diaAhora = alrededorDeHoy()[1];
           if (diaProceso && diaAhora !== diaProceso) {
-            // Día nuevo: los módulos fijan la fecha al cargarse (CX_HOME) y la ventana se mueve.
+            // Día nuevo: los módulos fijan la fecha al cargarse (temporada de Hoy y del calendario) y la ventana se mueve.
             await publicador.reiniciar();
             pendiente.hoy = true;
             ultimo.hoy = 0;

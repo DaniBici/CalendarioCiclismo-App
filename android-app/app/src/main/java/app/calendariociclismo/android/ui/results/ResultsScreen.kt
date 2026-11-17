@@ -1,5 +1,8 @@
 package app.calendariociclismo.android.ui.results
 
+import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.RegionDetector
+import app.calendariociclismo.android.util.StageVideoLogic
 import android.os.Bundle
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -298,6 +301,26 @@ private fun ResultsContent(
         data.raceDays.filter { it.stageNumber != null }.associateBy { it.stageNumber!! }
     }
     var headerRaceDay by remember { mutableStateOf<RaceDay?>(data.raceDay) }
+    // Vídeos de la jornada visible (docs/plans/videos-5-2.md, fase 3): bajo
+    // «Perfil y datos», en acordeón, como la página de clasificaciones web.
+    val videosApp = rememberApp()
+    var contextVideos by remember { mutableStateOf<List<StageVideoLogic.Entry>>(emptyList()) }
+    LaunchedEffect(headerRaceDay?.id) {
+        val rd = headerRaceDay
+        contextVideos = emptyList()
+        if (rd == null) return@LaunchedEffect
+        val groups = RegionDetector.allowedBroadcastGroups()
+        val broadcasts = runCatching { videosApp.supabaseService.broadcastsByRaceDay(rd.id) }.getOrDefault(emptyList())
+        val videos = runCatching { videosApp.supabaseService.raceDayVideosByRaceDay(rd.id) }.getOrDefault(emptyList())
+        contextVideos = StageVideoLogic.entries(
+            RaceLogic.filterBroadcastsByRegion(broadcasts, groups),
+            StageVideoLogic.filterByRegion(videos, groups),
+            hasResults = true,
+            isCancelled = rd.isCancelledDay,
+        )
+    }
+    val videosContext = androidx.compose.ui.platform.LocalContext.current
+    val onVideoExternal: (String) -> Unit = { url -> openExternalUrl(videosContext, url) }
     LaunchedEffect(activeStageKey, data.raceDays, data.stages) {
         headerRaceDay = data.raceDay
         val rdId = activeStages.firstOrNull { it.raceDayId != null }?.raceDayId
@@ -352,7 +375,7 @@ private fun ResultsContent(
     BoxWithConstraints(modifier = rootModifier.fillMaxSize()) {
         val contextDay = headerRaceDay
         val hasStageContext = contextDay?.let {
-            it.hasElevationProfile || it.distanceKm != null || it.elevationProfile?.elevationGain != null
+            contextVideos.isNotEmpty() || it.hasElevationProfile || it.distanceKm != null || it.elevationProfile?.elevationGain != null
                 || it.neutralStartTimeUtc != null || it.averageSpeedKmh != null
                 || it.hasValidTimeLimit
         } == true
@@ -504,6 +527,8 @@ private fun ResultsContent(
                         ResultsStageContextCard(
                             raceDay = contextDay,
                             race = data.race,
+                            videos = contextVideos,
+                            onVideoExternal = onVideoExternal,
                         ) { onProfileTap(contextDay.id) }
                     }
                 }
@@ -520,6 +545,8 @@ private fun ResultsContent(
                 ResultsStageContextCard(
                     raceDay = sideDay,
                     race = data.race,
+                    videos = contextVideos,
+                    onVideoExternal = onVideoExternal,
                 ) { onProfileTap(sideDay.id) }
             }
         }

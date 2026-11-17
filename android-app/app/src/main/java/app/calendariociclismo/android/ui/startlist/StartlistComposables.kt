@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.data.model.Team
 
 /**
- * Tres franjas de la equipación efectiva (`teamStripes` de la web), en
- * Resultados, orden de salida e inscritos. Sin chapas circulares.
+ * Tres franjas del cuadrado de colores (`teamStripes` de la web), en
+ * Resultados, orden de salida e inscritos.
  */
 @Composable
 fun TeamColorBands(team: Team, modifier: Modifier = Modifier) {

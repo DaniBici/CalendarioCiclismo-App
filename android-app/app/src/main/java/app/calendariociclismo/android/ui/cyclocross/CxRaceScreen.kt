@@ -328,9 +328,9 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                                 detail.assets.firstOrNull { it.type == type && !it.url.isNullOrEmpty() }
                             }
                             val notifies = CxPresentation.awaitsResults(race)
-                            AssetActionStrip(
-                                tileCount = (if (websiteUrl != null) 1 else 0) + docs.size + (if (notifies) 1 else 0),
-                            ) {
+                            val tileCount = (if (websiteUrl != null) 1 else 0) + docs.size + (if (notifies) 1 else 0)
+                            // Sin web, libro de ruta, mapa ni avisos, la tira quedaría vacía: no se pinta.
+                            if (tileCount > 0) AssetActionStrip(tileCount = tileCount) {
                                 websiteUrl?.let { url ->
                                     AssetChip(icon = Icons.Filled.Language, label = stringResource(R.string.stage_doc_web_official),
                                         onClick = { openExternalUrl(context, url) },
@@ -549,11 +549,24 @@ private fun CxSelectedContent(
                     showUciPoints = rows.any { it.points != null },
                     valueHeader = stringResource(R.string.results_col_time),
                 )
-                rows.filter { it.bonusSeconds != null }.forEach { row ->
+                // Bonificaciones X2O: tabla propia bajo la clasificación, solo con las concedidas.
+                val bonusRows = remember(rows, locale, teamMatcher, bySelection) {
+                    CxPresentation.bonusRows(rows, locale, teamMatcher).let { if (bySelection) CxPresentation.withSelections(it, english) else it }
+                }
+                if (bonusRows.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
                     Text(
-                        row.riderDisplay + " · " + LocaleHolder.t("Bonificación: ", "Bonus: ") + row.bonusSeconds + " s",
-                        style = CCText.S12,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        stringResource(R.string.cx_bonuses),
+                        style = CCText.S16,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ResultsClassificationTable(
+                        bonusRows,
+                        showTeam = bonusRows.any { it.teamName.isNotBlank() },
+                        showUciPoints = false,
+                        valueHeader = stringResource(R.string.results_col_bonus),
                     )
                 }
             }
@@ -600,6 +613,10 @@ private fun CxVideoCard(video: CxVideo, youtubeId: String, onExternalLinkTap: (S
     CCCard(modifier = modifier) {
         Column(Modifier.fillMaxHeight().padding(14.dp)) {
             Text(LocaleHolder.t(video.title, video.titleEn?.takeIf { it.isNotBlank() } ?: video.title), style = CCText.S16, fontWeight = FontWeight.SemiBold)
+            // Emisor del vídeo, como en la web (`.cx-video-card__channel`).
+            video.channel?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Spacer(Modifier.height(8.dp))
             AndroidView(
                 factory = { context -> WebView(context).apply {
@@ -799,7 +816,7 @@ private fun CxScheduleCard(detail: CxDetail, scheduled: List<CxCategory>, onStar
  * solo con filas de otras regiones, y filas a sangre separadas por filete, sin
  * huecos añadidos entre ellas. Dividida por categorías: emisiones comunes (sin
  * categoría) sin encabezado y un bloque por categoría en directo, en el orden
- * del programa. Estado de TV como en la jornada de carretera: «Sin confirmar»
+ * ME, WE, MU, WU, MJ, WJ. Estado de TV como en la jornada de carretera: «Sin confirmar»
  * junto al título y, sin filas de emisión, el estado en texto atenuado.
  */
 @Composable

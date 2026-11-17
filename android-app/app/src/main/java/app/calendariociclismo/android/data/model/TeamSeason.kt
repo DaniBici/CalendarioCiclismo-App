@@ -24,12 +24,12 @@ data class TeamSeason(
      *  de corredor.js/equipo.js incluye `category`). */
     val category: String? = null,
     val gender: String? = null,
-    /** Chapa ocultable por temporada (mig. 122): las filas 2027 nacen ocultas
-     *  porque los kits no se anuncian hasta dentro de meses; el panel la activa
-     *  en equipos estables. Solo la consume la pantalla de Fichajes.
+    /** Colores publicables por temporada (mig. 122): las filas 2027 nacen sin
+     *  publicar porque los colores no se anuncian hasta dentro de meses; el panel
+     *  los activa en equipos estables. Solo la consume la pantalla de Fichajes.
      *
      *  Opt-in: el default es `false` para que un dato ausente cuente como
-     *  oculta — enseñar un kit 2027 inventado es peor que no enseñar ninguno.
+     *  oculta — enseñar unos colores 2027 inventados es peor que no enseñar ninguno.
      *  (La columna en BD es NOT NULL, así que esto solo aplica si el select
      *  no la pide.) */
     val badgeVisible: Boolean = false,
@@ -46,7 +46,7 @@ data class TeamSeason(
 /**
  * Devuelve una copia de este equipo con los atributos VISUALES de la temporada
  * sobrescritos cuando la season los aporta (no nulos). Si [season] es null, devuelve
- * el equipo intacto. `teams` es siempre el fallback → nunca se pierde la chapa.
+ * el equipo intacto. `teams` es siempre el fallback → nunca se pierden los colores.
  */
 fun Team.applySeason(season: TeamSeason?): Team {
     if (season == null) return this

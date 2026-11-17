@@ -1,6 +1,6 @@
-import { hasCustomTeamBadgeColors } from './team-badge.js';
+import { hasCustomTeamColors } from './team-colors.js';
 import { isNationalSelection } from './services/national-team-name.js';
-// Fondo y texto son una pareja editorial. Nunca se derivan del torso de una chapa.
+// Fondo y texto son una pareja editorial. Nunca se derivan de las franjas del cuadrado.
 const color = value => typeof value === 'string' && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value.trim()) ? value.trim() : null;
 
 // El editor solo pide el fondo de la pestaña/cabecera. El color del texto se
@@ -87,18 +87,19 @@ export function splitStartlistTeams(rows, year) {
   return { startlistTeams, teams: year && ids.length ? mergeTeamSeasons(teams, seasons, ids) : teams };
 }
 
-// Resultados: una selección nacional se muestra como país, sin franjas de equipación.
+// Resultados: una selección nacional se muestra como país, sin cuadrado de colores.
 export function resultTeamStripes(team) {
   return isNationalSelection(team) ? '' : teamStripes(team);
 }
 
 export function teamStripes(team) {
-  if (!hasCustomTeamBadgeColors(team)) return '';
+  if (!hasCustomTeamColors(team)) return '';
   const values = [team?.badgeTorsoSides, team?.badgeTorsoCenter, team?.badgeShorts].map(color);
-  // Las filas sin equipación curada usan valores neutros por defecto.
+  // Las filas sin colores curados usan valores neutros por defecto.
   if (values.some(v => !v)) return '';
-  // Un solo elemento vacío (sin contenido accesible): las tres franjas son un
-  // degradado con variables (.team-stripes en css/app.css y css/panel.css).
+  // Un solo elemento vacío (sin contenido accesible): las tres franjas, en el
+  // orden badgeTorsoSides, badgeTorsoCenter, badgeShorts, son un degradado con
+  // variables (.team-stripes en css/app.css y css/panel.css).
   // Una tabla de resultados lleva dos por fila.
   const [sides, center, shorts] = values;
   return `<span class="team-stripes" style="--a:${sides};--b:${center};--c:${shorts}"></span>`;

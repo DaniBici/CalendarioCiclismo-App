@@ -135,6 +135,8 @@ export async function publicarCarreras(publicador, tablas, { solo = null, ...opc
       stagesAll: indice.stagesByRace.get(race.id) || [], allRaceDays: indice.daysByRace.get(race.id) || [],
       classificationConfig: indice.classificationsByRace.get(race.id) || [],
       assets: Object.fromEntries(Object.keys(dias).map(id => [id, indice.assetsByDay.get(id) || []])),
+      broadcasts: Object.fromEntries(Object.keys(dias).map(id => [id, indice.broadcastsByDay.get(id) || []])),
+      videos: Object.fromEntries(Object.keys(dias).map(id => [id, indice.videosByDay.get(id) || []])),
       guide: indice.guideByRace.get(race.id) || null,
     };
   });
@@ -208,6 +210,7 @@ function jornadasDe(jornadas, ids) {
     races: jornadas.races.filter(race => carreras.has(race.id)),
     days: jornadas.days.filter(dia => carreras.has(dia.raceId)),
     broadcasts: jornadas.broadcasts.filter(fila => dias.has(fila.raceDayId)),
+    videos: (jornadas.videos || []).filter(fila => dias.has(fila.raceDayId)),
     assets: jornadas.assets.filter(fila => dias.has(fila.raceDayId)),
     uci: jornadas.uci.filter(fila => carreras.has(fila.raceId)),
   };
@@ -459,7 +462,7 @@ async function servir(trabajo, opciones) {
 }
 
 // Repintado completo a las 00:05 de Madrid. Hace dos cosas: actualiza lo que cambia
-// con la fecha y no con los datos (CX_HOME, el año del calendario) y sirve de red de
+// con la fecha y no con los datos (el año del calendario y la temporada de Hoy) y sirve de red de
 // seguridad, porque toda página que cambie en él tiene una dependencia sin registrar.
 const horaMadrid = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 

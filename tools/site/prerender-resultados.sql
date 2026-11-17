@@ -21,6 +21,8 @@ select
   (select coalesce(json_agg(to_json(d) order by d.id), '[]'::json)
      from race_days d where d."editorialStatus" = 'published') as race_days,
   (select coalesce(json_agg(to_json(a) order by a.id), '[]'::json) from assets a) as assets,
+  (select coalesce(json_agg(to_json(b) order by b.id), '[]'::json) from broadcasts b) as broadcasts,
+  (select coalesce(json_agg(to_json(v) order by v.id), '[]'::json) from race_day_videos v) as race_day_videos,
   (select coalesce(json_agg((to_jsonb(a) || jsonb_build_object('race_days',
             jsonb_build_object('raceId', d."raceId", 'dateKey', d."dateKey"))) order by a.id), '[]'::json)
      from assets a join race_days d on d.id = a."raceDayId"

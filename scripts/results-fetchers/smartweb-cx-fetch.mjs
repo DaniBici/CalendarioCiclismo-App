@@ -111,9 +111,15 @@ export function parseSmartwebTable(html) {
 }
 
 // «00:53:21.787», «1:00:17» → segundos enteros (sin centésimas); otro texto → null.
+// La RFEC (rfec.com) publica los tiempos inferiores a una hora como «44:12.75»
+// (minutos:segundos.centésimas, G.P. KH7 2026): con una sola barra solo se
+// acepta con fracción, que distingue MM:SS.cc de cualquier H:MM.
 export function smartwebSeconds(value) {
-  const match = /^(\d+):(\d{2}):(\d{2})(?:[.,]\d+)?$/.exec(clean(value));
-  return match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : null;
+  const text = clean(value);
+  const match = /^(\d+):(\d{2}):(\d{2})(?:[.,]\d+)?$/.exec(text);
+  if (match) return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+  const short = /^(\d{1,2}):([0-5]\d)[.,]\d+$/.exec(text);
+  return short ? Number(short[1]) * 60 + Number(short[2]) : null;
 }
 // «Vta. perdida» → 1, «3 vtas. perdidas» → 3; otro texto → null.
 export function smartwebLapsDown(value) {

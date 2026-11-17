@@ -1,0 +1,250 @@
+{
+ "fetchedAt": "2026-11-11",
+ "sources": {
+  "dataRideRoad2026": [
+   {
+    "CompetitionId": 77539,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "Chrono des Nations",
+    "CountryName": "FRANCE",
+    "CountryIsoCode3": "FRA",
+    "CountryIsoCode2": "FR",
+    "ClassCode": "1.2U"
+   },
+   {
+    "CompetitionId": 77869,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "Chrono des Nations",
+    "CountryName": "FRANCE",
+    "CountryIsoCode3": "FRA",
+    "CountryIsoCode2": "FR",
+    "ClassCode": "1.1"
+   },
+   {
+    "CompetitionId": 77870,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "Chrono des Nations",
+    "CountryName": "FRANCE",
+    "CountryIsoCode3": "FRA",
+    "CountryIsoCode2": "FR",
+    "ClassCode": "1.1"
+   },
+   {
+    "CompetitionId": 77871,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "Chrono des Nations",
+    "CountryName": "FRANCE",
+    "CountryIsoCode3": "FRA",
+    "CountryIsoCode2": "FR",
+    "ClassCode": "1.1"
+   },
+   {
+    "CompetitionId": 77872,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "Chrono des Nations",
+    "CountryName": "FRANCE",
+    "CountryIsoCode3": "FRA",
+    "CountryIsoCode2": "FR",
+    "ClassCode": "1.1"
+   },
+   {
+    "CompetitionId": 77935,
+    "StartDate": "/Date(1782424800000)/",
+    "EndDate": "/Date(1782597600000)/",
+    "CompetitionName": "National Road Championships - Singapore",
+    "CountryName": "SINGAPORE",
+    "CountryIsoCode3": "SIN",
+    "CountryIsoCode2": "SG",
+    "ClassCode": "CN"
+   }
+  ],
+  "dataRideCx2027": [
+   {
+    "CompetitionId": 78550,
+    "StartDate": "/Date(1792274400000)/",
+    "EndDate": "/Date(1792274400000)/",
+    "CompetitionName": "VeloCX International CX Race - Day 2",
+    "CountryName": "LITHUANIA",
+    "CountryIsoCode3": "LTU",
+    "CountryIsoCode2": "LT",
+    "ClassCode": "C2"
+   },
+   {
+    "CompetitionId": 78543,
+    "StartDate": "/Date(1792188000000)/",
+    "EndDate": "/Date(1792188000000)/",
+    "CompetitionName": "VeloCX International CX Race - Day 1",
+    "CountryName": "LITHUANIA",
+    "CountryIsoCode3": "LTU",
+    "CountryIsoCode2": "LT",
+    "ClassCode": "C2"
+   }
+  ],
+  "dataRideRaces": {
+   "77539": [
+    {
+     "Id": 257986,
+     "RaceName": "Final Classification",
+     "CategoryCode": "Men Under 23"
+    }
+   ],
+   "77869": [
+    {
+     "Id": 257520,
+     "RaceName": "Final Classification",
+     "CategoryCode": "Men Elite"
+    }
+   ],
+   "77870": [
+    {
+     "Id": 257974,
+     "RaceName": "Final Classification",
+     "CategoryCode": "Men Junior"
+    }
+   ],
+   "77871": [
+    {
+     "Id": 257875,
+     "RaceName": "Final Classification",
+     "CategoryCode": "Women Elite"
+    }
+   ],
+   "77872": [
+    {
+     "Id": 258171,
+     "RaceName": "Final Classification",
+     "CategoryCode": "Women Junior"
+    }
+   ]
+  },
+  "directory": [
+   {
+    "id": "11803882-02bd-45ca-b1ea-ac53ede40c04",
+    "v1Code": "D2CP78533",
+    "name": "National Road Championships - Singapore",
+    "classCode": "CN",
+    "countryCode": "SGP",
+    "countryName": "SINGAPORE",
+    "startDate": "2026-06-26",
+    "endDate": "2026-06-28",
+    "categoryCodes": [
+     "ME",
+     "MJ",
+     "MU",
+     "WE",
+     "WJ"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "61a58db8-6976-4d8b-8589-3ce58b8231df",
+    "v1Code": "D2CP78475",
+    "name": "Chrono des Nations",
+    "classCode": "1.1",
+    "countryCode": "FRA",
+    "countryName": "FRANCE",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "MJ"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "e6d53301-b9fa-4415-b72c-88935e694a17",
+    "v1Code": "D2CP78477",
+    "name": "Chrono des Nations",
+    "classCode": "1.1",
+    "countryCode": "FRA",
+    "countryName": "FRANCE",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "WJ"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "eba0f628-8cf9-4ade-b796-d4d0f9acc4be",
+    "v1Code": "D2CP78474",
+    "name": "Chrono des Nations",
+    "classCode": "1.2U",
+    "countryCode": "FRA",
+    "countryName": "FRANCE",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "MU"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "f714b7bf-e6c7-4ebd-ae0e-70919a7e1e26",
+    "v1Code": "D2CP78476",
+    "name": "Chrono des Nations",
+    "classCode": "1.1",
+    "countryCode": "FRA",
+    "countryName": "FRANCE",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "WE"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "f890cccb-81c3-4eb2-8324-d517d3ef9ac4",
+    "v1Code": "D2CP78473",
+    "name": "Chrono des Nations",
+    "classCode": "1.1",
+    "countryCode": "FRA",
+    "countryName": "FRANCE",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "ME"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "4add42d7-7d12-44db-8c66-f37e75ca8dae",
+    "v1Code": "D2CP79107",
+    "name": "VeloCX International CX Race - Day 1",
+    "classCode": "C2",
+    "countryCode": "LTU",
+    "countryName": "LITHUANIA",
+    "startDate": "2026-10-17",
+    "endDate": "2026-10-17",
+    "categoryCodes": [
+     "ME",
+     "MJ",
+     "WE",
+     "WJ"
+    ],
+    "hasResults": true
+   },
+   {
+    "id": "af732ad0-7069-4273-8b08-d49afb0aaa40",
+    "v1Code": "D2CP79118",
+    "name": "VeloCX International CX Race - Day 2",
+    "classCode": "C2",
+    "countryCode": "LTU",
+    "countryName": "LITHUANIA",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-18",
+    "categoryCodes": [
+     "ME",
+     "MJ",
+     "WE",
+     "WJ"
+    ],
+    "hasResults": true
+   }
+  ]
+ }
+}

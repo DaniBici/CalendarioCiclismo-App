@@ -13,6 +13,8 @@ struct StageRowView: View {
     var onShowResults: (() -> Void)? = nil
     /// Llamada cuando el usuario pulsa el icono de Revive (TV). Nil = no mostrar.
     var onRevive: (() -> Void)? = nil
+    /// Abre la jornada en su panel Vídeos; con `onRevive`, menú «Vídeos» / «Completa».
+    var onShowVideos: (() -> Void)? = nil
 
     @State private var premium = PremiumService.shared
 
@@ -21,7 +23,7 @@ struct StageRowView: View {
     /// Modo terminado: hay resultados o revive disponibles. Igual que en "Hoy"
     /// (y que la web), cambia el accesorio derecho (chevron → iconos de
     /// resultados/revive) y completa el mini-perfil.
-    private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil }
+    private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil || onShowVideos != nil }
 
     private var showsMiniProfile: Bool {
         guard premium.featuresUnlocked else { return false }
@@ -171,19 +173,8 @@ struct StageRowView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(LocaleService.t("Resultados", "Results"))
             }
-            if let onRevive {
-                Button {
-                    onRevive()
-                } label: {
-                    Image(systemName: "tv")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(LocaleService.t("Revive la carrera", "Relive the race"))
-            }
+            FinishedVideoAction(onShowVideos: onShowVideos, onRevive: onRevive,
+                                font: .body, size: CGSize(width: 40, height: 40))
         }
     }
 

@@ -9,21 +9,30 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,17 +44,21 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
@@ -57,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
@@ -96,13 +110,18 @@ private val FEED_ROW_HEIGHT = 35.dp
  * Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
  * /fichajes/ web (`js/fichajes.js`) y de `TransfersView` (iOS): paneles de
  * Fichajes y Renovaciones confirmados + divisiones (WT·PT·WWT·PRW) + parrilla
- * de equipos 2027 con las franjas de maillot de Resultados (colores 2027
+ * de equipos 2027 con el cuadrado de colores de Resultados (colores 2027
  * publicados o los de la temporada anterior mientras no lo estén). Tocar un
  * equipo abre [TransfersTeamScreen] (continúan / llegan / se marchan).
  *
  * En teléfono se ve un panel, elegido con el control segmentado, con el corte
  * corto del feed; en pantallas anchas los dos paneles van en paralelo, con
  * título y lista de altura fija desplazable (corte largo).
+ *
+ * En tablets y plegables abiertos (`AdaptiveLayoutPolicy.usesListDetail`) la
+ * pantalla se divide, como `TransfersSplitView` en el iPad: en la columna
+ * lateral, «Movimientos» y los equipos por división; en el detalle, los
+ * paneles de Fichajes y Renovaciones o la página del equipo elegido.
  *
  * Solo-online (sin Room), como resultados/inscritos. La lógica pura vive en
  * `TransfersLogic` (testeada); aquí solo carga + render.
@@ -118,6 +137,9 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
     var state by remember { mutableStateOf<MarketState>(MarketState.Loading) }
     var activeDivision by rememberSaveable { mutableStateOf(TransfersLogic.DIVISIONS.first()) }
     var activeFeed by rememberSaveable { mutableStateOf(TransfersFeed.Signings) }
+    // Elemento de la columna lateral en lista y detalle: null es «Movimientos»;
+    // un id, la página de ese equipo.
+    var selectedTeamId by rememberSaveable { mutableStateOf<String?>(null) }
     var isRefreshing by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
 
@@ -189,10 +211,11 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                     style = CCText.S14,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                current is MarketState.Ready -> MarketContent(
+                current is MarketState.Ready -> MarketLayout(
                     data = current.data,
                     activeDivision = activeDivision,
                     activeFeed = activeFeed,
+                    selectedTeamId = selectedTeamId,
                     onDivisionSelect = {
                         haptic(Haptics.Event.Selection)
                         activeDivision = it
@@ -205,11 +228,102 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                         haptic(Haptics.Event.Navigation)
                         navController.navigate(Routes.transfersTeam(teamId))
                     },
+                    onSidebarSelect = { teamId ->
+                        if (teamId != selectedTeamId) haptic(Haptics.Event.Selection)
+                        selectedTeamId = teamId
+                    },
+                    onOpenTeamInDetail = { teamId ->
+                        haptic(Haptics.Event.Navigation)
+                        selectedTeamId = teamId
+                    },
+                    onDeepLinkedTeam = { teamId, listDetail ->
+                        if (listDetail) {
+                            selectedTeamId = teamId
+                        } else {
+                            navController.navigate(Routes.transfersTeam(teamId))
+                        }
+                    },
                 )
             }
         }
     }
 }
+
+/**
+ * Elige entre la pantalla de una columna (teléfono, ventanas estrechas) y la
+ * lista con detalle (tablets y plegables abiertos) por el ancho del contenedor.
+ * El estado (división, panel, selección) vive en [TransfersScreen]: cruzar el
+ * umbral al redimensionar la ventana lo conserva.
+ */
+@Composable
+private fun MarketLayout(
+    data: TransfersLogic.MarketData,
+    activeDivision: String,
+    activeFeed: TransfersFeed,
+    selectedTeamId: String?,
+    onDivisionSelect: (String) -> Unit,
+    onFeedSelect: (TransfersFeed) -> Unit,
+    onTeamTap: (String) -> Unit,
+    onSidebarSelect: (String?) -> Unit,
+    onOpenTeamInDetail: (String) -> Unit,
+    onDeepLinkedTeam: (teamId: String, listDetail: Boolean) -> Unit,
+) {
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
+    val pendingTeamId by TransfersDeepLink.pendingTeamId.collectAsState()
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val listDetail = AdaptiveLayoutPolicy.usesListDetail(maxWidth.value, adaptiveInfo)
+        // Equipo pedido por un enlace profundo: se abre según la disposición.
+        LaunchedEffect(pendingTeamId, listDetail) {
+            val teamId = pendingTeamId ?: return@LaunchedEffect
+            TransfersDeepLink.consume(teamId)
+            onDeepLinkedTeam(teamId, listDetail)
+        }
+        if (listDetail) {
+            MarketListDetail(
+                data = data,
+                activeFeed = activeFeed,
+                selectedTeamId = selectedTeamId,
+                sidebarWidth = AdaptiveLayoutPolicy.listDetailSidebarDp(maxWidth.value).dp,
+                onFeedSelect = onFeedSelect,
+                onSidebarSelect = onSidebarSelect,
+                onOpenTeam = onOpenTeamInDetail,
+            )
+        } else {
+            MarketContent(
+                data = data,
+                activeDivision = activeDivision,
+                activeFeed = activeFeed,
+                onDivisionSelect = onDivisionSelect,
+                onFeedSelect = onFeedSelect,
+                onTeamTap = onTeamTap,
+            )
+        }
+    }
+}
+
+/** Feeds de Fichajes y de Renovaciones con el corte largo de las listas desplazables. */
+@Composable
+private fun rememberFeeds(data: TransfersLogic.MarketData): Map<TransfersFeed, List<RiderTransfer>> =
+    remember(data) {
+        val categoryByTeamId = data.seasons.mapNotNull { season ->
+            season.category?.let { season.teamId to it }
+        }.toMap()
+        // Listas de altura fija con desplazamiento propio en todos los
+        // tamaños: admiten el historial largo.
+        fun cut(feed: List<RiderTransfer>) = TransfersLogic.limitedFeed(
+            feed,
+            maxDays = TransfersLogic.FEED_SCROLL_MAX_DAYS,
+            maxItems = TransfersLogic.FEED_SCROLL_MAX_ITEMS,
+        )
+        mapOf(
+            TransfersFeed.Signings to cut(TransfersLogic.confirmedFeed(
+                data.transfers, categoryByTeamId, data.teamNameById
+            )),
+            TransfersFeed.Renewals to cut(TransfersLogic.renewalFeed(
+                data.transfers, categoryByTeamId, data.teamNameById
+            )),
+        )
+    }
 
 @Composable
 private fun MarketContent(
@@ -223,26 +337,7 @@ private fun MarketContent(
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = AdaptiveLayoutPolicy.feedColumns(maxWidth.value - 32f, adaptiveInfo) == 2
-        val feeds = remember(data) {
-            val categoryByTeamId = data.seasons.mapNotNull { season ->
-                season.category?.let { season.teamId to it }
-            }.toMap()
-            // Listas de altura fija con desplazamiento propio en todos los
-            // tamaños: admiten el historial largo.
-            fun cut(feed: List<RiderTransfer>) = TransfersLogic.limitedFeed(
-                feed,
-                maxDays = TransfersLogic.FEED_SCROLL_MAX_DAYS,
-                maxItems = TransfersLogic.FEED_SCROLL_MAX_ITEMS,
-            )
-            mapOf(
-                TransfersFeed.Signings to cut(TransfersLogic.confirmedFeed(
-                    data.transfers, categoryByTeamId, data.teamNameById
-                )),
-                TransfersFeed.Renewals to cut(TransfersLogic.renewalFeed(
-                    data.transfers, categoryByTeamId, data.teamNameById
-                )),
-            )
-        }
+        val feeds = rememberFeeds(data)
         val teams = remember(data, activeDivision) {
             TransfersLogic.divisionTeams(data.seasons, activeDivision)
         }
@@ -333,6 +428,202 @@ private fun MarketContent(
     }
 }
 
+/**
+ * Lista con detalle (tablets y plegables abiertos), espejo de
+ * `TransfersSplitView` (iOS): columna lateral con «Movimientos» y los equipos
+ * por división; detalle con los paneles de Fichajes y Renovaciones o la página
+ * del equipo elegido. Cada selección parte de una pantalla nueva.
+ */
+@Composable
+private fun MarketListDetail(
+    data: TransfersLogic.MarketData,
+    activeFeed: TransfersFeed,
+    selectedTeamId: String?,
+    sidebarWidth: Dp,
+    onFeedSelect: (TransfersFeed) -> Unit,
+    onSidebarSelect: (String?) -> Unit,
+    onOpenTeam: (String) -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        MarketSidebar(
+            data = data,
+            selectedTeamId = selectedTeamId,
+            onSelect = onSidebarSelect,
+            modifier = Modifier.width(sidebarWidth).fillMaxHeight(),
+        )
+        VerticalDivider()
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            key(selectedTeamId) {
+                if (selectedTeamId == null) {
+                    MovesDetail(
+                        data = data,
+                        activeFeed = activeFeed,
+                        onFeedSelect = onFeedSelect,
+                        onTeamTap = onOpenTeam,
+                    )
+                } else {
+                    TransfersTeamPane(
+                        teamId = selectedTeamId,
+                        onLinkTeam = onOpenTeam,
+                        market = data,
+                        // La página de equipo ya separa 8 dp; con estos, 16 dp
+                        // bajo la barra, como la columna lateral.
+                        padding = PaddingValues(top = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Columna lateral: «Movimientos» y los equipos por división, con la selección
+ * marcada. 16 dp entre la barra superior y «Movimientos» (iPad:
+ * `contentMargins` de la lista lateral).
+ */
+@Composable
+private fun MarketSidebar(
+    data: TransfersLogic.MarketData,
+    selectedTeamId: String?,
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val divisions = remember(data) {
+        TransfersLogic.DIVISIONS
+            .map { division -> division to TransfersLogic.divisionTeams(data.seasons, division) }
+            .filter { (_, teams) -> teams.isNotEmpty() }
+    }
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        item(key = "moves") {
+            SidebarRow(selected = selectedTeamId == null, onClick = { onSelect(null) }) {
+                Icon(
+                    imageVector = Icons.Filled.SyncAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = stringResource(R.string.transfers_moves),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+        divisions.forEach { (division, teams) ->
+            item(key = "division_$division") {
+                Text(
+                    text = division,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 6.dp)
+                        .semantics { heading() },
+                )
+            }
+            items(teams, key = { "team_${it.teamId}" }) { season ->
+                SidebarRow(selected = selectedTeamId == season.teamId, onClick = { onSelect(season.teamId) }) {
+                    TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
+                    // Nombre completo: la palabra que no cabe baja a la segunda línea.
+                    WholeWordText(
+                        text = season.name.orEmpty(),
+                        style = CCText.S14,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (season.continuityDoubt) {
+                        TransferStateChip(stringResource(R.string.transfers_team_doubt), TransferChipKind.Doubt)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Fila de la columna lateral; la seleccionada lleva el acento de los controles. */
+@Composable
+private fun SidebarRow(
+    selected: Boolean,
+    onClick: () -> Unit,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CCRadius.Control))
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
+            .selectable(selected = selected, onClick = onClick)
+            .heightIn(min = 44.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        content = content,
+    )
+}
+
+/**
+ * Detalle de «Movimientos»: los paneles de Fichajes y Renovaciones a la altura
+ * de la columna. Con ancho para dos columnas van en paralelo, con título; si no,
+ * un panel elegido con el control segmentado.
+ */
+@Composable
+private fun MovesDetail(
+    data: TransfersLogic.MarketData,
+    activeFeed: TransfersFeed,
+    onFeedSelect: (TransfersFeed) -> Unit,
+    onTeamTap: (String) -> Unit,
+) {
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
+    val feeds = rememberFeeds(data)
+    val feedLabels = mapOf(
+        TransfersFeed.Signings to stringResource(R.string.transfers_feed_signings),
+        TransfersFeed.Renewals to stringResource(R.string.transfers_feed_renewals),
+    )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = AdaptiveLayoutPolicy.feedColumns(maxWidth.value - 32f, adaptiveInfo) == 2
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            if (wide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    TransfersFeed.entries.forEach { kind ->
+                        FeedPanel(
+                            title = feedLabels.getValue(kind),
+                            feed = feeds[kind].orEmpty(),
+                            data = data,
+                            onTeamTap = onTeamTap,
+                            wide = true,
+                            fillHeight = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            } else {
+                MarketSegments(
+                    options = TransfersFeed.entries,
+                    selected = activeFeed,
+                    label = { feedLabels.getValue(it) },
+                    onSelect = onFeedSelect,
+                )
+                Spacer(Modifier.height(12.dp))
+                FeedPanel(
+                    title = null,
+                    feed = feeds[activeFeed].orEmpty(),
+                    data = data,
+                    onTeamTap = onTeamTap,
+                    fillHeight = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
 /** Control segmentado nativo con el radio de control de la app. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -363,7 +654,9 @@ private fun <T> MarketSegments(
 /**
  * Panel de Fichajes o Renovaciones: superficie de tarjeta con filas separadas
  * por filete. En pantallas anchas lleva título y una lista de altura fija con
- * desplazamiento propio.
+ * desplazamiento propio. Con `fillHeight` (columna de detalle de la lista con
+ * detalle) el panel ocupa el alto disponible y la lista llega hasta el borde
+ * inferior.
  */
 @Composable
 private fun FeedPanel(
@@ -373,9 +666,10 @@ private fun FeedPanel(
     onTeamTap: (String) -> Unit,
     modifier: Modifier = Modifier,
     wide: Boolean = false,
+    fillHeight: Boolean = false,
 ) {
-    CCCard(modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
+    CCCard(modifier = if (fillHeight) modifier.fillMaxSize() else modifier.fillMaxWidth()) {
+        Column(if (fillHeight) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
             title?.let {
                 Box(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp),
@@ -391,7 +685,12 @@ private fun FeedPanel(
                 HorizontalDivider()
             }
             val rows: @Composable () -> Unit = { FeedRows(feed, data, onTeamTap, wide) }
-            Column(Modifier.fillMaxWidth().height(FEED_HEIGHT).verticalScroll(rememberScrollState())) {
+            val listModifier = if (fillHeight) {
+                Modifier.fillMaxWidth().weight(1f)
+            } else {
+                Modifier.fillMaxWidth().height(FEED_HEIGHT)
+            }
+            Column(listModifier.verticalScroll(rememberScrollState())) {
                 rows()
             }
         }
@@ -525,7 +824,7 @@ internal fun ContractText(text: String) {
 }
 
 /**
- * Tarjeta de equipo: superficie neutra con las franjas de maillot de
+ * Tarjeta de equipo: superficie neutra con el cuadrado de colores de
  * Resultados delante del nombre (colores del mercado si están publicados; si
  * no, los de la temporada anterior).
  */

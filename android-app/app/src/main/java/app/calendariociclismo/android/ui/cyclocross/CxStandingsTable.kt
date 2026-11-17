@@ -196,7 +196,7 @@ private fun CxHeaderCell(text: String, modifier: Modifier, end: Boolean = false)
     )
 }
 
-/** Corredor con bandera y, debajo, su equipo con las franjas de maillot. */
+/** Corredor con bandera y, debajo, su equipo con el cuadrado de colores. */
 @Composable
 private fun CxStandingRider(vm: UciResultsLogic.ResultRowVM, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {

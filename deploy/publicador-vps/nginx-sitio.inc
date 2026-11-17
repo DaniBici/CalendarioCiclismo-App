@@ -24,6 +24,18 @@ gzip_types text/css application/javascript application/json image/svg+xml applic
 etag on;
 set $supabase bcecwlkynpgovnzhbpah.supabase.co;
 
+# Slugs EN corregidos el 2026-11-11 (`nameEn` con caracteres C1 partía la letra acentuada: `fl-che-wallonne`).
+# La URL antigua, en cualquier sección (/en/race/, /en/stage/, /en/startlist/, /en/results/...), redirige con
+# 301 a la vigente. El publicador solo escribe las marcas `r/` y el sitio base se rehace entero: sin esto, la
+# URL antigua daría 404.
+rewrite ^/en/([a-z-]+)/fl-che-wallonne-(femmes-)?(2026|2027)/?$ /en/$1/fleche-wallonne-$2$3/ permanent;
+rewrite ^/en/([a-z-]+)/cl-sica-ja-n-2026/?$ /en/$1/clasica-jaen-2026/ permanent;
+rewrite ^/en/([a-z-]+)/due-giorni-marchigiana-gp-citt-di-castelfidardo-2026/?$ /en/$1/due-giorni-marchigiana-gp-citta-di-castelfidardo-2026/ permanent;
+rewrite ^/en/([a-z-]+)/gran-prix-panam-2026/?$ /en/$1/gran-prix-panama-2026/ permanent;
+rewrite ^/en/([a-z-]+)/trofeo-calvi-2026/?$ /en/$1/trofeo-calvia-2026/ permanent;
+rewrite ^/en/([a-z-]+)/trofeo-marratx-puig-de-sant-salvador-felanitx-2026/?$ /en/$1/trofeo-marratxi-puig-de-sant-salvador-felanitx-2026/ permanent;
+rewrite ^/en/([a-z-]+)/trofeo-ses-salines-col-nia-sant-jordi-2026/?$ /en/$1/trofeo-ses-salines-colonia-sant-jordi-2026/ permanent;
+
 # Nombres con hash: nunca cambian.
 location ^~ /a/ {
   add_header Cache-Control "public, max-age=31536000, immutable" always;

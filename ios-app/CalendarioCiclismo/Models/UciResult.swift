@@ -199,12 +199,12 @@ struct StartlistRiderResolved: Codable {
     let globalRiderId: String?
 }
 
-/// Corredor reconstruido por dorsal (nombre + bandera + equipo + chapa).
+/// Corredor reconstruido por dorsal (nombre + bandera + equipo + colores).
 struct ResolvedRider: Hashable {
     let name: String
     let countryCode: String
     let teamName: String
-    let team: Team?                  // equipo canónico (para la chapa); nil si no casó
+    let team: Team?                  // equipo canónico (para los colores); nil si no casó
     /// id de la ficha (riders_men/women). `var` con default para que los
     /// inits existentes (tests) sigan compilando.
     var globalRiderId: String? = nil

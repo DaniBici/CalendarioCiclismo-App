@@ -208,9 +208,9 @@ export function buildMarket({ seasons, prevSeasons, transfers, extraTeams, teamC
     teamNameById,
     teamNamePrev,
     // Colores de la temporada EN CURSO (2026) por equipo: los "antiguos", que se
-    // muestran mientras la chapa 2027 está oculta, salvo con prevColorsHidden.
-    // Un equipo NUEVO (nacido en 2027) no tiene fila 2026 → sin entrada aquí →
-    // la chapa queda vacía (mig. 129).
+    // muestran mientras los colores 2027 no están publicados, salvo con
+    // prevColorsHidden. Un equipo NUEVO (nacido en 2027) no tiene fila 2026 →
+    // sin entrada aquí → sin colores (mig. 129).
     prevColorsByTeamId: new Map(prevSeasons.map(s => [s.teamId, s])),
     // La copia local anterior a esta versión no trae países: sin ellos la loseta
     // simplemente no muestra país hasta la revalidación.

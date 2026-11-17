@@ -29,11 +29,11 @@ data class Team(
     val isNationalSelection: Boolean
         get() = teamKind == "selection" && selectionScope == "national"
 
-    /** Franjas en una tabla de resultados: chapa curada y no selección nacional. */
+    /** Franjas en una tabla de resultados: cuadrado con colores curados y no selección nacional. */
     val hasResultBadge: Boolean
         get() = hasVisibleBadge && !isNationalSelection
 
-    /** La chapa solo se muestra con colores de equipación curados. */
+    /** El cuadrado solo se muestra con colores curados del equipo. */
     val hasVisibleBadge: Boolean
         get() {
             val center = normalizeBadgeColor(badgeTorsoCenter) ?: return false

@@ -29,7 +29,7 @@ extension SupabaseService {
     }
 
     /// Versiones de equipo de un año (team_seasons) — para la lista de equipos
-    /// del mercado (nombre 2027, categoría 2027, chapa ocultable). Paginado en
+    /// del mercado (nombre 2027, categoría 2027, colores publicables). Paginado en
     /// bloques de 1.000 (2026 supera las 1.300 filas) para no depender del
     /// tope de filas por respuesta.
     func teamSeasons(year: Int) async throws -> [TeamSeason] {
@@ -115,8 +115,8 @@ extension SupabaseService {
         for s in seasons { if let n = s.name { names[s.teamId] = n } }
         var namesPrev: [String: String] = [:]
         for s in prevSeasons { if let n = s.name { namesPrev[s.teamId] = n } }
-        // Fila de la temporada previa por equipo → colores "antiguos" para la
-        // chapa mientras el kit del mercado no se publica (mig. 129).
+        // Fila de la temporada previa por equipo → colores "antiguos" para el
+        // cuadrado mientras los colores del mercado no se publican (mig. 129).
         let prevByTeamId = Dictionary(prevSeasons.map { ($0.teamId, $0) }, uniquingKeysWith: { a, _ in a })
 
         // Último recurso: equipos sin fila en NINGUNA de las dos temporadas.

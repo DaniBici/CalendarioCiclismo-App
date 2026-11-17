@@ -18,9 +18,9 @@ struct TeamSeason: Codable {
     let headerBg: String?
     let headerText: String?
     let gender: String?
-    /// Chapa ocultable por temporada (mig. 122): las filas 2027 nacen ocultas
-    /// porque los kits no se anuncian hasta dentro de meses; el panel la activa
-    /// en equipos estables. Solo la consume la pantalla de Fichajes.
+    /// Colores publicables por temporada (mig. 122): las filas 2027 nacen sin
+    /// publicar porque los colores no se anuncian hasta dentro de meses; el panel
+    /// los activa en equipos estables. Solo la consume la pantalla de Fichajes.
     let badgeVisible: Bool?
     /// Continuidad del equipo en duda (mig. 123): sigue listado en su división,
     /// con chip y aviso (ej.: sin sponsor todavía). Distinto de la AUSENCIA de
@@ -34,7 +34,7 @@ struct TeamSeason: Codable {
 
 extension TeamSeason {
     /// Identidad utilizable sin consultar la fila base reservada al catálogo
-    /// histórico. Mantiene la chapa oculta cuando faltan colores verificados.
+    /// histórico. Mantiene los colores ocultos cuando faltan verificados.
     func asTeam() -> Team? {
         guard let name else { return nil }
         return Team(

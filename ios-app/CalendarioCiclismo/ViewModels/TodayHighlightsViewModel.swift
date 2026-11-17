@@ -59,13 +59,9 @@ final class TodayHighlightsViewModel {
             print("[TodayHighlights] fetched \(all.count) total rows")
 
             let now = Date()
-            let isoParser = ISO8601DateFormatter()
-            isoParser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let isoParserNoFrac = ISO8601DateFormatter()
-            isoParserNoFrac.formatOptions = [.withInternetDateTime]
             func parse(_ s: String?) -> Date? {
                 guard let s, !s.isEmpty else { return nil }
-                return isoParser.date(from: s) ?? isoParserNoFrac.date(from: s)
+                return DateFormatting.parseISO(s)
             }
             let highlights = all.filter { h in
                 let from = parse(h.visibleFrom)

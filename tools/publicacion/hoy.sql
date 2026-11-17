@@ -11,6 +11,9 @@ select
   (select coalesce(jsonb_agg(to_jsonb(d) order by d.id), '[]'::jsonb) from dias d) as days,
   (select coalesce(jsonb_agg(to_jsonb(r) order by r.id), '[]'::jsonb) from races r where r.id in (select "raceId" from dias)) as races,
   (select coalesce(jsonb_agg(to_jsonb(b) order by b."sortOrder", b.id), '[]'::jsonb) from broadcasts b where b."raceDayId" in (select id from dias)) as broadcasts,
+  (select coalesce(jsonb_agg(jsonb_build_object('id', v.id, 'raceDayId', v."raceDayId", 'kind', v.kind, 'title', v.title, 'titleEn', v."titleEn",
+            'channel', v.channel, 'url', v.url, 'embeddable', v.embeddable, 'country', v.country, 'sortOrder', v."sortOrder") order by v."sortOrder", v.id), '[]'::jsonb)
+     from race_day_videos v where v."raceDayId" in (select id from dias)) as videos,
   (select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'raceDayId', a."raceDayId", 'type', a.type, 'url', a.url) order by a.id), '[]'::jsonb)
      from assets a where a."raceDayId" in (select id from dias)) as assets,
   (select coalesce(jsonb_agg(jsonb_build_object('raceId', s."raceId", 'raceDayId', s."raceDayId", 'stageNumber', s."stageNumber") order by s."raceId", s."stageNumber"), '[]'::jsonb)

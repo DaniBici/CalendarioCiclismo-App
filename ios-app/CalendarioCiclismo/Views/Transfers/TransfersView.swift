@@ -81,6 +81,10 @@ struct TransfersSplitView: View {
                 }
             }
             .listStyle(.sidebar)
+            // Separación de 16 pt entre la barra y «Movimientos»: sin ella la
+            // primera fila queda pegada al filete de la barra de navegación.
+            // Se desplaza con el contenido.
+            .contentMargins(.top, 16, for: .scrollContent)
             // Fondo de la app, como la columna lateral de Resultados.
             .scrollContentBackground(.hidden)
             .background(AppTheme.background.ignoresSafeArea())
@@ -97,7 +101,7 @@ struct TransfersSplitView: View {
         }
     }
 
-    /// Fila de equipo: franjas de maillot y nombre completo, que pasa a otra
+    /// Fila de equipo: cuadrado de colores y nombre completo, que pasa a otra
     /// línea entre palabras.
     private func teamRow(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
         HStack(spacing: 8) {
@@ -162,7 +166,7 @@ enum ForegroundTap {
 /// Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
 /// /fichajes/ web (`js/fichajes.js`) y de `TransfersScreen` (Android): paneles
 /// de Fichajes y Renovaciones confirmados + botones de división (WT·PT·WWT·PRW)
-/// + parrilla de equipos 2027 con las franjas de maillot de Resultados. Tocar
+/// + parrilla de equipos 2027 con el cuadrado de colores de Resultados. Tocar
 /// un equipo abre `TransfersTeamView` (continúan / llegan / se marchan).
 ///
 /// En teléfono se ve un panel, elegido con los botones, con el corte corto del
@@ -474,7 +478,7 @@ struct TransfersView: View {
             .padding(.vertical, 4)
     }
 
-    /// Tarjeta de equipo: superficie neutra con las franjas de maillot de
+    /// Tarjeta de equipo: superficie neutra con el cuadrado de colores de
     /// Resultados delante del nombre (colores del mercado si están publicados;
     /// si no, los de la temporada anterior).
     private func teamTile(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {

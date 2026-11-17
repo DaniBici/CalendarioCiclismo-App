@@ -17,17 +17,18 @@
 //   3. Botones de división (WT · PT · WWT · PRW) + losetas de equipos 2027.
 //      Los equipos salen de team_seasons[2027] → los renombres de sponsor y
 //      los ascensos/descensos se editan en el panel sin tocar `teams`.
-//      La loseta usa los colores 2027 (headerBg/headerText) si
-//      team_seasons.badgeVisible; si aún no (kit 2027 sin anunciar), los
-//      ANTIGUOS del equipo (temporada en curso, 2026) — o los neutros si es un
-//      equipo NUEVO nacido en 2027 (sin fila 2026, mig. 129). continuityDoubt →
-//      chip + aviso (el equipo mismo puede no tener sponsor para 2027).
-//   4. Vista de equipo (sustituye al listado, con volver): plantilla / en duda
-//      / terminan contrato / llegan / se marchan. Regla del rumor (decisión
-//      Dani): una salida rumoreada saca al corredor de la plantilla y lo pinta
-//      como baja·Rumor (y como alta·Rumor en el destino). Regla de la duda: una
-//      renovación en duda (status='doubt', solo en renewal) lo saca también de
-//      la plantilla y lo lleva a su propia sección.
+//      El cuadrado muestra los colores 2027 si team_seasons.badgeVisible; si aún
+//      no (colores 2027 sin publicar), muestra los colores ANTIGUOS del equipo
+//      (temporada en curso, 2026) — o nada si es un equipo NUEVO nacido en 2027
+//      (sin fila 2026, mig. 129) o si la fila 2027 tiene prevColorsHidden
+//      (denominación sin confirmar). continuityDoubt → chip + aviso (el equipo
+//      mismo puede no tener sponsor para 2027).
+//   3. Vista de equipo (sustituye al listado de una vez, con volver): continúan /
+//      en duda / se marchan / llegan. Regla del rumor (decisión Dani): una
+//      salida rumoreada saca al corredor de "continúan" y lo pinta como
+//      baja·Rumor (y como alta·Rumor en el destino). Regla de la duda: una
+//      renovación en duda (status='doubt', solo en renewal) lo saca también
+//      de "continúan" y lo lleva a su propia sección.
 //
 //  La portada (interruptor, filtros, feed y losetas de equipo) y la vista de
 //  equipo salen de js/fichajes-html.js, común con el build:

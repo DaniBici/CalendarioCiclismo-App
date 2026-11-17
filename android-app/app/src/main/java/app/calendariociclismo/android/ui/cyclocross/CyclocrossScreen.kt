@@ -67,6 +67,7 @@ import app.calendariociclismo.android.util.CxAgendaTV
 import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.TvOff
 import app.calendariociclismo.android.util.CxCategoryCardState
@@ -95,11 +96,13 @@ import app.calendariociclismo.android.ui.components.*
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
 import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
+import app.calendariociclismo.android.ui.stage.SectionCard
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.results.ResultsStageSelector
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.CxTemporalState
 import app.calendariociclismo.android.util.CxPresentation
+import app.calendariociclismo.android.util.CxRoundListItem
 import app.calendariociclismo.android.util.CyclocrossLogic
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
@@ -597,8 +600,8 @@ private fun CxTournamentDay(
     }
 }
 
-/** Fila de la rejilla: una tarjeta por columna; los huecos conservan su ancho.
- *  Con `centersSingle` (Hoy), una prueba única ocupa media anchura y va centrada. */
+/** Fila de la rejilla: una tarjeta por columna; los huecos conservan su ancho,
+ *  de modo que una prueba suelta ocupa la columna izquierda. */
 @Composable
 private fun CxRaceRow(
     group: List<AgendaRace>,
@@ -608,18 +611,7 @@ private fun CxRaceRow(
     showTournamentLink: Boolean,
     openTournament: (CxRace) -> Unit,
     openRace: (CxRace, String?) -> Unit,
-    centersSingle: Boolean = false,
 ) {
-    if (centersSingle && columns > 1 && group.size == 1) {
-        val row = group.first()
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            Box(Modifier.align(Alignment.Center).width((maxWidth - 10.dp) / 2)) {
-                CxRaceCard(row.race, row.date, clock, round = rounds[row.race.id], showTournamentLink = showTournamentLink,
-                    openTournament = { openTournament(row.race) }) { category -> openRace(row.race, category) }
-            }
-        }
-        return
-    }
     Row(
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -701,7 +693,7 @@ private fun CxDayAgenda(
                     LazyColumn(modifier = Modifier.fillMaxSize(), state = dayList, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
                             CxRaceRow(group, columns, clock, state.rounds, showTournamentLink = true,
-                                openTournament = openTournament, openRace = openRace, centersSingle = true)
+                                openTournament = openTournament, openRace = openRace)
                         }
                     }
                 }
@@ -725,8 +717,13 @@ private fun CxTournamentGeneralContent(
     val teamMatcher = remember(general.teams) { UciResultsLogic.TeamMatcher(general.teams.map { it.roadTeam }) }
     val races = remember(general.races) { general.races.associateBy { it.id } }
     val rows = general.standings.filter { it.category == category }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
-        item(key = "general:${category.orEmpty()}") {
+    val roundList = remember(general.races, rounds) { CxPresentation.roundList(general.races, rounds) }
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // En pantalla ancha, las pruebas con su número y fecha ocupan una segunda
+        // columna (web: `res-layout--context`); en estrecho no se muestran.
+        val wide = roundList.isNotEmpty() && AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
+        val table: @Composable () -> Unit = {
             Box(Modifier.classificationSwipe(categories, category, swipeState, onCategory)) {
                 CxStandingsTable(
                     rows = rows,
@@ -737,6 +734,43 @@ private fun CxTournamentGeneralContent(
                     races = races,
                     onOpenRace = onOpenRace,
                 )
+            }
+        }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+            item(key = "general:${category.orEmpty()}") {
+                if (wide) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.weight(1f)) { table() }
+                        Box(Modifier.width(300.dp)) { CxRoundsCard(roundList, onOpenRace) }
+                    }
+                } else {
+                    table()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Pruebas del torneo con su número de ronda y su fecha, y nada más: columna
+ * lateral de la general del torneo en pantalla ancha (web: `cxRoundsContextHtml`).
+ * Cada fila abre la prueba, como las cabeceras «#n» de la tabla.
+ */
+@Composable
+private fun CxRoundsCard(items: List<CxRoundListItem>, onOpenRace: (CxRace) -> Unit) {
+    SectionCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.cx_round_list), style = CCText.S16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            items.forEach { item ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpenRace(item.race) },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text("#${item.number}", style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(cxTitle(item.race), Modifier.weight(1f), style = CCText.S14, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(DateFormatting.formatDayMonthContent(item.race.dateKey), style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -956,6 +990,8 @@ private fun CxCardBadges(race: CxRace, date: String, clock: Instant, english: Bo
                 primaryAction = true,
                 onClick = onSummary,
                 showLabel = showLabel,
+                // Solo con el icono: el de TV solo se confundiría con el badge de emisión.
+                secondIcon = Icons.Filled.FastRewind.takeIf { showIcon && !showLabel },
             )
             if (startlist != null && onStartlist != null) RaceActionBadge(
                 label = stringResource(R.string.today_startlist_badge),

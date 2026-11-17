@@ -32,6 +32,8 @@ select
   (select coalesce(json_agg(to_json(r) order by r.id), '[]'::json) from escogidas r) as races,
   (select coalesce(json_agg(to_json(d) order by d.id), '[]'::json) from jornadas d) as race_days,
   (select coalesce(json_agg(to_json(a) order by a.id), '[]'::json) from assets a where a."raceDayId" in (select id from jornadas)) as assets,
+  (select coalesce(json_agg(to_json(b) order by b.id), '[]'::json) from broadcasts b where b."raceDayId" in (select id from jornadas)) as broadcasts,
+  (select coalesce(json_agg(to_json(v) order by v.id), '[]'::json) from race_day_videos v where v."raceDayId" in (select id from jornadas)) as race_day_videos,
   (select coalesce(json_agg((to_jsonb(a) || jsonb_build_object('race_days', jsonb_build_object('raceId', d."raceId", 'dateKey', d."dateKey"))) order by a.id), '[]'::json)
      from assets a join race_days d on d.id = a."raceDayId" where a.type = 'technicalGuide' and d."raceId" = any($1::text[])) as guides,
   (select coalesce(json_agg(to_json(u) order by u.id), '[]'::json) from stages u) as resultados_stages,

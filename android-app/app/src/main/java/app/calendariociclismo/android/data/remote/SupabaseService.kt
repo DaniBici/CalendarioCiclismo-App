@@ -11,6 +11,7 @@ import app.calendariociclismo.android.data.model.FeedStartlistIdentityRow
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceDayElevationData
+import app.calendariociclismo.android.data.model.RaceDayVideo
 import app.calendariociclismo.android.data.model.RaceClassificationConfig
 import app.calendariociclismo.android.data.model.RaceUciResultRow
 import app.calendariociclismo.android.data.model.RaceUciStage
@@ -77,7 +78,7 @@ class SupabaseService : CxRemote {
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
         "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
         "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder,embeddable)," +
-        "cx_videos(id,raceId,category,title,url,sortOrder)"
+        "cx_videos(id,raceId,category,title,titleEn,channel,url,sortOrder)"
 
     @Serializable
     private data class CxFeaturedRow(val cxRaceId: String)
@@ -172,6 +173,23 @@ class SupabaseService : CxRemote {
             },
         ).decodeAs()
     }
+
+    /**
+     * Jornadas de carretera de la sección Vídeos (RPC `video_feed_days`) de
+     * [from, to]; con `from` null, solo el último día con contenido hasta `to`.
+     */
+    suspend fun videoFeedDays(from: String?, to: String): List<app.calendariociclismo.android.util.VideoFeedDay> {
+        val raw = client.postgrest.rpc(
+            "video_feed_days",
+            buildJsonObject {
+                put("p_from", from?.let(::JsonPrimitive) ?: kotlinx.serialization.json.JsonNull)
+                put("p_to", JsonPrimitive(to))
+            },
+        ).data
+        return videoFeedJson.decodeFromString(raw)
+    }
+
+    private val videoFeedJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     /** Datos del widget «Carreras de hoy» (RPC `widget_day`), en JSON crudo. */
     suspend fun widgetDay(params: JsonObject): String =
@@ -615,6 +633,24 @@ class SupabaseService : CxRemote {
     suspend fun broadcastsByRaceDays(ids: List<String>): List<Broadcast> {
         if (ids.isEmpty()) return emptyList()
         return client.from("broadcasts").select {
+            filter { isIn("raceDayId", ids) }
+            order("sortOrder", Order.ASCENDING)
+        }.decodeList()
+    }
+
+    // ─────────── Vídeos de jornada ───────────
+
+    private val RACE_DAY_VIDEO_COLUMNS = Columns.list("id", "raceDayId", "kind", "title", "titleEn", "channel", "url", "embeddable", "country", "sortOrder")
+
+    suspend fun raceDayVideosByRaceDay(id: String): List<RaceDayVideo> =
+        client.from("race_day_videos").select(columns = RACE_DAY_VIDEO_COLUMNS) {
+            filter { eq("raceDayId", id) }
+            order("sortOrder", Order.ASCENDING)
+        }.decodeList()
+
+    suspend fun raceDayVideosByRaceDays(ids: List<String>): List<RaceDayVideo> {
+        if (ids.isEmpty()) return emptyList()
+        return client.from("race_day_videos").select(columns = RACE_DAY_VIDEO_COLUMNS) {
             filter { isIn("raceDayId", ids) }
             order("sortOrder", Order.ASCENDING)
         }.decodeList()
@@ -1193,6 +1229,8 @@ class SupabaseService : CxRemote {
         val broadcastsDeferred = async { broadcastsByRaceDays(rdIds) }
         val assetsDeferred = async { assetsByRaceDays(rdIds) }
         val elevDeferred = async { raceDaysElevation(rdIds) }
+        // Vídeos: sin ellos la tarjeta conserva Revive (tabla nueva en la 5.2).
+        val videosDeferred = async { runCatching { raceDayVideosByRaceDays(rdIds) }.getOrDefault(emptyList()) }
 
         val fetchedRaces = racesDeferred.await()
         val fetchedBroadcasts = broadcastsDeferred.await()
@@ -1203,6 +1241,7 @@ class SupabaseService : CxRemote {
         val raceMap = fetchedRaces.associateBy { it.id }
         val broadcastsByRd = fetchedBroadcasts.groupBy { it.raceDayId }
         val assetsByRd = fetchedAssets.groupBy { it.raceDayId }
+        val videosByRd = videosDeferred.await().groupBy { it.raceDayId }
         val elevMap = fetchedElev.associateBy { it.id }
 
         // Aplicar datos de elevación sobre el resultado slim
@@ -1218,6 +1257,7 @@ class SupabaseService : CxRemote {
                 race = rd.raceId?.let { raceMap[it] },
                 broadcasts = broadcastsByRd[rd.id].orEmpty(),
                 assets = assetsByRd[rd.id].orEmpty(),
+                videos = videosByRd[rd.id].orEmpty(),
             )
         }
 
@@ -1252,10 +1292,12 @@ class SupabaseService : CxRemote {
             val dayIds = days.map { it.id }
             val broadcastsDeferred = async { broadcastsByRaceDays(dayIds) }
             val assetsDeferred = async { assetsByRaceDays(dayIds) }
+            val videosDeferred = async { runCatching { raceDayVideosByRaceDays(dayIds) }.getOrDefault(emptyList()) }
 
             val race = raceDeferred.await()
             val broadcastsByRd = broadcastsDeferred.await().groupBy { it.raceDayId }
             val assetsByRd = assetsDeferred.await().groupBy { it.raceDayId }
+            val videosByRd = videosDeferred.await().groupBy { it.raceDayId }
 
             val enriched = days.map { rd ->
                 EnrichedRaceDay(
@@ -1263,6 +1305,7 @@ class SupabaseService : CxRemote {
                     race = race,
                     broadcasts = broadcastsByRd[rd.id].orEmpty(),
                     assets = assetsByRd[rd.id].orEmpty(),
+                    videos = videosByRd[rd.id].orEmpty(),
                 )
             }
 

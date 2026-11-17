@@ -1,6 +1,5 @@
 package app.calendariociclismo.android
 
-import app.calendariociclismo.android.util.RoadTodayAvailability
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import android.content.Intent
 import android.content.res.Configuration
@@ -44,6 +43,7 @@ import app.calendariociclismo.android.ui.onboarding.SupportIntroOnboardingScreen
 import app.calendariociclismo.android.ui.support.SupportSheet
 import app.calendariociclismo.android.ui.splash.SplashOverlay
 import app.calendariociclismo.android.ui.theme.CalendarioCiclismoTheme
+import app.calendariociclismo.android.ui.transfers.TransfersDeepLink
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -334,7 +334,7 @@ class MainActivity : ComponentActivity() {
     ) {
         when (link) {
             is DeepLink.Race -> navController.navigate(Routes.race(link.id))
-            is DeepLink.Stage -> navController.navigate(Routes.stage(link.id))
+            is DeepLink.Stage -> navController.navigate(Routes.stage(link.id, section = link.anchor))
             is DeepLink.CxRace -> navController.navigate(Routes.cxRace(link.id, link.anchor))
             is DeepLink.CxRaceSlug -> {
                 val app = application as CalendarioCiclismoApp
@@ -369,12 +369,20 @@ class MainActivity : ComponentActivity() {
                 raceIdForSlug(link.slug, link.english)?.let { Routes.race(it) }
             }
             is DeepLink.StageSlug -> resolveSlugAndNavigate(navController) {
-                raceDayIdForSlug(link.slug, link.english)?.let { Routes.stage(it) }
+                raceDayIdForSlug(link.slug, link.english)?.let { Routes.stage(it, section = link.anchor) }
             }
             is DeepLink.Startlist -> navController.navigate(Routes.startlist(link.id))
             is DeepLink.StartOrder -> navController.navigate(Routes.startOrder(link.id))
             is DeepLink.Profile -> navController.navigate(Routes.elevationProfile(link.id))
-            is DeepLink.Team -> navController.navigate(Routes.transfersTeam(link.id))
+            // Como iOS: pestaña Fichajes y, en ella, el equipo. Fichajes decide
+            // según su disposición: detalle en tablets, ruta empujada en teléfonos.
+            is DeepLink.Team -> {
+                TransfersDeepLink.open(link.id)
+                navController.navigate(Routes.TRANSFERS) {
+                    launchSingleTop = true
+                    popUpTo(navController.graph.findStartDestination().id)
+                }
+            }
             is DeepLink.Results -> navController.navigate(Routes.results(link.raceId, link.stage, suffix = link.suffix))
             is DeepLink.Tab -> {
                 // Las antiguas pestañas Mes/Temporada viven ahora dentro de
@@ -384,6 +392,7 @@ class MainActivity : ComponentActivity() {
                 val route = when (link.name) {
                     "today" -> homeRoute()
                     "results" -> Routes.RESULTS_FEED
+                    "videos" -> Routes.VIDEOS
                     "calendar" -> Routes.CALENDAR
                     "cyclocross" -> Routes.CYCLOCROSS
                     "month" -> {
@@ -434,8 +443,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Pestaña inicial vigente: Hoy o, mientras está oculta, Ciclocross. */
-    private fun homeRoute(): String = Routes.home(RoadTodayAvailability.isVisible())
+    /** Pestaña inicial: Hoy (agenda de Ciclocross y Hoy de carretera). */
+    private fun homeRoute(): String = Routes.HOME
 
     companion object {
         const val EXTRA_DEEP_LINK = "cc_deep_link"

@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.results
 
+import app.calendariociclismo.android.ui.stage.StageVideosPanel
+import app.calendariociclismo.android.util.StageVideoLogic
 import java.math.BigDecimal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -128,6 +130,25 @@ internal fun ResultsStageContextCard(
     race: Race,
     officialProfileUrl: String? = null,
     onOfficialProfileTap: (String) -> Unit = {},
+    videos: List<StageVideoLogic.Entry> = emptyList(),
+    onVideoExternal: (String) -> Unit = {},
+    onProfileTap: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ResultsStageDataCard(raceDay, race, officialProfileUrl, onOfficialProfileTap, onProfileTap)
+        // Vídeos de la jornada tras «Perfil y datos»: acordeón con el primero abierto.
+        if (videos.isNotEmpty()) {
+            StageVideosPanel(videos, race.isOneDay, stateKey = raceDay.id, onExternalLinkTap = onVideoExternal)
+        }
+    }
+}
+
+@Composable
+private fun ResultsStageDataCard(
+    raceDay: RaceDay,
+    race: Race,
+    officialProfileUrl: String?,
+    onOfficialProfileTap: (String) -> Unit,
     onProfileTap: () -> Unit,
 ) {
     val visibleOfficialProfileUrl = officialProfileUrl.takeUnless { raceDay.profileNotViewable }

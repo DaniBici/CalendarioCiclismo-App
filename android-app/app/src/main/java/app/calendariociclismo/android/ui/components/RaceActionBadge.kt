@@ -38,7 +38,7 @@ import app.calendariociclismo.android.ui.theme.neutralLinkBadgeColor
  * accesibilidad.
  */
 @Composable
-fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, showLabel: Boolean = true) {
+fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, showLabel: Boolean = true, secondIcon: ImageVector? = null) {
     val primary = MaterialTheme.colorScheme.primary
     val colors = when {
         primaryAction -> neutralLinkBadgeColor()
@@ -65,7 +65,11 @@ fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Mod
             // El texto vacío conserva la altura de las etiquetas vecinas.
             Box(contentAlignment = Alignment.Center) {
                 Text("", style = CCText.S12)
-                Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+                // Segundo icono solo sin etiqueta (Resumen de ciclocross: TV y retroceso).
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+                    if (secondIcon != null) Icon(secondIcon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
+                }
             }
         }
     }

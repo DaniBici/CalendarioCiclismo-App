@@ -187,6 +187,44 @@ describe('puntos, descartes y desempates', () => {
     addRound(wins, '2026-09-11', [['a', 4], ['b', 3]]);
     expect(result(wins).rows.map(row => row.globalRiderId)).toEqual(['a', 'b']);
   });
+  it('comparte puesto en la general intermedia y desempata la final por el reglamento', () => {
+    const input = snapshot('Superprestige'); input.tournament.pointsScheme.categories.ME.review.intermediateTiesPolicy = 'sharedRank';
+    addRound(input, '2026-09-10', [['a', 1], ['b', 2], ['c', 11]]);
+    addRound(input, '2026-09-11', [['b', 1], ['a', 2], ['d', 11]]);
+    const pending = addRound(input, '2026-09-12', []); pending.manga.resultsStatus = 'pending';
+    expect(result(input)).toMatchObject({ status: 'ready', issues: [] });
+    expect(result(input).rows.map(row => [row.rank, row.points])).toEqual([[1, '29'], [1, '29'], [3, '5'], [3, '5']]);
+    pending.manga.isCancelled = true;
+    expect(result(input).rows.map(row => [row.globalRiderId, row.rank])).toEqual([['b', 1], ['a', 2], ['d', 3], ['c', 4]]);
+    pending.manga.isCancelled = false; pending.manga.resultsStatus = 'official';
+    pending.results = [['e', 1], ['a', 2], ['b', 3]].map(([rider, rank]) => ({ raceId: pending.race.id, category: 'ME',
+      globalRiderId: rider, riderDisplay: rider, rank, bonusPoints: 0, bonusSeconds: null, timeSeconds: null, irm: null }));
+    input.riders.push({ id: 'e', verified: true, birthDate: '2005-01-01' });
+    expect(review(input).issues).toMatchObject([{ code: 'unresolved_tie', globalRiderIds: ['c', 'd'] }]);
+    input.tournament.pointsScheme.categories.ME.review.intermediateTiesPolicy = 'finalOnly'; review(input);
+  });
+  it('cuenta también los puestos sin puntos cuando el desempate abarca todos los puestos', () => {
+    const input = snapshot('Superprestige'); const rule = input.tournament.pointsScheme.categories.ME;
+    rule.tieBreakers = [{ type: 'countPlacings', direction: 'desc', ranksFrom: 1, ranksTo: 15 }];
+    addRound(input, '2026-09-10', [['x', 1], ['a', 10], ['b', 20]]);
+    addRound(input, '2026-09-11', [['x', 1], ['b', 10], ['a', 22]]);
+    review(input);
+    rule.tieBreakers[0].ranksTo = 'all';
+    expect(result(input).rows.map(row => [row.globalRiderId, row.rank])).toEqual([['x', 1], ['b', 2], ['a', 3]]);
+    rule.tieBreakers[0].ranksTo = 16; review(input);
+  });
+  it('desempata la general intermedia y comparte puesto solo en los empates que persisten', () => {
+    const input = snapshot('Superprestige');
+    input.tournament.pointsScheme.categories.ME.review.intermediateTiesPolicy = 'tieBreakersThenSharedRank';
+    addRound(input, '2026-09-10', [['a', 1], ['b', 2], ['c', 11], ['f', 12]]);
+    addRound(input, '2026-09-11', [['b', 1], ['a', 2], ['d', 11]]);
+    addRound(input, '2026-09-12', [['e', 1], ['a', 2], ['b', 3], ['g', 12]]);
+    const pending = addRound(input, '2026-09-13', []); pending.manga.resultsStatus = 'pending';
+    expect(result(input).rows.map(row => [row.globalRiderId, row.rank]))
+      .toEqual([['a', 1], ['b', 2], ['e', 3], ['c', 4], ['d', 4], ['g', 6], ['f', 7]]);
+    pending.manga.isCancelled = true;
+    expect(review(input).issues).toMatchObject([{ code: 'unresolved_tie', globalRiderIds: ['c', 'd'] }]);
+  });
   it('mantiene puntos decimales exactos y la sanción RFEC auditada', () => {
     const input = snapshot('Copa de España'); const rule = input.tournament.pointsScheme.categories.ME;
     rule.perRank = ['9007199254740993.1', '9007199254740993.09'];
@@ -381,5 +419,34 @@ describe('reglas regionales: ronda doble, mínimo de rondas puntuadas y líder o
     addRound(started, '2026-10-10', [['a', 2], ['b', 3]]);
     expect(result(started).status).toBe('ready');
     const wrong = regional({ leaderMustStart: { raceId: '' } }); addRound(wrong, '2026-10-03', [['a', 1]]); review(wrong);
+  });
+  it('suma una ronda de otro torneo solo si la categoría la declara', () => {
+    const undeclared = regional({});
+    addRound(undeclared, '2026-10-03', [['a', 1], ['b', 2]]);
+    addRound(undeclared, '2026-10-10', [['b', 1], ['a', 2]], { race: { id: 'round-2', dateKey: '2026-10-10', seasonKey: '2026-27',
+      tournamentId: 'other', editorialStatus: 'published', isCancelled: false } });
+    const alone = result(undeclared);
+    expect(alone.roundIds).toEqual(['round-1']);
+    expect(alone.excludedRounds).toEqual(['round-2']);
+    const declared = clone(undeclared);
+    declared.tournament.pointsScheme.categories.ME.extras.externalRounds = [{ raceId: 'round-2' }];
+    const value = result(declared);
+    expect(value.roundIds).toEqual(['round-1', 'round-2']);
+    expect(value.rows.map(row => [row.globalRiderId, row.points])).toEqual([['b', '114'], ['a', '114']]);
+    for (const bad of [[{ raceId: '' }], [{ raceId: 'round-2' }, { raceId: 'round-2' }], 'round-2']) {
+      const wrong = clone(undeclared); wrong.tournament.pointsScheme.categories.ME.extras.externalRounds = bad; review(wrong);
+    }
+  });
+  it('aplica la escala propia de una ronda y conserva la general en las demás', () => {
+    const input = regional({ roundScales: [{ raceId: 'round-2', perRank: [130, 90, 75] }] });
+    addRound(input, '2026-10-03', [['a', 1], ['b', 2]]);
+    addRound(input, '2026-10-10', [['b', 1], ['a', 2]]);
+    const value = result(input);
+    expect(value.rows.map(row => [row.globalRiderId, row.points])).toEqual([['b', '184'], ['a', '150']]);
+    expect(value.breakdown.find(entry => entry.globalRiderId === 'a').rounds.map(round => round.points)).toEqual(['60', '90']);
+    for (const bad of [[{ raceId: 'round-2', perRank: [] }], [{ raceId: 'round-2', perRank: [-1] }],
+      [{ raceId: 'round-2', perRank: [1] }, { raceId: 'round-2', perRank: [2] }], 'round-2']) {
+      const wrong = regional({ roundScales: bad }); addRound(wrong, '2026-10-03', [['a', 1]]); review(wrong);
+    }
   });
 });

@@ -16,6 +16,9 @@ const uciProfileIdOf = value => {
   return profile && profile !== '0' ? profile : null;
 };
 
+// ID UCI de licencia completo (11 dígitos); las fichas importadas del ranking UCI lo guardan sin uciProfileId.
+const uciLicenseIdOf = value => { const id = String(value ?? '').replace(/\s+/g, ''); return /^\d{11}$/.test(id) ? id : ''; };
+
 export function resolveCxResultIdentity(row, riders) {
   const compatible = rider => (!row.isoCode2 || !rider.nationality || row.isoCode2 === rider.nationality)
     && (!row.birthDate || !rider.birthDate || row.birthDate === rider.birthDate
@@ -27,9 +30,10 @@ export function resolveCxResultIdentity(row, riders) {
     return { id: explicit.id, candidates: [explicit.id], reason: explicit.verified ? 'explicit' : 'explicit_unverified' };
   }
   // El ID UCI identifica a la persona aunque la fuente escriba el nombre en otro orden o con otra grafía.
-  const profileId = uciProfileIdOf(row.uciLicenseId);
+  const profileId = uciProfileIdOf(row.uciLicenseId); const licenseId = uciLicenseIdOf(row.uciLicenseId);
   if (profileId) {
-    const byLicense = riders.filter(rider => rider.verified === true && compatible(rider) && String(rider.uciProfileId ?? '') === profileId);
+    const byLicense = riders.filter(rider => rider.verified === true && compatible(rider)
+      && (String(rider.uciProfileId ?? '') === profileId || String(rider.uciLicenseId ?? '') === licenseId));
     if (byLicense.length === 1) return { id: byLicense[0].id, candidates: [byLicense[0].id], reason: 'verified_uci_id' };
   }
   const display = nameKey(row.riderDisplay);

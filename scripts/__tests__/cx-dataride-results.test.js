@@ -105,6 +105,62 @@ describe('mangas CX y normalización DataRide', () => {
     expect(rows.slice(2).map(row => [row.rank, row.irm, row.timeText, row.gapText, row.timeSeconds]))
       .toEqual([[17, 'LAP', null, '-1 LAP', null], [20, 'LAP', null, '-2 LAP', null], [22, 'LAP', null, '-4 LAP', null]]);
   });
+  it('lee «-NLAPS» sin espacio ni Irm de Matsubushi ME 2026 como vueltas perdidas', () => {
+    const columns = ['Rank', 'RankNumber', 'Bib', 'DisplayName', 'ResultValue', 'Irm'];
+    const raw = [
+      ['1', 1, '1', 'ODA Hijiri', '01:05:43', null],
+      ['2', 2, '4', 'NOZAKI Zenshin', '01:06:23', null],
+      ['13', 13, '16', 'MARUYAMA Atsushi', '-2LAPS', null],
+      ['102', 102, '102', 'KAWAMURA Ren', '-7LAPS', null],
+    ].map((values) => Object.fromEntries(columns.map((column, i) => [column, values[i]])));
+    const fields = ['rank', 'bib', 'riderDisplay', 'timeText', 'timeSeconds', 'gapText', 'irm'];
+    expect(normalizeCxDataRideRows(raw).map((row) => fields.map((field) => row[field]))).toEqual([
+      [1, '1', 'Hijiri Oda', '01:05:43', '3943', null, null],
+      [2, '4', 'Zenshin Nozaki', '01:06:23', '3983', '+40', null],
+      [13, '16', 'Atsushi Maruyama', null, null, '-2LAPS', 'LAP'],
+      [102, '102', 'Ren Kawamura', null, null, '-7LAPS', 'LAP'],
+    ]);
+  });
+  it("lee el dialecto M'SS y «1t» de Gernelle WJ 2026: tiempo exacto y vuelta perdida sin Irm", () => {
+    const columns = ['Rank', 'RankNumber', 'Bib', 'DisplayName', 'ResultValue', 'Irm'];
+    const raw = [
+      ['1', 1, '4', 'MESNARD Justine', "40'09", null],
+      ['2', 2, '2', 'GUILLAUME Romane', "44'08", null],
+      ['3', 3, '3', 'SIMON Lou Eva', "45'31", null],
+      ['4', 4, '1', 'WILLE Lorie', '1t', null],
+    ].map((values) => Object.fromEntries(columns.map((column, i) => [column, values[i]])));
+    const fields = ['rank', 'bib', 'riderDisplay', 'timeText', 'timeSeconds', 'gapText', 'irm'];
+    expect(normalizeCxDataRideRows(raw).map((row) => fields.map((field) => row[field]))).toEqual([
+      [1, '4', 'Justine Mesnard', "40'09", '2409', null, null],
+      [2, '2', 'Romane Guillaume', "44'08", '2648', '+239', null],
+      [3, '3', 'Lou Eva Simon', "45'31", '2731', '+322', null],
+      [4, '1', 'Lorie Wille', null, null, '-1 LAP', 'LAP'],
+    ]);
+    expect(cxDataRideSeconds("38'45")).toBe('2325');
+    expect(cxDataRideSeconds("38'75")).toBeNull();
+  });
+  it("lee el dialecto H'h'MM'SS y «N Lap» de Gernelle ME 2026: ganador con tiempo y vueltas perdidas", () => {
+    const columns = ['Rank', 'RankNumber', 'Bib', 'DisplayName', 'ResultValue', 'Irm'];
+    const raw = [
+      ['1', 1, '2', 'GABRIEL Timothé', "1h03'25", null],
+      ['2', 2, '7', 'DELBOVE Joris', "1h03'27", null],
+      ['3', 3, '1', 'GROSLAMBERT Martin', "1h03'52", null],
+      ['18', 18, '18', 'DRUMAUX Théo', '1 Lap', null],
+      ['19', 19, '23', 'HYON François', '2 Lap', null],
+      ['DNF', null, '3', 'DE MOYER Kenay', null, 'DNF'],
+    ].map((values) => Object.fromEntries(columns.map((column, i) => [column, values[i]])));
+    const fields = ['rank', 'bib', 'riderDisplay', 'timeText', 'timeSeconds', 'gapText', 'irm'];
+    expect(normalizeCxDataRideRows(raw).map((row) => fields.map((field) => row[field]))).toEqual([
+      [1, '2', 'Timothé Gabriel', "1h03'25", '3805', null, null],
+      [2, '7', 'Joris Delbove', "1h03'27", '3807', '+2', null],
+      [3, '1', 'Martin Groslambert', "1h03'52", '3832', '+27', null],
+      [18, '18', 'Théo Drumaux', null, null, '1 Lap', 'LAP'],
+      [19, '23', 'François Hyon', null, null, '2 Lap', 'LAP'],
+      [null, '3', 'Kenay De Moyer', null, null, null, 'DNF'],
+    ]);
+    expect(cxDataRideSeconds("1h03'25")).toBe('3805');
+    expect(cxDataRideSeconds("1h63'25")).toBeNull();
+  });
   it('retira la posición de listado de un DNF/DNS publicado con Rank numérico (Blue Ridge 2026)', () => {
     const rows = normalizeCxDataRideRows([sourceRow(1, 1, '1:00:26'), sourceRow(2, 25, '-4', { Irm: 'LAP' }),
       sourceRow(3, 26, null, { Irm: 'DNF' }), sourceRow(4, 27, 'DNS')]);

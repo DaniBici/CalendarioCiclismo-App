@@ -16,8 +16,11 @@
 //   llenos, cada hueco con data-prerendered="<huella>"
 //   (cxRacePrerenderedHtml); el <main> lleva además data-cx-race-id y le
 //   precede el script en línea RACE_SCRIPT, que muestra la categoría del
-//   fragmento antes del primer pintado. js/cx-race.js conserva cada hueco con
-//   la misma huella y pinta el resto (js/html-fingerprint.js);
+//   fragmento antes del primer pintado y, con una vista de la consulta
+//   (?view=) distinta de la sección generada, muestra la de la URL (el programa
+//   viene generado y oculto en la raíz) o un marcador de carga hasta que
+//   js/cx-race.js la pinta. js/cx-race.js conserva cada hueco con la misma
+//   huella y pinta el resto (js/html-fingerprint.js);
 // - torneo: el interior de <main id="cxAgendaContent">, el esqueleto con las
 //   secciones visibles si hay generales y la lista de pruebas, cada uno con la
 //   huella de su versión sin estado de categorías ni insignias (las actualiza
@@ -46,7 +49,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CX_HOME, PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { CX_AGENDA_SELECT } from '../../js/services/cx-data.js';
 import { cxSeasonBounds, cxSeasonMonths } from '../../js/cx/season.js';
@@ -230,7 +233,8 @@ export function pageRaceId(source) {
 // data-prerendered) y lo hace selectSection(). Misma elección que
 // cxRaceSelection() en resultados y dorsales: la categoría pedida si la ficha
 // la tiene; si no, ME o la primera; sin fragmento, la del HTML. Los enlaces
-// antiguos #general/#general-XX quedan para js/cx-race.js.
+// antiguos #general/#general-XX quedan para js/cx-race.js. También cubre la
+// vista de la consulta (?view=), que el servidor no recibe: ver applyView().
 function raceFragmentScript() {
   const doc = document;
   const PANELS = ['data-cx-classification-content', 'data-cx-startlist-category', 'data-cx-general'];
@@ -270,11 +274,98 @@ function raceFragmentScript() {
       if (node.getAttribute('href') !== href) node.setAttribute('href', href);
     }
   };
-  if (location.hash.length > 1) {
-    const observer = new MutationObserver(apply);
+  // Vista de la URL (?view=programme|tv|videos|general) distinta de la sección
+  // que trae el HTML: la raíz abre resultados y la agenda enlaza
+  // ?view=programme, que el servidor no distingue. Sin este paso, el visitante
+  // vería la clasificación hasta que js/cx-race.js recibe los datos (al quedar
+  // libre la página, más la lectura). A medida que el analizador añade la
+  // sección generada y la de la vista, el script oculta la primera y marca la
+  // pestaña de la segunda, como hace selectSection():
+  // - la sección de la vista viene llena en el HTML (el programa, en la raíz):
+  //   se muestra al instante, sin esperar al JS, que la conserva o repinta solo
+  //   lo que difiera (horas, TV);
+  // - si viene vacía (vídeos, general, o un programa sin generar), en su lugar
+  //   queda un marcador de carga (.loading[data-cx-view-loading], con la capa
+  //   de js/page-loading.js si la página la tiene) que js/cx-race.js retira al
+  //   pintar la sección; la isla (tools/publicacion/cliente/isla-cx.js) pide
+  //   entonces los datos sin esperar al reposo, y a los 12 s sin respuesta
+  //   vuelve a mostrarse la sección generada.
+  // Las páginas de inscritos y resultados ignoran ?view=, y una vista sin
+  // pestaña en el HTML (vídeos o general inexistentes) cae en la sección por
+  // defecto, la ya pintada.
+  const VIEWS = new Map([['programme', 'programme'], ['tv', 'programme'], ['videos', 'videos'], ['general', 'general']]);
+  const target = VIEWS.get(new URLSearchParams(location.search).get('view'));
+  let settled = !target || ['inscritos', 'startlist', 'resultados', 'results'].includes(location.pathname.split('/').filter(Boolean).pop());
+  let served = null;
+  let restore = null;
+  const applyView = () => {
+    if (settled) return;
+    const root = doc.getElementById('cxRaceContent');
+    if (!root || !root.hasAttribute('data-prerendered')) return;
+    if (!served) {
+      served = root.querySelector('[data-cx-section]:not([hidden])');
+      if (!served) return;
+      if (served.getAttribute('data-cx-section') === target || (target !== 'programme' && !root.querySelector(`[data-cx-section-link="${target}"]`))) {
+        settled = true;
+        return;
+      }
+      const nodes = [...root.querySelectorAll('[data-cx-section-link],[data-cx-category-nav],[data-cx-general-nav]')];
+      const saved = nodes.map(node => [node, node.className, node.getAttribute('aria-current'), node.hidden]);
+      restore = () => {
+        served.hidden = false;
+        for (const [node, name, current, hidden] of saved) {
+          node.className = name;
+          if (current === null) node.removeAttribute('aria-current');
+          else node.setAttribute('aria-current', current);
+          node.hidden = hidden;
+        }
+      };
+      served.hidden = true;
+      for (const node of nodes) {
+        const key = node.getAttribute('data-cx-section-link');
+        if (key === null) {
+          node.hidden = true;
+          continue;
+        }
+        node.classList.toggle('res-tab--active', key === target);
+        if (key === target) node.setAttribute('aria-current', 'page');
+        else node.removeAttribute('aria-current');
+      }
+    }
+    const view = root.querySelector(`[data-cx-section="${target}"]`);
+    if (!view) return;
+    settled = true;
+    if (view.hasAttribute('data-prerendered')) {
+      view.hidden = false;
+      return;
+    }
+    const marker = doc.createElement('div');
+    marker.className = 'loading';
+    marker.setAttribute('data-cx-view-loading', '');
+    marker.innerHTML = '<div class="loading__dots"><span></span><span></span><span></span></div>';
+    view.before(marker);
+    setTimeout(() => {
+      if (!marker.isConnected) return;
+      marker.remove();
+      restore();
+    }, 12000);
+  };
+  const finishView = () => {
+    if (doc.readyState === 'loading') return;
+    doc.removeEventListener('readystatechange', finishView);
+    applyView();
+    if (!settled && restore) restore();
+    settled = true;
+  };
+  if (location.hash.length > 1 || !settled) {
+    const observer = new MutationObserver(() => {
+      apply();
+      applyView();
+    });
     observer.observe(doc.documentElement, { childList: true, subtree: true });
     doc.addEventListener('DOMContentLoaded', () => { observer.disconnect(); apply(); }, { once: true });
   }
+  doc.addEventListener('readystatechange', finishView);
   addEventListener('hashchange', apply);
 }
 // Sin comentarios ni sangría: el build ejecuta este paso antes de instalar las dependencias (esbuild).
@@ -311,7 +402,8 @@ export function validatePage(page, { navHrefs, section, rows }) {
   // Sin marcadores de la capa de carga (js/page-loading.js) ni bloque de gen_og_pages.py.
   if (/class="(?:loading|static-prerender|prerender-loading)[ "]/.test(main)) errors.push('marcador de carga o bloque estático en <main>');
   if (!new RegExp(`data-cx-section="${section}"(?: hidden)? data-prerendered="`).test(main)) errors.push(`sección ${section} sin contenido generado`);
-  const painted = main.match(/<tr class="so-row"/g)?.length || 0;
+  // La tabla de bonificaciones X2O repite filas de la clasificación: no cuenta como filas del panel.
+  const painted = main.replace(/<section class="cx-bonuses">[\s\S]*?<\/section>/g, '').match(/<tr class="so-row"/g)?.length || 0;
   if (painted !== rows) errors.push(`${painted} filas pintadas de ${rows}`);
   return errors;
 }
@@ -441,7 +533,7 @@ async function runLanguage(lang, site, data) {
   const at = new Date();
   const navHrefs = PRIMARY_NAV_ITEMS.map(key => STRINGS[lang][key].href);
   // Vista activa que deduce js/header.js de la ruta de ciclocross.
-  const active = CX_HOME ? 'today' : 'cyclocross';
+  const active = 'today';
   const result = { lang, pages: 0, scope: 0, generated: 0, tournaments: 0, written: 0, fallbacks: [], errors: [], bytes: [] };
   // Un modelo por carrera para sus tres páginas (raíz, inscritos y resultados).
   const models = new Map();

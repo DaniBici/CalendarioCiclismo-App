@@ -320,9 +320,7 @@ private struct DateBarItem: View {
 
     private var weekday: String {
         guard let date = DateFormatting.date(from: dateKey) else { return "" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: LocaleService.isEnglish ? "en_US" : "es_ES")
-        f.dateFormat = "EEE"
+        let f = DateFormatting.formatter(locale: Locale(identifier: LocaleService.isEnglish ? "en_US" : "es_ES"), format: "EEE")
         let short = f.string(from: date)
             .replacingOccurrences(of: ".", with: "")
             .prefix(3)
@@ -340,9 +338,7 @@ private struct DateBarItem: View {
     static func inputLabels(dateKey: String) -> [String] {
         guard let date = DateFormatting.date(from: dateKey) else { return [] }
         let day = "\(Calendar.current.component(.day, from: date))"
-        let f = DateFormatter()
-        f.locale = Locale(identifier: LocaleService.isEnglish ? "en_US" : "es_ES")
-        f.dateFormat = "EEEE"
+        let f = DateFormatting.formatter(locale: Locale(identifier: LocaleService.isEnglish ? "en_US" : "es_ES"), format: "EEEE")
         return [f.string(from: date), day, DateFormatting.formatDateLabel(dateKey)]
     }
 

@@ -586,7 +586,6 @@ async function loadTeamSeason27(teamId) {
     nameEl.value = src.name || '';
     document.getElementById('ts27-aliases').value = src.nameAliases || '';
     document.getElementById('ts27-uciCode').value = src.uciCode || '';
-    document.getElementById('ts27-innerCircle-text').value = src.badgeInnerCircle || '';
     document.getElementById('ts27-translations').value = JSON.stringify(src.translations || {}, null, 2);
     document.getElementById('ts27-category').value = src.category || '';
     document.getElementById('ts27-gender').value = src.gender || '';
@@ -631,11 +630,6 @@ async function saveTeamSeason27() {
     status.textContent = 'Las traducciones deben ser un objeto JSON válido.';
     return;
   }
-  const badgeInnerCircle = document.getElementById('ts27-innerCircle-text').value.trim().toLowerCase() || null;
-  if (badgeInnerCircle && !/^#[0-9a-f]{6}$/.test(badgeInnerCircle)) {
-    status.textContent = 'El círculo interior debe usar #RRGGBB o quedar vacío.';
-    return;
-  }
   status.textContent = 'Guardando…';
   try {
     const payload = {
@@ -648,7 +642,7 @@ async function saveTeamSeason27() {
       headerText:       automaticTeamHeaderText(headerBg),
       badgeTorsoCenter: _ts27GetColor('torsoCenter'),
       badgeTorsoSides:  _ts27GetColor('torsoSides'),
-      badgeInnerCircle,
+      badgeInnerCircle: null,
       badgeShorts:      _ts27GetColor('shorts'),
       translations,
       badgeVisible:     document.getElementById('ts27-badgeVisible').checked,

@@ -63,7 +63,7 @@ select
                                         'channel', b.channel, 'startTimeUtc', b."startTimeUtc", 'url', b.url,
                                         'country', b.country, 'sortOrder', b."sortOrder", 'embeddable', b.embeddable)
                                         order by b.id) from cx_broadcasts b where b."raceId" = r.id), '[]'::jsonb),
-            'cx_videos', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'category', v.category, 'url', v.url,
+            'cx_videos', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'category', v.category, 'title', v.title, 'titleEn', v."titleEn", 'channel', v.channel, 'url', v.url,
                                         'sortOrder', v."sortOrder") order by v.id)
                                         from cx_videos v where v."raceId" = r.id), '[]'::jsonb))
           order by r."dateKey", r.id), '[]'::jsonb)

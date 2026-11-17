@@ -127,12 +127,12 @@ data class StartlistRiderResolved(
     val currentTeamId: String? = null,
 )
 
-/** Corredor reconstruido por dorsal (nombre + bandera + equipo + chapa). */
+/** Corredor reconstruido por dorsal (nombre + bandera + equipo + colores). */
 data class ResolvedRider(
     val name: String,
     val countryCode: String,
     val teamName: String,
-    val team: Team?,                  // equipo canónico (para la chapa); null si no casó
+    val team: Team?,                  // equipo canónico (para los colores); null si no casó
     /** Ficha global (riders_men/women) — identifica al corredor en el cruce por
      *  dorsal/globalRiderId. Null si la startlist no casó. */
     val globalRiderId: String? = null,

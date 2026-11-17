@@ -11,6 +11,10 @@ struct Broadcast: Codable, Identifiable, Hashable {
     let sortOrder: Int?
     let showInRevive: Bool?
     let country: String?
+    /// Inserción permitida en YouTube (oEmbed): `false` impide el reproductor
+    /// integrado y la conversión a «Emisión de la etapa». Opcional: las cachés
+    /// anteriores no lo traen.
+    var embeddable: Bool? = nil
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)

@@ -4,10 +4,11 @@
 // Contenido común de la tarjeta de race-card.js para una jornada: cifras,
 // subtítulo, horario, miniperfil y resultados.
 
-import { esc, extractYouTubeId } from '../shared.js';
+import { esc, extractYouTubeId, jornadaUrl } from '../shared.js';
 import { t, getLang } from '../i18n.js';
 import { waitingResultsHtml, resultsTrophyHtml, profileProgress, profileUsesTimeHatch, tvIconHtml } from '../services/race-presentation.js';
-import { isReviveBroadcast } from '../broadcast-priority.js';
+import { cardVideoActions } from '../services/stage-videos.js';
+import { menuButtonHtml } from './menu-button.js';
 import { buildElevationSparkline } from '../stage/elevation-profile.js';
 
 const timerIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
@@ -87,19 +88,46 @@ export function elevationProfileHtml(rd, color, now = Date.now()) {
   return sparkline ? `<div class="race-card__profile">${sparkline}</div>` : '';
 }
 
-// Modo terminado: sin horario, con Resultados y Revive a la derecha. `data-yt`: Revive que se
-// abre en la página; los oyentes van delegados en la lista.
-export function resultsActionsHtml(rd, broadcasts = rd._broadcasts || []) {
+const chevronHtml = '<svg class="badge__chevron" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+
+/**
+ * Acción de vídeo de la tarjeta terminada (docs/plans/videos-5-2.md, fase 4):
+ * Revive (la emisión íntegra), Vídeos (el panel Vídeos de la jornada) o, con
+ * los dos, un botón con menú «Vídeos» / «Completa» («Videos» / «Broadcast»;
+ * decisión de Dani, 2026-11-11). `ytAttr`: atributo con el ID de YouTube que el
+ * oyente delegado abre en el modal de TV; sin él, la pestaña nueva no activa
+ * la tarjeta.
+ */
+export function finishedVideoActionHtml(rd, { broadcasts = [], videos = [], ytAttr = 'data-yt' } = {}) {
+  const { videos: hasVideos, revive } = cardVideoActions({ broadcasts, videos });
+  const ytOf = item => (item.embeddable !== false ? extractYouTubeId(item.url) : null);
+  const videosHref = `${jornadaUrl(rd)}#videos`;
+  if (hasVideos && revive) {
+    const yt = ytOf(revive);
+    return menuButtonHtml({
+      id: `video-menu-${rd.id}`,
+      label: t('videos.menu'),
+      buttonClass: 'badge badge--tv badge--icon badge--menu',
+      buttonHtml: `${tvIconHtml}${chevronHtml}`,
+      items: [
+        { label: t('videos.title'), href: videosHref, sameTab: true },
+        { label: t('videos.full'), href: revive.url, attrs: yt ? ` data-yt="${esc(yt)}"` : '' },
+      ],
+    });
+  }
+  if (hasVideos) {
+    const label = t('videos.title');
+    return `<a class="badge badge--tv badge--tv-link badge--revive badge--icon badge--videos" href="${esc(videosHref)}" title="${esc(label)}" aria-label="${esc(label)}" onclick="event.stopPropagation()">${tvIconHtml}<span class="badge__label">${label}</span></a>`;
+  }
+  if (!revive) return '';
+  const id = ytOf(revive);
+  const label = t('tv.reviveRace');
+  return `<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${esc(revive.url)}" target="_blank" rel="noopener" title="${esc(label)}" aria-label="${esc(label)}"${id ? ` ${ytAttr}="${esc(id)}"` : ' onclick="event.stopPropagation()"'}>${tvIconHtml}<span class="badge__label">${label}</span></a>`;
+}
+
+// Modo terminado: sin horario, con Resultados y la acción de vídeo a la derecha. `data-yt`:
+// vídeo que se abre en la página; los oyentes van delegados en la lista.
+export function resultsActionsHtml(rd, broadcasts = rd._broadcasts || [], videos = rd._videos || []) {
   const results = `<button type="button" class="badge badge--results badge--icon" title="${esc(t('stage.results'))}" aria-label="${esc(t('stage.results'))}">${resultsTrophyHtml}<span class="badge__label">${t('stage.results')}</span></button>`;
-  // Revive: redes sociales antes que el resto, después sortOrder.
-  const revive = broadcasts
-    .filter(isReviveBroadcast)
-    .sort((a, b) => {
-      const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-      const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-      return (aSoc - bSoc) || ((a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    })[0] ?? null;
-  if (!revive?.url) return results;
-  const ytId = revive.embeddable !== false ? extractYouTubeId(revive.url) : null;
-  return `${results}<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${esc(revive.url)}" target="_blank" rel="noopener" title="${esc(t('tv.reviveRace'))}" aria-label="${esc(t('tv.reviveRace'))}"${ytId ? ` data-yt="${esc(ytId)}"` : ' onclick="event.stopPropagation()"'}>${tvIconHtml}<span class="badge__label">${t('tv.reviveRace')}</span></a>`;
+  return `${results}${finishedVideoActionHtml(rd, { broadcasts, videos })}`;
 }

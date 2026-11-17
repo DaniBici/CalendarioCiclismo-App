@@ -4,6 +4,7 @@ import { patchHtml } from '../../../js/dom-patch.js';
 import { getBroadcastEmbed } from '../../../js/broadcast-embed.js';
 import { isNearToday } from '../../../js/services/refresh-window.js';
 import { writeCalendarParams } from '../../../js/calendario-query.js';
+import { bindStageVideos } from '../../../js/stage/videos-panel.js';
 
 const doc = document;
 const raiz = doc.documentElement;
@@ -147,9 +148,21 @@ if (innerWidth >= 600) {
   });
 }
 
+// ── Vídeos: acordeón con el reproductor al abrir ─────────────────
+bindStageVideos(main);
+
 // ── Perfil: se monta al acercarse a la pantalla ──────────────────
+// En la mampostería de la jornada con vídeos, el contenedor del perfil reúne
+// también Información, Revive y Vídeos (data-profile-extra): el montaje los
+// conserva y los cambios de esos paneles se aplican aparte.
 const perfil = main.querySelector('[data-integrated-profile]');
-let perfilPrístino = perfil?.innerHTML ?? null;
+const sinExtras = el => {
+  const copia = el.cloneNode(true);
+  copia.querySelectorAll('[data-profile-extra]').forEach(nodo => nodo.remove());
+  return copia.innerHTML;
+};
+const mamposteria = el => el.classList.contains('stage-profile-layout--videos');
+let perfilPrístino = perfil ? sinExtras(perfil) : null;
 let perfilMontado = false;
 const barra = doc.getElementById('icalBar');
 
@@ -226,6 +239,41 @@ function vaciarPendientes(forzar) {
 addEventListener('scroll', () => { if (pendientes.size) vaciarPendientes(false); }, { passive: true });
 doc.addEventListener('visibilitychange', () => { if (doc.hidden && pendientes.size) vaciarPendientes(true); });
 
+// Información, Revive y Vídeos de la mampostería: cada panel nuevo sustituye al
+// de su clase; los que faltan se retiran y los nuevos ocupan su columna. Un
+// panel igual no se toca (el vídeo abierto sigue sonando).
+const claveExtra = el => el.classList[1] || el.classList[0];
+// Último HTML recibido de cada panel: el DOM cambia con el uso (un vídeo abierto)
+// y no sirve para saber si llegó algo nuevo.
+const recibidos = new Map([...(perfil?.querySelectorAll('[data-profile-extra]') || [])].map(el => [claveExtra(el), el.outerHTML]));
+
+function aplicarExtras(viejo, nuevo) {
+  for (const [columna, cabeza] of [['stage-main', 'stage-profile-panel'], ['stage-side', 'stage-key-panel']]) {
+    const destino = viejo.querySelector(`:scope > .${columna}`);
+    if (!destino) continue;
+    const actuales = [...destino.querySelectorAll(':scope > [data-profile-extra]')];
+    const llegan = [...nuevo.querySelectorAll(`:scope > .${columna} > [data-profile-extra]`)];
+    // Cada panel, tras el anterior; solo se mueve si no está ya en su sitio: mover
+    // un reproductor lo recarga.
+    let anterior = destino.querySelector(`:scope > .${cabeza}`);
+    for (const panel of llegan) {
+      const clave = claveExtra(panel);
+      let nodo = actuales.find(el => claveExtra(el) === clave);
+      if (nodo) {
+        actuales.splice(actuales.indexOf(nodo), 1);
+        if (recibidos.get(clave) !== panel.outerHTML) aplicarPar(nodo, panel);
+      } else {
+        nodo = panel.cloneNode(true);
+      }
+      recibidos.set(clave, panel.outerHTML);
+      const sitio = anterior ? anterior.nextElementSibling : destino.firstElementChild;
+      if (nodo !== sitio) destino.insertBefore(nodo, sitio);
+      anterior = nodo;
+    }
+    actuales.forEach(el => el.remove());
+  }
+}
+
 function aplicarFragmento(html) {
   const plantilla = doc.createElement('template');
   plantilla.innerHTML = html;
@@ -253,10 +301,13 @@ function aplicarFragmento(html) {
     const viejo = viejos[at];
     cursor = at + 1;
     if (viejo === perfil) {
-      if (nuevo.innerHTML !== perfilPrístino) {
-        perfilPrístino = nuevo.innerHTML;
+      const forma = mamposteria(viejo) === mamposteria(nuevo);
+      if (forma && mamposteria(nuevo)) aplicarExtras(viejo, nuevo);
+      const prístino = sinExtras(nuevo);
+      if (!forma || prístino !== perfilPrístino) {
+        perfilPrístino = prístino;
+        if (!forma || !perfilMontado) aplicarPar(viejo, nuevo);
         if (perfilMontado) datosPagina(true).then(() => montarPerfil());
-        else aplicarPar(viejo, nuevo);
       }
       continue;
     }
@@ -269,7 +320,7 @@ function aplicarFragmento(html) {
   }
   for (let indice = cursor; indice < viejos.length; indice++) viejos[indice].remove();
   sonda.remove();
-  for (const anterior of doc.querySelectorAll('body > template[data-tv]')) anterior.remove();
+  for (const anterior of doc.querySelectorAll('body > template:is([data-tv],[data-videos])')) anterior.remove();
   anchoTv();
   window.ccVivo = { ...window.ccVivo, recibido: performance.now(), pendientes: pendientes.size };
 }

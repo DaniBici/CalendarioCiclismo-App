@@ -29,6 +29,9 @@ struct RaceCardIdentity<Title: View, Details: View>: View {
 struct RaceActionLabel: View {
     let label: String
     var icon: String? = nil
+    /// Segundo icono, solo en la variante de solo icono (etiqueta vacía): el
+    /// del Resumen de ciclocross lleva el de TV y el de retroceso.
+    var secondIcon: String? = nil
     var primary = true
     var selected = false
     /// Tinte neutro (secundario) para los indicadores de categoría de la
@@ -49,7 +52,10 @@ struct RaceActionLabel: View {
                     // El texto oculto conserva la altura de las etiquetas vecinas.
                     ZStack {
                         Text(" ").hidden()
-                        Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.iconOnly)
+                        HStack(spacing: 3) {
+                            Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.iconOnly)
+                            if let secondIcon { Image(systemName: secondIcon) }
+                        }
                     }
                 } else {
                     Label { Text(label) } icon: { ActionIcon(name: icon) }.labelStyle(.titleAndIcon)

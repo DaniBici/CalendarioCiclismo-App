@@ -11,6 +11,8 @@ select
      from races r) as races,
   (select coalesce(jsonb_agg(to_jsonb(b) order by b.id), '[]'::jsonb)
      from broadcasts b) as broadcasts,
+  (select coalesce(jsonb_agg(to_jsonb(v) order by v.id), '[]'::jsonb)
+     from race_day_videos v) as videos,
   (select coalesce(jsonb_agg(to_jsonb(a) order by a.id), '[]'::jsonb)
      from assets a) as assets,
   (select coalesce(jsonb_agg(to_jsonb(a) || jsonb_build_object('race_days',

@@ -1,23 +1,26 @@
-// Conmutador Ciclocross / Carretera de Hoy, al final de la franja de filtros.
-// Solo existe mientras la home es Ciclocross (services/today-season.js): CX
-// abre la agenda de Ciclocross de la home y Ruta, Hoy de carretera del día
-// (`?date=`). Etiqueta completa en escritorio y corta en móvil, como los
-// chips. Espejo de `HomeDisciplineSwitch` en iOS y Android.
+// Conmutador Ciclocross / Carretera de Hoy, al final de la franja de filtros,
+// todo el año: Ciclocross vive dentro de Hoy (docs/plans/videos-5-2.md, D1).
+// Mientras la home es Ciclocross (services/today-season.js), CX abre la agenda
+// de Ciclocross de la home y Ruta, Hoy de carretera del día (`?date=`); el
+// resto del año, CX abre la página de Ciclocross y Ruta, la home. Etiqueta
+// completa en escritorio y corta en móvil, como los chips. Espejo de
+// `HomeDisciplineSwitch` en iOS y Android.
 // Carretera lleva la chincheta de los filtros: activa en Hoy de carretera,
 // fija o quita Carretera como disciplina predeterminada (la misma de
 // Resultados); fijada, CX enlaza a la página de Ciclocross y Ruta a `/`, y en
 // la agenda de Ciclocross la chincheta llena solo indica el estado.
 import { t, getLang } from '../i18n.js';
-import { roadPinned, setRoadPinned } from '../services/today-season.js';
+import { cyclocrossHome, roadPinned, setRoadPinned } from '../services/today-season.js';
 import { PIN_SVG_FILLED, PIN_SVG_OUTLINE } from '../shared.js';
 
 export function disciplineSwitchHtml(active, todayKey) {
   const en = getLang() === 'en';
   const home = en ? '/en/' : '/';
   const pinned = roadPinned();
+  const cxAtHome = cyclocrossHome(todayKey) && !pinned;
   const options = [
-    ['cyclocross', pinned ? (en ? '/en/cyclocross/' : '/ciclocross/') : home],
-    ['road', pinned ? home : `${home}?date=${todayKey}`],
+    ['cyclocross', cxAtHome ? home : (en ? '/en/cyclocross/' : '/ciclocross/')],
+    ['road', cxAtHome ? `${home}?date=${todayKey}` : home],
   ];
   return `<nav class="discipline-switch" aria-label="${t('today.discipline')}">${options.map(([key, href]) => {
     const label = `<span class="btn-label-full">${t(`today.${key}`)}</span><span class="btn-label-short">${t(`today.${key}Short`)}</span>`;

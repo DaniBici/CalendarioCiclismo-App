@@ -90,9 +90,11 @@ struct CxRaceRef: Codable, Sendable, Identifiable {
     let name: String
     let nameEn: String?
     let raceClass: String
+    /// Fecha de la prueba (AAAA-MM-DD): lista de pruebas de la general.
+    var dateKey: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, nameEn
+        case id, name, nameEn, dateKey
         case raceClass = "class"
     }
 }
@@ -217,7 +219,7 @@ struct CxStartlistRider: Codable, Sendable, Identifiable {
 
 /// Identidad cromática alineada con carretera (teams). Los campos son
 /// opcionales para decodificar cachés anteriores; los ausentes equivalen a la
-/// paleta neutra de la base de datos, que no produce chapa visible.
+/// paleta neutra de la base de datos, que no produce cuadrado visible.
 struct CxTeam: Codable, Sendable, Identifiable {
     let id: String
     let name: String
@@ -330,6 +332,8 @@ struct CxVideo: Codable, Sendable, Identifiable {
     let titleEn: String?
     let url: String
     let sortOrder: Int
+    /// Emisor del vídeo (canal de YouTube, cadena); nil sin identificar.
+    var channel: String? = nil
 }
 
 struct CxDetail: Codable, Sendable {

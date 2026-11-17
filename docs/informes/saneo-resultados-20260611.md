@@ -18,7 +18,7 @@ ver secciones nuevas abajo). Las cuatro clases de problema que cubre:
    Geloof") → la resolución por nombre crea/enlaza una ficha paralela.
 3. **Filas de resultados desalineadas con la startlist**: `globalRiderId` NULL (sin
    enlazar) o apuntando a una ficha que no está en la startlist de la carrera (mal
-   enlazada → el corredor sale sin equipo/chapa en `/resultados/`).
+   enlazada → el corredor sale sin equipo ni colores en `/resultados/`).
 4. **Clasificaciones/startlists malformadas**: startlists con nombres vacíos, jornadas
    CRE enteras sin enlazar por `isTeamEvent` mal puesto, filas basura ("Race Cancelled").
 

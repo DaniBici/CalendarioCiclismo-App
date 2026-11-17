@@ -19,8 +19,10 @@ import { jornadaHtml } from './jornada-html.js';
 import { visitorTimeZoneLabel } from './shared.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
 import { enableGcFinalRow } from './race-gc-final.js';
+import { RACE_DAY_VIDEO_COLUMNS } from './services/stage-videos.js';
+import { bindStageVideos, revealStageVideos } from './stage/videos-panel.js';
 
-function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set()) {
+function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set(), allVideos = []) {
   const color  = race.colorHex || '#888';
   const name   = raceName(race) || t('stage.unknownRace') || 'Carrera desconocida';
   const stage  = stageLabel(rd.stageNumber, rd._stageSuffix);
@@ -71,7 +73,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
 
   const timeZoneLabel = visitorTimeZoneLabel();
   const { html, hasActualResults } = jornadaHtml(rd, race, broadcasts, assets, siblings, hasStartlist, allBroadcasts, inhouseStages,
-    { timeZoneLabel });
+    { timeZoneLabel, videos: filterBroadcastsByRegion(allVideos), allVideos });
 
   // Reportar se mueve al ical-bar (setupIcalModal) para quedar junto a Suscribirse
 
@@ -83,6 +85,8 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const profileHost = content.querySelector('[data-integrated-profile]');
   mountStageProfile(profileHost, { day:{ ...rd, _hasInhouse:hasActualResults }, race, assets, points:true, temporal:true, timeZoneLabel });
   syncTvPanelWidth(content);
+  bindStageVideos(content);
+  revealStageVideos(content);
 
   // ── Setup report modal con datos de la jornada ─────────────────
   setupReportModal(rd.id, name, stage);
@@ -763,6 +767,7 @@ async function init() {
   const dayRequests = dayId => [
     supabase.from('broadcasts').select('*').eq('raceDayId', dayId).order('sortOrder', { ascending: true }).order('id'),
     supabase.from('assets').select('*').eq('raceDayId', dayId).order('id'),
+    supabase.from('race_day_videos').select(RACE_DAY_VIDEO_COLUMNS).eq('raceDayId', dayId).order('sortOrder').order('id'),
   ];
   const raceRequests = (raceId, withSiblings = true) => [
     // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
@@ -816,7 +821,7 @@ async function init() {
     // Broadcasts, assets, resultados in-house, guía técnica y etapas hermanas:
     // las que no salieron ya con los ids incrustados, en un único round-trip.
     const isStageRace = race.raceFormat !== 'one_day';
-    const [bcastResult, assetsResult, uciResult, technicalGuide, siblingsAll] = await Promise.all([
+    const [bcastResult, assetsResult, videosResult, uciResult, technicalGuide, siblingsAll] = await Promise.all([
       ...(sameDay && earlyDay ? earlyDay : dayRequests(id)),
       ...(earlyRace && rd.raceId === pageRaceId ? earlyRace : raceRequests(rd.raceId, isStageRace)),
       i18nReady,
@@ -824,6 +829,7 @@ async function init() {
     const siblingsResult = isStageRace ? siblingsAll : null;
 
     const allBroadcasts = bcastResult.data || [];
+    const allVideos = videosResult?.data || [];
     const broadcasts = filterBroadcastsByRegion(allBroadcasts);
     const assets     = assetsResult.data || [];
     const inhouseStages = buildInhouseResultsMatcher(uciResult?.data || []);
@@ -840,7 +846,7 @@ async function init() {
       if (match?._stageSuffix) rd._stageSuffix = match._stageSuffix;
     }
 
-    render(rd, race, broadcasts, withRaceTechnicalGuide(assets, technicalGuide), siblings, hasStartlist, allBroadcasts, inhouseStages);
+    render(rd, race, broadcasts, withRaceTechnicalGuide(assets, technicalGuide), siblings, hasStartlist, allBroadcasts, inhouseStages, allVideos);
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
     setupIcalModal(rd, race);
     // Sondeo de estado solo alrededor de la fecha de la jornada: una lectura
@@ -851,7 +857,7 @@ async function init() {
     let previous=stateKey(rd,uciResult?.data || []), refreshing=false;
     const refreshState=async()=> {
       const content=document.getElementById('jornadaContent');
-      if(document.hidden || refreshing || !content?.isConnected || document.querySelector('.tv-embed-block,.rd-modal-overlay[open],.report-modal-overlay[open]')) return;
+      if(document.hidden || refreshing || !content?.isConnected || document.querySelector('.tv-embed-block,.video-panel[data-touched],.rd-modal-overlay[open],.report-modal-overlay[open]')) return;
       if(!isNearToday(rd.dateKey)) return;
       refreshing=true;
       try {
@@ -869,7 +875,7 @@ async function init() {
         const all=content.querySelector('[data-tv-filter]')?.dataset.tvFilter==='all';
         const focusHref=document.activeElement?.closest('a')?.getAttribute('href');
         const updated={...nextDay.data,_stageSuffix:rd._stageSuffix};
-        render(updated,race,broadcasts,withRaceTechnicalGuide(assets,technicalGuide),siblings,hasStartlist,allBroadcasts,buildInhouseResultsMatcher(nextResults.data || []));
+        render(updated,race,broadcasts,withRaceTechnicalGuide(assets,technicalGuide),siblings,hasStartlist,allBroadcasts,buildInhouseResultsMatcher(nextResults.data || []),allVideos);
         if(all) content.querySelector('[data-tv-filter=mine]')?.click();
         if(focusHref) [...content.querySelectorAll('a')].find(a=>a.getAttribute('href')===focusHref)?.focus({preventScroll:true});
         previous=stateKey(nextDay.data,nextResults.data || []);

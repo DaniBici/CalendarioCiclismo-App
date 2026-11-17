@@ -65,7 +65,8 @@ navegación de regreso explícita.
 ### Reglas de filtros
 
 - **CN:** las pruebas élite entran en Pro y en su género; las sub23 quedan fuera de Pro/Masc/Fem.
-- **WC/CC:** Masculino exige `gender='male'` y Femenino exige `gender='female'`; el relevo mixto aparece en ambos y cualquier otra prueba sin género queda fuera. Fuera de Todas, se muestran solo Europa/Mundo (regex `europa|europe|mundo` en iOS/Android; la web aplica `europa|europe` a CC).
+- **WC/CC:** Masculino exige `gender='male'` y Femenino exige `gender='female'`; el relevo mixto y cualquier carrera sin género (`gender` nulo) aparecen en ambos. Fuera de Todas, se muestran solo Europa/Mundo (regex `europa|europe|mundo` en iOS/Android; la web aplica `europa|europe` a CC).
+- **Carreras sin género (`races.gender` nulo) en Hoy, Mes y Temporada:** pasan Masculino y Femenino, con las demás condiciones de cada filtro (WC/CC solo Europa/Mundo; 1.2/2.2 solo en Femenino y en Europa; 1.2U/2.2U solo el Tour del Porvenir). Web: `isGenderNeutral` (`js/category-filter.js`) en `matchesCategoryFilter` (`js/services/today-nav.js`, Hoy y navegación entre días), `passesCategoryFilter` (`js/calendario-mes.js`) y `_applyCategoryFilter` (`js/temporada-html.js`). Apps: `RaceLogic.isGenderNeutral` dentro de `RaceLogic.matchesCategory`, que usan Hoy, Mes y Temporada.
 - **Auto-navegación:** solo filtro `all`. Ejecutar al final de `loadDay()` directamente, no con `onChange(of:)` en SwiftUI.
 - **`nextDayWithRaces`:** recalcular al cambiar filtro. Flechas prev/next escanean 180 días; fallback ±1 día si `allRaces` no cargado.
 
@@ -177,14 +178,22 @@ Web: cada cambio de día muestra la carga y relee el mes del día de destino.
   conmutador de tres opciones con el estilo del de Hoy («CX | Ruta | Ránking»
   hasta 600 px), botones con `aria-pressed` en un `role="group"`; fuera de ese
   periodo, las dos vistas siguen como títulos con subrayado.
-- **Desde el 1 de enero de 2027**, web y apps vuelven exactamente a la
-  configuración del 17-18 de octubre de 2026 (Hoy, menú, home, Temporada y
-  Resultados). El cambio automático se limita a este otoño-invierno.
-- **Actualización de enero de 2027 (apps):** Dani la publicará al cruzar el
-  1 de enero para que cada app quede exactamente como antes del 18 de octubre:
-  icono Original de nuevo y Ciclocross en su posición anterior. Lo único
-  permanente es la vista por días de Ciclocross, que sustituye a la agenda
-  mensual.
+- **Barra de cinco destinos todo el año (5.2.0, D1 de
+  `docs/plans/videos-5-2.md`, confirmada por Dani el 2026-11-11):** Hoy ·
+  Resultados · Vídeos · Fichajes · Calendario. Ciclocross queda dentro de Hoy
+  con el conmutador «CX | Ruta» todo el año; el destino Ciclocross no vuelve a
+  la barra. Apps: iOS `RoadTodayAvailability.tabs` (Vídeos es el valor 7) y
+  la pestaña Hoy es `cyclocrossTab`; Android `Routes.MAIN_TABS` y
+  `Routes.HOME` (`CYCLOCROSS`). Los enlaces `today` y `cyclocross` abren la
+  pestaña Hoy en Ruta y en CX. Web: `PRIMARY_NAV_ITEMS` (`js/header-html.js`).
+- **Desde el 1 de enero de 2027**, la disciplina inicial pasa a Ruta: Hoy abre
+  en carretera (apps: `RoadTodayAvailability.isVisible`) y Resultados y Vídeos
+  en Carretera, con el conmutador para volver a CX. Dani prevé dar prioridad a
+  Ruta sobre CX en todas las secciones desde esa fecha. Sustituye, en lo
+  relativo a la pestaña Ciclocross, la vuelta a la configuración del 17-18 de
+  octubre de 2026.
+- **Actualización de enero de 2027 (apps):** icono Original de nuevo. La
+  vista por días de Ciclocross sigue sustituyendo a la agenda mensual.
 
 Tarjeta CX de altura única en Hoy y Torneos: la fila de estado reserva el alto
 de la copa, la variante sin horarios reserva caja y estado, y nombre y línea

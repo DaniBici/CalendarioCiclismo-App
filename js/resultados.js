@@ -1,6 +1,8 @@
 import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js';
 import { mountStageProfile } from './stage/profile.js';
 import { stageMetricsHtml } from './stage/context.js';
+import { RACE_DAY_VIDEO_COLUMNS } from './services/stage-videos.js';
+import { applyVideoRegion, bindStageVideos } from './stage/videos-panel.js';
 import { startlistTeamsQuery } from './team-appearance.js';
 import { classificationInventory, classificationLabel, classificationColor, visibleStageClassifications } from './services/race-presentation.js';
 import { installScrollRail } from './scroll-rail.js';
@@ -32,7 +34,7 @@ import { stagePathLabel, stageSlugSegment, statusIcon, resultsStages, resultsAct
 
 import { supabase, setMeta, setMetaProperty, raceName as getRaceName, enBase, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          setRaceRobots, raceSearchName, deArticulo, seoLongDateWeekday, seoDayMonth,
-         embeddedId, orEqFilter, pickByPreference, esc, visitorTimeZoneLabel } from './shared.js';
+         embeddedId, orEqFilter, pickByPreference, esc, visitorTimeZoneLabel, filterBroadcastsByRegion } from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
 import { getLang, initI18n } from './i18n.js';
 
@@ -332,13 +334,17 @@ async function init(i18nReady = Promise.resolve()) {
     contextDayId ? supabase.from('race_days').select(RD_COLS).eq('id', contextDayId).maybeSingle() : Promise.resolve({ data: null }),
     contextDayId ? supabase.from('assets').select('*').eq('raceDayId', contextDayId).order('id') : Promise.resolve({ data: [] }),
     gcStageIds.length ? supabase.from('race_uci_results').select('rank,irm,timeText').in('stageRef', gcStageIds) : Promise.resolve({ data: [] }),
+    // Vídeos de la jornada y sus emisiones (la de YouTube pasa a Vídeos), sin
+    // filtro regional: el HTML es el mismo que el generado.
+    contextDayId ? supabase.from('broadcasts').select('*').eq('raceDayId', contextDayId).order('sortOrder').order('id') : Promise.resolve({ data: [] }),
+    contextDayId ? supabase.from('race_day_videos').select(RACE_DAY_VIDEO_COLUMNS).eq('raceDayId', contextDayId).order('sortOrder').order('id') : Promise.resolve({ data: [] }),
   ]);
   const resolver = createResultsResolver({ race, slRiders: slRidersResponse.data, slTeamsRows: slTeamsResponse.data, isEn: _isEn });
 
   // ── Jornada de la etapa activa (para detalle de cabecera + botón) ──
   // Cada clasificación keepForWeb arrastra su raceDayId; de él salen la ruta
   // (salida › meta), la distancia y el tipo (CRI/CRE), como en orden-salida.
-  const [{ data: rdRow }, { data: stageAssets, error: assetsError }, { data: gcRows }] = await stageDayRequest;
+  const [{ data: rdRow }, { data: stageAssets, error: assetsError }, { data: gcRows }, { data: contextBroadcasts }, { data: contextVideos }] = await stageDayRequest;
   const gcWinnerSecs = gcWinnerSeconds(gcRows);
   let contextDay = rdRow || null;
   let raceDay = raceDayId ? contextDay : null;
@@ -392,7 +398,10 @@ async function init(i18nReady = Promise.resolve()) {
   // (con sus huecos rellenos, cada uno con su propia huella).
   applyPrerenderedHtml(content, resultsPageHtml({
     race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn: _isEn, gcWinnerSecs,
+    contextBroadcasts: contextBroadcasts || [], contextVideos: contextVideos || [],
   }));
+  applyVideoRegion(content, country => filterBroadcastsByRegion([{ country }]).length > 0);
+  bindStageVideos(content);
   // Datos de la jornada: la hora de salida va en la zona del visitante; fuera
   // de la del build solo se sustituye esta lista.
   const metricsList = content.querySelector('.res-stage-data dl');
