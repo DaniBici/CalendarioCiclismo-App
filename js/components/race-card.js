@@ -6,7 +6,6 @@
 // inferior. Cada página decide el contenido de cada zona; las piezas de
 // jornada de carretera (cifras, horario, perfil, resultados, activación)
 // están en stage-card.js.
-
 import { LOGO_ONERROR, logoPlaceholderHtml } from './logo-placeholder.js';
 
 function hexLuminance(hex) {

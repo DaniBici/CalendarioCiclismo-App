@@ -139,7 +139,7 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
   // Estructura común de components/race-card.js; la columna derecha son las
   // categorías con su horario o su resultado.
   const inner=raceCardHtml({
-    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}">${logo}</span><span>${countryFlag(race.countryCode)}</span></div>`,
+    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}"${logo?'':' class="race-logo-img logo-ph"'}>${logo}</span><span>${countryFlag(race.countryCode)}</span></div>`,
     name:`${href}${esc(cxRaceName(race,lang))}${hrefEnd}${menu}`,
     sub:meta,
     badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span><span class="cx-card-badges" data-cx-badges="${esc(`${race.id}:${date}`)}">${dynamic?cxCardBadgesHtml(race,date,open):''}</span>`,

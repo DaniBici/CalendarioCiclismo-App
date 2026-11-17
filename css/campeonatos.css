@@ -14,9 +14,9 @@
    debajo; el fondo opaco evita que se transparente. */
 .camp-sticky {
   position: sticky;
-  top: calc(56px + var(--giro-h, 0px));
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--giro-h, 0px));
   z-index: 50;
-  background: var(--bg-header);
+  background: var(--bg);
   backdrop-filter: blur(8px);
 }
 .camp-sticky__inner {
@@ -59,7 +59,7 @@
   gap: 0.85rem;
   background: var(--bg-card);
   box-shadow: var(--card-shadow);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   padding: 0.75rem 0.85rem;
 }
 

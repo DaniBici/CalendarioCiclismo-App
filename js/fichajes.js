@@ -2,12 +2,19 @@
 //  FICHAJES — /fichajes/ (+ EN /en/transfers/)
 //  Mercado de fichajes de la temporada 2027 (tabla rider_transfers, mig. 122).
 //
-//  Estructura de la página:
-//   1. Feed cronológico inverso de CONFIRMACIONES (fichajes + renovaciones;
-//      los rumores y las dudas NO aparecen aquí). Un movimiento con la fecha
-//      oculta (dateVisible=false, mig. 123) tampoco: la carga inicial mete de
-//      golpe anuncios de hace semanas que poblarían el feed de días viejos.
-//   2. Botones de división (WT · PT · WWT · PRW) + lista de equipos 2027.
+//  Estructura de la página (dos vistas, interruptor Mercado | Equipos):
+//   MERCADO
+//   1. Filtros (categoría, división, rango de edad, duración de contrato):
+//      chips que empiezan TODOS activos; dentro de un grupo es OR y entre
+//      grupos AND. Un grupo con todos sus chips activos no filtra (así siguen
+//      visibles los movimientos con un dato desconocido).
+//   2. Dos columnas de CONFIRMACIONES en orden cronológico inverso (fichajes y
+//      renovaciones; los rumores y las dudas NO aparecen aquí). Un movimiento
+//      con la fecha oculta (dateVisible=false, mig. 123) tampoco: la carga
+//      inicial mete de golpe anuncios de hace semanas que poblarían el feed de
+//      días viejos.
+//   EQUIPOS
+//   3. Botones de división (WT · PT · WWT · PRW) + losetas de equipos 2027.
 //      Los equipos salen de team_seasons[2027] → los renombres de sponsor y
 //      los ascensos/descensos se editan en el panel sin tocar `teams`.
 //      El cuadrado muestra los colores 2027 si team_seasons.badgeVisible; si aún
@@ -23,16 +30,19 @@
 //      renovación en duda (status='doubt', solo en renewal) lo saca también
 //      de "continúan" y lo lleva a su propia sección.
 //
-//  Feed, lista de equipos y vista de equipo salen de js/fichajes-html.js, común
-//  con el build: tools/site/prerender-fichajes.mjs escribe la portada en el HTML y
-//  aquí se conserva si su huella coincide (js/html-fingerprint.js).
+//  La portada (interruptor, filtros, feed y losetas de equipo) y la vista de
+//  equipo salen de js/fichajes-html.js, común con el build:
+//  tools/site/prerender-fichajes.mjs escribe la portada en el HTML y aquí se
+//  conserva si su huella coincide (js/html-fingerprint.js).
 //
-//  Estado compartible por URL: ?div=WT|WWT|PT|PRW y ?team=<slug> (bilingüe
-//  ES/EN; ?equipo= antiguo se sigue leyendo por retrocompatibilidad), sin
-//  recarga. Abrir un equipo apila una entrada de historial (pushState) → el
-//  botón atrás del navegador vuelve a la home de mercado (o al equipo anterior),
-//  no a la home global; el listener popstate sincroniza la vista con la URL.
-//  Cambiar de división es replaceState (no apila).
+//  Estado compartible por URL: ?vista=equipos (sin él, Mercado), ?div=WT|WWT|
+//  PT|PRW y ?team=<slug> (bilingüe ES/EN; ?equipo= antiguo se sigue leyendo por
+//  retrocompatibilidad), sin recarga. ?div= y ?team= implican la vista Equipos.
+//  Abrir un equipo apila una entrada de historial (pushState) → el botón atrás
+//  del navegador vuelve a la lista de equipos (o al equipo anterior), no a la
+//  home global; el listener popstate sincroniza la vista con la URL. Cambiar de
+//  vista o de división es replaceState (no apila). Los filtros viven solo en
+//  memoria.
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase } from './shared.js';
@@ -43,9 +53,9 @@ import { patchHtml, slideIn } from './dom-patch.js';
 import { t, initI18n } from './i18n.js';
 import { refreshSplitSectionTitles } from './fichajes-columnas.js';
 import {
-  SEASON, PREV_SEASON, DIVISIONS, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS, ROSTER_COLUMNS,
-  esc, marketRiderIds, marketExtraTeamIds, attachRiders, buildMarket, hasTeamView,
-  rosterGender, rosterFromRows, teamViewHtml, feedColumnsHtml, feedButtonsHtml, divButtonsHtml,
+  SEASON, PREV_SEASON, DIVISIONS, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS, ROSTER_COLUMNS, TEAM_COUNTRY_COLUMNS,
+  FILTER_GROUPS, esc, marketRiderIds, marketExtraTeamIds, marketSeasonTeamIds, attachRiders, buildMarket, hasTeamView,
+  rosterGender, rosterFromRows, teamViewHtml, newFilters, feedColumnsHtml, feedButtonsHtml, filtersHtml, divButtonsHtml,
   teamGridHtml, marketHomeHtml,
 } from './fichajes-html.js';
 
@@ -54,6 +64,8 @@ const CACHE_KEY = `fichajes:${SEASON}`;
 let _market = null;                 // buildMarket() de las lecturas (js/fichajes-html.js)
 let _activeDiv = 'WT';
 let _activeFeed = 'signings';
+let _view = 'market';               // 'market' | 'teams' (interruptor Mercado | Equipos)
+let _filters = newFilters();        // grupo → Set de valores activos
 let _rosterCache = new Map();       // teamId → [{ ...ficha }]
 
 const $ = (id) => document.getElementById(id);
@@ -84,13 +96,17 @@ async function fetchMarket() {
   const menIds   = marketRiderIds(transfers, 'male');
   const womenIds = marketRiderIds(transfers, 'female');
   const refIds = marketExtraTeamIds(seasons, prevSeasons, transfers);
-  const [men, women, extraTeams] = await Promise.all([
+  // País de cada equipo del mercado para las losetas y el banner
+  // (teams.countryCode, mig. 074): solo los equipos de la temporada.
+  const seasonTeamIds = marketSeasonTeamIds(seasons);
+  const [men, women, extraTeams, teamCountries] = await Promise.all([
     menIds.length ? fetchByIds(supabase, 'riders_men', RIDER_COLUMNS, 'id', menIds) : [],
     womenIds.length ? fetchByIds(supabase, 'riders_women', RIDER_COLUMNS, 'id', womenIds) : [],
     refIds.length ? fetchByIds(supabase, 'teams', 'id, name', 'id', refIds) : [],
+    seasonTeamIds.length ? fetchByIds(supabase, 'teams', TEAM_COUNTRY_COLUMNS, 'id', seasonTeamIds) : [],
   ]);
   attachRiders(transfers, men, women);
-  return { seasons, prevSeasons, transfers, extraTeams };
+  return { seasons, prevSeasons, transfers, extraTeams, teamCountries };
 }
 
 function applyMarket(market) {
@@ -99,19 +115,40 @@ function applyMarket(market) {
   if (market.rosters) _rosterCache = new Map(Object.entries(market.rosters));
 }
 
-// Feed, botones y equipos se actualizan sobre lo pintado (js/dom-patch.js):
-// con datos nuevos solo cambian las filas afectadas y los movimientos nuevos
-// entran deslizándose; el botón pulsado conserva el foco.
+// Feed, botones, filtros y equipos se actualizan sobre lo pintado
+// (js/dom-patch.js): con datos nuevos solo cambian las filas afectadas y los
+// movimientos nuevos entran deslizándose; el botón pulsado conserva el foco.
 const patchMarket = (el, html) => patchHtml(el, html, { enter: slideIn });
 
 function renderFeed() {
   const box = $('trFeed');
-  if (box) patchMarket(box, feedColumnsHtml(_market, _activeFeed));
+  if (box) patchMarket(box, feedColumnsHtml(_market, _activeFeed, _filters));
 }
 
 function renderFeedButtons() {
   const box = $('trFeedBtns');
   if (box) patchHtml(box, feedButtonsHtml(_activeFeed));
+}
+
+// ── Panel de filtros ──────────────────────────────────────────────
+// Los chips conservan su nodo al repintar (js/dom-patch.js), y con él el foco
+// del teclado: solo cambia su estado.
+function renderFilters() {
+  const box = $('trFilters');
+  if (box) patchHtml(box, filtersHtml(_filters));
+}
+
+function toggleFilter(groupKey, rawValue) {
+  const g = FILTER_GROUPS.find(x => x.key === groupKey);
+  const option = g?.options.find(o => String(o.value) === rawValue);
+  if (!option) return;
+  const active = _filters[groupKey];
+  if (active.has(option.value)) active.delete(option.value); else active.add(option.value);
+  // Un grupo nunca queda vacío: sin ninguna opción equivaldría a "todo oculto",
+  // que no es un filtro útil → se vuelve a seleccionar todo el grupo.
+  if (active.size === 0) g.options.forEach(o => active.add(o.value));
+  renderFilters();
+  renderFeed();
 }
 
 // ── Divisiones + lista de equipos ─────────────────────────────────
@@ -169,11 +206,12 @@ async function openTeam(teamId, { push = true, keepScroll = false } = {}) {
 
   if (push) {
     const qs = new URLSearchParams(location.search);
+    qs.set('vista', 'equipos');
     qs.set('div', _activeDiv);
     qs.delete('equipo');   // limpia el param ES antiguo si venía en la URL
     qs.set('team', _market.teamIdToSlug.get(teamId) || teamId);   // slug legible, bilingüe
     // pushState (no replaceState): abrir un equipo apila una entrada de
-    // historial → el botón atrás del navegador vuelve a la home de mercado (o al
+    // historial → el botón atrás del navegador vuelve a la lista de equipos (o al
     // equipo anterior si se saltó de equipo a equipo), no a la home global. La
     // sincronización vista↔URL al usar atrás/adelante la hace el listener
     // popstate (ver más abajo). El estado guarda el teamId para que popstate
@@ -181,8 +219,8 @@ async function openTeam(teamId, { push = true, keepScroll = false } = {}) {
     history.pushState({ trTeam: teamId }, '', `${location.pathname}?${qs}`);
   }
 
-  // "Continúan" = corredores que YA estaban en el equipo en la temporada en
-  // curso; sin plantilla, esa sección lleva el aviso y las demás se pintan.
+  // La plantilla = corredores que YA estaban en el equipo en la temporada en
+  // curso; sin ella, esa sección lleva el aviso y las demás se pintan.
   let roster = [];
   let rosterError = false;
   try {
@@ -206,6 +244,8 @@ async function openTeam(teamId, { push = true, keepScroll = false } = {}) {
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
   }
+  _view = 'teams';
+  applyView();
   showTeamBack();
   // (El clic en filas de corredor enlazadas se delega UNA vez en init sobre
   // #trTeamView, que persiste entre aperturas — no se cablea aquí para no
@@ -232,13 +272,54 @@ window.addEventListener('resize', refreshSplitSectionTitles);
 function closeTeam() {
   _teamRequest++;   // una plantilla en camino ya no abre su equipo
   const view = $('trTeamView');
-  if (view.hidden) return;   // ya en la home → nada que hacer
-  view.hidden = true;
-  view.innerHTML = '';
-  $('trHome').hidden = false;
-  // Ocultar el ← del header: en la lista de equipos no hay "volver".
-  if (typeof window.ccHeaderBack === 'function') window.ccHeaderBack(null);
-  window.scrollTo(0, 0);
+  if (!view.hidden) {
+    view.hidden = true;
+    view.innerHTML = '';
+    $('trHome').hidden = false;
+    // Ocultar el ← del header: en la lista de equipos no hay "volver".
+    if (typeof window.ccHeaderBack === 'function') window.ccHeaderBack(null);
+    window.scrollTo(0, 0);
+  }
+  applyView();
+}
+
+// Muestra la vista activa (Mercado | Equipos) y deja el interruptor y el h1 en
+// consonancia. El h1 es el único de la página: visible en Mercado y oculto solo
+// visualmente (.sr-only) en Equipos y en el detalle de un equipo, donde el
+// título visible es otro.
+function applyView() {
+  const teamOpen = !$('trTeamView').hidden;
+  $('trViewMarket').hidden = _view !== 'market';
+  $('trViewTeams').hidden = _view !== 'teams';
+  $('trViewSwitch').querySelectorAll('[data-view]').forEach(b => {
+    const on = b.dataset.view === _view;
+    b.setAttribute('aria-pressed', String(on));
+    b.classList.toggle('tr-view-btn--active', on);
+  });
+  $('trH1').classList.toggle('sr-only', _view !== 'market' || teamOpen);
+}
+
+// Vista que pide una URL: ?vista=equipos, o un ?div=/?team= (enlaces anteriores
+// al interruptor) → Equipos; sin nada de eso, Mercado.
+function viewFromUrl(qs) {
+  const hasDiv = DIVISIONS.includes((qs.get('div') || '').toUpperCase());
+  const hasTeam = Boolean(resolveTeamParam(qs.get('team') || qs.get('equipo')));
+  return qs.get('vista') === 'equipos' || hasDiv || hasTeam ? 'teams' : 'market';
+}
+
+// Cambio de vista desde el interruptor (replaceState: no apila historial). Si
+// había un equipo abierto, se cierra. Mercado limpia ?div= porque implicaría
+// Equipos al recargar.
+function setView(view) {
+  _view = view;
+  const qs = new URLSearchParams(location.search);
+  if (view === 'teams') qs.set('vista', 'equipos');
+  else { qs.delete('vista'); qs.delete('div'); }
+  qs.delete('team');
+  qs.delete('equipo');
+  const query = qs.toString();
+  history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}`);
+  closeTeam();
 }
 
 // Resuelve un teamId desde el valor de ?team=/?equipo= (slug legible bilingüe o,
@@ -252,9 +333,10 @@ function resolveTeamParam(value) {
 // ── Sincronización con el botón atrás/adelante del navegador ───────
 // openTeam apila una entrada con pushState; el ← del header hace history.back().
 // Aquí reaccionamos al cambio de historial: si la nueva URL lleva ?team= abrimos
-// ese equipo (sin volver a apilar), y si no, repintamos la home de mercado. Con
-// esto, atrás desde un equipo va a la home de mercado (o al equipo anterior si se
-// saltó de equipo a equipo), no a la home global, y adelante rehace el camino.
+// ese equipo (sin volver a apilar), y si no, repintamos la vista que pida la URL.
+// Con esto, atrás desde un equipo va a la lista de equipos (o al equipo anterior
+// si se saltó de equipo a equipo), no a la home global, y adelante rehace el
+// camino.
 window.addEventListener('popstate', (e) => {
   // El mercado aún no está cargado (navegación muy temprana; la portada
   // generada en el build ya lleva #trTeamView): lo resuelve init.
@@ -267,6 +349,7 @@ window.addEventListener('popstate', (e) => {
   if (teamId && hasTeamView(_market, teamId)) {
     openTeam(teamId, { push: false });   // sin pushState: no duplica historial
   } else {
+    _view = viewFromUrl(qs);
     closeTeam();
   }
 });
@@ -357,21 +440,38 @@ async function mountMarket() {
     const cat = _market.seasonsByTeamId.get(teamId)?.category;
     if (DIVISIONS.includes(cat)) _activeDiv = cat;
   }
+  _view = viewFromUrl(qs);
   // Publicación por página: el documento de un equipo ya lo trae pintado.
   const teamPainted = Boolean(teamId) && content.dataset.paintedTeam === teamId;
   const teamHtml = teamPainted ? teamViewHtml(_market, teamId, await loadRoster(teamId)) : null;
 
   // La portada generada en el build con el mismo HTML se conserva
   // (js/html-fingerprint.js); con otra división en la URL o datos nuevos desde
-  // el build, se actualiza solo lo que difiere.
-  applyPrerenderedHtml(content, marketHomeHtml(_market, { activeDiv: _activeDiv, activeFeed: _activeFeed, teamHtml }), patchMarket);
+  // el build, se actualiza solo lo que difiere. Siempre trae Mercado a la
+  // vista: applyView muestra la que pida la URL.
+  applyPrerenderedHtml(content, marketHomeHtml(_market, { activeDiv: _activeDiv, activeFeed: _activeFeed, filters: _filters, teamHtml }), patchMarket);
   // Enlace a un equipo: la portada no llega a verse mientras se lee su plantilla.
   if (teamId && !teamPainted) $('trHome').hidden = true;
   content.hidden = false;
 
-  // Botones y tarjetas se delegan en sus contenedores, que persisten entre
-  // repintados (renderFeed, renderTeams): sirven igual sobre la portada
+  $('trViewSwitch').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-view]');
+    if (btn) setView(btn.dataset.view);
+  });
+
+  // Chips, botones y tarjetas se delegan en sus contenedores, que persisten
+  // entre repintados (renderFeed, renderTeams): sirven igual sobre la portada
   // generada que sobre la pintada aquí.
+  $('trFilters').addEventListener('click', (e) => {
+    const chip = e.target.closest('.tr-filter-chip');
+    if (chip) { toggleFilter(chip.dataset.group, chip.dataset.value); return; }
+    if (e.target.closest('#trFiltersClear')) {
+      _filters = newFilters();
+      renderFilters();
+      renderFeed();
+    }
+  });
+
   $('trFeedBtns').addEventListener('click', (e) => {
     const button = e.target.closest('[data-feed]');
     if (!button) return;
@@ -385,6 +485,7 @@ async function mountMarket() {
     if (!button) return;
     _activeDiv = button.dataset.div;
     const params = new URLSearchParams(location.search);
+    params.set('vista', 'equipos');
     params.set('div', _activeDiv);
     params.delete('team');
     params.delete('equipo');   // barre también el param ES antiguo
@@ -425,6 +526,7 @@ async function mountMarket() {
     openTeam(link.dataset.team);
   });
 
+  applyView();
   if (teamId) {
     if (teamPainted) {
       showTeamBack();

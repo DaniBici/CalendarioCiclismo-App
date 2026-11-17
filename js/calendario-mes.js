@@ -11,8 +11,8 @@
 import { supabase, toDateKey, stageLabel, categoryRank, countryFlag, effectiveCountryCode,
          jornadaUrl, raceUrl, raceName, categoryBadge, rdLocation,
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
-         needsFemaleMark, cleanFeminineName }
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, genderMark,
+         cleanFeminineName }
          from './shared.js';
 import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
@@ -188,7 +188,6 @@ function raceRowHtml(rd, refId) {
   const cancelled = race.isCancelled === true || rd.isCancelledDay === true;
 
   const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race), { lazy: true });
-  const isFemale = needsFemaleMark(race, activeCat);
   const name = cleanFeminineName(raceName(race) || '-', activeCat);
 
   let l1Extra = '';
@@ -218,7 +217,7 @@ function raceRowHtml(rd, refId) {
       : logoPlaceholderHtml('cal-race__logo cal-race__logo--empty');
 
   const nameStyle = cancelled ? ' style="text-decoration:line-through;opacity:0.5"' : '';
-  const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${isFemale ? femaleMark({ cls: 'cal-race__female' }) : ''}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
+  const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${genderMark(race, activeCat)}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
 
   // Destino del clic: misma lógica que la rejilla retirada.
   const isNoClickable = race.isNoClickable === true;
@@ -359,10 +358,11 @@ function paintMonth(data, { refresh = false } = {}) {
 function scrollToToday(smooth = true) {
   const el = document.getElementById(`cal-day-${toDateKey(today)}`);
   if (!el) return;
-  const headerH = document.querySelector('.site-header')?.offsetHeight || 56;
-  const navH = document.querySelector('.primary-nav')?.offsetHeight || 0;
+  // Alto de la cabecera fija (navegación incluida) que publica js/header.js;
+  // vale 0 cuando la cabecera no es fija (móvil).
+  const headerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--site-header-h')) || 0;
   const barH = document.getElementById('mesBar')?.offsetHeight || 0;
-  const top = el.getBoundingClientRect().top + window.scrollY - headerH - navH - barH - 6;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerH - barH - 6;
   window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'instant' });
 }
 

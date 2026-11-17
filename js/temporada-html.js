@@ -1,6 +1,6 @@
 // HTML y filtros de Temporada, sin DOM: lo usan el navegador y el servidor que publica
 // la página. El estado vive en `S`, compartido con js/temporada.js.
-import { categoryRank, countryFlag, jornadaUrl, raceUrl, raceName, categoryBadge, femaleMark, needsFemaleMark, cleanFeminineName } from './shared.js';
+import { categoryRank, countryFlag, jornadaUrl, raceUrl, raceName, categoryBadge, genderMark, cleanFeminineName } from './shared.js';
 import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
 import { t, getLang } from './i18n.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
@@ -493,7 +493,6 @@ function renderRaceRow(race, name = raceName(race)) {
 
   const flag    = race.hideFlag ? '' : countryFlag(race.countryCode);
   const cat     = race.uciCategory || '';
-  const isFemale = needsFemaleMark(race, S.activeCat);
   const colorStyle = `--rc:${raceColor(race.colorHex)}`;
   const isPlaceholder = !hasDays;
   // Los Campeonatos Nacionales no llevan logo: sin hueco.
@@ -506,7 +505,7 @@ function renderRaceRow(race, name = raceName(race)) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
       : logoPlaceholderHtml('t-race__logo-empty')
     }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, S.activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}"><span class="t-race__name-text">${cleanFeminineName(name, S.activeCat)}</span>${genderMark(race, S.activeCat)}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -542,11 +541,8 @@ function renderChallengeGroup(cg) {
   const expanded   = S.expandedChallenges.has(cg.id);
   const panelId    = `cg-panel-${cg.id}`;
 
-  const showFemale = needsFemaleMark(cg, S.activeCat);
   const displayName = cleanFeminineName(cg.name, S.activeCat);
-  const femaleSuffix = showFemale
-    ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
-    : '';
+  const femaleSuffix = genderMark(cg, S.activeCat);
 
   const noLogo = cat === 'CN';
 
@@ -560,7 +556,7 @@ function renderChallengeGroup(cg) {
         ? `<img class="t-race__logo" src="${cg.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
         : logoPlaceholderHtml('t-race__logo-empty')
       }
-      <span class="t-race__name t-race__name--group"><span class="t-race__name-text">${displayName}${femaleSuffix}</span>${CHEVRON_SVG}</span>
+      <span class="t-race__name t-race__name--group"><span class="t-race__name-text">${displayName}</span>${femaleSuffix}${CHEVRON_SVG}</span>
       <span class="t-race__dates">${dateStr}</span>
       ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
     </button>

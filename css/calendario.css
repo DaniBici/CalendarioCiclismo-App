@@ -20,12 +20,12 @@
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  background-color: var(--bg-card);
+  background-color: transparent;
   color: var(--text);
-  border: 0;
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  min-height: 24px;
+  padding: 0 0.6rem;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -33,7 +33,9 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
+  transition: background-color var(--transition), border-color var(--transition);
 }
+.temporada-select:hover { background-color: var(--hover-bg); border-color: var(--text); }
 .temporada-select:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .temporada-main {
@@ -50,32 +52,36 @@
 }
 
 /* ── Meses ───────────────────────────────────────────────────── */
-/* Mes como las demás fechas de grupo: 13 seminegrita en gris. */
+/* Mes como cabecera de la tabla: banda tintada con el mismo contorno, pegada
+   a la tabla (como las cabeceras de panel). Fija al desplazar: se lee como la
+   cabecera de la tabla que se está recorriendo, y la sombra superior del color
+   de la página tapa las filas que pasan por encima. */
 .temporada-month__title {
-  font-family: var(--font-body);
-  font-size: var(--fs-2);
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.4rem;
   position: sticky;
   top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--temporada-filters-h, 45px));
-  background: var(--bg);
   z-index: 10;
-  padding-top: 0.4rem;
-  box-shadow: 0 -8px 8px 4px var(--bg);
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--bg-tint);
+  box-shadow: var(--card-shadow), 0 -12px 0 var(--bg);
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 600;
+  color: var(--text);
 }
 
-/* Carreras del mes en una superficie de tarjeta, con filas separadas por
-   filete, como Puntos clave o el ránking. */
+/* Carreras del mes en una tabla con contorno, con filas separadas por
+   filete, como Puntos clave o el ránking; la cabecera es el mes. */
 .temporada-races {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-card);
   box-shadow: var(--card-shadow);
-  border-radius: var(--radius);
+  border-radius: 0 0 var(--radius) var(--radius);
 }
+.temporada-month__title + .temporada-races { margin-top: 0; }
 
 /* ── Fila de carrera ─────────────────────────────────────────── */
 .t-race {
@@ -131,26 +137,44 @@ button.t-race {
 }
 
 .t-race__name {
+  display: flex;
+  align-items: center;
   font-family: var(--font-body);
   font-size: var(--fs-3);
   font-weight: 500;
-  /* Una sola línea con puntos suspensivos: todas las filas miden lo mismo. */
+  /* Una sola línea con puntos suspensivos en el texto: todas las filas miden
+     lo mismo y la marca de género no se recorta. */
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.t-race__name > .t-race__name-text { white-space: nowrap; }
 /* Carrera cancelada: nombre tachado; conserva contraste AA (0,65 de opacidad). */
-.t-race__name--cancelled { text-decoration: line-through; opacity: 0.65; }
+.t-race__name--cancelled { opacity: 0.65; }
+.t-race__name--cancelled > .t-race__name-text { text-decoration: line-through; }
 /* Campeonatos Nacionales: sin logo ni hueco; el nombre ocupa también su columna.
    La fila «Campeonatos Nacionales» tampoco lleva bandera. */
 .t-race--no-logo .t-race__name { grid-column: 2 / 4; }
 .t-race--no-flag .t-race__name { grid-column: 1 / 4; }
-.t-race__female {
-  font-size: var(--fs-1);
-  font-weight: 400;
-  opacity: 0.7;
+/* Género (shared.genderMark, solo en la lista mixta): ♀ y ♂ por igual, en un
+   círculo de tinte suave con el símbolo en su color; discretos junto al
+   nombre, distinguibles de un vistazo. */
+.gender-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: 0.05em;
 }
+.gender-mark--f { color: #ad1457; background: color-mix(in srgb, #ad1457 12%, transparent); }
+.gender-mark--m { color: #1565c0; background: color-mix(in srgb, #1565c0 12%, transparent); }
+html:not(.light) .gender-mark--f { color: #f48fb1; background: color-mix(in srgb, #f48fb1 16%, transparent); }
+html:not(.light) .gender-mark--m { color: #90caf9; background: color-mix(in srgb, #90caf9 16%, transparent); }
 
 .t-race__dates {
   font-family: var(--font-display);
@@ -242,16 +266,17 @@ button.t-race {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  background: var(--bg-card);
-  color: var(--accent-text);
-  border: 0;
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  padding: 0.3rem 0.6rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  min-height: 24px;
+  padding: 0 0.75rem;
   cursor: pointer;
   white-space: nowrap;
+  transition: background var(--transition), border-color var(--transition);
 }
-.cal-view-toggle:hover { background: var(--accent-dim); }
+.cal-view-toggle:hover { background: var(--hover-bg); border-color: var(--text); }
 
 /* ── Barra de la subvista Mes ────────────────────────────────── */
 .cal-mes-bar__row1 {
@@ -279,7 +304,8 @@ button.t-race {
 .cal-month-chips--dragging { cursor: grabbing; }
 
 /* Chips de mes = mismas píldoras que el selector de días de Hoy (.date-pill):
-   sin borde, fondo transparente, activo/hover en --accent-dim. */
+   borde transparente; hover en --hover-bg y activo con los colores de día
+   seleccionado. */
 .cal-month-chip {
   font-family: var(--font-body);
   font-size: var(--fs-3);
@@ -287,17 +313,18 @@ button.t-race {
   color: var(--text);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   padding: 0.3rem 0.65rem;
   cursor: pointer;
   white-space: nowrap;
   flex: 0 0 auto;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
-.cal-month-chip:hover { background: var(--accent-dim); }
-.cal-month-chip--active {
-  background: var(--accent-dim);
-  color: var(--accent-text);
+.cal-month-chip:hover { background: var(--hover-bg); border-color: var(--text); }
+.cal-month-chip--active, .cal-month-chip--active:hover {
+  background: var(--day-selected-bg);
+  border-color: var(--day-selected-border);
+  color: var(--day-selected-text);
   font-weight: 700;
 }
 
@@ -307,15 +334,16 @@ button.t-race {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  background: var(--bg-card);
+  background: transparent;
   color: var(--text);
-  border: 0;
-  border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  min-height: 24px;
+  padding: 0 0.75rem;
   cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
 }
-.cal-today-btn:hover { background: var(--accent-dim); color: var(--accent-text); }
+.cal-today-btn:hover { background: var(--hover-bg); border-color: var(--text); }
 
 /* ── Agenda mensual ──────────────────────────────────────────── */
 .cal-mes-list { display: flex; flex-direction: column; }
@@ -350,8 +378,8 @@ button.t-race {
 }
 /* Rótulo del día en gris, como las fechas de Resultados y Fichajes; el día de
    hoy conserva el círculo de acento. */
-.cal-day--today .cal-day__num { background: var(--accent); color: #fff; font-weight: 700; }
-.cal-day__wd { font-size: var(--fs-2); font-weight: 600; color: var(--text-muted); }
+.cal-day--today .cal-day__num { background: var(--day-selected-bg); color: var(--day-selected-text); box-shadow: 0 0 0 1px var(--day-selected-border); font-weight: 700; }
+.cal-day__wd { font-size: var(--fs-2); font-weight: 600; color: var(--text); }
 
 .cal-day__empty {
   margin: 0 0 0.5rem 2.7rem;
@@ -427,7 +455,6 @@ button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
   font-weight: 500;
   line-height: 1.25;
 }
-.cal-race__female { flex: none; font-size: var(--fs-1); opacity: 0.7; }
 .cal-race__note { flex: none; font-size: var(--fs-1); color: var(--text-muted); white-space: nowrap; }
 .cal-race__note--cancel { color: #d93025; }
 
@@ -445,6 +472,9 @@ button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 .cal-race__chev { color: var(--text-dim); font-size: var(--fs-4); flex: none; padding-right: 0.1rem; }
 
 .cal-race--champ { background: var(--bg-card); }
+@media (max-width: 600px) {
+  .temporada-select, .cal-view-toggle, .cal-today-btn { min-height: 32px; }
+}
 
 @media (min-width: 761px) {
   /* Como la agenda de Ciclocross: el día encima y sus carreras debajo, en dos

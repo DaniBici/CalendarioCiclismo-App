@@ -6,6 +6,7 @@ import { supabase, stageLabel,
 import { t, getLang, initI18n } from './i18n.js';
 import { mountStageProfile } from './stage/profile.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
+import { enableGcFinalRow } from './race-gc-final.js';
 import { perfilHtml, stagePageNoticeHtml } from './perfil-mapa-html.js';
 import { visitorTimeZoneLabel } from './shared.js';
 import { PERFIL_DAY_COLUMNS, PERFIL_SIBLING_COLUMNS, STAGE_PAGE_RACE_COLUMNS, sortStagePageSiblings } from './services/races.js';
@@ -181,5 +182,6 @@ function render(rd, race, siblings, assets = []) {
   // mismo HTML se conserva y solo se monta lo interactivo.
   const timeZoneLabel = visitorTimeZoneLabel();
   applyPrerenderedHtml(content, perfilHtml({ rd, race, siblings, assets, timeZoneLabel }));
+  enableGcFinalRow(document, race);
   mountStageProfile(document.getElementById('pfeProfile'), { day:rd, race:race || {}, assets, points:true, timeZoneLabel });
 }

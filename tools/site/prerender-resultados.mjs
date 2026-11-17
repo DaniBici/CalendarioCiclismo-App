@@ -272,7 +272,10 @@ const nullsLast = (a, b) => (a == null) - (b == null);
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 // race_days: dateKey asc, neutralStartTimeUtc asc con NULL primero (como el
 // navegador) y, a igualdad, el orden por id.
-const DAY_COLUMNS = ['id', 'stageNumber', 'dateKey', 'isCancelledDay', 'isRestDay', 'neutralStartTimeUtc'];
+// Salida, meta y slugs: la lista de etapas de la columna lateral (resultsPageHtml).
+const DAY_COLUMNS = ['id', 'stageNumber', 'dateKey', 'isCancelledDay', 'isRestDay', 'neutralStartTimeUtc', 'startLocation', 'startLocationEn', 'finishLocation', 'finishLocationEn', 'slug', 'slugEn', 'distanceKm'];
+// Desnivel positivo de la jornada (como elevationProfile->elevationGain en el navegador): totales de la general final.
+const dayElevationGain = day => day.elevationProfile?.elevationGain ?? null;
 function raceDaysOrder(a, b) {
   return nullsLast(a.dateKey, b.dateKey) || compare(a.dateKey, b.dateKey)
     || (b.neutralStartTimeUtc == null) - (a.neutralStartTimeUtc == null)
@@ -287,7 +290,7 @@ export function buildIndex(tables) {
   for (const stages of stagesByRace.values()) stages.sort((a, b) => nullsLast(a.stageNumber, b.stageNumber) || (a.stageNumber ?? 0) - (b.stageNumber ?? 0));
   const daysByRace = new Map();
   for (const [raceId, days] of groupBy(rows('race_days'), 'raceId')) {
-    daysByRace.set(raceId, days.map(day => Object.fromEntries(DAY_COLUMNS.map(column => [column, day[column] ?? null]))).sort(raceDaysOrder));
+    daysByRace.set(raceId, days.map(day => ({ ...Object.fromEntries(DAY_COLUMNS.map(column => [column, day[column] ?? null])), elevationGain: dayElevationGain(day) })).sort(raceDaysOrder));
   }
   const guideByRace = new Map();
   for (const [raceId, guides] of groupBy(rows('guides'), row => row.race_days?.raceId)) guideByRace.set(raceId, firstTechnicalGuide(guides));
@@ -620,9 +623,12 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
       filter = html.teamFilterHtml(classification, '', isEn);
     }
   }
+  // Tiempo del ganador de la general: las mismas filas GC que lee el navegador (solo en la general final).
+  const gcRows = stages.activeKey === 'final' && !isOneDay
+    ? inputs.stagesAll.filter(s => s.classKind === 'gc' && s.stageNumber == null).flatMap(s => data.results[s.id] || []) : [];
   const skeleton = html.resultsPageHtml({
     race, stages, active, raceDay, contextDay, contextAssets, actionAssets,
-    canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn,
+    canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn, gcWinnerSecs: html.gcWinnerSeconds(gcRows),
     contextBroadcasts: inputs.broadcasts || [], contextVideos: inputs.videos || [],
   });
   const hasTabs = activeStages.length > 1;
@@ -633,7 +639,7 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
     filter: bar && filter != null ? { html: filter } : null,
     publication: { html: publication.publication },
     table,
-    metrics: contextDay ? { html: env.stageMetricsHtml(contextDay, { timeZoneLabel: LANGS[lang].timeZoneLabel }) } : null,
+    metrics: html.hasResultsContext(race, stages.activeKey, contextDay) ? { html: env.stageMetricsHtml(contextDay, { timeZoneLabel: LANGS[lang].timeZoneLabel }) } : null,
   };
   return { html: fillSlots(skeleton, slots, htmlFingerprint), fingerprint: htmlFingerprint(skeleton), rows };
 }

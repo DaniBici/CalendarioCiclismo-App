@@ -21,7 +21,7 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
-import { STRINGS, PRIMARY_ICONS, headerHtml } from './header-html.js';
+import { STRINGS, PRIMARY_ICONS, headerHtml, PRIMARY_NAV_ITEMS, footerBrandHtml } from './header-html.js';
 import { headerBack } from './header-back.js';
 
 function detectLang() {
@@ -58,21 +58,69 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Destinos secundarios en el pie de todas las páginas: tras el copyright, en
-// la misma fila que Gestión de cookies (js/cookie-consent.js la completa).
+// Pie del rediseño, montado sobre el de cada página (que conserva su línea de
+// copyright): marca, secciones y «Más» (Acerca de mí, Datos abiertos, Calendario
+// iCal, Apoyar, Apps, Privacidad y Términos en todas las páginas, y Gestión de
+// cookies, que
+// js/cookie-consent.js añade a esa misma lista antes o después) y, abajo,
+// autoría y firma del rediseño.
 function buildFooterNav(s) {
   const footer = document.querySelector('.site-footer');
-  if (!footer || footer.querySelector('.footer-link--about')) return;
+  if (!footer || footer.querySelector('.site-footer__top')) return;
   let actions = footer.querySelector('.site-footer__actions');
   if (!actions) {
     actions = document.createElement('p');
     actions.className = 'site-footer__actions';
-    footer.appendChild(actions);
   }
   actions.insertAdjacentHTML('afterbegin',
     `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>` +
-    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>`);
+    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.supportHref}" target="_blank" rel="noopener">${PRIMARY_ICONS.support}<span>${s.supportText}</span></a>` +
+    `<button class="footer-link footer-link--icon footer-link--apps" type="button">${PRIMARY_ICONS.apps}<span>${s.appsText}</span></button>` +
+    `<a class="footer-link footer-link--icon" href="${s.privacyHref}">${PRIMARY_ICONS.privacy}<span>${s.privacyText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.termsHref}">${PRIMARY_ICONS.terms}<span>${s.termsText}</span></a>`);
+  // apps-modal.js (script clásico) deja window.openAppsModal; se consulta al pulsar.
+  actions.querySelector('.footer-link--apps').addEventListener('click', () => {
+    if (typeof window.openAppsModal === 'function') window.openAppsModal();
+  });
+  const copyright = footer.querySelector(':scope > p:not(.site-footer__actions)');
+  const sections = PRIMARY_NAV_ITEMS.map(key =>
+    `<li><a class="footer-link" href="${s[key].href}">${s[key].text}</a></li>`).join('');
+
+  const top = document.createElement('div');
+  top.className = 'site-footer__top';
+  top.innerHTML = footerBrandHtml(s) +
+    `<nav class="site-footer__col" aria-label="${s.footerSections}"><p class="site-footer__heading" aria-hidden="true">${s.footerSections}</p><ul class="site-footer__list">${sections}</ul></nav>` +
+    `<div class="site-footer__col"><p class="site-footer__heading">${s.footerMore}</p></div>`;
+  top.lastElementChild.append(actions);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'site-footer__bottom';
+  if (copyright) {
+    copyright.classList.add('site-footer__legal');
+    // Tras el dueño (con la letra y el tamaño de la línea, como en producción),
+    // el autor del rediseño, igual que el resto de la línea. Privacidad y
+    // Términos pasan a «Más»:
+    // la línea queda solo para la autoría.
+    const owner = copyright.querySelector('a[href*="danisanchez"]');
+    if (owner) {
+      owner.insertAdjacentHTML('afterend',
+        ` - ${s.designText} <a class="site-footer__signature" href="https://x.com/ZipiZapismo" target="_blank" rel="noopener">Alejandro Monteagudo Niella</a>`);
+    }
+    for (const legal of copyright.querySelectorAll('a[href*="privacidad"], a[href*="privacy"], a[href*="terminos"], a[href*="/terms"]')) {
+      const sep = legal.previousSibling;
+      if (sep && sep.nodeType === 3) sep.textContent = sep.textContent.replace(/\s*-\s*$/, '');
+      legal.remove();
+    }
+    bottom.append(copyright);
+  }
+  footer.replaceChildren(top, bottom);
+
+  // Alto del pie para colocarlo siempre bajo el pliegue (css/app.css).
+  const measure = () => document.documentElement.style.setProperty('--site-footer-h', `${footer.offsetHeight}px`);
+  new ResizeObserver(measure).observe(footer);
+  measure();
 }
 
 function buildHeader(el) {
