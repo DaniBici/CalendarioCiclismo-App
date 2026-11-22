@@ -61,7 +61,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Settings
-import app.calendariociclismo.android.util.CxAgendaFilter
+import app.calendariociclismo.android.ui.components.CxFiltersMenu
+import app.calendariociclismo.android.ui.components.TodayFiltersTipAnchor
+import app.calendariociclismo.android.ui.components.TodaySortTipAnchor
+import app.calendariociclismo.android.ui.components.TodayTipDiscipline
+import app.calendariociclismo.android.ui.components.rememberTodayTips
 import app.calendariociclismo.android.util.CxAgendaSort
 import app.calendariociclismo.android.util.CxAgendaTV
 import app.calendariociclismo.android.util.RegionDetector
@@ -116,13 +120,11 @@ import androidx.compose.foundation.lazy.LazyListState
 import app.calendariociclismo.android.ui.today.DATE_BAR_RADIUS
 import app.calendariociclismo.android.ui.today.DateBarWithControls
 import app.calendariociclismo.android.ui.today.DayEmptyState
-import app.calendariociclismo.android.ui.today.CategoryMenu
 import app.calendariociclismo.android.ui.today.SortMenu
 import app.calendariociclismo.android.ui.today.animateDayNavigation
 import app.calendariociclismo.android.ui.today.daySwipeNavigation
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -155,8 +157,6 @@ internal fun cxCategoryName(code: String): String = stringResource(when (code) {
 })
 
 internal fun cxColor(value: String?): Color? = value?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
-
-private fun cxFilter(raw: String?): CxAgendaFilter = CxAgendaFilter.entries.firstOrNull { it.name == raw } ?: CxAgendaFilter.ALL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -220,10 +220,9 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     val generalSwipe = rememberClassificationSwipeState()
     val locale = LocalConfiguration.current.locales[0]
     val clock = cxClock()
-    val cxPinnedRaw by app.preferences.cxDefaultFilter.collectAsState(initial = null)
-    val pinnedFilter = cxFilter(cxPinnedRaw)
     val filter = state.filter
-    var pendingDefault by remember { mutableStateOf<CxAgendaFilter?>(null) }
+    // Burbujas de la primera visita a la agenda (Filtros y Ordenar), con la agenda cargada.
+    val todayTips = rememberTodayTips(TodayTipDiscipline.Cyclocross, ready = tournamentId == null && state.loaded)
     // Página de torneo: todas sus pruebas de la temporada, agrupadas por día.
     val days = if (tournamentId == null) emptyList() else buildList {
         for (month in CyclocrossLogic.months(season)) {
@@ -240,12 +239,15 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     } ?: 0
     LaunchedEffect(tournamentId) {
         if (tournamentId != null) state.open(selectedSeason ?: season)
-        // El filtro fijado se lee antes de abrir para elegir el día de apertura.
-        else state.open(season, savedDay, cxFilter(app.preferences.snapshotCxDefaultFilter()))
+        // Los filtros recordados se leen antes de abrir para elegir el día de apertura.
+        else {
+            CxAgendaSort.entries.firstOrNull { it.name == app.preferences.snapshotTodaySort("cx") }?.let { state.sort = it }
+            state.open(season, savedDay, app.preferences.snapshotCxRaceFilter())
+        }
     }
-    // Cambios posteriores del filtro fijado (diálogo de predeterminado).
+    // Cambios posteriores de los filtros (menú «Filtros»).
     LaunchedEffect(tournamentId) {
-        if (tournamentId == null) app.preferences.cxDefaultFilter.map(::cxFilter).distinctUntilChanged().drop(1)
+        if (tournamentId == null) app.preferences.cxRaceFilter.distinctUntilChanged().drop(1)
             .collect { state.selectFilter(it) }
     }
     LaunchedEffect(season) { state.loadRounds() }
@@ -376,15 +378,12 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             // ([highlights]) que comparte con Ruta.
             if (tournamentId == null) TodayHighlightsBanner(navController = nav, scopes = if (roadTodayVisible) listOf("cx") else listOf("cx", "road"), state = highlights)
             else CCCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RaceCompetitionIdentity(tournamentName.orEmpty(), tournamentLogo, null, hideFlag = true, onBack = { nav.popBackStack() })
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (roundTotal > 1) {
-                            Text(stringResource(R.string.cx_rounds_count, roundTotal), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("·", style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text(season, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                // El número de rondas va bajo el nombre, en la columna principal; sin la
+                // temporada, que el torneo ya implica.
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    RaceCompetitionIdentity(tournamentName.orEmpty(), tournamentLogo, null, hideFlag = true,
+                        subtitle = if (roundTotal > 1) ({ CxRoundsCount(roundTotal) }) else null,
+                        onBack = { nav.popBackStack() })
                 }
             }
             // Secciones del torneo con el selector de la ficha de carrera.
@@ -443,34 +442,28 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                 )
-                // Pulsar «Fijar» abre el diálogo de filtro predeterminado de
-                // esta vista, como en Mes y Temporada.
-                CategoryMenu(
-                    current = filter,
-                    all = CxAgendaFilter.ALL,
-                    options = CxAgendaFilter.entries,
-                    labelRes = { it.labelRes },
-                    pinned = filter != CxAgendaFilter.ALL && pinnedFilter == filter,
-                    onPick = {
-                        if (it != filter) {
+                TodayFiltersTipAnchor(todayTips) {
+                    CxFiltersMenu(
+                        filter = filter,
+                        onChange = {
                             haptic(Haptics.Event.Selection)
                             state.selectFilter(it)
-                        }
-                    },
-                    onPin = {
-                        haptic(Haptics.Event.PrimaryAction)
-                        pendingDefault = filter
-                    },
-                )
-                SortMenu(
-                    current = state.sort,
-                    options = CxAgendaSort.entries,
-                    labelRes = { it.labelRes },
-                    onPick = {
-                        if (it != state.sort) haptic(Haptics.Event.Selection)
-                        state.sort = it
-                    },
-                )
+                            scope.launch { app.preferences.setCxRaceFilter(it) }
+                        },
+                    )
+                }
+                TodaySortTipAnchor(todayTips) {
+                    SortMenu(
+                        current = state.sort,
+                        options = CxAgendaSort.entries,
+                        labelRes = { it.labelRes },
+                        onPick = {
+                            if (it != state.sort) haptic(Haptics.Event.Selection)
+                            state.sort = it
+                            scope.launch { app.preferences.setTodaySort("cx", it.name) }
+                        },
+                    )
+                }
             }
             if (activeSection == CxTournamentSection.GENERAL) {
                 val data = general
@@ -561,23 +554,6 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                 }
             }
         }
-    }
-    pendingDefault?.let { option ->
-        val isPinned = pinnedFilter != CxAgendaFilter.ALL && pinnedFilter == option
-        val optionLabel = stringResource(option.labelRes)
-        AlertDialog(
-            onDismissRequest = { pendingDefault = null },
-            title = { Text(stringResource(if (isPinned) R.string.filter_dialog_remove_title else R.string.filter_dialog_title)) },
-            text = { Text(stringResource(if (isPinned) R.string.cx_filter_dialog_remove_message else R.string.cx_filter_dialog_set_message, optionLabel)) },
-            confirmButton = {
-                if (isPinned) {
-                    TextButton(onClick = { scope.launch { app.preferences.setCxDefaultFilter(null) }; pendingDefault = null }) { Text(stringResource(R.string.action_remove)) }
-                } else {
-                    TextButton(onClick = { scope.launch { app.preferences.setCxDefaultFilter(option.name) }; pendingDefault = null }) { Text(stringResource(R.string.action_set)) }
-                }
-            },
-            dismissButton = { TextButton(onClick = { pendingDefault = null }) { Text(stringResource(R.string.action_cancel)) } },
-        )
     }
 }
 
@@ -678,7 +654,7 @@ private fun CxDayAgenda(
                 )
                 dayRaces.isEmpty() -> DayEmptyState(
                     title = stringResource(R.string.cx_empty_title),
-                    body = stringResource(if (state.filter == CxAgendaFilter.ALL) R.string.cx_empty_body else R.string.cx_empty_filter_body),
+                    body = stringResource(if (!state.filter.isActive) R.string.cx_empty_body else R.string.cx_empty_filter_body),
                     nextLabel = stringResource(R.string.cx_empty_next_race),
                     nextRaceDate = nextRaceDay,
                     onNextRaceDay = onNextRaceDay,
@@ -847,6 +823,9 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
                             tournament = tournament?.let { LocaleHolder.t(it.name, it.nameEn ?: it.name) },
                             round = CxPresentation.roundLabel(round),
                             venue = race.venue?.takeIf { it != race.name },
+                            // El torneo (solo en Hoy, con su acceso) y la manga van en negrita;
+                            // en la página de torneo, solo la manga.
+                            emphasize = true,
                         )
                         CxCardBadges(race, date, clock, english, onSummary = if (openRace) { { open("videos") } } else null, onStartlist = if (openRace) { code -> open("inscritos-$code") } else null)
                     }
@@ -873,6 +852,16 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
     if (showPlaceholder) CxPlaceholderModal(race = race, onDismiss = { showPlaceholder = false })
 }
 
+/** «12 rondas» (cabecera de la página de torneo), en peso normal: la negrita es de la manga «n/total» de cada prueba. */
+@Composable
+private fun CxRoundsCount(total: Int) {
+    Text(
+        text = stringResource(R.string.cx_rounds_count, total),
+        style = CCText.S13,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 @Composable
 private fun MetaDot(modifier: Modifier = Modifier, style: TextStyle = CCText.S12) {
     Text("·", modifier = modifier, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -882,10 +871,12 @@ private fun MetaDot(modifier: Modifier = Modifier, style: TextStyle = CCText.S12
  * Línea secundaria de la tarjeta (torneo · ronda · sede) en una sola línea.
  * La ronda no se recorta; si falta espacio se recorta primero la sede (y se
  * omite cuando apenas cabe) y después el torneo, con puntos suspensivos.
- * Compartida con la pestaña Ciclocross de Resultados.
+ * Compartida con la pestaña Ciclocross de Resultados. `emphasize`: torneo en
+ * negrita y color principal, y manga en negrita y gris (Hoy y Últimos
+ * resultados); la sede va siempre en peso normal.
  */
 @Composable
-internal fun CxMetaLine(tournament: String?, round: String?, venue: String?, style: TextStyle = CCText.S12) {
+internal fun CxMetaLine(tournament: String?, round: String?, venue: String?, style: TextStyle = CCText.S12, emphasize: Boolean = false) {
     // Sin datos, la línea conserva su altura para no alterar la de la tarjeta.
     if (tournament == null && round == null && venue == null) { Text("", style = style); return }
     val color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -895,7 +886,13 @@ internal fun CxMetaLine(tournament: String?, round: String?, venue: String?, sty
         content = {
             parts.forEachIndexed { index, (id, text) ->
                 if (index > 0) MetaDot(Modifier.layoutId("d$id"), style)
-                Text(text, modifier = Modifier.layoutId(id), style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                val strong = emphasize && id != "v"
+                Text(
+                    text, modifier = Modifier.layoutId(id), style = style,
+                    fontWeight = if (strong) FontWeight.Bold else null,
+                    color = if (strong && id == "t") MaterialTheme.colorScheme.onSurface else color,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false,
+                )
             }
         },
     ) { measurables, constraints ->

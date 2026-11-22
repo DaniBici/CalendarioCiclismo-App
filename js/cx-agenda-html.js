@@ -12,13 +12,14 @@
 //  zona ni la región.
 // ─────────────────────────────────────────────────────────────────
 
+import {cxRaceLevel} from './race-filters.js';
 import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml,rewindIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
-import {countryFlag,categoryBadge,buildRaceHeader,formatDateLabel,filterBroadcastsByRegion,seoShortMonth} from './shared.js';
+import {countryFlag,categoryBadge,buildRaceHeader,raceLayoutHtml,raceDateRangeText,formatDateLabel,filterBroadcastsByRegion,seoShortMonth} from './shared.js';
 import {t,getLang,getLocale} from './i18n.js';
 import {cxListedInAgenda,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxRacePageUrl,cxAgendaTv,CX_TV_STATUS_CHIPS,cxAgendaVideo,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRacePlaceholder,cxPlaceholderMessage} from './cx/presentation.js';
+import {cxEsc as esc,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxRacePageUrl,cxAgendaTv,CX_TV_STATUS_CHIPS,cxAgendaVideo,cxAgendaStartlistCategory,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRoundLabel,cxRacePlaceholder,cxPlaceholderMessage} from './cx/presentation.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
 import {cxTvEmbedAttrs} from './cx/tv-modal.js';
 import {logoPlaceholderHtml} from './components/logo-placeholder.js';
@@ -104,12 +105,14 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
   const href=open?`<a href="${esc(jornada)}">`:'<span>',hrefEnd=open?'</a>':'</span>';
   const categories=cxCategories(race,date),badges=cxUsesCategoryBadges(race,date);
   const tournament=race.cx_tournaments,tournamentUrl=tournament&&!inTournament?cxTournamentUrl(tournament,lang):null;
-  const round=cxRoundBadge(rounds?.get(race.id));
+  // Número de manga en negrita (Hoy y página de torneo); el torneo, también en negrita, solo en Hoy:
+  // la tarjeta de la página de torneo no lo muestra.
+  const round=cxRoundBadge(rounds?.get(race.id),true);
   const menu=tournamentUrl?overviewButtonHtml(esc(tournamentUrl),esc(cxRaceName(tournament,lang))):'';
   const sep='<span class="race-card__sep">·</span>';
   // Torneo y sede en su propio elemento para recortarse con puntos suspensivos.
-  const metaText=(text,venue=false)=>`<span class="cx-card-meta-text${venue?' cx-card-meta-text--venue':''}">${esc(text)}</span>`;
-  const meta=[tournamentUrl?metaText(cxRaceName(tournament,lang)):'',round,race.venue&&race.venue!==cxRaceName(race,lang)?metaText(race.venue,true):''].filter(Boolean).join(sep);
+  const metaText=(text,venue=false,strong=false)=>`<span class="cx-card-meta-text${venue?' cx-card-meta-text--venue':''}${strong?' cx-card-meta-text--tournament':''}">${esc(text)}</span>`;
+  const meta=[tournamentUrl?metaText(cxRaceName(tournament,lang),false,true):'',round,race.venue&&race.venue!==cxRaceName(race,lang)?metaText(race.venue,true):''].filter(Boolean).join(sep);
   // Datos del aviso placeholder (mismo banner/tooltip que Hoy en Carretera).
   // Día y mes abreviado con tablas fijas, igual que toLocaleDateString.
   const shortDate=`${Number(date.slice(8))} ${seoShortMonth(Number(date.slice(5,7))-1,lang==='en'?'en':'es')}`;
@@ -139,13 +142,13 @@ export function cxAgendaCardHtml(race,date,{rounds=null,inTournament=false,dynam
   // Estructura común de components/race-card.js; la columna derecha son las
   // categorías con su horario o su resultado.
   const inner=raceCardHtml({
-    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}">${logo}</span><span>${countryFlag(race.countryCode)}</span></div>`,
+    logo:`<div class="race-card__logo${logo?'':' race-card__logo--without-logo'}"><span data-cx-logo-race="${esc(race.id)}">${logo}</span><span>${countryFlag(race.countryCode,{outline:true})}</span></div>`,
     name:`${href}${esc(cxRaceName(race,lang))}${hrefEnd}${menu}`,
     sub:meta,
     badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span><span class="cx-card-badges" data-cx-badges="${esc(`${race.id}:${date}`)}">${dynamic?cxCardBadgesHtml(race,date,open):''}</span>`,
     metaBlock:categoriesHtml,
   });
-  return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(jornada)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
+  return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" data-level="${cxRaceLevel(race)}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(jornada)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
 }
 
 /**
@@ -164,18 +167,27 @@ function cxAgendaDayHtml(day,{todayKey=null,...card}={}) {
 export const cxTournamentStandingCategories=tournament=>CX_CATEGORIES.filter(code=>tournament.pointsScheme?.categories?.[code]);
 
 /**
- * Esqueleto de la página de torneo: cabecera, secciones (ocultas hasta saber si
- * hay generales; `standingsVisible` las muestra), aviso de error, lista y
- * general. `list`: contenido de la lista ({ inner, prerendered }), vacía por
- * defecto.
+ * Esqueleto de la página de torneo, en el marco de columnas de carretera
+ * (raceLayoutHtml): cabecera, datos y lista de pruebas en la columna lateral;
+ * secciones (ocultas hasta saber si hay generales; `standingsVisible` las
+ * muestra), aviso de error, lista y general en la principal. `list`, `facts` y
+ * `races`: contenido de la lista, de los datos de la cabecera y de la lista
+ * lateral ({ inner, prerendered }), vacíos por defecto; los tres salen de las
+ * pruebas del torneo y se llenan a la vez.
  */
-export function cxTournamentSkeletonHtml(tournament,{standingsVisible=false,list={inner:''}}={}) {
+export function cxTournamentSkeletonHtml(tournament,{standingsVisible=false,list={inner:''},facts={inner:''},races={inner:''}}={}) {
   const lang=getLang(),name=cxRaceName(tournament,lang);
-  const heading=buildRaceHeader({race:{...tournament,name,nameEn:name},hideFlag:!tournament.countryCode,nameHref:''});
+  const slot=slotValue=>slotValue.prerendered?` data-prerendered="${slotValue.prerendered}"`:'';
+  const hasStandings=cxTournamentStandingCategories(tournament).length>0;
+  const heading=buildRaceHeader({race:{...tournament,name,nameEn:name},hideFlag:!tournament.countryCode,nameHref:'',facts:`<div class="race-header__facts" data-cx-tournament-facts${slot(facts)}>${facts.inner}</div>`});
   // Secciones del torneo, como las de la ficha de carrera: Carreras y, cuando
   // hay generales publicadas, General.
-  const sectionNavHtml=cxTournamentStandingCategories(tournament).length?`<div class="res-tabs-bar cx-section-nav" data-cx-tournament-sections${standingsVisible?'':' hidden'}><nav class="res-tabs" aria-label="${esc(name)}"><div class="res-tabs__scroll"><div class="res-tabs__inner">${[['races',t('cx.races')],['general',t('cx.general')]].map(([key,label])=>`<a class="res-tab" data-cx-tournament-section="${key}" href="${esc(cxTournamentPageUrl(tournament,lang,key))}">${esc(label)}</a>`).join('')}</div></div></nav></div><div data-cx-general-nav hidden></div>`:'';
-  return `<div class="cx-agenda-sticky">${heading}${sectionNavHtml}</div><p id="cxAgendaError" role="alert"></p><div id="cxAgendaList"${list.prerendered?` data-prerendered="${list.prerendered}"`:''}>${list.inner}</div><div class="cx-tournament-standings" id="cxStandings" hidden></div>`;
+  const sectionNavHtml=hasStandings?`<div class="res-tabs-bar cx-section-nav" data-cx-tournament-sections${standingsVisible?'':' hidden'}><nav class="res-tabs" aria-label="${esc(name)}"><div class="res-tabs__scroll"><div class="res-tabs__inner">${[['races',t('cx.races')],['general',t('cx.general')]].map(([key,label])=>`<a class="res-tab" data-cx-tournament-section="${key}" href="${esc(cxTournamentPageUrl(tournament,lang,key))}">${esc(label)}</a>`).join('')}</div></div></nav></div><div data-cx-general-nav hidden></div>`:'';
+  // Lista de pruebas de la columna lateral (desde 1360 px), con la fila de la
+  // general al final cuando hay generales publicadas.
+  const generalRow=hasStandings?`<div class="stage-list__gc" data-cx-tournament-general${standingsVisible?'':' hidden'}><a class="stage-list__all" data-cx-tournament-link="general" href="${esc(cxTournamentPageUrl(tournament,lang,'general'))}">${esc(t('cx.standings'))}</a></div>`:'';
+  const raceNav=`<nav class="stage-list cx-tournament-nav" aria-label="${esc(t('cx.roundList'))}"><ol data-cx-tournament-races${slot(races)}>${races.inner}</ol>${generalRow}</nav>`;
+  return raceLayoutHtml({headerHtml:heading,sideExtraHtml:raceNav,mainHtml:`<div class="cx-agenda-sticky">${sectionNavHtml}</div><p id="cxAgendaError" role="alert"></p><div id="cxAgendaList"${slot(list)}>${list.inner}</div><div class="cx-tournament-standings" id="cxStandings" hidden></div>`});
 }
 
 /**
@@ -195,4 +207,25 @@ export function cxTournamentListHtml(tournament,{ownRows,tournamentRows,days},ca
   if(ownRows.length&&!tournamentRows.length)return `<div class="empty-state"><div class="empty-state__text"><strong>${esc(CX_SPANISH_AUDIENCE.title)}</strong><br>${esc(CX_SPANISH_AUDIENCE.text)}</div><a class="btn btn--ghost" href="${esc(cxTournamentUrl(tournament,'es'))}">${esc(CX_SPANISH_AUDIENCE.link)}</a></div>`;
   if(!days.length)return cxEmptyStateHtml();
   return `<section class="cx-tournament-list">${days.map(day=>cxAgendaDayHtml(day,card)).join('')}</section>`;
+}
+
+// Pruebas del torneo en el orden de la lista: una vez cada una, en su primer día.
+const cxTournamentRaces=({days})=>[...new Map(days.flatMap(day=>day.races.map(race=>[race.id,race]))).values()];
+
+/** Datos de la cabecera en la columna lateral: número de pruebas y fechas del torneo (la categoría varía entre pruebas). */
+export function cxTournamentFactsHtml(tournamentList) {
+  const lang=getLang(),races=cxTournamentRaces(tournamentList);
+  if(!races.length)return '';
+  const keys=tournamentList.days.map(day=>day.date),ends=races.map(race=>race.endDateKey||race.dateKey).filter(Boolean);
+  const last=[keys[keys.length-1],...ends].sort().pop();
+  return [t(races.length===1?'cx.raceCountOne':'cx.raceCount',{n:races.length}),raceDateRangeText(keys[0],last,lang)].filter(Boolean).map(line=>`<span class="race-header__fact">${esc(line)}</span>`).join('');
+}
+
+/** Filas de la lista de pruebas de la columna lateral: número de prueba y nombre con la sede. */
+export function cxTournamentRacesHtml(tournamentList,{rounds=null}={}) {
+  const lang=getLang();
+  return cxTournamentRaces(tournamentList).map(race=>{
+    const number=cxRoundLabel(rounds?.get(race.id))?.text,venue=race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:'';
+    return `<li><a class="stage-list__item" href="${esc(cxRaceUrl(race,lang))}">${number?`<span class="stage-list__n">${esc(number)}</span>`:''}<span class="stage-list__route">${esc([cxRaceName(race,lang),venue].filter(Boolean).join(' · '))}</span></a></li>`;
+  }).join('');
 }

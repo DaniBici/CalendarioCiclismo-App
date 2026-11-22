@@ -22,7 +22,7 @@ fun RowScope.RaceCardIdentity(logoUrl: String?, title: @Composable () -> Unit, d
         // Sin logo no se reserva el hueco de 32 dp: la bandera sube a la parte
         // superior de la card, junto a la primera línea del título (paridad iOS).
         if (logoUrl != null || logoPlaceholder) Box(Modifier.size(32.dp)) { RaceLogo(logoUrl, size = 32.dp, placeholder = logoPlaceholder) }
-        Box(Modifier.height(16.dp), contentAlignment = Alignment.Center) { CountryFlag(countryCode) }
+        Box(Modifier.height(16.dp), contentAlignment = Alignment.Center) { CountryFlag(countryCode, outlined = true) }
     } else RaceLogo(logoUrl, size = 36.dp, placeholder = logoPlaceholder)
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { title(); details() }
 }
@@ -62,25 +62,61 @@ fun RaceCardChevron() {
         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
 }
 
+/** «12 rondas», «6 etapas»: el recuento completo (número y nombre) en negrita. */
+fun boldCountText(text: String): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+        append(text)
+        pop()
+    }
+
 @Composable
-fun RaceCompetitionIdentity(name: String, logoUrl: String?, countryCode: String?, hideFlag: Boolean = false, showFemale: Boolean = false, logoPlaceholder: Boolean = false, onBack: () -> Unit) {
+fun RaceCompetitionIdentity(name: String, logoUrl: String?, countryCode: String?, hideFlag: Boolean = false, showFemale: Boolean = false, logoPlaceholder: Boolean = false, subtitle: (@Composable () -> Unit)? = null, onBack: () -> Unit) {
     // Todo arriba aunque el nombre ocupe varias líneas, como en Hoy de Ciclocross.
+    // La flecha, el logo con la bandera debajo y el bloque de texto comparten el centro
+    // vertical: la flecha y el texto viven en cajas de la altura de la columna del logo
+    // (44 + 4 + 15 con bandera); con más líneas, el texto crece hacia abajo.
+    val showsLogo = !logoUrl.isNullOrBlank() || logoPlaceholder
+    val showsFlag = !hideFlag && !countryCode.isNullOrBlank()
+    val leadingHeight = (if (showsLogo) 44.dp else 0.dp) + (if (showsLogo && showsFlag) 4.dp else 0.dp) + (if (showsFlag) 15.dp else 0.dp)
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.action_back), Modifier.size(18.dp))
-        }
-        RaceLogo(url = logoUrl, size = 44.dp, placeholder = logoPlaceholder)
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!hideFlag) CountryFlag(countryCode, modifier = Modifier.padding(top = 7.dp))
-                Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, maxLines = 3,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (showFemale) {
-                    val femaleDescription = androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.season_female_indicator_cd)
-                    Text("♀", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.semantics { contentDescription = femaleDescription })
-                }
+        Box(Modifier.height(leadingHeight.coerceAtLeast(44.dp)), contentAlignment = Alignment.Center) {
+            IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.action_back), Modifier.size(18.dp))
             }
+        }
+        // Logo con la bandera debajo, como las tarjetas de Hoy: con letra grande la
+        // bandera no resta ancho al nombre.
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            RaceLogo(url = logoUrl, size = 44.dp, placeholder = logoPlaceholder)
+            if (!hideFlag) CountryFlag(countryCode)
+        }
+        Box(Modifier.weight(1f).heightIn(min = leadingHeight.coerceAtLeast(44.dp)), contentAlignment = Alignment.CenterStart) {
+          // `subtitle`: línea bajo el nombre (rondas de un torneo de ciclocross; categoría, etapas y fechas de una carrera).
+          Column {
+            // El símbolo femenino va al final del mismo texto: no resta un hueco aparte al nombre.
+            // En color secundario, como en Hoy, Últimos resultados, iOS y la web.
+            val femaleColor = MaterialTheme.colorScheme.onSurfaceVariant
+            val femaleSize = MaterialTheme.typography.labelMedium.fontSize
+            val femaleDescription = if (showFemale) androidx.compose.ui.res.stringResource(app.calendariociclismo.android.R.string.season_female_indicator_cd) else null
+            Text(
+                text = androidx.compose.ui.text.buildAnnotatedString {
+                    append(name)
+                    if (showFemale) {
+                        append(" ")
+                        pushStyle(androidx.compose.ui.text.SpanStyle(color = femaleColor, fontSize = femaleSize))
+                        append("♀")
+                        pop()
+                    }
+                },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                maxLines = 3,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.semantics { femaleDescription?.let { contentDescription = "$name, $it" } },
+            )
+            subtitle?.invoke()
+          }
         }
     }
 }

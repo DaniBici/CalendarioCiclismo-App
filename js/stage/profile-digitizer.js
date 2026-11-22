@@ -89,8 +89,10 @@ function computeGainLoss(points, threshold = ELEVATION_THRESHOLD_M) {
 /**
  * Repite un tramo de la línea de control y encaja el resultado entre los
  * extremos originales. `lapCount` incluye la pasada ya dibujada.
+ * Exportada para `perfil-raster-build.mjs` (skill cc-jornadas-perfiles), que
+ * construye el perfil con el mismo cálculo que el panel.
  */
-function repeatControlPointRegion({
+export function repeatControlPointRegion({
   controlPoints,
   startPointId,
   endPointId,
@@ -159,8 +161,9 @@ function repeatControlPointRegion({
 /**
  * Convierte puntos normalizados sobre una imagen en el elevationProfile nativo.
  * El primer/último punto son km 0/meta. Dos puntos de la curva calibran la Y.
+ * Exportada para `perfil-raster-build.mjs` (skill cc-jornadas-perfiles).
  */
-function buildDigitizedElevationProfile({
+export function buildDigitizedElevationProfile({
   controlPoints,
   distanceKm,
   lowReference,

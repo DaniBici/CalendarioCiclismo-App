@@ -376,7 +376,7 @@ export function _toSeconds(txt) {
 // Trochanowski 2026, comp 77761): en vez del clásico "ganador=3:00:02, resto=+gap",
 // manda el TIEMPO ABSOLUTO de CADA corredor ya formateado con h/'/". _toSeconds no
 // lo parsea (no hay ':') → quedaría todo como timeText sin gaps ni m.t.
-export function _pressToSeconds(txt) {
+function pressToSeconds(txt) {
   if (!txt) return null;
   const s0 = String(txt);
   // Exige al menos UN marcador de unidad (h/'/") → un entero suelto "12" NO cuela.
@@ -466,15 +466,15 @@ export function fixInvertedAbsoluteGaps(rows, isTeamEvent) {
 export function fixPressFormattedAbsolute(rows, isTeamEvent) {
   if (isTeamEvent) return rows;
   const winner = rows.find((r) => r.rank === 1 && !r.irm);
-  const winnerSec = _pressToSeconds(winner && winner.timeText);
+  const winnerSec = pressToSeconds(winner && winner.timeText);
   if (winnerSec == null) return rows;
   // Todos los clasificados tras el ganador deben venir en notación de prensa (si
   // alguno trae ':' o un gap explícito, no es esta variante → no tocar nada).
   const rest = rows.filter((r) => r.rank != null && r !== winner && !r.irm);
-  if (!rest.length || rest.some((r) => r.gapText || _pressToSeconds(r.timeText) == null)) return rows;
+  if (!rest.length || rest.some((r) => r.gapText || pressToSeconds(r.timeText) == null)) return rows;
   return rows.map((r) => {
     if (r === winner || r.rank == null || r.irm) return r;   // ganador y abandonos intactos
-    const abs = _pressToSeconds(r.timeText);
+    const abs = pressToSeconds(r.timeText);
     if (abs == null) return r;
     // abs < ganador es imposible en una prueba por tiempo (no puede acabar antes que
     // el 1º) → dato corrupto: lo dejamos como está en vez de inventar un gap negativo.

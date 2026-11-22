@@ -12,7 +12,8 @@ final class MonthViewModel {
     /// Arranca en `true`: la primera imagen es la pantalla de carga, no un mes vacío.
     var isLoading = true
     var error: String?
-    var activeFilter: Constants.CategoryFilter = .all
+    /// Filtros de carretera, compartidos con Hoy y la otra subvista (`RaceFilterStore`).
+    var filter: RoadRaceFilter { RaceFilterStore.shared.road }
     /// Indica que los datos mostrados provienen de la caché offline.
     var isFromCache = false
     /// Texto legible con la antigüedad de la caché (ej: "Hace 2 h").
@@ -24,22 +25,6 @@ final class MonthViewModel {
     /// muestran la caché de inmediato en lugar de la pantalla de carga.
     private var hasCompletedInitialLoad = false
 
-    init() {
-        if let raw = UserDefaults.standard.string(forKey: "defaultFilter"),
-           let stored = Constants.CategoryFilter(rawValue: raw) {
-            activeFilter = stored
-        }
-    }
-
-    func setDefaultFilter(_ filter: Constants.CategoryFilter) {
-        activeFilter = filter
-        UserDefaults.standard.set(filter.rawValue, forKey: "defaultFilter")
-    }
-
-    func clearDefaultFilter() {
-        activeFilter = .all
-        UserDefaults.standard.removeObject(forKey: "defaultFilter")
-    }
 
     /// Años disponibles para el selector.
     var availableYears: [Int] {
@@ -63,13 +48,14 @@ final class MonthViewModel {
         let monthPrefix = String(format: "%04d-%02d", year, m)
         let map = raceMap
         var filtered: [RaceDay]
-        if activeFilter == .all {
+        let filter = self.filter
+        if !filter.isActive {
             filtered = allRaceDays.filter { $0.dateKey.hasPrefix(monthPrefix) }
         } else {
             filtered = allRaceDays.filter { rd in
                 guard rd.dateKey.hasPrefix(monthPrefix) else { return false }
                 guard let raceId = rd.raceId, let race = map[raceId] else { return false }
-                return RaceLogic.matchesCategory(race, filter: activeFilter)
+                return filter.matches(race)
             }
         }
         // Las CN de la pantalla de Campeonatos no se muestran sueltas: las representa

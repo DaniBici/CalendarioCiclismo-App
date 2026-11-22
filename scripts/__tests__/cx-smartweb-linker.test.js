@@ -10,7 +10,7 @@ describe('planSmartwebLink', () => {
       sourceUrl: 'https://ciclismoasturiano.es/index.php/smartweb/inscripciones/clasificacion/35019' });
     expect(planSmartwebLink(race(), ['ME', 'WE', 'MJ', 'WJ', 'MU', 'WU'], { dateKey: '2026-10-25', options: [] })).toEqual({ status: 'link',
       sourceUrl: 'https://ciclismoasturiano.es/index.php/smartweb/inscripciones/clasificacion/35019',
-      categoryKeys: { 'ELITE-SUB23': 'ME', 'ELITE/SUB23': 'ME', 'FEM ELITE-SUB23': 'WE', 'ELITE SUB 23 FEM': 'WE', JUNIOR: 'MJ', 'FEM JUNIOR': 'WJ',
+      categoryKeys: { 'ELITE-SUB23': 'ME', 'ELITE/SUB23': 'ME', OPEN: 'ME', 'FEM ELITE-SUB23': 'WE', 'ELITE SUB 23 FEM': 'WE', 'ELITE FEM.-SUB23 FEM.': 'WE', 'FEM OPEN': 'WE', JUNIOR: 'MJ', 'FEM JUNIOR': 'WJ',
         'JUNIOR FEM.': 'WJ', 'JUNIOR FEM': 'WJ', SUB23: 'MU', 'FEM SUB23': 'WU', 'SUB23 FEM.': 'WU', 'SUB23-FEM.': 'WU' } });
   });
   it('omite webs ajenas a smartweb y pruebas de otra fecha', () => {

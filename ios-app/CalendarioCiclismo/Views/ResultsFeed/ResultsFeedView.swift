@@ -99,12 +99,25 @@ final class ResultsFeedStore {
                 // Nunca acorta la ventana: el ancla es como mucho hoy.
                 if let last { fromKey = min(fromKey, ResultsFeedLogic.initialFromKey(anchorKey: min(last, todayKey))) }
             }
-            let loadedEntries = try await SupabaseService.shared.loadResultsFeed(
+            var loadedEntries = try await SupabaseService.shared.loadResultsFeed(
                 from: fromKey,
                 to: todayKey
             )
             try Task.checkCancellation()
             guard generation == feedGeneration else { return }
+            // Al menos `minDays` días que pasen los filtros, antes de pintar.
+            var from = fromKey
+            while Self.filteredDayCount(loadedEntries) < ResultsFeedLogic.minDays {
+                let older = ResultsFeedLogic.extendedFromKey(from)
+                guard older < from else { break }
+                let chunk = try await SupabaseService.shared.loadResultsFeed(from: older, to: ResultsFeedLogic.addDays(from, -1))
+                try Task.checkCancellation()
+                guard generation == feedGeneration else { return }
+                let loadedKeys = Set(loadedEntries.map(\.key))
+                loadedEntries += chunk.filter { !loadedKeys.contains($0.key) }
+                from = older
+            }
+            fromKey = from
             // Commit único: nunca se expone una lista previa a la resolución de
             // ganadores y líderes.
             entries = loadedEntries
@@ -116,6 +129,28 @@ final class ResultsFeedStore {
             guard generation == feedGeneration else { return }
             self.error = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    /// Días distintos con entradas que pasan los filtros de carretera.
+    private static func filteredDayCount(_ entries: [FeedEntry]) -> Int {
+        let filter = RaceFilterStore.shared.road
+        return Set(entries.filter { filter.matches($0.race) }.map(\.date)).count
+    }
+
+    /// Ampliando la ventana tras un cambio de filtro: la lista espera.
+    var isFilling = false
+
+    /// Tras un cambio de filtro, amplía la ventana hasta reunir `minDays` días
+    /// que lo pasen (tope: arranque de temporada). La lista espera mientras.
+    func fillMinDays() async {
+        guard !isLoading, Self.filteredDayCount(entries) < ResultsFeedLogic.minDays else { return }
+        isFilling = true
+        defer { isFilling = false }
+        while Self.filteredDayCount(entries) < ResultsFeedLogic.minDays {
+            let before = fromKey
+            await loadMore()
+            if fromKey == before { return }
         }
     }
 
@@ -202,7 +237,7 @@ struct ResultsSplitView: View {
                     case .road(let route):
                         ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
                     case .cx(let destination):
-                        CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+                        CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
                     case nil:
                         ContentUnavailableView(
                             LocaleService.t("Elige un resultado", "Choose a result"),
@@ -217,7 +252,7 @@ struct ResultsSplitView: View {
                     }
                 }
                 .navigationDestination(for: CxDestination.self) { destination in
-                    CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+                    CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
                 }
                 .navigationDestination(for: CxTournamentDestination.self) { destination in
                     CyclocrossView(tournament: destination.tournament, season: destination.season)
@@ -258,6 +293,10 @@ struct ResultsFeedView: View {
     /// La pantalla está en primer plano de la pila (no cubierta por otra
     /// pestaña ni por un push): solo entonces el regreso de la app recarga.
     @State private var isVisible = false
+    /// Filtros de carreras de Hoy y Calendario, compartidos por disciplina.
+    private var filterStore: RaceFilterStore { RaceFilterStore.shared }
+    /// Burbuja de «Filtros» de la primera visita a Resultados.
+    private let filtersTip = ResultsFiltersTip()
 
     /// Sin `store`, la vista tiene el suyo (pila del iPhone).
     init(
@@ -274,6 +313,30 @@ struct ResultsFeedView: View {
     private var tabLayout: ResultsFeedTabLayout { store.tabLayout }
     private var cxModel: CxResultsFeedModel { store.cxModel }
     private var entries: [FeedEntry] { store.entries }
+    /// Entradas de carretera que pasan los filtros de Hoy y Calendario.
+    private var filteredEntries: [FeedEntry] { entries.filter { filterStore.road.matches($0.race) } }
+    /// Días de ciclocross de la ventana con las pruebas que pasan los filtros.
+    /// Días de ciclocross con las pruebas que pasan los filtros, toda la temporada.
+    private var cxMatchingDays: [CxResultsFeedDay] {
+        cxModel.days.compactMap { day in
+            let entries = day.entries.filter { filterStore.cx.matches($0.race) }
+            return entries.isEmpty ? nil : CxResultsFeedDay(date: day.date, entries: entries)
+        }
+    }
+    /// Inicio de lo que se ve: la ventana o, si deja menos de 15 días, el día
+    /// número 15 más reciente que pasa los filtros.
+    private var cxStart: String {
+        ResultsFeedLogic.startKey(dates: cxMatchingDays.map(\.date), fromKey: cxModel.windowStart)
+    }
+    private var filteredCxDays: [CxResultsFeedDay] {
+        let start = cxStart
+        return cxMatchingDays.filter { $0.date >= start }
+    }
+    /// Quedan días anteriores con pruebas que pasan los filtros.
+    private var cxCanLoadMoreFiltered: Bool {
+        let start = cxStart
+        return cxMatchingDays.contains { $0.date < start }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -291,7 +354,7 @@ struct ResultsFeedView: View {
                         cxList
                     }
                 case .road:
-                    if store.isLoading && entries.isEmpty {
+                    if (store.isLoading && entries.isEmpty) || store.isFilling {
                         LoadingView(branded: true, title: localeService.t("Últimos resultados", "Latest results"))
                     } else if let error = store.error, entries.isEmpty {
                         ErrorView(message: error) {
@@ -337,6 +400,11 @@ struct ResultsFeedView: View {
                     CCHeaderMarkView()
                 }
             }
+            if activeSection != .ranking {
+                ToolbarItem(placement: .topBarTrailing) {
+                    filtersMenu
+                }
+            }
         }
         // Push por valor a la pantalla de resultados in-house (data-driven,
         // como en Hoy — NUNCA por destino, corrompe el NavigationStack).
@@ -344,11 +412,11 @@ struct ResultsFeedView: View {
             ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
         }
         .navigationDestination(item: $cxRoute) { destination in
-            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
         }
         // Enlaces por valor de la ficha CX (rondas de la general, torneo).
         .navigationDestination(for: CxDestination.self) { destination in
-            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor)
+            CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
         }
         .navigationDestination(for: CxTournamentDestination.self) { destination in
             CyclocrossView(tournament: destination.tournament, season: destination.season)
@@ -361,6 +429,10 @@ struct ResultsFeedView: View {
             )
         }
         .task { await store.load() }
+        // Un filtro más estrecho puede dejar menos de 15 días: se amplía la ventana.
+        .onChange(of: filterStore.road) { _, _ in
+            Task { await store.fillMinDays() }
+        }
         // Pestaña Ciclocross: la primera vez se carga; cada vez que vuelve a
         // aparecer (otra pestaña de la app, regreso de una ficha) o se
         // selecciona se recarga sin pantalla de carga, como el feed de
@@ -517,6 +589,26 @@ struct ResultsFeedView: View {
         }
     }
 
+    // MARK: - Filtros
+
+    /// «Filtros» de la vista: los de Hoy y Calendario de su disciplina, con el
+    /// símbolo de Fichajes (relleno con algún filtro). La primera visita lleva
+    /// su burbuja.
+    @ViewBuilder private var filtersMenu: some View {
+        Group {
+            if activeSection == .cyclocross {
+                CxFiltersMenu { isActive in filtersSymbol(isActive) }
+            } else {
+                RoadFiltersMenu { isActive in filtersSymbol(isActive) }
+            }
+        }
+        .resultsTip(filtersTip)
+    }
+
+    private func filtersSymbol(_ isActive: Bool) -> some View {
+        Image(systemName: isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+    }
+
     // MARK: - Lista
 
     /// Grupo de entradas de un mismo día (cabecera + filas).
@@ -529,7 +621,7 @@ struct ResultsFeedView: View {
     /// Entradas agrupadas por día (vienen ya ordenadas en cronología inversa).
     private var groupedByDay: [FeedDayGroup] {
         var out: [FeedDayGroup] = []
-        for e in entries {
+        for e in filteredEntries {
             if out.last?.date == e.date {
                 out[out.count - 1].entries.append(e)
             } else {
@@ -546,11 +638,13 @@ struct ResultsFeedView: View {
                     width: max(0, contentWidth - 32),
                     isRegular: horizontalSizeClass == .regular
                 )
-                if entries.isEmpty {
+                if filteredEntries.isEmpty {
                     EmptyStateView(
                         icon: "trophy",
                         title: localeService.t("Sin resultados", "No results"),
-                        subtitle: localeService.t("No hay resultados en este periodo.", "No results in this period.")
+                        subtitle: !entries.isEmpty && filterStore.road.isActive
+                            ? localeService.t("No hay resultados con estos filtros en este periodo.", "No results with these filters in this period.")
+                            : localeService.t("No hay resultados en este periodo.", "No results in this period.")
                     )
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, minHeight: 320)
@@ -623,12 +717,14 @@ struct ResultsFeedView: View {
                     width: max(0, contentWidth - 32),
                     isRegular: horizontalSizeClass == .regular
                 )
-                let days = cxModel.visibleDays
+                let days = filteredCxDays
                 if days.isEmpty {
                     EmptyStateView(
                         icon: "trophy",
                         title: localeService.t("Sin resultados", "No results"),
-                        subtitle: cxModel.days.isEmpty
+                        subtitle: !cxModel.days.isEmpty && filterStore.cx.isActive
+                            ? localeService.t("No hay resultados con estos filtros en este periodo.", "No results with these filters in this period.")
+                            : cxModel.days.isEmpty
                             ? localeService.t("No hay resultados de ciclocross en esta temporada", "No cyclocross results this season")
                             : localeService.t("No hay resultados de ciclocross en este periodo", "No cyclocross results in this period")
                     )
@@ -651,12 +747,12 @@ struct ResultsFeedView: View {
                     }
                 }
                 // Como en carretera: 14 días de inicio y la opción de ampliar.
-                if cxModel.canLoadMore {
+                if cxCanLoadMoreFiltered {
                     HStack {
                         Spacer()
                         Button {
                             Haptics.play(.primaryAction)
-                            cxModel.loadMore()
+                            cxModel.loadMore(below: cxStart)
                         } label: {
                             Text(localeService.t("Cargar más resultados", "Load more results"))
                                 .ccFont(.s14, weight: .semibold)
@@ -682,7 +778,7 @@ struct ResultsFeedView: View {
     private func cxRow(_ entry: CxResultsFeedEntry) -> some View {
         CxFeedRowView(entry: entry, round: cxModel.rounds[entry.race.id]) {
             Haptics.play(.navigation)
-            let destination = CxDestination(raceId: entry.race.id, anchor: entry.resultsAnchor)
+            let destination = CxDestination(raceId: entry.race.id, anchor: entry.resultsAnchor, title: CyclocrossPresentation.name(entry.race))
             if let onSelect { onSelect(.cx(destination)) } else { cxRoute = destination }
         }
     }
@@ -1032,19 +1128,37 @@ private struct CxFeedRowView: View {
 
     private var race: CxRace { entry.race }
 
+
+    private var tournamentName: String? {
+        race.tournament.map { LocaleService.t($0.name, $0.nameEn ?? $0.name) }
+    }
+    private var roundLabel: String? {
+        guard let round, round.total > 1 else { return nil }
+        return "\(round.n)/\(round.total)"
+    }
+    private var venueName: String? {
+        guard let venue = race.venue?.trimmingCharacters(in: .whitespaces), !venue.isEmpty,
+              venue != CyclocrossPresentation.name(race) else { return nil }
+        return venue
+    }
+    /// Texto plano de la línea secundaria, para el audio de accesibilidad.
     private var subtitle: String {
-        var parts: [String] = []
-        if let tournament = race.tournament {
-            parts.append(LocaleService.t(tournament.name, tournament.nameEn ?? tournament.name))
+        [tournamentName, roundLabel, venueName].compactMap { $0 }.joined(separator: " · ")
+    }
+    /// Línea secundaria: torneo en negrita y color principal, manga en negrita y
+    /// gris (el color heredado) y sede normal.
+    private var subtitleText: Text? {
+        let separator = Text(" · ")
+        var result: Text? = nil
+        func append(_ part: Text) {
+            result = result.map { $0 + separator + part } ?? part
         }
-        if let round, round.total > 1 {
-            parts.append("\(round.n)/\(round.total)")
+        if let tournamentName {
+            append(Text(tournamentName).fontWeight(.bold).foregroundStyle(AppTheme.textPrimary))
         }
-        if let venue = race.venue?.trimmingCharacters(in: .whitespaces), !venue.isEmpty,
-           venue != CyclocrossPresentation.name(race) {
-            parts.append(venue)
-        }
-        return parts.joined(separator: " · ")
+        if let roundLabel { append(Text(roundLabel).fontWeight(.bold)) }
+        if let venueName { append(Text(venueName)) }
+        return result
     }
 
     var body: some View {
@@ -1056,7 +1170,7 @@ private struct CxFeedRowView: View {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(spacing: 3) {
                             RaceLogo(CyclocrossPresentation.logo(race), size: 36, placeholder: race.raceClass != "CN")
-                            CountryFlag(countryCode: race.countryCode, width: 18)
+                            CountryFlag(countryCode: race.countryCode, width: 18, outlined: true)
                         }
                         // Columna del logo aunque no lo haya (Nacionales): el
                         // nombre arranca a la misma altura en todas las filas.
@@ -1069,8 +1183,8 @@ private struct CxFeedRowView: View {
                                 .lineLimit(1)
                                 .truncationMode(.tail)
 
-                            if !subtitle.isEmpty {
-                                Text(subtitle)
+                            if let subtitleText {
+                                subtitleText
                                     .ccFont(.s13)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
@@ -1082,12 +1196,18 @@ private struct CxFeedRowView: View {
 
                             Divider().padding(.vertical, 2)
                             ForEach(entry.winners, id: \.category) { item in
-                                HStack(spacing: 6) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
                                     Text(item.category)
                                         .ccFont(.s12, weight: .semibold)
                                         .foregroundStyle(.secondary)
                                         .frame(minWidth: 24, alignment: .leading)
-                                    Text(item.winner).ccFont(.s12).lineLimit(1)
+                                    // Ganador con el marcado del de carretera:
+                                    // nombre en seminegrita y equipo entre
+                                    // paréntesis (`.feed-row__winner` web).
+                                    FeedTeamText.line(item.winner, team: item.team)
+                                        .ccFont(.s13)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
                             }
                         }
@@ -1114,7 +1234,8 @@ private struct CxFeedRowView: View {
         var parts: [String] = [CyclocrossPresentation.name(race)]
         if !subtitle.isEmpty { parts.append(subtitle) }
         for item in entry.winners {
-            parts.append("\(CyclocrossPresentation.category(item.category)): \(item.winner)")
+            let teamName = item.team.map { " (\($0))" } ?? ""
+            parts.append("\(CyclocrossPresentation.category(item.category)): \(item.winner)\(teamName)")
         }
         return parts.joined(separator: ", ")
     }
@@ -1175,7 +1296,7 @@ private struct FeedRowView: View {
                             // vence también al hideFlag cuando está fijado (espejo
                             // de Android y de la web — effectiveCountryCode).
                             if !race.hideFlag || rd?.countryCode != nil {
-                                CountryFlag(countryCode: rd?.countryCode ?? race.countryCode, width: 18)
+                                CountryFlag(countryCode: rd?.countryCode ?? race.countryCode, width: 18, outlined: true)
                             }
                         }
                         // Columna del logo aunque no lo haya (Nacionales): el
@@ -1235,9 +1356,12 @@ private struct FeedRowView: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .accessibilityHidden(true)
-                                    Text(entry.winner)
-                                        .ccFont(.s13, weight: .semibold)
+                                    // Equipo entre paréntesis y en peso normal
+                                    // tras el nombre (`.feed-row__team` web).
+                                    FeedTeamText.line(entry.winner, team: entry.winnerTeam)
+                                        .ccFont(.s13)
                                         .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
                             }
 
@@ -1255,7 +1379,12 @@ private struct FeedRowView: View {
                                         Text(item.localizedLabel)
                                             .ccFont(.s12, weight: .semibold)
                                             .foregroundStyle(.secondary)
-                                        if !item.winner.isEmpty {
+                                        if !item.leaders.isEmpty {
+                                            FeedTeamText.leaders(item.leaders)
+                                                .ccFont(.s12)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                        } else if !item.winner.isEmpty {
                                             Text(item.winner).ccFont(.s12).lineLimit(1)
                                         }
                                     }
@@ -1292,8 +1421,30 @@ private struct FeedRowView: View {
             parts.append(stageLabelText)
         }
         if !entry.winner.isEmpty {
-            parts.append("\(LocaleService.t("Ganador", "Winner")): \(entry.winner)")
+            let team = entry.winnerTeam.map { " (\($0))" } ?? ""
+            parts.append("\(LocaleService.t("Ganador", "Winner")): \(entry.winner)\(team)")
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+/// Ganador o líder del feed con su equipo entre paréntesis, en peso normal y
+/// color secundario: espejo de `.feed-row__winner` y `.feed-row__team` web.
+enum FeedTeamText {
+    /// Nombre en seminegrita (`bold`) o normal, y el equipo detrás si se conoce.
+    static func line(_ name: String, team: String?, bold: Bool = true) -> Text {
+        let nameText = Text(name).fontWeight(bold ? .semibold : .regular)
+        guard let team, !team.isEmpty else { return nameText }
+        return nameText + Text(" (\(team))").fontWeight(.regular).foregroundStyle(.secondary)
+    }
+
+    /// Líderes de una clasificación, separados por « / ».
+    static func leaders(_ items: [FeedWinnerName]) -> Text {
+        var out: Text? = nil
+        for item in items {
+            let part = line(item.name, team: item.team, bold: false)
+            out = out.map { $0 + Text(" / ") + part } ?? part
+        }
+        return out ?? Text("")
     }
 }

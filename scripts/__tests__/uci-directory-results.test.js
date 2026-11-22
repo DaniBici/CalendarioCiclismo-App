@@ -28,9 +28,13 @@ describe('búsqueda de una competición del directorio por uciCalendarId', () =>
   });
 
   it('no recorre temporadas si la búsqueda ya da la competición', async () => {
-    const fetcher = fakeFetch({ search: [{ ...andalucia2027, code: 'D2CP81064' }] });
+    const urls = [];
+    const pages = fakeFetch({ search: [{ ...andalucia2027, code: 'D2CP81064' }] });
+    const fetcher = async (url) => { urls.push(url); return pages(url); };
     await expect(findUciCompetitionByCalendarId({ fetcher, calendarId: 81064, disciplineCode: 'ROA', seasonYears: [2027] }))
       .resolves.toMatchObject({ id: andalucia2027.id });
+    expect(urls).toHaveLength(1);
+    expect(new URL(urls[0]).searchParams.get('seasonYear')).toBeNull();
   });
 });
 
@@ -121,8 +125,8 @@ describe('identificadores del directorio', () => {
   });
 
   it('genera IDs negativos estables por tipo y código', () => {
-    expect(directorySyntheticId('event', 'D2EV382295')).toBe(directorySyntheticId('event', 'D2EV382295'));
-    expect(directorySyntheticId('event', 'D2EV382295')).not.toBe(directorySyntheticId('race', 'D2EV382295'));
+    expect(directorySyntheticId('event', 'D2EV382295')).toBe(-46582630);   // ancla del ID guardado
+    expect(directorySyntheticId('race', 'D2EV382295')).toBe(-32900745);
     expect(() => directorySyntheticId('event', '')).toThrow();
   });
 

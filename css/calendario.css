@@ -350,7 +350,7 @@ button.t-race {
 }
 /* Rótulo del día en gris, como las fechas de Resultados y Fichajes; el día de
    hoy conserva el círculo de acento. */
-.cal-day--today .cal-day__num { background: var(--accent); color: #fff; font-weight: 700; }
+.cal-day--today .cal-day__num { background: var(--accent); color: var(--btn-primary-text); font-weight: 700; }
 .cal-day__wd { font-size: var(--fs-2); font-weight: 600; color: var(--text-muted); }
 
 .cal-day__empty {
@@ -358,6 +358,27 @@ button.t-race {
   font-size: var(--fs-1);
   color: var(--text-dim);
 }
+
+/* Días sin carreras consecutivos: una línea compacta con el rango de fechas. */
+.cal-gap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0;
+  font-size: var(--fs-1);
+  color: var(--text-dim);
+}
+.cal-gap__label {
+  flex: none;
+  min-width: 34px;
+  font-family: var(--font-display);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+}
+.cal-day__anchor { position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; }
 
 .cal-day__races { display: flex; flex-direction: column; gap: 6px; }
 
@@ -453,7 +474,11 @@ button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 }
 
 @media (max-width: 600px) {
-  .cal-mes-bar__row1 { gap: 0.4rem; }
+  /* El carril de meses pasa a su propia línea: entre el año y los botones
+     quedaba en 90 px y solo se leía el mes actual. */
+  .cal-mes-bar__row1 { gap: 0.4rem; flex-wrap: wrap; }
+  .cal-mes-bar__row1 .cal-month-chips { order: 1; flex: 1 1 100%; }
+  .cal-mes-bar__row1 .temporada-filter-slot { order: 2; }
   .cal-view-toggle { font-size: var(--fs-1); padding: 0.28rem 0.45rem; }
   .cal-today-btn { font-size: var(--fs-1); padding: 0.28rem 0.45rem; }
   .cal-race__route { display: none; }

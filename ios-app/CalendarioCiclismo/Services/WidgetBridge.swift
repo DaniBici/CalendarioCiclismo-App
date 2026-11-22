@@ -10,7 +10,7 @@ enum WidgetBridge {
     private static var pending: Task<Void, Never>?
 
     /// Sincroniza al arrancar y ante cualquier cambio de `UserDefaults` de la
-    /// app (idioma, filtro fijado, seguimientos, filtro CX).
+    /// app (idioma, filtros de carretera y CX, seguimientos).
     static func start() {
         removeLegacyPayload()
         sync()
@@ -51,11 +51,12 @@ enum WidgetBridge {
         func csv(_ key: String) -> [String] {
             (defaults.string(forKey: key) ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }.sorted()
         }
+        let filters = RaceFilterStore.widgetParameters()
         let settings = WidgetSettings(
             locale: defaults.string(forKey: "app_locale") == "en" ? "en" : "es",
             broadcastGroups: RegionService.allowedBroadcastGroups().sorted(),
-            roadFilter: defaults.string(forKey: "defaultFilter") ?? Constants.CategoryFilter.all.rawValue,
-            cxFilter: defaults.string(forKey: "cx_default_filter") ?? CxAgendaFilter.all.rawValue,
+            roadFilter: filters.road,
+            cxFilter: filters.cx,
             followedRaceIds: csv("followed_race_ids"),
             followedStageIds: csv("followed_stage_ids"),
             followedCxRaceIds: csv("followed_cx_race_ids")

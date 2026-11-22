@@ -20,6 +20,7 @@ K = 4 * (math.sqrt(2) - 1) / 3  # cuarto de círculo en Bézier cúbica
 ROOT = Path(__file__).resolve().parent
 TARGETS = {
     'AppIcon.icon/Assets': '#FFFFFF',
+    'AppIconCiclocross.icon/Assets': '#FFFFFF',
     'AppIconFounder.icon/Assets': '#F6A623',
     'AppIconFounder': '#F6A623',
     'AppIconFriend.icon/Assets': '#1A73E8',

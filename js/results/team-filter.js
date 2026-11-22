@@ -32,6 +32,18 @@ export function applyTeamFilter(tableWrap, teamFilter, { isEn, onClear }) {
   }
 }
 
+// Botón «✕» del filtro de equipos: quita el equipo elegido y avisa como si se hubiera
+// escogido «Todos los equipos», de modo que el manejador de `change` de la página hace el resto.
+export function bindTeamFilterClear(slot) {
+  slot?.addEventListener('click', (event) => {
+    if (!event.target.closest('.res-teamfilter__clear')) return;
+    const select = slot.querySelector('#resTeamFilter');
+    if (!select) return;
+    select.value = '';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
 // CRE: despliegue por equipo, con clic o con Intro/espacio en la fila.
 function toggleTttGroup(tableWrap, groupEl) {
   const idx = groupEl.dataset.tttGroup;

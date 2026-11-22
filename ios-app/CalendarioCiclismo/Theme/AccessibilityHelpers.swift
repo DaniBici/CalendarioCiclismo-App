@@ -297,7 +297,7 @@ enum AccessibilityID {
     static let notificationsDeniedWarning = "notifications_denied_warning"
     static func notificationsInfoCard(_ id: String) -> String { "notifications_info_\(id)" }
 
-    // NotificationOnboardingView
+    // WelcomeOnboardingView — paso de notificaciones
     static let onboardingEnableButton = "onboarding_enable_notifications"
     static let onboardingSkipButton = "onboarding_skip_notifications"
 

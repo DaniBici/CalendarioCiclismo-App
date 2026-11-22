@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installBrowserEnv } from '../site/prerender-jornadas.mjs';
-import { PRIMARY_ICONS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_ICONS, PRIMARY_NAV_ITEMS, STRINGS, footerBrandHtml, headerHtml, footerHtml } from '../../js/header-html.js';
 import { buildInhouseResultsMatcher, hasCalendarForYear } from '../../js/services/races.js';
 import { isNearToday } from '../../js/services/refresh-window.js';
 import { stageMediaState } from '../../js/services/stage-videos.js';
@@ -129,18 +129,9 @@ function barraAcciones(rd, race) {
   return `<div id="icalBar" class="ical-bar">${suscribir ? `<button type="button" class="btn-ical" id="icalOpenBtn">${CAL} ${t('stage.addToCalendar')}</button>` : ''}<button type="button" class="btn-ical btn-ical--report" id="reportBarBtn">${FLAG} ${t('stage.reportChanges')}</button></div>`;
 }
 
-function creditos() {
-  return lang === 'en'
-    ? '<p>&copy; 2026 Calendario Ciclismo - Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> - <a href="/en/privacy/">Privacy</a> - <a href="/en/terms/">Terms</a></p>'
-    : '<p>&copy; 2026 Calendario Ciclismo - Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> - <a href="/privacidad.html">Privacidad</a> - <a href="/terminos.html">T&eacute;rminos</a></p>';
-}
-
+// Pie común (js/header-html.js): el mismo que monta el navegador y que usan los prerender.
 function pie() {
-  const s = STRINGS[lang];
-  const acciones = `<p class="site-footer__actions"><a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>`
-    + `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>`
-    + `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a></p>`;
-  return `<footer class="site-footer">${creditos()}${acciones}</footer>`;
+  return footerHtml(lang);
 }
 
 // Página con el JS actual: mismo marcado que los prerender del build.
@@ -148,7 +139,7 @@ function paginaHibrida({ head, container, atributos = '', html, familia }) {
   const shell = ACTIVOS.hibrido[familia];
   const cabecera = `<header class="site-header" id="siteHeader" data-back>${headerHtml({ lang, hasBack: true, active: null })}</header>${shell.scriptCabecera}`;
   return `${head}<body>\n${cabecera}\n<main id="${container}"${atributos} data-prerendered="${htmlFingerprint(html)}">\n${html}\n</main>\n`
-    + `<footer class="site-footer">${creditos()}</footer>\n${shell.scriptsPie}\n</body>\n</html>\n`;
+    + `${pie()}\n${shell.scriptsPie}\n</body>\n</html>\n`;
 }
 
 function etiquetasHibridas(familia) {

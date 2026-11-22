@@ -352,7 +352,7 @@ struct CxRaceDetailView: View {
                 }.buttonStyle(.plain)
                 if let round, round.total > 1 {
                     Text("·").ccFont(.s14).foregroundStyle(AppTheme.textMuted).accessibilityHidden(true)
-                    Text("\(round.n)/\(round.total)").ccFont(.s14).foregroundStyle(AppTheme.textMuted).monospacedDigit()
+                    Text("\(round.n)/\(round.total)").ccFont(.s14, weight: .bold).foregroundStyle(AppTheme.textMuted).monospacedDigit()
                 }
             }
         }
@@ -516,8 +516,8 @@ struct CxRaceDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             RaceDayHeading(name: CyclocrossPresentation.name(race), logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode,
                            // Clase completa (Nacional, Campeonato nacional, UCI C1…),
-                           // nunca la sigla sola.
-                           categoryName: CyclocrossPresentation.className(race.raceClass),
+                           // nunca la sigla sola; en la Copa del Mundo, la que da el torneo.
+                           categoryName: CyclocrossPresentation.headerClassName(race),
                            dateLabel: DateFormatting.formatDateLongContent(race.dateKey) + (race.endDateKey.flatMap { $0 == race.dateKey ? nil : " – " + DateFormatting.formatDateLongContent($0) } ?? ""),
                            nameLineLimit: 1,
                            logoPlaceholder: race.raceClass != "CN")

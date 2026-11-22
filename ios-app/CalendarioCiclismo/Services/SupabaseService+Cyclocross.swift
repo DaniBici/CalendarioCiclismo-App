@@ -77,13 +77,20 @@ private struct CxSchemeEntry: Decodable, Sendable {
 }
 
 extension SupabaseService: CxRemote {
-    private var cxAgendaColumns: String {
+    private var cxAgendaColumns: String { cxAgendaColumns(winnerTeams: false) }
+
+    /// `winnerTeams`: añade a cada categoría sus filas rank 1 de cx_results
+    /// (ganador y equipo), con el filtro `cx_race_categories.cx_results.rank`
+    /// en la consulta. Solo la consulta por meses, la de Últimos resultados:
+    /// los equipos llegan y se guardan en caché con el resto de la carrera.
+    private func cxAgendaColumns(winnerTeams: Bool) -> String {
         "id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         // Estado de TV del badge y del orden «Hora TV», junto a las emisiones.
         "tvStatus," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
-        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)," +
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl" +
+        (winnerTeams ? ",cx_results(riderDisplay,teamName)" : "") + ")," +
         // Badges de TV y de resumen de la tarjeta (`CyclocrossPresentation.agendaBroadcast`
         // y `agendaVideo`, que cuenta las emisiones de YouTube ya terminadas).
         "cx_broadcasts(id,raceId,category,channel,startTimeUtc,url,country,sortOrder,embeddable)," +
@@ -132,8 +139,9 @@ extension SupabaseService: CxRemote {
     }
 
     func cxMonth(season: String, month: CxMonth) async throws -> [CxRace] {
-        try await client.from("cx_races").select(cxAgendaColumns)
+        try await client.from("cx_races").select(cxAgendaColumns(winnerTeams: true))
             .eq("seasonKey", value: season).eq("editorialStatus", value: "published")
+            .eq("cx_race_categories.cx_results.rank", value: 1)
             .lte("dateKey", value: month.lastDate)
             .or("dateKey.gte.\(month.firstDate),endDateKey.gte.\(month.firstDate)")
             .order("dateKey").order("id").execute().value

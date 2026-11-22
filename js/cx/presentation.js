@@ -1,7 +1,7 @@
 import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from '../results/time.js';
 import {cxDataRideSeconds,isCxSubhourDataRideTime,isCxExactSubhourDataRideTime} from './time.js';
 import {irmLabel,isAbandonIrm} from '../results/uci-irm.js';
-import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl,cxYouTubeVideoId} from './editor-logic.js';
+import {CX_CATEGORIES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl,cxYouTubeVideoId} from './editor-logic.js';
 import {CX_ACTIVE_MONTHS,cxSeason,cxSeasonMonths,cxDateInSeason} from './season.js';
 import {cxCategoryTiming,cxRegulationMinutes} from './timing.js';
 import {isReviveBroadcast} from '../broadcast-priority.js';
@@ -182,9 +182,17 @@ function cxAgendaTime(race,dateKey=null) {
 }
 // Las destacadas (`featured`, corona del panel) encabezan su día; entre ellas
 // y en el resto rige el orden canónico. Sin `useFeatured`, solo el canónico.
+// Orden de clases, como el de carretera (js/services/race-order.js): Mundial,
+// Copa del Mundo, Europeo, C1, C2, otros Continentales, Nacionales y NAC.
+// Espejo de CyclocrossLogic.classRank (iOS y Android).
+const CX_CLASS_ORDER=['CM','CDM','CC_EU','C1','C2','CC','CN','NAC'];
+function cxClassRank(race) {
+  const key=race?.class==='CC'&&/europ/i.test(`${race.name||''} ${race.nameEn||''}`)?'CC_EU':race?.class;
+  const index=CX_CLASS_ORDER.indexOf(key);
+  return index<0?CX_CLASS_ORDER.length:index;
+}
 function cxCompareRaces(a,b,dateKey=null,useFeatured=true) {
-  const classOrder=r=>{const index=CX_CLASSES.indexOf(r.class);return index<0?CX_CLASSES.length:index;};
-  const order=classOrder(a)-classOrder(b);
+  const order=cxClassRank(a)-cxClassRank(b);
   const featured=useFeatured?Number(!!b.featured)-Number(!!a.featured):0;
   return featured||order||cxAgendaTime(a,dateKey)-cxAgendaTime(b,dateKey)||a.name.localeCompare(b.name);
 }
@@ -193,24 +201,6 @@ function cxCompareRaces(a,b,dateKey=null,useFeatured=true) {
 // nacional: el equipo que se muestra es la selección del país del corredor, aunque
 // la ficha y el resultado conserven su equipo.
 export const cxCompetesBySelection=race=>race?.class==='CM'||race?.class==='CC';
-// Todos · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
-// X2O y HG Cross) · Pro (todo salvo las nacionales) · España (pruebas en España,
-// UCI o no).
-const CX_BIG_CLASSES = new Set(['CM', 'CDM', 'CC']);
-const CX_BIG_TOURNAMENTS = ['superprestige', 'x2o', 'worldcup', 'copadelmundo', 'exactcross', 'hgcross'];
-export function cxAgendaFilterMatches(race, filter) {
-  if (!filter || filter === 'all') return true;
-  if (filter === 'spain') return (race.countryCode || '').toLowerCase().startsWith('es');
-  if (filter === 'pro') return !['CN', 'NAC'].includes(race.class);
-  if (filter === 'big') {
-    if (CX_BIG_CLASSES.has(race.class)) return true;
-    const tournament = race.cx_tournaments;
-    if (!tournament) return false;
-    const identity = `${tournament.slug || ''} ${tournament.name || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    return CX_BIG_TOURNAMENTS.some(key => identity.includes(key));
-  }
-  return true;
-}
 // Fechas en que una prueba figura en la agenda: las de sus categorías dentro
 // de temporada; las pruebas aún sin programa, en su primera fecha oficial.
 export function cxRaceDates(race) {
@@ -290,14 +280,18 @@ const CX_CLASS_NAMES = {
   es: { CM:'Campeonato del mundo', CDM:'Copa del Mundo UCI', CC:'Campeonato continental', CN:'Campeonato nacional', NAC:'Nacional' },
   en: { CM:'World Championships', CDM:'UCI World Cup', CC:'Continental Championships', CN:'National Championships', NAC:'National' },
 };
-export const cxClassName = (code,lang='es') => (CX_CLASS_NAMES[lang] || CX_CLASS_NAMES.es)[code] || (/^C\d$/.test(code || '') ? `UCI ${code}` : (code || ''));
+const cxClassName = (code,lang='es') => (CX_CLASS_NAMES[lang] || CX_CLASS_NAMES.es)[code] || (/^C\d$/.test(code || '') ? `UCI ${code}` : (code || ''));
+// Clase de la cabecera de la ficha. En la Copa del Mundo el torneo ya nombra la
+// competición: repetirla bajo el nombre de la carrera duplicaba «Copa del Mundo UCI».
+export const cxHeaderClassName = (race,tournament,lang='es') => race.class==='CDM'&&tournament?'':cxClassName(race.class,lang);
 export function cxRoundLabel(round) {
   if(!round||!(round.total>1)||!(round.n>=1)||round.n>round.total)return null;
   return {text:t('cx.round',{n:round.n,total:round.total}),aria:t('cx.roundAria',{n:round.n,total:round.total})};
 }
-export function cxRoundBadge(round) {
+// `strong`: número en negrita (Hoy y Últimos resultados); el resto lo deja en peso normal.
+export function cxRoundBadge(round,strong=false) {
   const label=cxRoundLabel(round);
-  return label?`<span class="cx-round-badge"><span aria-hidden="true">${cxEscape(String(label.text))}</span><span class="sr-only">${cxEscape(label.aria)}</span></span>`:'';
+  return label?`<span class="cx-round-badge${strong?' cx-round-badge--strong':''}"><span aria-hidden="true">${cxEscape(String(label.text))}</span><span class="sr-only">${cxEscape(label.aria)}</span></span>`:'';
 }
 function cxStandingTotal(row,mode,locale='es-ES') {
   if(mode==='time')return row.timeSeconds==null?'-':cxDuration(row.timeSeconds);

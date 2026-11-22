@@ -11,4 +11,7 @@ document.getElementById('cxAgendaContent')?.addEventListener('click', evento => 
   const objetivo = evento.target.closest('button, select, [data-cat]');
   if (objetivo && !listo) cargar().then(() => setTimeout(() => objetivo.click(), 300));
 });
-alReposar(cargar);
+// Con la lista oculta por filtros u orden recordados (cliente/pre-pintado-portada.js), el JS se
+// carga en el acto: es quien la pinta.
+if (document.getElementById('cxAgendaList')?.style.visibility === 'hidden') cargar();
+else alReposar(cargar);

@@ -177,20 +177,6 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   line-height: 1.4;
 }
 
-.tr-more {
-  display: block;
-  margin: 0.75rem auto 0;
-  padding: 0.45rem 1.3rem;
-  font-size: var(--fs-2);
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--accent-text, var(--accent));
-  background: var(--accent-dim);
-  border: none;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-}
-
 /* ── Divisiones + equipos ───────────────────────────────────────── */
 .tr-div-btns {
   display: flex;
@@ -202,17 +188,26 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 /* Mismos filtros que la vista Hoy (.tcat-btn): inactivo sobre la superficie
    de ficha; activo con el azul al 15 % y texto azul. */
 .tr-div-btn {
-  padding: 0.32rem 0.8rem;
+  min-height: var(--control-h-sm);
+  padding: 0 0.8rem;
   font-size: var(--fs-2);
   font-family: var(--font-body);
   font-weight: 500;
   color: var(--text-muted);
-  background: var(--bg-card);
+  background: var(--control-bg);
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
+/* Divisiones y Fichajes | Renovaciones: un solo control segmentado, con filetes
+   interiores y sin contorno. «Filtros» conserva su botón propio. */
+.tr-div-btns:is(#trDivBtns, #trFeedBtns) { gap: 0; width: max-content; max-width: 100%; border-radius: var(--radius-sm); overflow: hidden; background: var(--control-bg); }
+.tr-div-btns:is(#trDivBtns, #trFeedBtns) .tr-div-btn { border-radius: 0; }
+.tr-div-btns:is(#trDivBtns, #trFeedBtns) .tr-div-btn + .tr-div-btn { border-left: 1px solid var(--control-sep); }
+/* Equipo de destino del feed con su cuadrado de colores, en línea con el texto
+   para que el recorte con «…» afecte a toda la fila. */
+.tr-move .team-stripes { margin-left: 0.15rem; }
 
 .tr-div-btn--active {
   background: color-mix(in srgb, var(--accent) 15%, var(--bg));
@@ -233,7 +228,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-card__name { overflow-wrap:anywhere; }
 .tr-team-card__label { min-width:0; }
 .tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }
-.tr-team-chevron { flex:none; font-size: var(--fs-5); }
+.tr-team-chevron { flex:none; font-size: var(--fs-5); opacity: 0.75; }
 @media (max-width:1099px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px) { .tr-team-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:360px) { .tr-team-grid { grid-template-columns:1fr; } }
@@ -269,27 +264,36 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-row--team { font-size: var(--fs-3); }
 
 .tr-team-header { min-height:44px; padding:9px 12px; background:var(--bg-card); color:var(--text); }
-.tr-team-header__text { display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; width:100%; }
-.tr-team-header__cat { margin-left:auto; }
+/* Dos líneas: nombre con la división y la temporada al final; debajo, país y
+   ciclistas confirmados, con el «·» a 6 px de cada lado. En móvil (hasta
+   760 px), tres: nombre; división y temporada; país y ciclistas. */
+.tr-team-header__text { display:flex; flex-direction:column; gap:4px; width:100%; }
+.tr-team-header__top { display:flex; align-items:baseline; gap:12px; }
+.tr-team-header__top .tr-team-header__name { flex:1 1 auto; min-width:0; }
+.tr-team-header__cat { margin-left:auto; flex:none; white-space:nowrap; }
+.tr-team-header__facts { display:flex; align-items:center; flex-wrap:wrap; gap:2px 6px; }
+.tr-team-header__sep { color:var(--text-muted); }
+@media (max-width:760px) {
+  .tr-team-header__top { flex-direction:column; align-items:flex-start; gap:4px; }
+  .tr-team-header__cat { margin-left:0; }
+}
 .tr-team-header__name { font-size: var(--fs-5); overflow-wrap:anywhere; }
 .tr-team-header__cat { color:inherit; font-weight:600; }
 #trTeamView { margin-inline:auto; }
-.tr-team-sections { column-count:2; column-gap:24px; padding-top:1.75rem; }
-.tr-team-sections>section { min-width:0; margin-top:0; }
-.tr-team-sections>section:not([hidden]) ~ section { padding-top:1.75rem; }
-.tr-team-sections .tr-section-title { break-after:avoid; margin-top:0; }
-.tr-team-sections .tr-section-title--duplicate {
-  break-before: column;
-  margin-top: 0;
-}
-.tr-team-sections .tr-row { break-inside:avoid; }
+/* Dos columnas: plantilla | estados (en duda, terminan contrato, llegan, se
+   marchan). En móvil, una debajo de otra con la plantilla primero. */
+.tr-team-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.75rem 24px; align-items:start; padding-top:1.75rem; }
+.tr-team-col { min-width:0; }
+.tr-team-col>section { min-width:0; margin-top:0; }
+.tr-team-col>section ~ section { padding-top:1.75rem; }
+.tr-team-sections .tr-section-title { margin-top:0; }
 /* Conservar el ancho de las antiguas columnas cuando cabían tres. */
 @media (min-width:1146px) {
   .tr-main:has(#trTeamView:not([hidden])) { width:calc((var(--page-width) - 48px) / 3 * 2 + 24px); }
 }
 .tr-div-btn { font-weight:600; }
 .tr-div-btn--active { font-weight:700; }
-@media (max-width:760px) { .tr-team-sections { column-count:1; } }
+@media (max-width:760px) { .tr-team-sections { grid-template-columns:1fr; } }
 
 .tr-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }
 
@@ -301,14 +305,22 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-feed-column .tr-row { margin:0; padding:8px 12px; background:none; box-shadow:none; border-radius:0; border-bottom:1px solid var(--border); }
 .tr-feed-column .tr-row--link:hover { background:var(--hover-bg); }
 .tr-feed-list { margin-bottom:-1px; }
+/* Filas de reserva de la página publicada y lo que oculta su script previo. */
+.tr-feed-column [hidden] { display:none; }
 .tr-feed-column .tr-empty { padding:12px; }
-/* Fichajes y Renovaciones a la misma altura fija, con desplazamiento propio
-   en todos los anchos. */
+/* Fichajes y Renovaciones a la misma altura fija, con scroll propio en todos
+   los anchos. El corte está en js/fichajes-html.js (FEED_MAX_DAYS,
+   FEED_MAX_ITEMS). */
 .tr-feed-list {
   height: 22rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+/* En móvil, la lista de equipos tiene altura máxima y scroll propio; la página
+   no se bloquea, así que el pie sigue visible. */
+@media (max-width: 760px) {
+  #trTeamGrid { max-height: 60dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 }
 /* Desde 761 px, lado a lado, como la rejilla de Hoy (columnas de 345 px a
    761 px, 374 px a 820 px y 414 px a 900 px): los equipos de nombre largo
@@ -319,3 +331,84 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   .tr-feed-column { display:block; }
   .tr-feed-title { display:flex; }
 }
+
+/* ── Filtros del mercado ────────────────────────────────────────── */
+/* Como en las apps: botón «Filtros» con menú (js/components/menu-button.js,
+   .menu-popover de app.css), activo con algún filtro y sin filas añadidas. En
+   una columna va junto a Fichajes | Renovaciones; desde 761 px, donde esos
+   botones no se ven, a la derecha del título. */
+.tr-feed-bar { display:flex; align-items:center; gap:0.4rem; margin-bottom:0.75rem; }
+.tr-feed-bar .tr-div-btns { margin-bottom:0; }
+@media (min-width:761px) {
+  #transfersContent { position:relative; }
+  .tr-feed-bar { margin-bottom:0; }
+  /* El margen superior del título se sale de #transfersContent: su caja de
+     línea (fs-5 × 1,5) empieza en el borde y el botón se centra en ella. */
+  .tr-filter { position:absolute; top:0; right:0; height:calc(var(--fs-5) * 1.5); align-items:center; }
+}
+
+/* ── País y división del equipo ─────────────────────────────────── */
+.tr-team-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-2);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.tr-team-header__count { font-size: var(--fs-2); color: inherit; opacity: 0.8; }
+
+/* ── Tintes de la plantilla por años de contrato ────────────────── */
+/* Verde = 2 años o más de margen, amarillo = 1, rojo = vence este año. Pálido
+   para los que continúan, fuerte para las llegadas. La leyenda (.tr-legend) va
+   bajo las listas del equipo. El texto (--text) sobre cada tinte pasa 4,5:1
+   en los dos temas. Mismo reparto de temas que tokens.css. */
+:root {
+  --tr-green-pale: #12301c;   --tr-green-strong: #1f5a2c;
+  --tr-yellow-pale: #3a3512;  --tr-yellow-strong: #5c5217;
+  --tr-red-pale: #3d1b1b;     --tr-red-strong: #6b2424;
+}
+html.light {
+  --tr-green-pale: #e3f9e0;   --tr-green-strong: #8dfe96;
+  --tr-yellow-pale: #fcf8db;  --tr-yellow-strong: #fef18d;
+  --tr-red-pale: #fcdbdb;     --tr-red-strong: #f9a8a8;
+}
+@media (prefers-color-scheme: light) {
+  html:not(.dark) {
+    --tr-green-pale: #e3f9e0;   --tr-green-strong: #8dfe96;
+    --tr-yellow-pale: #fcf8db;  --tr-yellow-strong: #fef18d;
+    --tr-red-pale: #fcdbdb;     --tr-red-strong: #f9a8a8;
+  }
+}
+.tr-tint--green  { background: var(--tr-green-pale); }
+.tr-tint--yellow { background: var(--tr-yellow-pale); }
+.tr-tint--red    { background: var(--tr-red-pale); }
+.tr-tint--green.tr-tint--strong  { background: var(--tr-green-strong); }
+.tr-tint--yellow.tr-tint--strong { background: var(--tr-yellow-strong); }
+.tr-tint--red.tr-tint--strong    { background: var(--tr-red-strong); }
+
+/* ── Orden de la plantilla ──────────────────────────────────────── */
+/* Título con el conmutador de orden a la derecha (A-Z o lápiz sobre hoja). El
+   botón no añade altura a la cabecera: las primeras filas de las dos columnas
+   siguen alineadas. */
+.tr-section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:0.6rem; }
+.tr-section-head .tr-section-title { margin:0; }
+.tr-sort-toggle { display:inline-flex; align-items:center; justify-content:center; margin-block:-6px; padding:4px; border:0; border-radius:var(--radius-sm); background:transparent; color:var(--text-muted); cursor:pointer; }
+.tr-sort-toggle:hover { background:var(--hover-bg); color:var(--text); }
+.tr-sort-toggle:focus-visible { outline:2px solid var(--accent-text); outline-offset:2px; }
+
+/* ── Leyenda de colores ─────────────────────────────────────────── */
+.tr-legend { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin-top:1.75rem; font-size:var(--fs-2); color:var(--text-muted); }
+.tr-legend__label { font-weight:600; }
+.tr-legend__item { display:inline-flex; align-items:center; gap:6px; }
+.tr-legend__swatch { width:12px; height:12px; flex:none; border:1px solid var(--border); }
+/* En una columna, centrada, como en las apps. */
+@media (max-width:760px) {
+  .tr-legend { justify-content:center; }
+  .tr-legend__sep { display:none; }
+}
+
+/* Controles con superficie: la sombra de tarjeta los separa del fondo, también en claro. */
+.filter-menu-btn.tr-div-btn, .tr-div-btns:is(#trDivBtns, #trFeedBtns) { box-shadow: var(--card-shadow); }
+/* Cabecera de equipo con sus colores: todo el texto hereda el de la cabecera. */
+.tr-team-header .tr-team-country, .tr-team-header__sep { color: inherit; opacity: 0.85; }

@@ -11,6 +11,17 @@ function hasScrollRailOverflow(contentExtent, viewportExtent, leadingControlExte
   return contentExtent > viewportExtent + leadingControlExtent + trailingControlExtent + 2;
 }
 
+/**
+ * Centra un elemento del carril (la etapa o la pestaña activa) sin mover la
+ * página. No hace nada si el carril cabe entero.
+ */
+export function centerRailItem(rail, item, behavior = 'auto') {
+  if (!rail || !item || rail.scrollWidth <= rail.clientWidth + 1) return;
+  const offset = item.getBoundingClientRect().left - rail.getBoundingClientRect().left;
+  const left = rail.scrollLeft + offset - (rail.clientWidth - item.offsetWidth) / 2;
+  rail.scrollTo({ left: Math.max(0, left), behavior });
+}
+
 export function installScrollRail(shell, { rail, prev, next, vertical = false } = {}) {
   if (!shell || shell._ccRailCleanup) return;
   rail ||= shell.querySelector('[data-scroll-rail]');

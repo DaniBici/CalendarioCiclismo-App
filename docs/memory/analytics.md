@@ -72,8 +72,8 @@ Emitidos en **ambas plataformas** con los mismos nombres y parámetros:
 
 | Evento | Parámetros | Notas |
 |---|---|---|
-| `onboarding_view` | `onboarding_step` | Pantallas de onboarding (notifications, offline, language_announcement, premium_showcase). |
-| `onboarding_action` | `onboarding_step`, `action` | En el anuncio 4.3: `open_support` o `continue_free`. |
+| `onboarding_view` | `onboarding_step` | Pasos de la bienvenida única, al mostrarse cada uno: `language_announcement`, `notifications` y `premium_showcase` (nombres anteriores a la 5.2.2, conservados). `offline` es histórico. |
+| `onboarding_action` | `onboarding_step`, `action` | Idioma: `es` o `en`. Notificaciones: `accepted` o `skipped`. Apoyo: `open_support` u `open_contributions` al abrir la hoja; `continue_free`, `continue_founder` o `continue` al entrar en la app. |
 | `support_view` | `source` | Origen del acceso a la pantalla de sostenimiento. |
 | `support_subscribe_tap` | `plan`, `source` | `plan`: `monthly`/`yearly`. |
 | `support_contribution_tap` | `product_id` | Aportación puntual seleccionada. |

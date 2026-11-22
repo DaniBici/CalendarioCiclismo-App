@@ -60,11 +60,35 @@
   --badge-neutral-bg: color-mix(in srgb, var(--text) 8%, transparent);
   --badge-neutral-hover: color-mix(in srgb, var(--text) 14%, transparent);
   --transition:  0.15s ease;
+  /* ── Capa visual sobria (docs/plans/capa-visual-sobria.md) ───────
+     Tokens añadidos en la pasada 2; aún sin consumidores: las pasadas
+     siguientes los usan al rehacer cada familia de pantallas. */
+  --bg-tint:       #2e3036;
+  /* Controles sin contorno: superficie de tarjeta y filetes interiores. */
+  --control-bg:    var(--bg-card);
+  --control-sep:   var(--border);
+  /* «Selección inversa»: estado activo de pestañas, segmentados y botón
+     principal. Oscuro: relleno claro con texto oscuro. */
+  --inverse-bg:     #f2f3f5;
+  --inverse-text:   #0b0c0f;
+  --inverse-border: #f2f3f5;
+  --selected-bg:    var(--inverse-bg);
+  --selected-text:  var(--inverse-text);
+  --selected-border: var(--inverse-border);
+  /* Firma de marca: logo y estado activo del menú, en ningún otro sitio. */
+  --brand:          #b7f34a;
+  --brand-text:     var(--brand);
+  /* Alturas de control: tres niveles en toda la web. */
+  --control-h-sm:   24px;
+  --control-h:      32px;
+  --control-h-lg:   40px;
   --bg-header:   #222429;
   /* Elevación única de las tarjetas, sin borde: la de ccCardShadow() en iOS
      (radio 8 → desenfoque 16px, y = 3). En oscuro la tarjeta se separa por el
      tono de su superficie; la sombra sube al 50 % para verse sobre el fondo. */
   --card-shadow: 0 3px 16px rgba(0,0,0,0.5);
+  --rail-bg: transparent;
+  --rail-shadow: none;
 
   /* ── Badges de categoría UCI ──────────────────────────────────
      WT / WWT (WorldTour)  → azul
@@ -141,6 +165,19 @@ html.light {
   --bg-header:     #edf1f6;
   /* En claro, la misma sombra que ccCardShadow() en iOS: negro 6 %. */
   --card-shadow: 0 3px 16px rgba(0,0,0,0.06);
+  --rail-bg: var(--bg-card);
+  --rail-shadow: var(--card-shadow);
+  --bg-tint:       #e8f1ff;
+  --control-bg:    var(--bg-card);
+  --control-sep:   var(--border);
+  --inverse-bg:     #10233f;
+  --inverse-text:   #ffffff;
+  --inverse-border: #10233f;
+  --selected-bg:    var(--inverse-bg);
+  --selected-text:  var(--inverse-text);
+  --selected-border: var(--inverse-border);
+  --brand:          #1769e0;
+  --brand-text:     var(--brand);
 
   --badge-wt-bg:     #d3e3fd;
   --badge-wt-color:  #0842a0;
@@ -202,6 +239,19 @@ html.light {
     --header-text:   #1f1f1f;
     --bg-header:     #edf1f6;
     --card-shadow:   0 3px 16px rgba(0,0,0,0.06);
+    --rail-bg:       var(--bg-card);
+    --rail-shadow:   var(--card-shadow);
+    --bg-tint:       #e8f1ff;
+    --control-bg:    var(--bg-card);
+    --control-sep:   var(--border);
+    --inverse-bg:     #10233f;
+    --inverse-text:   #ffffff;
+    --inverse-border: #10233f;
+    --selected-bg:    var(--inverse-bg);
+    --selected-text:  var(--inverse-text);
+    --selected-border: var(--inverse-border);
+    --brand:          #1769e0;
+    --brand-text:     var(--brand);
 
     --badge-wt-bg:     #d3e3fd;
     --badge-wt-color:  #0842a0;

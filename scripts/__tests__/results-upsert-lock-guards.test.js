@@ -391,7 +391,7 @@ describe('gate de integridad — rank 1 válido', () => {
   });
 
   it('acepta la etapa si el saneo desplaza un IRM espurio y restaura al ganador', () => {
-    const { nStages, nRejected } = buildPlan({
+    const { plan, nStages, nRejected } = buildPlan({
       competitionId: 78302,
       disciplineId: 10,
       stages: [{ stageNumber: 1, classifications: [clasificacion({
@@ -404,6 +404,9 @@ describe('gate de integridad — rank 1 válido', () => {
 
     expect(nStages).toBe(1);
     expect(nRejected).toBe(0);
+    // params: [..., rank (3), ..., bib (5), ...]. El ganador real pasa a puesto 1 y el DNS queda sin puesto.
+    const rankByBib = Object.fromEntries(plan.filter((st) => st.resultRow).map((st) => [st.params[5], st.params[3]]));
+    expect(rankByBib).toEqual({ 12: 1, 11: null });
   });
 });
 

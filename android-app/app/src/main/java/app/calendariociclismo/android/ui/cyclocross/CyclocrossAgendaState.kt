@@ -10,7 +10,7 @@ import app.calendariociclismo.android.data.model.CxRoundEntry
 import app.calendariociclismo.android.data.model.CxRoundRow
 import app.calendariociclismo.android.data.repository.CxCached
 import app.calendariociclismo.android.data.repository.CyclocrossRepository
-import app.calendariociclismo.android.util.CxAgendaFilter
+import app.calendariociclismo.android.util.CxRaceFilter
 import app.calendariociclismo.android.util.CxAgendaSort
 import app.calendariociclismo.android.util.CxCategoryCardState
 import app.calendariociclismo.android.util.CxPresentation
@@ -108,10 +108,10 @@ class CyclocrossAgendaState(
     // Agenda general.
     var dateKey by mutableStateOf(todayKey())
         private set
-    var filter by mutableStateOf(CxAgendaFilter.ALL)
+    var filter by mutableStateOf(CxRaceFilter())
         private set
-    /** Orden del día mostrado (Categoría, Hora TV, Hora de meta), en memoria
-     *  como en Hoy de carretera. */
+    /** Orden del día mostrado (Categoría, Hora TV, Hora de meta), recordado en
+     *  AppPreferences (`cx_sort_mode`) como en Hoy de carretera. */
     var sort by mutableStateOf(CxAgendaSort.CATEGORY)
     /** El usuario cambió de día desde la apertura: la descarga posterior no
      *  recalcula el día de apertura. */
@@ -130,7 +130,7 @@ class CyclocrossAgendaState(
 
     /** Carreras de la agenda general con el filtro activo. */
     val races: List<CxRace>
-        get() = seasonRaces.filter { CxPresentation.matchesAgendaFilter(it, filter) }
+        get() = seasonRaces.filter(filter::matches)
 
     /** Carreras de la temporada sin duplicados. En Hoy, el índice con el
      *  detalle de los días consultados sobre las mismas pruebas. */
@@ -166,7 +166,7 @@ class CyclocrossAgendaState(
      * elegido a mano antes de recrear la pantalla; sin él, abre en hoy o en el
      * siguiente día con carreras de [initialFilter].
      */
-    suspend fun open(selectedSeason: String, restoredDay: String? = null, initialFilter: CxAgendaFilter = filter) {
+    suspend fun open(selectedSeason: String, restoredDay: String? = null, initialFilter: CxRaceFilter = filter) {
         if (selectedSeason == season && loaded) return
         val generation = ++revision
         season = selectedSeason
@@ -240,7 +240,7 @@ class CyclocrossAgendaState(
      * siempre el día de apertura con su detalle, y desde la copia local solo
      * si ese detalle es vigente ([DETAIL_MAX_AGE_MS]).
      */
-    private suspend fun openToday(generation: Int, restoredDay: String?, initialFilter: CxAgendaFilter) {
+    private suspend fun openToday(generation: Int, restoredDay: String?, initialFilter: CxRaceFilter) {
         val selectedSeason = season
         filter = initialFilter
         navigated = false
@@ -622,9 +622,9 @@ class CyclocrossAgendaState(
         if (nowSeason != season) open(nowSeason, initialFilter = filter) else navigateTo(nowKey)
     }
 
-    /** Cambio de filtro sobre los datos en memoria: conserva el día y solo
-     *  con Todas avanza al siguiente día con carreras. */
-    fun selectFilter(value: CxAgendaFilter) {
+    /** Cambio de filtro sobre los datos en memoria: conserva el día y, si queda
+     *  sin carreras, avanza al siguiente día que las tenga. */
+    fun selectFilter(value: CxRaceFilter) {
         if (value == filter) return
         filter = value
         if (loaded) autoNavigate()
@@ -646,10 +646,9 @@ class CyclocrossAgendaState(
         else { show(nowKey); autoNavigate() }
     }
 
-    /** Día sin carreras visibles con el filtro Todas: avanza al siguiente día
+    /** Día sin carreras visibles (con o sin filtros): avanza al siguiente día
      *  con carreras, como la auto-navegación de Hoy. */
     private fun autoNavigate() {
-        if (filter != CxAgendaFilter.ALL) return
         val visible = races
         if (CyclocrossLogic.racesOn(visible, dateKey).isNotEmpty()) return
         CyclocrossLogic.nextRaceDay(CyclocrossLogic.raceDays(visible), dateKey)?.let(::show)

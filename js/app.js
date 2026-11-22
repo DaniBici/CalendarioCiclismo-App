@@ -5,8 +5,7 @@ import { loadFeaturedRaces, todayRaceState, agendaTimeSignature } from './servic
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, toDateKey, setMeta, setMetaProperty, setCachedRace, initPhTooltip,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, syncCategorySelect, handleCategorySelect,
-         filterBroadcastsByRegion, setPressed, announce, agendaDateHtml }
+         filterBroadcastsByRegion, announce, agendaDateHtml }
          from './shared.js';
 import { retireStaticText } from './static-text.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
@@ -16,15 +15,18 @@ import { fetchAllRowsParallel } from './services/paged-query.js';
 import { staleWhileRevalidate } from './services/local-cache.js';
 import { openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal } from './race-data-modal.js';
 import { initCintillo } from './cintillo.js';
-import { isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js';
 import { patchHtml } from './dom-patch.js';
-import { ACTIVE_RACE_COLUMNS, YEAR_NAV_COLUMNS, agendaPlaceholders, prepareAgendaDays, matchesCategoryFilter,
+import { ACTIVE_RACE_COLUMNS, YEAR_NAV_COLUMNS, agendaPlaceholders, prepareAgendaDays,
          findNextDayWithRaces as nextDayWithRaces, findPrevDayWithRaces as prevDayWithRaces, addDaysKey } from './services/today-nav.js';
 import { agendaCardHtml, dateBarHtml, emptyDayHtml } from './today-agenda-html.js';
 import { sortAgenda } from './services/today-agenda-order.js';
 import { cyclocrossLanding } from './services/today-season.js';
 import { mountDisciplineSwitch } from './components/discipline-switch.js';
 import { bindMenuButtons } from './components/menu-button.js';
+import { bindFilterMenu } from './components/filter-menu.js';
+import { scheduleTodayTips } from './components/today-tip.js';
+import { bindSortMenu, loadSort, saveSort, ROAD_SORT_KEY } from './components/sort-menu.js';
+import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, loadRoadFilters, roadFiltersActive, roadRaceMatches, femaleMarkCat, filterLabels } from './race-filters.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
@@ -87,7 +89,7 @@ function initDateBarEvents() {
     if (button.dataset.dk) { loadDay(button.dataset.dk); return; }
     if (button.classList.contains('date-today-btn')) { currentDateKey = today; buildDateBar(); loadDay(today); return; }
     if (button.dataset.direction === 'prev') {
-      const prev = findPrevDayWithRaces(currentDateKey, _agendaCat);
+      const prev = findPrevDayWithRaces(currentDateKey, _agendaFilters);
       if (prev) { loadDay(prev); return; }
       const [y, m, d] = currentDateKey.split('-').map(Number);
       loadDay(toDateKey(new Date(y, m - 1, d - 1)));
@@ -115,9 +117,9 @@ function syncDayUrl(dateKey) {
 const DAY_SELECT = '*,race:races(*,race_uci_stages(raceId,raceDayId,stageNumber)),broadcasts(*),assets(id,raceDayId,type,url),race_day_videos(id,kind,title,titleEn,channel,url,embeddable,country,sortOrder,raceDayId)';
 let dayRequest = 0;
 let dayLoading = false;
-// skipEmptyDay: si true, salta automáticamente al siguiente día con carreras
-// cuando el día no tiene actividad. Solo debe ser true en la carga inicial.
-async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) {
+// Un día sin carreras que pasen el filtro salta siempre al siguiente día que
+// las tenga; el estado vacío solo aparece si no hay ninguno.
+async function loadDay(dateKey, { refresh = false } = {}) {
   const request = ++dayRequest;
   dayLoading = true;
   clearInterval(_progressTimer);
@@ -125,10 +127,6 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   _progressCards = [];
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
   currentDateKey = dateKey;
-  // Reevaluar el bloqueo de filtros de Campeonatos contra la jornada mostrada
-  // (puede entrar/salir de la ventana al navegar). Ajusta `_agendaCat` y los
-  // chips ANTES de filtrar las cards de abajo; sin re-entrada en loadDay.
-  applyChampWeekLock(dateKey);
   buildDateBar();
 
   syncDayUrl(dateKey);
@@ -197,22 +195,13 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     if (dayItems.length === 0) {
       await yearRacesPromise;
       if (request !== dayRequest) return;
-      // Buscar siguiente día con carreras (respetando filtro activo)
-      const nextDateBtn = findNextDayWithRaces(dateKey, _agendaCat);
-      if (skipEmptyDay && nextDateBtn) {
+      // Siguiente día con carreras que pasen el filtro activo: se salta siempre.
+      const nextDateBtn = findNextDayWithRaces(dateKey, _agendaFilters);
+      if (nextDateBtn) {
         loadDay(nextDateBtn);
         return;
       }
-      // Auto-navegar si no hay items visibles. Solo con el filtro "Todas"
-      // (evita saltos sorpresa cuando el usuario filtra a propósito), CON UNA
-      // EXCEPCIÓN: dentro de la ventana de Campeonatos el filtro Masculino está
-      // FORZADO (no lo eligió el usuario) y los días 22-23 no tienen carreras →
-      // se auto-avanza igual al siguiente día con carreras masculinas.
-      if ((_agendaCat === 'all' || _champLockOn) && nextDateBtn) {
-        loadDay(nextDateBtn);
-        return;
-      }
-      showEmptyDay(list, t('today.noRaces'), nextDateBtn);
+      showEmptyDay(list, t('today.noRaces'), null);
       return;
     }
 
@@ -224,11 +213,8 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
     if (allItems.length === 0) {
       await yearRacesPromise;
       if (request !== dayRequest) return;
-      const nextFilteredDate = findNextDayWithRaces(dateKey, _agendaCat);
-      // Dentro de la ventana de Campeonatos el filtro Masculino está FORZADO: si
-      // este día no tiene carreras masculinas, auto-avanzar al siguiente que sí
-      // (mismo trato que el filtro "Todas"; el escaneo respeta el filtro activo).
-      if (_champLockOn && nextFilteredDate) {
+      const nextFilteredDate = findNextDayWithRaces(dateKey, _agendaFilters);
+      if (nextFilteredDate) {
         loadDay(nextFilteredDate);
         return;
       }
@@ -353,7 +339,7 @@ function renderAgendaItems(items) {
   clearInterval(_progressTimer);
   _progressTimer = null;
   _agendaById = new Map(items.filter(item => !item._placeholder).map(item => [item.id, item]));
-  patchHtml(list, items.map(item => agendaCardHtml(item, { agendaCat: _agendaCat, agendaSort: _agendaSort })).join(''));
+  patchHtml(list, items.map(item => agendaCardHtml(item, { agendaCat: femaleMarkCat(_agendaFilters), agendaSort: _agendaSort })).join(''));
   _progressCards = [...list.querySelectorAll('.race-card[data-progress-start]')].map(card => ({
     card,
     startMs: Number(card.dataset.progressStart),
@@ -443,161 +429,55 @@ function _announceDay(n, dateKey) {
 
 
 // ── Estado de filtros de agenda ───────────────────────────────────
-// Cuando la JORNADA MOSTRADA cae en la semana de Campeonatos (22-28 jun) la
-// vista "Hoy" impone el filtro Masculino, oculta WT/WWT y no deja fijar otro
-// predeterminado; fuera de esa ventana se respeta el pin del usuario (que se
-// conserva intacto). Se evalúa contra la fecha navegada (currentDateKey), no la
-// fecha real → al navegar a esos días se aplica aunque hoy sea otra fecha.
-let _agendaCat     = isChampWeekFilterLock(currentDateKey)
-  ? champWeekHoyDefault(currentDateKey)
-  : (getPinnedFilter() || 'all'); // categoría activa (pin > default)
-// Filtro que tenía el usuario justo antes de entrar en la ventana, para
-// restaurarlo al salir. `null` mientras no estamos dentro de la ventana.
-let _preChampCat   = null;
-let _champLockOn   = isChampWeekFilterLock(currentDateKey); // estado actual del lock
-// Último filtro por defecto forzado dentro de la ventana de Campeonatos. Sirve
-// para reaplicar el default solo cuando CAMBIA al navegar entre días (p. ej.
-// 26→27 jun: Masculino→Todas), sin pisar la elección manual del usuario.
-let _champForced   = _champLockOn ? champWeekHoyDefault(currentDateKey) : null;
-let _agendaSort    = 'category'; // orden: 'category' | 'tvtime' | 'finishtime'
-window._agendaCat  = _agendaCat;
+// Menú «Filtros» (js/race-filters.js): nivel (WorldTour, Profesional, .2) y
+// género, recordados y compartidos con Mes y Temporada.
+let _agendaFilters = loadRoadFilters();
+let _agendaSort    = loadSort(ROAD_SORT_KEY); // orden recordado: 'category' | 'tvtime' | 'finishtime'
 window._icalYear   = new Date().getFullYear();
 // ── Caché de carreras del año para navegación filter-aware ───────
 let _cachedYearRaces = [];
-const findNextDayWithRaces = (afterDateKey, cat) => nextDayWithRaces(afterDateKey, cat, _cachedYearRaces);
-const findPrevDayWithRaces = (beforeDateKey, cat) => prevDayWithRaces(beforeDateKey, cat, _cachedYearRaces);
+const findNextDayWithRaces = (afterDateKey, filters) => nextDayWithRaces(afterDateKey, filters, _cachedYearRaces);
+const findPrevDayWithRaces = (beforeDateKey, filters) => prevDayWithRaces(beforeDateKey, filters, _cachedYearRaces);
 
 /** Destino de «día siguiente»: el próximo día con carreras del filtro o, si no
  *  lo hay, el día contiguo. */
 function nextNavigableDay(fromKey) {
-  return findNextDayWithRaces(fromKey, _agendaCat) || addDaysKey(fromKey, 1);
+  return findNextDayWithRaces(fromKey, _agendaFilters) || addDaysKey(fromKey, 1);
 }
 
-/** Aplica/retira el bloqueo de filtros de la semana de Campeonatos según la
- *  JORNADA MOSTRADA (`dateKey`). Idempotente: se llama en cada loadDay.
- *  - Al ENTRAR en la ventana: guarda el filtro del usuario, fuerza Masculino,
- *    oculta WT/WWT y las chinchetas.
- *  - Al SALIR: restaura el filtro previo (o el pin), reexpone chips y chinchetas.
- *  Devuelve `true` si el filtro activo cambió (el caller debe recargar el día). */
-function applyChampWeekLock(dateKey) {
-  const cats = document.getElementById('agendaFilterCats');
-  const lockNow = isChampWeekFilterLock(dateKey);
-  let catChanged = false;
-
-  if (lockNow) {
-    // Dentro de la ventana se fuerza el filtro por defecto de la jornada
-    // mostrada (Masculino, salvo el 27-28 jun → "Todas"). Al ENTRAR se recuerda
-    // el filtro del usuario y se fuerza el default; navegando entre días dentro
-    // de la ventana solo se reaplica cuando el default CAMBIA (p. ej. 26→27 jun:
-    // Masculino→Todas), respetando la elección manual mientras no se cruce ese
-    // límite.
-    const forced = champWeekHoyDefault(dateKey);
-    if (!_champLockOn) {
-      _preChampCat = _agendaCat;
-      if (_agendaCat !== forced) { _agendaCat = forced; catChanged = true; }
-    } else if (forced !== _champForced && _agendaCat !== forced) {
-      _agendaCat = forced; catChanged = true;
-    }
-    _champForced = forced;
-  } else if (!lockNow && _champLockOn) {
-    // Salimos de la ventana: restaurar el filtro previo (o el pin guardado).
-    const restored = _preChampCat ?? (getPinnedFilter() || 'all');
-    _preChampCat = null;
-    _champForced = null;
-    if (_agendaCat !== restored) { _agendaCat = restored; catChanged = true; }
-  }
-  _champLockOn = lockNow;
-  window._agendaCat = _agendaCat;
-
-  if (cats) {
-    // Visibilidad de chips: WT/WWT ocultos solo dentro de la ventana.
-    cats.querySelectorAll('.tcat-btn').forEach(b => {
-      b.style.display = (lockNow && !CHAMP_WEEK_HOY_FILTERS.includes(b.dataset.cat)) ? 'none' : '';
-    });
-    cats.querySelectorAll('.tcat-btn').forEach(b =>
-      setPressed(b, b.dataset.cat === _agendaCat)
-    );
-    // Chinchetas inhibidas dentro de la ventana.
-    if (lockNow) cats.querySelectorAll('.tcat-pin').forEach(p => p.remove());
-    else renderFilterPins(cats, _agendaCat);
-  }
-  syncAgendaCatSelect();
-  return catChanged;
-}
-
-// Desplegable de categoría de la franja en móvil, con las reglas de los chips:
-// dentro de la ventana de Campeonatos, solo sus filtros y sin fijar.
-function syncAgendaCatSelect() {
-  syncCategorySelect(document.getElementById('agendaCatSelect'), _agendaCat, {
-    canPin: !_champLockOn,
-    allowed: _champLockOn ? CHAMP_WEEK_HOY_FILTERS : null,
-  });
-}
-
-// Cambio de categoría desde los chips o el desplegable. El cambio manual dentro
-// de la ventana de Campeonatos es contextual: NO toca `_preChampCat`, de modo
-// que al salir se restaura el filtro que el usuario tenía antes de entrar (su
-// pin / "fuera funciona normal").
-function pickAgendaCat(cat) {
-  const cats = document.getElementById('agendaFilterCats');
-  cats?.querySelectorAll('.tcat-btn').forEach(b => setPressed(b, b.dataset.cat === cat));
-  _agendaCat = cat;
-  window._agendaCat = _agendaCat;
-  if (!_champLockOn) renderFilterPins(cats, _agendaCat);
-  syncAgendaCatSelect();
-  loadDay(currentDateKey);
-}
+const AGENDA_FILTER_MENU = { idPrefix: 'agendaFilter', activeClass: 'agenda-filter-btn--active' };
 
 function initAgendaFilters() {
-  const cats = document.getElementById('agendaFilterCats');
-  if (cats) {
-    // Estado inicial del lock según la jornada mostrada al cargar.
-    applyChampWeekLock(currentDateKey);
-
-    const onEvent = e => {
-      const res = handleFilterEvent(e);
-      if (!res) return;
-      if (res.type === 'pin') {
-        // Pin inhibido dentro de la ventana (no se pintan chinchetas).
-        if (!_champLockOn) renderFilterPins(cats, _agendaCat);
-        syncAgendaCatSelect();
-        return;
-      }
-      pickAgendaCat(res.cat);
-    };
-    cats.addEventListener('click', onEvent);
-    cats.addEventListener('keydown', onEvent);
-  }
-
-  // Categoría en desplegable (móvil): mismas acciones que los chips.
-  const catSelect = document.getElementById('agendaCatSelect');
-  if (catSelect) {
-    syncAgendaCatSelect();
-    catSelect.addEventListener('change', () => {
-      const res = handleCategorySelect(catSelect);
-      if (!res || res.type === 'pin' || res.cat === _agendaCat) {
-        if (res?.type === 'pin' && !_champLockOn) renderFilterPins(cats, _agendaCat);
-        syncAgendaCatSelect();
-        return;
-      }
-      pickAgendaCat(res.cat);
+  const slot = document.getElementById('agendaFilterSlot');
+  if (slot) {
+    const menu = bindFilterMenu(slot, {
+      ...AGENDA_FILTER_MENU,
+      groups: ROAD_FILTER_GROUPS,
+      clearLabel: filterLabels().clearLabel,
+      storageKey: ROAD_FILTERS_KEY,
+      getFilters: () => _agendaFilters,
+      setFilters: filters => { _agendaFilters = filters; },
+      patch: patchHtml,
+      onChange: () => loadDay(currentDateKey),
     });
+    menu.render();
   }
 
-  const sortSel = document.getElementById('agendaSortSelect');
-  sortSel?.addEventListener('change', () => {
-    if (!sortSel.value) return;
-    _agendaSort = sortSel.value;
-    loadDay(currentDateKey);
-  });
+  const sortSlot = document.getElementById('agendaSortSlot');
+  if (sortSlot) bindSortMenu(sortSlot, {
+    idPrefix: 'agendaSort',
+    getCurrent: () => _agendaSort,
+    onChange: mode => { _agendaSort = mode; saveSort(ROAD_SORT_KEY, mode); loadDay(currentDateKey); },
+  }).render();
+  scheduleTodayTips(document.getElementById('agendaFilterBtn'), document.getElementById('agendaSortBtn'), 'road');
 
 }
 
-// Filtro de categoría activo. Misma lógica que la navegación entre días
-// (matchesCategoryFilter), de modo que un día con carreras nunca queda vacío.
+// Filtros activos. Misma lógica que la navegación entre días
+// (roadRaceMatches), de modo que un día con carreras nunca queda vacío.
 function applyAgendaFilters(items) {
-  if (_agendaCat === 'all') return items;
-  return items.filter(item => matchesCategoryFilter(item._race || {}, _agendaCat));
+  if (!roadFiltersActive(_agendaFilters)) return items;
+  return items.filter(item => roadRaceMatches(item._race || {}, _agendaFilters));
 }
 
 // ── Tooltip zona horaria en badge--time ──────────────────────────
@@ -648,7 +528,7 @@ function initTodaySwipe() {
     dateBar: document.getElementById('dateBar'),
     target: forward => forward
       ? nextNavigableDay(currentDateKey)
-      : (findPrevDayWithRaces(currentDateKey, _agendaCat) || addDaysKey(currentDateKey, -1)),
+      : (findPrevDayWithRaces(currentDateKey, _agendaFilters) || addDaysKey(currentDateKey, -1)),
     load: loadDay,
   });
 }
@@ -673,7 +553,7 @@ initI18n().then(() => {
   mountDisciplineSwitch(document.querySelector('#agendaFilters .agenda-filters__inner'),
     'road', today, () => syncDayUrl(currentDateKey));
   buildDateBar();
-  loadDay(currentDateKey, { skipEmptyDay: true });
+  loadDay(currentDateKey);
 });
 
 // ── Auto-avance de medianoche ─────────────────────────────────────
@@ -690,7 +570,7 @@ function _maybeAdvanceToNewLocalDay() {
   if (!wasOnToday) { buildDateBar(); return; } // respetar navegación manual
   currentDateKey = today;
   buildDateBar();
-  loadDay(currentDateKey, { skipEmptyDay: true });
+  loadDay(currentDateKey);
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') _maybeAdvanceToNewLocalDay();

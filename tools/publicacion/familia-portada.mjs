@@ -57,7 +57,10 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
   const { cyclocrossHome } = await load('js/services/today-season.js');
   const cintillo = await crearCintillo();
 
-  const CATEGORIAS = ['all', 'big', 'pro', 'spain'];
+  const { filterMenuHtml, newFilters } = await load('js/components/filter-menu.js');
+  const { sortMenuHtml } = await load('js/components/sort-menu.js');
+  const { cxFilterGroups } = await load('js/race-filters.js');
+  const gruposCx = cxFilterGroups(lang);
 
   function boton({ kind, label, contenido = '', selected = false, isToday = false, visible = true, direction, disabled = false, dk = null }) {
     const clase = kind === 'arrow' ? 'date-week-arrow cc-scroll-arrow' : kind === 'today' ? `date-today-btn${visible ? ' date-today-btn--visible' : ''}` : `date-pill${selected ? ' active' : ''}${isToday ? ' is-today' : ''}`;
@@ -81,12 +84,11 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
       + `<div class="date-bar__right">${boton({ kind: 'arrow', direction: 'next', label: t('today.nextDayLabel'), disabled: !cxStepDay(dias, dia, 1, season) })}</div>`;
   }
 
-  // Las mismas franjas que filterBarHtml() de js/ciclocross.js, con «Todas» activo.
+  // Las mismas franjas que filterBarHtml() de js/ciclocross.js, con todos los filtros marcados.
   function barraFiltros(dia, hoy) {
-    const orden = `<div class="agenda-filter-divider"></div><div class="agenda-sort-wrap"><select class="agenda-sort-select" id="cxAgendaSortSelect" aria-label="${esc(t('sort.label'))}"><option value="" disabled selected>${esc(t('sort.label'))}</option>${['category', 'tvtime', 'finishtime'].map(key => `<option value="${key}">${esc(t(`sort.${key}`))}</option>`).join('')}</select></div>`;
-    const categoria = `<div class="agenda-cat-wrap"><span class="agenda-cat-wrap__label" aria-hidden="true">${esc(t('filter.category'))}</span><select class="agenda-cat-select" id="cxAgendaCatSelect" aria-label="${esc(t('filter.category'))}"><option value="" disabled selected>${esc(t('filter.category'))}</option>${CATEGORIAS.map(key => `<option value="${key}">${esc(t(`cx.filter.${key}`))}</option>`).join('')}</select></div>`;
-    const chips = CATEGORIAS.map(key => `<button type="button" aria-pressed="${key === 'all'}" class="tcat-btn${key === 'all' ? ' tcat-btn--active' : ''}" data-cat="${key}"><span class="btn-label-full">${esc(t(`cx.filter.${key}`))}</span><span class="btn-label-short">${esc(t(`cx.filter.${key}`))}</span></button>`).join('');
-    return `<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${disciplineSwitchHtml('cyclocross', hoy)}<span class="agenda-date">${agendaDateHtml(dia)}</span><div class="agenda-filter-cats" id="cxAgendaFilterCats">${chips}</div>${categoria}${orden}</div></section>`;
+    const orden = `<div class="agenda-filter-divider"></div><div class="agenda-sort-slot" id="cxAgendaSortSlot">${sortMenuHtml('cxAgendaSort', 'category')}</div>`;
+    const filtros = filterMenuHtml(gruposCx, newFilters(gruposCx), { idPrefix: 'cxAgendaFilter', label: t('filter.title'), clearLabel: t('filter.clear'), buttonClass: 'agenda-filter-btn', activeClass: 'agenda-filter-btn--active' });
+    return `<section class="agenda-filters" id="cxAgendaFilters" aria-label="${esc(t('cx.title'))}"><div class="agenda-filters__inner">${disciplineSwitchHtml('cyclocross', hoy)}<span class="agenda-date">${agendaDateHtml(dia)}</span><div class="agenda-filter-slot" id="cxAgendaFilterSlot">${filtros}</div>${orden}</div></section>`;
   }
 
   return async function componerPortada(item, activos) {
@@ -119,7 +121,7 @@ export async function crearFamiliaPortada({ lang, t, headerHtml, pie, huella }) 
     const head = shell.head.replace('</head>', `<meta name="cc:clave" content="${clave}"><meta name="cc:v" content="${version}"></head>`);
     const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'today' }).replace('href="#main"', 'href="#cxAgendaContent"')}</header>`;
     const pagina = `${head}<body>\n${RESERVA_ANDROID}\n${cabecera}\n<div id="giroCountdown" class="giro-countdown"${franja ? '' : ' hidden'}>${franja}</div>\n${home ? shell.h1 : ''}`
-      + `<main id="cxAgendaContent" tabindex="-1"${home ? ' data-cx-home=""' : ''} data-publicada="${version}">${contenido}</main>\n${pie()}\n`
+      + `<main id="cxAgendaContent" tabindex="-1"${home ? ' data-cx-home=""' : ''} data-publicada="${version}">${contenido}<script>${activos.portada.prePintado}</script></main>\n${pie()}\n`
       + `<script defer src="${activos.clasicos}"></script>\n<script type="module" src="${activos.portada.isla}"></script>\n</body>\n</html>\n`;
     return {
       slug: destino, clave, version, pagina, raceId: null, dayId: destino, fragmento: null, datos: null,

@@ -49,7 +49,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { CX_AGENDA_SELECT } from '../../js/services/cx-data.js';
 import { cxSeasonBounds, cxSeasonMonths } from '../../js/cx/season.js';
@@ -268,7 +268,7 @@ function raceFragmentScript() {
         if (node.hidden !== hidden) node.hidden = hidden;
       }
     }
-    for (const node of main.querySelectorAll('[data-cx-context-category]')) node.classList.toggle('res-stage-data__active', node.getAttribute('data-cx-context-category') === code);
+    for (const node of main.querySelectorAll('[data-cx-context-category]')) node.classList.toggle('cx-schedule__row--active', node.getAttribute('data-cx-context-category') === code);
     for (const node of main.querySelectorAll('[data-cx-section-link][data-cx-carry]')) {
       const href = node.getAttribute('href').split('#')[0] + (node.getAttribute('data-cx-carry').split(' ').includes(code) ? `#${code}` : '');
       if (node.getAttribute('href') !== href) node.setAttribute('href', href);
@@ -388,7 +388,7 @@ export function composePage(source, { raceId, headerInner, html, fingerprint }) 
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, main.index).replace(OWN_RACE_SCRIPT, '')
     + `${RACE_SCRIPT}\n<main id="cxRaceContent"${main[1].replace(OWN_ATTRS, '')} data-cx-race-id="${attr(raceId)}" data-prerendered="${attr(fingerprint)}">\n${html}\n`
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
 }
 
 /**
@@ -416,7 +416,7 @@ export function validatePage(page, { navHrefs, section, rows }) {
 // final del análisis del HTML (antes, el documento aún es corto y lo recorta);
 // la cortina de js/theme.js lo oculta hasta que corren los módulos. Fija antes
 // las alturas del margen de desplazamiento como js/header.js (cabecera fija) y
-// js/ciclocross.js (cabecera del torneo).
+// js/ciclocross.js (cabecera del torneo, fija solo por debajo de 1360 px).
 export const TOURNAMENT_SCRIPT = '<script id="cxTournamentPrerender">!function(){var r=document.getElementById(\'cxAgendaContent\'),'
   + 'l=document.getElementById(\'cxAgendaList\');if(!r||!l||!r.hasAttribute(\'data-prerendered\'))return;'
   + 'if(new URLSearchParams(location.search).get(\'view\')===\'general\'){var m=document.createElement(\'div\');'
@@ -425,9 +425,9 @@ export const TOURNAMENT_SCRIPT = '<script id="cxTournamentPrerender">!function()
   + 'document.removeEventListener(\'readystatechange\',go);'
   + 'var d=new Date(),k=d.getFullYear()+\'-\'+String(d.getMonth()+1).padStart(2,\'0\')+\'-\'+String(d.getDate()).padStart(2,\'0\'),'
   + 'days=l.querySelectorAll(\'[data-date]\');for(var i=0;i<days.length;i++)if(days[i].getAttribute(\'data-date\')>=k){'
-  + 'var h=r.querySelector(\'.cx-agenda-sticky\'),s=document.getElementById(\'siteHeader\');'
+  + 'var h=r.querySelector(\'.cx-agenda-sticky\'),g=r.querySelector(\'.race-header\'),s=document.getElementById(\'siteHeader\');'
   + 'if(s)document.documentElement.style.setProperty(\'--site-header-h\',(getComputedStyle(s).position===\'sticky\'?s.getBoundingClientRect().height:0)+\'px\');'
-  + 'if(h)r.style.setProperty(\'--cx-agenda-nav-h\',h.offsetHeight+\'px\');'
+  + 'if(h)r.style.setProperty(\'--cx-agenda-nav-h\',h.offsetHeight+(g&&getComputedStyle(g).position===\'sticky\'?g.offsetHeight:0)+\'px\');'
   + 'days[i].scrollIntoView({block:\'start\',behavior:\'instant\'});break}})}()</script>';
 const TOURNAMENT_MAIN = /<main id="cxAgendaContent"([^>]*)>/;
 const TOURNAMENT_ID = /data-cx-tournament-id="([^"]+)"/;
@@ -498,8 +498,8 @@ const localToday = (now = new Date()) =>
   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 /**
- * Calendario del torneo: { html, fingerprint, cards } con el esqueleto y la
- * lista, o null sin el torneo. `agendaHtml`: js/cx-agenda-html.js.
+ * Calendario del torneo: { html, fingerprint, cards } con el esqueleto, la
+ * lista y la columna lateral, o null sin el torneo. `agendaHtml`: js/cx-agenda-html.js.
  */
 export function tournamentPage(index, tournamentId, { agendaHtml, cxTournamentGeneralCategories, fingerprint, todayKey }) {
   const tournament = index.tournaments.get(tournamentId);
@@ -512,8 +512,12 @@ export function tournamentPage(index, tournamentId, { agendaHtml, cxTournamentGe
   const key = `${tournament.id}|${season}`;
   const standingsVisible = agendaHtml.cxTournamentStandingCategories(tournament).length > 0
     && cxTournamentGeneralCategories(index.standings.get(key) || [], index.states.get(key) || []).length > 0;
+  // Datos de la cabecera y lista de pruebas de la columna lateral: huecos con la huella de su contenido.
+  const slot = inner => ({ inner, prerendered: fingerprint(inner) });
   const html = agendaHtml.cxTournamentSkeletonHtml(tournament, { standingsVisible,
-    list: { inner: agendaHtml.cxTournamentListHtml(tournament, list, { ...card, dynamic: true, todayKey }), prerendered: fingerprint(neutral) } });
+    list: { inner: agendaHtml.cxTournamentListHtml(tournament, list, { ...card, dynamic: true, todayKey }), prerendered: fingerprint(neutral) },
+    facts: slot(agendaHtml.cxTournamentFactsHtml(list)),
+    races: slot(agendaHtml.cxTournamentRacesHtml(list, card)) });
   const cards = list.ownRows.length && !list.tournamentRows.length ? 0 : list.days.reduce((sum, day) => sum + day.races.length, 0);
   return { html, fingerprint: fingerprint(agendaHtml.cxTournamentSkeletonHtml(tournament)), cards };
 }

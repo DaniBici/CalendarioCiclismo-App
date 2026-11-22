@@ -7,8 +7,10 @@
 //  localStorage ni del momento de carga; decimales con tablas fijas.
 // ─────────────────────────────────────────────────────────────────
 
-import { esc, jornadaUrl, raceName as getRaceName, findMatchingTeam, buildRaceHeader,
-         buildActionButtons } from './shared.js';
+import { esc, jornadaUrl, startOrderUrl, raceName as getRaceName, findMatchingTeam, buildRaceHeader,
+         buildActionLinks, buildRaceFacts, raceDateKeys,
+         raceLayoutHtml, raceSideStageList } from './shared.js';
+import { PERFIL_SIBLING_COLUMNS } from './services/races.js';
 import { getLang } from './i18n.js';
 import { fixedDecimal } from './fixed-number.js';
 import { flagIconUrl } from './flag-url.js';
@@ -30,6 +32,11 @@ export function ordenSalidaEmptyHtml() {
 
 const visitorTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return null; } };
 
+// Columnas de las etapas hermanas de la lista lateral: las del perfil y si la
+// etapa tiene orden de salida. Las leen el navegador (js/orden-salida.js) y el
+// build (tools/site/prerender-auxiliares.mjs).
+export const ORDEN_SIBLING_COLUMNS = `${PERFIL_SIBLING_COLUMNS},startOrderImportedAt`;
+
 /**
  * HTML de #startOrderContent y si lleva los filtros Todos/Contrarrelojistas/
  * General. `entries`: filas de start_order_entries_resolved por sortOrder e
@@ -38,7 +45,7 @@ const visitorTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptio
  * zona del visitante (`userTz`) si difiere de la de la jornada; el panel del
  * perfil lleva el gráfico vacío que dibuja mountStageProfile sobre #soProfile.
  */
-export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets = [], userTz = visitorTimeZone() }) {
+export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets = [], siblings = [], userTz = visitorTimeZone() }) {
   const _isEn = getLang() === 'en';
   const raceTeams = splitStartlistTeams(startlistRows, race?.year).teams;
   // Equipo por nombre, una búsqueda por nombre distinto (hasta ~190 filas).
@@ -71,17 +78,24 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
   const heroSubline = [stageLabel, typeLabel, distLabel].filter(Boolean).join(' · ');
   const ridersLabel = isTtt ? (_isEn ? 'teams' : 'equipos') : (_isEn ? 'riders' : 'corredores');
 
-  let html = buildRaceHeader({
+  // Datos de la carrera para la columna lateral de escritorio.
+  const { start: raceStart, end: raceEnd } = raceDateKeys(race);
+  const facts = buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, dayKey: rd.dateKey, stage: race.raceFormat === 'one_day' ? '' : stageLabel });
+  const headerHtml = buildRaceHeader({
     race,
     nameHref: jornadaUrl(rd),
     label: _isEn ? 'Start order' : 'Orden de salida',
     detail: heroSubline,
     stats: `${entries.length} ${ridersLabel}`,
-  }) + buildActionButtons({
+    facts,
+  });
+  const { bar: actionsHtml, side: sideLinksHtml } = buildActionLinks({
     race, rd, view: 'startOrder', assets,
     hasStartlist: !!race.startlistImportedAt,
     style: 'margin:0 auto 0.85rem', standalone: true,
-  }) + `<div class="res-layout res-layout--context"><div class="res-main">
+  });
+  // Columna principal (tras la cabecera): botones, filtros y tabla.
+  let html = actionsHtml + `<div class="res-layout res-layout--context"><div class="res-main">
     ${hasFilters ? `
     <div class="so-filters" id="soFilters">
       <div class="so-filters__inner">
@@ -149,5 +163,17 @@ export function ordenSalidaHtml({ rd, race, entries, startlistRows = [], assets 
     </div>
     </div>${stageContextHtml(rd, 'soProfile', { hideNeutralStart: true, profile: stageProfileHtml(rd, race, assets) })}</div>
   `;
+  html = raceLayoutHtml({
+    headerHtml,
+    sideLinksHtml,
+    // La lista lateral enlaza al orden de salida solo en las etapas con el orden
+    // importado (startOrderImportedAt); las demás aparecen desactivadas, sin enlace.
+    sideExtraHtml: raceSideStageList(race, siblings.map(day => (day.startOrderImportedAt ? day : { ...day, _disabled: true })), {
+      currentId: rd.id,
+      href: startOrderUrl,
+    }),
+    mainHtml: html,
+    facts: !!facts,
+  });
   return { html, hasFilters };
 }

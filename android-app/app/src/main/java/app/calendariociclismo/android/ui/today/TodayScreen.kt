@@ -2,15 +2,20 @@ package app.calendariociclismo.android.ui.today
 
 import app.calendariociclismo.android.ui.components.FinishedVideoTargets
 import app.calendariociclismo.android.ui.components.FinishedVideoAction
+import app.calendariociclismo.android.ui.components.RoadFiltersMenu
+import app.calendariociclismo.android.ui.components.TodayFiltersTipAnchor
+import app.calendariociclismo.android.ui.components.TodaySortTipAnchor
+import app.calendariociclismo.android.ui.components.TodayTipDiscipline
+import app.calendariociclismo.android.ui.components.rememberTodayTips
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,14 +37,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material3.Button
@@ -54,7 +55,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -86,6 +86,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -134,8 +135,6 @@ import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.CCRadius
 import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.ui.theme.colorFromHex
-import app.calendariociclismo.android.util.ChampionshipsConfig
-import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
@@ -167,12 +166,8 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
     // publicada, Hoy mantiene «Esperando resultados» y no ofrece enlaces
     // provisionales a proveedores externos.
     var inhouseByDay by remember { mutableStateOf<Map<String, Int?>>(emptyMap()) }
-    var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
-    val pinnedFilter by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
-    // Semana de Campeonatos (22-28 jun): cuando la JORNADA MOSTRADA cae en la
-    // ventana, "Hoy" impone Masculino por defecto, solo ofrece Todas/Pro/Masc/Fem
-    // y no permite fijar otro predeterminado. Reactivo al día mostrado.
-    val champWeekLock = ChampionshipsConfig.isChampWeekFilterLock(state.dateKey)
+    // Burbujas de la primera visita (Filtros y Ordenar), con la agenda cargada.
+    val todayTips = rememberTodayTips(TodayTipDiscipline.Road, ready = state.data != null)
     // Cargar el mapa de jornadas con resultados in-house de las carreras visibles
     // (clave para redirigir el trofeo). Se recalcula al cambiar el día/filtro.
     // Agrupa por carrera y pasa sus jornadas para resolver el caso de un día/
@@ -235,11 +230,11 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
     }
 
     // Analytics con parámetros
-    LaunchedEffect(state.category, state.sortMode) {
+    LaunchedEffect(state.filter, state.sortMode) {
         app.analytics.logScreenView(
             "today",
             android.os.Bundle().apply {
-                putString("category_filter", state.category.id)
+                putString("category_filter", state.filter.encoded)
                 putString("sort_mode", state.sortMode.id)
             },
         )
@@ -367,34 +362,26 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                 )
-                CategoryMenu(
-                    current = state.category,
-                    all = Constants.CategoryFilter.ALL,
-                    // En la semana de Campeonatos (22-28 jun) solo Todas/Pro/
-                    // Masc/Fem y sin posibilidad de fijar un predeterminado.
-                    options = if (champWeekLock) ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS else Constants.CategoryFilter.entries.toList(),
-                    labelRes = { it.labelRes },
-                    pinned = !champWeekLock && pinnedFilter != Constants.CategoryFilter.ALL && pinnedFilter == state.category,
-                    onPick = {
-                        if (it != state.category) {
+                TodayFiltersTipAnchor(todayTips) {
+                    RoadFiltersMenu(
+                        filter = state.filter,
+                        onChange = {
                             haptic(Haptics.Event.Selection)
-                            vm.setCategory(it)
-                        }
-                    },
-                    onPin = if (champWeekLock) null else { {
-                        haptic(Haptics.Event.PrimaryAction)
-                        pendingDefault = state.category
-                    } },
-                )
-                SortMenu(
-                    current = state.sortMode,
-                    options = TodayViewModel.SortMode.entries,
-                    labelRes = { it.labelRes },
-                    onPick = {
-                        if (it != state.sortMode) haptic(Haptics.Event.Selection)
-                        vm.setSortMode(it)
-                    },
-                )
+                            vm.setFilter(it)
+                        },
+                    )
+                }
+                TodaySortTipAnchor(todayTips) {
+                    SortMenu(
+                        current = state.sortMode,
+                        options = TodayViewModel.SortMode.entries,
+                        labelRes = { it.labelRes },
+                        onPick = {
+                            if (it != state.sortMode) haptic(Haptics.Event.Selection)
+                            vm.setSortMode(it)
+                        },
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -475,7 +462,7 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                     day.raceDay.dateKey == day.race?.endDate
                                 RaceCard(
                                     day = day,
-                                    activeFilter = state.category,
+                                    femaleOnly = state.filter.femaleOnly,
                                     modifier = cardModifier,
                                     isFinalStage = isFinalStage,
                                     showsFinishTimeOnly = showsFinishTime,
@@ -553,121 +540,6 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
         item = placeholderItem,
         onDismiss = { placeholderItem = null },
     )
-    pendingDefault?.let { filter ->
-        val isPinned = filter == pinnedFilter && pinnedFilter != Constants.CategoryFilter.ALL
-        val filterLabel = stringResource(filter.labelRes)
-        AlertDialog(
-            onDismissRequest = { pendingDefault = null },
-            title = {
-                Text(
-                    stringResource(
-                        if (isPinned) R.string.filter_dialog_remove_title
-                        else R.string.filter_dialog_title
-                    )
-                )
-            },
-            text = {
-                Text(
-                    stringResource(
-                        if (isPinned) R.string.filter_dialog_remove_message
-                        else R.string.filter_dialog_set_message,
-                        filterLabel,
-                    )
-                )
-            },
-            confirmButton = {
-                if (isPinned) {
-                    TextButton(onClick = { vm.clearDefaultFilter(); pendingDefault = null }) {
-                        Text(stringResource(R.string.action_remove))
-                    }
-                } else {
-                    TextButton(onClick = { vm.setDefaultFilter(filter); pendingDefault = null }) {
-                        Text(stringResource(R.string.action_set))
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDefault = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
-    }
-}
-
-// ─── Category chips ────────────────────────────────────────────────
-
-/**
- * Desplegable «Categoría» de Hoy, compartido por carretera y Ciclocross:
- * muestra «Categoría» con Todas ([all]) y, si no, la categoría activa, con la
- * chincheta cuando es la predeterminada ([pinned]). Al final, fijar o quitar
- * la activa como predeterminada: [onPin] abre el diálogo de siempre; null lo
- * inhibe.
- */
-@Composable
-internal fun <T> CategoryMenu(
-    current: T,
-    all: T,
-    options: List<T>,
-    labelRes: (T) -> Int,
-    pinned: Boolean,
-    onPick: (T) -> Unit,
-    onPin: (() -> Unit)?,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val currentLabel = stringResource(labelRes(current))
-    val title = if (current == all) stringResource(R.string.today_category) else currentLabel
-    val description = stringResource(if (pinned) R.string.today_category_pinned_a11y else R.string.today_category_a11y, title)
-    Box(modifier = Modifier.padding(start = 4.dp)) {
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-            TextButton(
-                onClick = { expanded = true },
-                // 32 dp en lugar de los 40 dp mínimos de TextButton, como «Ordenar».
-                modifier = Modifier.heightIn(min = 32.dp).semantics { contentDescription = description },
-                shape = RoundedCornerShape(CCRadius.Control),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.FilterList,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = title,
-                    style = CCText.S13,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-                if (pinned) {
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Filled.PushPin, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
-                }
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(labelRes(option))) },
-                    trailingIcon = if (option == current) { { Icon(Icons.Filled.Check, contentDescription = null) } } else null,
-                    onClick = {
-                        expanded = false
-                        onPick(option)
-                    },
-                )
-            }
-            if (onPin != null && current != all) {
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(if (pinned) R.string.today_category_unpin else R.string.today_category_pin, currentLabel)) },
-                    leadingIcon = { Icon(Icons.Outlined.PushPin, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        onPin()
-                    },
-                )
-            }
-        }
     }
 }
 
@@ -731,6 +603,12 @@ internal fun <T> SortMenu(
  * etiquetas a todo el ancho a 6 dp de las cifras. El miniperfil ocupa la
  * banda inferior (36 dp en teléfono, 58 dp en pantallas anchas).
  *
+ * Altura única: todas las tarjetas miden lo que una tarjeta completa (nombre,
+ * cifras, una fila de etiquetas y banda del miniperfil), tengan o no perfil,
+ * cifras, etiquetas o botón de competición, como `--road-card-h` de la web. El
+ * contenido se alinea arriba y el perfil queda anclado al pie. Nombre, cifras y
+ * etiquetas ocupan una línea cada uno: las etiquetas que no caben se omiten.
+ *
  * Superficie neutra: el color de la carrera solo marca el avance de una
  * jornada en directo (perfil recorrido o, sin perfil, relleno del 8 % hasta el
  * porcentaje de avance). Las destacadas no tienen diseño propio.
@@ -738,7 +616,7 @@ internal fun <T> SortMenu(
 @Composable
 private fun RaceCard(
     day: EnrichedRaceDay,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onShowResults: (() -> Unit)? = null,
@@ -759,8 +637,7 @@ private fun RaceCard(
     val liveTextUrl = day.assets.firstOrNull { it.type == "live_text" }?.url
     val isFinishedMode = onShowResults != null || onRevive != null || onShowVideos != null
     val isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt"
-    val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
-        activeFilter == Constants.CategoryFilter.WWT
+    val isFemaleFilterActive = femaleOnly
     val displayName = race?.localizedName?.let {
         if (isFemaleFilterActive && race?.isFemale == true) RaceLogic.cleanFeminineDisplayName(it) else it
     } ?: stringResource(R.string.today_race_fallback)
@@ -798,7 +675,8 @@ private fun RaceCard(
     val verticalPadding = if (isPhone) 14.dp else 16.dp
 
     CCCard(modifier = modifier.fillMaxWidth()) {
-        Column(
+        RaceCardColumn(
+            template = { RaceCardHeightTemplate(isPhone) },
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight()
@@ -933,8 +811,8 @@ private fun RaceCard(
             }
 
             if (showsMiniProfile) {
-                // Tarjeta estirada por su pareja de fila: el perfil queda
-                // anclado al pie, como en la web.
+                // Con el alto único, o en una tarjeta estirada por su pareja de
+                // fila, el perfil queda anclado al pie, como en la web.
                 Spacer(Modifier.weight(1f))
                 rd.elevationProfile?.let { profile ->
                     MiniElevationProfile(
@@ -955,11 +833,12 @@ private fun RaceCard(
 
 /**
  * Cabecera de la tarjeta de Hoy: [main] (nombre y cifras) a la izquierda,
- * [trailing] (horario o accesos) arriba a la derecha y [badges] en flujo a
- * 6 dp de las cifras. Cuando el horario es más alto que las cifras («(sáb.)»
- * bajo la hora), las etiquetas no esperan a su final: la línea que empieza a
- * su altura termina antes de la columna y las siguientes usan todo el ancho.
- * Mismo reparto que `RaceCardHeaderLayout` en iOS.
+ * [trailing] (horario o accesos) arriba a la derecha y [badges] en una sola
+ * línea a 6 dp de las cifras: la etiqueta que no cabe, y las que la siguen, se
+ * omiten para que todas las tarjetas midan lo mismo. Cuando el horario es más
+ * alto que las cifras («(sáb.)» bajo la hora), la línea de etiquetas, que
+ * empieza a su altura, dispone solo del ancho de las cifras. Mismo reparto que
+ * `RaceCardHeaderLayout` en iOS.
  */
 @Composable
 private fun RaceCardHeader(
@@ -978,7 +857,8 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
     private val BadgesTop = 6.dp
     private val BadgeGap = 6.dp
 
-    private class Slots(val height: Int, val badges: List<IntOffset>)
+    /** Posición de cada etiqueta; null = omitida (no cabe en la línea o no tiene tamaño). */
+    private class Slots(val height: Int, val badges: List<IntOffset?>)
 
     override fun MeasureScope.measure(measurables: List<List<Measurable>>, constraints: Constraints): MeasureResult {
         val (mainItems, trailingItems, badgeItems) = measurables
@@ -996,7 +876,8 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
         return layout(width, slots.height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
             main.forEach { it.placeRelative(0, 0) }
             trailing.forEach { it.placeRelative(width - it.width, 0) }
-            badges.forEachIndexed { index, placeable -> placeable.placeRelative(slots.badges[index]) }
+            // Las etiquetas omitidas no se colocan: ni se pintan ni reciben toques.
+            badges.forEachIndexed { index, placeable -> slots.badges[index]?.let { placeable.placeRelative(it) } }
         }
     }
 
@@ -1043,22 +924,27 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
     private fun Density.reserved(trailingWidth: Int): Int =
         if (trailingWidth > 0) trailingWidth + ColumnGap.roundToPx() else 0
 
-    /** Etiquetas en flujo, alineadas arriba en cada línea como `FlowRow`. Una
-     *  línea que empieza a la altura del horario dispone solo del ancho de las
-     *  cifras. */
+    /** Etiquetas en una sola línea, alineadas arriba: la que no cabe, y las que la
+     *  siguen, se omiten para que todas las tarjetas midan lo mismo. Una línea que
+     *  empieza a la altura del horario dispone solo del ancho de las cifras. */
     private fun Density.slots(width: Int, trailing: IntSize, mainHeight: Int, badges: List<IntSize>): Slots {
         val gap = BadgeGap.roundToPx()
         val narrow = (width - reserved(trailing.width)).coerceAtLeast(0)
-        val positions = ArrayList<IntOffset>(badges.size)
+        val positions = ArrayList<IntOffset?>(badges.size)
         var x = 0
         var y = mainHeight + BadgesTop.roundToPx()
         var lineHeight = 0
+        var overflowed = false
         fun available() = if (y < trailing.height) narrow else width
         badges.forEach { size ->
-            if (x > 0 && x + size.width > available()) {
-                x = 0
-                y += lineHeight + gap
-                lineHeight = 0
+            if (size.width == 0 && size.height == 0) {
+                positions += null
+                return@forEach
+            }
+            if (x > 0 && x + size.width > available()) overflowed = true
+            if (overflowed) {
+                positions += null
+                return@forEach
             }
             // Etiqueta que no cabe junto al horario: la línea empieza bajo él.
             if (x == 0 && size.width > available() && y < trailing.height) y = trailing.height + gap
@@ -1068,6 +954,82 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
         }
         return Slots(maxOf(trailing.height, mainHeight, y + lineHeight), positions)
     }
+}
+
+/** Alto mínimo de la fila del nombre: el del botón de competición, igual con y sin
+ *  él, para que las cifras y las etiquetas queden a la misma altura en todas las
+ *  tarjetas (`.race-card__name` de la web). */
+private val RaceNameRowMinHeight = 20.dp
+
+/**
+ * Plantilla invisible de una tarjeta completa: relleno superior, nombre, cifras
+ * (o el rótulo de un descanso), una fila de etiquetas (la de icono y texto, la
+ * más alta), 12 dp sobre la banda y la banda del miniperfil. [RaceCardColumn] la
+ * mide con las mismas tipografías que la tarjeta, así que el alto sigue la escala
+ * de fuente. Al cambiar el relleno, las separaciones o las tipografías del
+ * contenido, cambiarlos aquí.
+ */
+@Composable
+private fun RaceCardHeightTemplate(isPhone: Boolean) {
+    Column(Modifier.clearAndSetSemantics { }) {
+        Column(Modifier.padding(top = if (isPhone) 14.dp else 16.dp, bottom = 12.dp)) {
+            Box(Modifier.heightIn(min = RaceNameRowMinHeight), contentAlignment = Alignment.CenterStart) {
+                Text("Ag", style = CCText.S16, fontWeight = FontWeight.Medium, maxLines = 1)
+            }
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.size(14.dp))
+                Text("Ag", style = CCText.S13, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.size(12.dp))
+                Text("Ag", style = CCText.S12, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+        }
+        Spacer(Modifier.height(if (isPhone) 36.dp else 58.dp))
+    }
+}
+
+/**
+ * Columna de la tarjeta de Hoy con el alto de una tarjeta completa como mínimo.
+ * Mide la [template] y da ese alto al contenido, que con `Spacer(weight)` ancla
+ * el miniperfil al pie. La plantilla no se coloca.
+ */
+@Composable
+private fun RaceCardColumn(
+    template: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val column: @Composable () -> Unit = { Column(modifier = modifier, content = content) }
+    Layout(contents = listOf(template, column), measurePolicy = RaceCardMinHeightPolicy)
+}
+
+/** Medidas de [RaceCardColumn]. Las intrínsecas incluyen el alto de la plantilla
+ *  para que la fila de dos tarjetas (`IntrinsicSize.Min`) tome el alto real. */
+private object RaceCardMinHeightPolicy : MultiContentMeasurePolicy {
+    override fun MeasureScope.measure(measurables: List<List<Measurable>>, constraints: Constraints): MeasureResult {
+        val (templateItems, contentItems) = measurables
+        val templateHeight = templateItems.maxOfOrNull { it.measure(Constraints(maxWidth = constraints.maxWidth)).height } ?: 0
+        val minHeight = maxOf(constraints.minHeight, templateHeight).coerceAtMost(constraints.maxHeight)
+        val content = contentItems.map { it.measure(constraints.copy(minHeight = minHeight)) }
+        val width = content.maxOfOrNull { it.width } ?: constraints.minWidth
+        val height = content.maxOfOrNull { it.height } ?: minHeight
+        return layout(width, height) { content.forEach { it.placeRelative(0, 0) } }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<List<IntrinsicMeasurable>>, width: Int): Int =
+        measurables.flatten().maxOfOrNull { it.minIntrinsicHeight(width) } ?: 0
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<List<IntrinsicMeasurable>>, width: Int): Int =
+        measurables.flatten().maxOfOrNull { it.maxIntrinsicHeight(width) } ?: 0
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<List<IntrinsicMeasurable>>, height: Int): Int =
+        measurables[1].maxOfOrNull { it.minIntrinsicWidth(height) } ?: 0
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<List<IntrinsicMeasurable>>, height: Int): Int =
+        measurables[1].maxOfOrNull { it.maxIntrinsicWidth(height) } ?: 0
 }
 
 /** Columna izquierda: logotipo en caja de lista con la bandera debajo; sin
@@ -1083,7 +1045,7 @@ private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?, placehold
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (hasLogo) RaceLogo(logoUrl, size = 32.dp, placeholder = placeholder)
-        if (countryCode != null) CountryFlag(countryCode = countryCode)
+        if (countryCode != null) CountryFlag(countryCode = countryCode, outlined = true)
     }
 }
 
@@ -1091,6 +1053,7 @@ private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?, placehold
 @Composable
 private fun RaceNameRow(name: String, onShowCompetition: (() -> Unit)?, showFemale: Boolean) {
     Row(
+        modifier = Modifier.heightIn(min = RaceNameRowMinHeight),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

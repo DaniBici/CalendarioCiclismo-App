@@ -50,9 +50,10 @@ function primeraDiferencia(a, b) {
 
 const PASOS = [
   ['inicial', null, 0],
-  ['WorldTour', clic('#filterCats .tcat-btn[data-cat="uwt"]'), 1500],
-  ['Pro', clic('#filterCats .tcat-btn[data-cat="pro"]'), 400],
-  ['Todas', clic('#filterCats .tcat-btn[data-cat="all"]'), 400],
+  ['Menú Filtros', clic('#temporadaFilterBtn'), 1500],
+  ['Sin Profesional', clic('#temporadaFilterMenu [data-value="pro"]'), 400],
+  ['Solo WorldTour', clic('#temporadaFilterMenu [data-value="dev"]'), 400],
+  ['Limpiar filtros', clic('#temporadaFilterClear'), 400],
   ['Francia', elegir('filterCountry', 'fr'), 400],
   ['Todos los países', elegir('filterCountry', ''), 400],
   ['Año 2026', elegir('filterYear', '2026'), 2500],
@@ -126,21 +127,30 @@ await funcion('Al cargar: sin lecturas de datos ni cargador', MOVIL, 'calendario
   const { cargador, filas } = await tab.valor(LEER);
   return { ok: !urls.length && !cargador && filas > 100, detalle: { urls: urls.slice(0, 3), filas } };
 });
+const marcados = `[...document.querySelectorAll('#temporadaFilterMenu [data-group]')].filter(b => b.getAttribute('aria-checked') === 'true').map(b => b.dataset.value).join()`;
 await funcion('Primer filtro: lee solo el archivo publicado', ESCRITORIO, 'calendario/', 'Europe/Madrid', async tab => {
-  await tab.valor(clic('#filterCats .tcat-btn[data-cat="uwt"]'));
+  await tab.valor(clic('#temporadaFilterBtn'));
   await espera(1500);
+  await tab.valor(clic('#temporadaFilterMenu [data-value="pro"]'));
+  await tab.valor(clic('#temporadaFilterMenu [data-value="dev"]'));
+  await espera(400);
   const urls = lecturas(tab);
   const { filas } = await tab.valor(LEER);
-  const activa = await tab.valor(`document.querySelector('#filterCats .tcat-btn[aria-pressed="true"]')?.dataset.cat`);
-  return { ok: urls.length === 1 && urls[0].includes('/d/temporada/') && activa === 'uwt' && filas > 0, detalle: { urls, filas, activa } };
+  const activa = await tab.valor(marcados);
+  await tab.valor(clic('#temporadaFilterClear'));
+  await tab.valor(`localStorage.removeItem('cc_road_filters')`);
+  return { ok: urls.length === 1 && urls[0].includes('/d/temporada/') && activa.startsWith('wt,') && filas > 0, detalle: { urls, filas, activa } };
 });
 await funcion('Grupo desplegado antes de cargar el JS completo se conserva', ESCRITORIO, 'calendario/', 'Europe/Madrid', async tab => {
   const id = await tab.valor(`(() => { const b = document.querySelector('.t-race--challenge'); b.click(); return b.dataset.cgid; })()`);
   const abierto = await tab.valor(`document.querySelector('.t-race--challenge[data-cgid="${id}"]').getAttribute('aria-expanded')`);
-  await tab.valor(clic('#filterCats .tcat-btn[data-cat="pro"]'));
+  await tab.valor(clic('#temporadaFilterBtn'));
   await espera(1200);
-  await tab.valor(clic('#filterCats .tcat-btn[data-cat="all"]'));
+  await tab.valor(clic('#temporadaFilterMenu [data-value="wt"]'));
   await espera(400);
+  await tab.valor(clic('#temporadaFilterClear'));
+  await espera(400);
+  await tab.valor(`localStorage.removeItem('cc_road_filters')`);
   const despues = await tab.valor(`document.querySelector('.t-race--challenge[data-cgid="${id}"]')?.getAttribute('aria-expanded')`);
   return { ok: abierto === 'true' && despues === 'true', detalle: { id, abierto, despues } };
 });
@@ -163,14 +173,14 @@ await funcion('Enlace a Mes por la URL', ESCRITORIO, 'calendario/?vista=mes', 'E
   const contenido = await tab.valor(`document.getElementById('mesContent').innerText.length`);
   return { ok: vista === 'mes' && contenido > 0 && !cargador, detalle: { vista, contenido } };
 });
-await funcion('Filtro fijado', ESCRITORIO, 'calendario/', 'Europe/Madrid', async tab => {
-  await tab.valor(`localStorage.setItem('cc_default_filter', 'uwt')`);
+await funcion('Filtros recordados', ESCRITORIO, 'calendario/', 'Europe/Madrid', async tab => {
+  await tab.valor(`localStorage.setItem('cc_road_filters', JSON.stringify({ level: ['wt'], gender: ['male', 'female'] }))`);
   await tab.ir(`${B}/calendario/`, { espera: 1800 });
-  const activa = await tab.valor(`document.querySelector('#filterCats .tcat-btn[aria-pressed="true"]')?.dataset.cat`);
+  const activa = await tab.valor(marcados);
   const visibilidad = await tab.valor(`getComputedStyle(document.getElementById('temporadaContent')).visibility`);
   const { filas } = await tab.valor(LEER);
-  await tab.valor(`localStorage.removeItem('cc_default_filter')`);
-  return { ok: activa === 'uwt' && visibilidad === 'visible' && filas > 0 && filas < 200, detalle: { activa, visibilidad, filas } };
+  await tab.valor(`localStorage.removeItem('cc_road_filters')`);
+  return { ok: activa === 'wt,male,female' && visibilidad === 'visible' && filas > 0 && filas < 200, detalle: { activa, visibilidad, filas } };
 });
 await funcion('Selector de idioma', ESCRITORIO, 'calendario/', 'Europe/Madrid', async tab => {
   await tab.valor(clic('button.lang-btn[data-lang="en"]'));

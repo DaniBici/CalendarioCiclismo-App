@@ -32,17 +32,13 @@ function alPrimerUso(nodo, tipo, repetir) {
     repetir(evento);
   });
 }
-const botonesCategoria = filtros.querySelectorAll('#filterCats .tcat-btn');
-for (const boton of botonesCategoria) {
-  alPrimerUso(boton, 'click', evento => {
-    evento.preventDefault();
-    for (const otro of botonesCategoria) {
-      otro.classList.toggle('tcat-btn--active', otro === boton);
-      otro.setAttribute('aria-pressed', String(otro === boton));
-    }
-    cargarCompleto().then(() => { cargadoCompleto = true; boton.click(); });
-  });
-}
+// «Filtros»: el menú lo monta el JS completo, que abre el botón pulsado.
+const botonFiltros = filtros.querySelector('#filterCats [data-menu-button]');
+alPrimerUso(botonFiltros, 'click', evento => {
+  evento.preventDefault();
+  evento.stopPropagation();
+  cargarCompleto().then(() => { cargadoCompleto = true; botonFiltros.click(); });
+});
 for (const id of ['filterYear', 'filterCountry']) {
   const selector = document.getElementById(id);
   alPrimerUso(selector, 'change', () => {

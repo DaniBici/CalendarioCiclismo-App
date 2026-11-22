@@ -19,7 +19,7 @@ describe('colector RAI', () => {
     expect(classifyRaiObservation({ ...events[0], explicitDelayed: true }, day).mediaKind).toBe('delayed');
     expect(classifyRaiObservation({ ...events[0], startTimeUtc: day.estimatedFinishTimeUtc }, day).mediaKind).toBe('delayed');
   });
-  it('no usa una reposición con vídeo como prueba de directo y rechaza otros deportes', () => {
+  it('rechaza otros deportes de la parrilla (MTB y Radiocorsa)', () => {
     const item = schedule.events[0];
     const parsed = parseRaiSchedule({ events: [{ ...item, name: 'Ciclismo Mountain Bike' }, { ...item, name: 'Radiocorsa' }] }, 'https://www.raiplay.it/guidatv/');
     expect(parsed).toEqual([]);

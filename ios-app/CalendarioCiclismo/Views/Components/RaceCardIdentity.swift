@@ -13,7 +13,7 @@ struct RaceCardIdentity<Title: View, Details: View>: View {
             if stackedFlag {
                 VStack(spacing: 3) {
                     RaceLogo(logoUrl, size: 32, placeholder: logoPlaceholder).frame(width: 32, height: 32)
-                    CountryFlag(countryCode: countryCode).frame(height: 16)
+                    CountryFlag(countryCode: countryCode, outlined: true).frame(height: 16)
                 }.frame(width: 36)
             } else { RaceLogo(logoUrl, size: 36, placeholder: logoPlaceholder) }
             VStack(alignment: .leading, spacing: 3) { title(); details() }

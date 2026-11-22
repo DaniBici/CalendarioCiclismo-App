@@ -85,6 +85,7 @@ async function activate(view, { first = false } = {}) {
       await import('./temporada.js'); // se auto-inicializa y renderiza
     } else {
       resetCanonical();
+      dispatchEvent(new Event('cc-calendario-temporada'));
     }
   } else {
     if (!_mesLoaded) {

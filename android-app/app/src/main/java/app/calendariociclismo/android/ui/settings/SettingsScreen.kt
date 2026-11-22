@@ -77,6 +77,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -1188,37 +1189,41 @@ private fun AdFreeSection(
         }
     }
 
-    if (isFounder || isFriend) {
-        Spacer(Modifier.height(12.dp))
-        Text(
-            LocaleHolder.t("Icono de la aplicación", "App icon"),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Spacer(Modifier.height(12.dp))
+    Text(
+        LocaleHolder.t("Icono de la aplicación", "App icon"),
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        IconChoice(
+            LocaleHolder.t("Original", "Original"),
+            Color(0xFF1A73E8),
+            R.drawable.ic_launcher_foreground,
+            supporterIcon == "default",
+        ) { onIcon(PremiumService.SupporterIcon.DEFAULT) }
+        IconChoice(
+            LocaleHolder.t("Ciclocross", "Cyclocross"),
+            Color(0xFF805234),
+            R.drawable.ic_launcher_foreground,
+            supporterIcon == "cyclocross",
+            backgroundDrawable = R.drawable.ic_launcher_mud_background,
+        ) { onIcon(PremiumService.SupporterIcon.CYCLOCROSS) }
+        if (isFounder) {
             IconChoice(
-                LocaleHolder.t("Original", "Original"),
-                Color(0xFF805234),
-                R.drawable.ic_launcher_foreground,
-                supporterIcon == "default",
-                backgroundDrawable = R.drawable.ic_launcher_mud_background,
-            ) { onIcon(PremiumService.SupporterIcon.DEFAULT) }
-            if (isFounder) {
-                IconChoice(
-                    LocaleHolder.t("Fundador", "Founder"),
-                    Color(0xFF101828),
-                    R.drawable.ic_launcher_founder_foreground,
-                    supporterIcon == "founder",
-                ) { onIcon(PremiumService.SupporterIcon.FOUNDER) }
-            }
-            if (isFriend) {
-                IconChoice(
-                    LocaleHolder.t("Amigo", "Friend"),
-                    Color.White,
-                    R.drawable.ic_launcher_friend_foreground,
-                    supporterIcon == "friend",
-                ) { onIcon(PremiumService.SupporterIcon.FRIEND) }
-            }
+                LocaleHolder.t("Fundador", "Founder"),
+                Color(0xFF101828),
+                R.drawable.ic_launcher_founder_foreground,
+                supporterIcon == "founder",
+            ) { onIcon(PremiumService.SupporterIcon.FOUNDER) }
+        }
+        if (isFriend) {
+            IconChoice(
+                LocaleHolder.t("Amigo", "Friend"),
+                Color.White,
+                R.drawable.ic_launcher_friend_foreground,
+                supporterIcon == "friend",
+            ) { onIcon(PremiumService.SupporterIcon.FRIEND) }
         }
     }
 
@@ -1287,11 +1292,16 @@ private fun RowScope.IconChoice(
         modifier = Modifier.weight(1f),
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             OfficialSettingsIcon(drawable, backgroundColor, 42.dp, backgroundDrawable)
-            Text(label, style = MaterialTheme.typography.labelSmall)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
         }
     }

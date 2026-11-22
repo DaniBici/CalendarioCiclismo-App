@@ -68,6 +68,20 @@ extension SupabaseService {
     /// year=market) para la sección "continúan". El panel la puebla al marcar
     /// "continúa"/"duda"/incorporación; un equipo sin afiliaciones sale vacío.
     /// El `contractUntil` efectivo del corredor viene de la afiliación.
+    private struct TeamCountryRow: Decodable, Sendable {
+        let countryCode: String?
+    }
+
+    /// País del equipo (cabecera de la vista de equipo del mercado), o nil.
+    func teamCountryCode(teamId: String) async -> String? {
+        let rows: [TeamCountryRow]? = try? await client.from("teams")
+            .select("countryCode")
+            .eq("id", value: teamId)
+            .execute()
+            .value
+        return rows?.first?.countryCode.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     func ridersByAffiliation(teamId: String, season: Int, gender: String?) async throws -> [TransferRider] {
         struct AffRow: Decodable { let riderId: String; let riderGender: String?; let dateTo: String? }
         let affs: [AffRow] = try await client.from("rider_team_affiliations")
@@ -133,6 +147,7 @@ extension SupabaseService {
                 if namesPrev[t.id] == nil { namesPrev[t.id] = t.name }
             }
         }
+        transfersTeamNames = names
         return TransfersLogic.MarketData(
             transfers: transfers,
             seasons: seasons,

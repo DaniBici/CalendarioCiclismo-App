@@ -2,59 +2,23 @@ import FirebaseCore
 import SwiftUI
 import UserNotifications
 
-/// Pasos del flujo de onboarding inicial. El orden refleja la prioridad: el
-/// step más temprano que no esté completo es el que se muestra. `done` indica
-/// que toda la secuencia se ha cumplido.
-///
-/// Flujo completo (instalación nueva y actualización):
-///   language → notifications → supportIntro → done
-///
-/// El paso de modo OFFLINE se retiró del onboarding en 4.0 (decisión Dani:
-/// apenas aportaba; la función sigue disponible en Ajustes).
-///
-/// `language` es el anuncio one-shot de inglés gratis introducido en 2.1.
-/// Los usuarios que ya tenían inglés activado en 2.0 (Premium) saltan este
-/// paso automáticamente (migración en `LocaleService.init`).
-///
-/// `supportIntro` presenta el apoyo voluntario Amigo. A quien actualiza desde
-/// una versión anterior a 4.3.1 le anuncia la retirada de publicidad y el icono
-/// Fundador. Se muestra una sola vez.
-private enum OnboardingStep: Int, CaseIterable, Comparable {
-    case language
-    case notifications
-    case supportIntro
-    case done
-
-    static func < (lhs: OnboardingStep, rhs: OnboardingStep) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-
-    /// Calcula el primer step pendiente leyendo persistencia local.
-    @MainActor
-    static func firstPending() -> OnboardingStep {
-        if !LocaleService.shared.hasShownLanguageAnnouncement { return .language }
-        if !NotificationManager.shared.hasCompletedOnboarding { return .notifications }
-        if !UserDefaults.standard.bool(forKey: "support_intro_v4_3_1_done") {
-            return .supportIntro
-        }
-        return .done
-    }
-}
-
 @main
 struct CalendarioCiclismoApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var themeService = ThemeService.shared
     @State private var localeService = LocaleService.shared
-    @State private var currentStep: OnboardingStep = OnboardingStep.firstPending()
-    @State private var showSplash = true
+    /// Bienvenida pendiente (idioma, notificaciones y apoyo). Mientras se
+    /// muestra hace también de pantalla de arranque, sin `SplashView`.
+    @State private var showsWelcome: Bool
+    @State private var showSplash: Bool
     @State private var splashDismissing = false
-    @State private var supportIntroIsNewInstallation = CalendarioCiclismoApp.supportIntroAudience()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         Self.configureBarAppearance()
+        let welcomePending = WelcomeStep.firstPending() != .done
+        _showsWelcome = State(initialValue: welcomePending)
+        _showSplash = State(initialValue: !welcomePending)
     }
 
     /// Barra superior y barra de pestañas sobre la superficie de las tarjetas
@@ -97,7 +61,12 @@ struct CalendarioCiclismoApp: App {
                     ContentView()
                         .environment(\.locale, localeService.current.locale)
 
-                    onboardingOverlay()
+                    if showsWelcome {
+                        // La bienvenida se funde por sí misma antes de avisar.
+                        WelcomeOnboardingView(onFinish: { showsWelcome = false })
+                            .environment(\.locale, localeService.current.locale)
+                            .zIndex(4)
+                    }
                 }
 
                 if showSplash {
@@ -111,6 +80,9 @@ struct CalendarioCiclismoApp: App {
                     .zIndex(10)
                 }
             }
+            // Burbujas de Hoy: solo con el arranque y la bienvenida terminados.
+            .onChange(of: showsWelcome) { _, _ in TodayFiltersTip.appReady = !showsWelcome && !showSplash }
+            .onChange(of: showSplash) { _, _ in TodayFiltersTip.appReady = !showsWelcome && !showSplash }
             .preferredColorScheme(windowColorScheme)
             .transformEnvironment(\.colorScheme) { scheme in
                 if let preference = themeService.preference.colorScheme {
@@ -118,6 +90,8 @@ struct CalendarioCiclismoApp: App {
                 }
             }
             .task {
+                TodayTips.configure()
+                TodayFiltersTip.appReady = !showsWelcome && !showSplash
                 WidgetBridge.start()
                 // El splash continúa el arranque del sistema durante 0,6 s
                 // (igual que Android) y no espera a la red: una carga lenta se
@@ -165,69 +139,6 @@ struct CalendarioCiclismoApp: App {
         // SwiftUI puede aplicar preferredColorScheme también a los traits de
         // la escena. La pantalla conserva la apariencia elegida en el sistema.
         return scene?.screen.traitCollection.userInterfaceStyle == .dark ? .dark : .light
-    }
-
-    /// Avanza al siguiente step pendiente con animación. Llamado desde el
-    /// `onDismiss` de cada onboarding individual.
-    private func advance() {
-        let next = OnboardingStep.firstPending()
-        if reduceMotion {
-            currentStep = next
-        } else {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                currentStep = next
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func onboardingOverlay() -> some View {
-        switch currentStep {
-        case .language:
-            LanguageAnnouncementOnboardingView(onDismiss: advance)
-                .environment(\.locale, localeService.current.locale)
-                .transition(.asymmetric(
-                    insertion: .opacity,
-                    removal: .move(edge: .leading)
-                ))
-                .zIndex(4)
-        case .notifications:
-            NotificationOnboardingView(onDismiss: advance)
-                .environment(\.locale, localeService.current.locale)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing),
-                    removal: .move(edge: .leading)
-                ))
-                .zIndex(3)
-        case .supportIntro:
-            SupportIntroOnboardingView(
-                isNewInstallation: supportIntroIsNewInstallation,
-                onDismiss: advance
-            )
-                .environment(\.locale, localeService.current.locale)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing),
-                    removal: .opacity
-                ))
-                .zIndex(1)
-        case .done:
-            EmptyView()
-        }
-    }
-
-    /// Fija la audiencia antes de que la primera pantalla marque el idioma como
-    /// completado. La clave versionada conserva el resultado entre relanzamientos
-    /// si el usuario abandona el onboarding antes de llegar al anuncio de apoyo.
-    private static func supportIntroAudience() -> Bool {
-        let defaults = UserDefaults.standard
-        let key = "support_intro_v4_3_new_installation"
-        if defaults.object(forKey: key) != nil {
-            return defaults.bool(forKey: key)
-        }
-        let isNewInstallation = !LocaleService.shared.hasShownLanguageAnnouncement
-            && !NotificationManager.shared.hasCompletedOnboarding
-        defaults.set(isNewInstallation, forKey: key)
-        return isNewInstallation
     }
 
     private func preloadTodayData() async {
@@ -284,22 +195,24 @@ private struct SplashView: View {
             .ignoresSafeArea()
 
             // Mismo recurso y tamaño que UILaunchScreen. El contenedor completo
-            // ignora el área segura para centrarlo sobre la pantalla física.
+            // ignora el área segura para centrarlo sobre la pantalla física. La
+            // imagen lleva los símbolos por encima de su centro
+            // (`LaunchBrandLayout`).
             Image("LaunchLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 100, height: 100)
+                .frame(width: LaunchBrandLayout.logoSize.width, height: LaunchBrandLayout.logoSize.height)
 
             // Bloque separado del logo central que presenta el sistema al arrancar.
             VStack(spacing: 6) {
                 Text("Calendario Ciclismo")
                     .ccFont(.s28, weight: .bold)
-                    .foregroundStyle(Color(light: "1f2937", dark: "f2f3f5"))
-                Text("Ciclismo, al instante.")
+                    .foregroundStyle(LaunchBrandLayout.titleColor)
+                Text(LocaleService.t("Ciclismo, al instante.", "Cycling, instantly."))
                     .ccFont(.s16)
-                    .foregroundStyle(Color(light: "536174", dark: "a9adb5"))
+                    .foregroundStyle(LaunchBrandLayout.taglineColor)
             }
-            .offset(y: 98)
+            .offset(y: LaunchBrandLayout.textDrop - LaunchBrandLayout.markLift)
             .opacity(textOpacity)
         }
         .ignoresSafeArea()

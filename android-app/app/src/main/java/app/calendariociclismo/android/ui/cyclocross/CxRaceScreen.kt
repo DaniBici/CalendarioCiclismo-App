@@ -291,7 +291,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             val date = DateFormatting.formatDateLongContent(race.dateKey) + (race.endDateKey?.takeIf { it != race.dateKey }?.let { " – " + DateFormatting.formatDateLongContent(it) } ?: "")
                             RaceDayHeading(name = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name,
                                 logoUrl = CxPresentation.logo(race), countryCode = race.countryCode,
-                                categoryName = CxPresentation.className(race.raceClass, english), dateLabel = date, onBack = { nav.popBackStack() }, nameMaxLines = 1,
+                                categoryName = CxPresentation.headerClassName(race, english), dateLabel = date, onBack = { nav.popBackStack() }, nameMaxLines = 1,
                                 logoPlaceholder = race.raceClass != "CN")
                             RaceDayLocation(race.venue ?: "")
                             race.tournament?.let { tournament ->
@@ -312,7 +312,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                                     )
                                     if (currentRound != null && currentRound.total > 1) {
                                         Text("·", style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text("${currentRound.n}/${currentRound.total}", style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("${currentRound.n}/${currentRound.total}", style = CCText.S14, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -330,7 +330,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             val notifies = CxPresentation.awaitsResults(race)
                             val tileCount = (if (websiteUrl != null) 1 else 0) + docs.size + (if (notifies) 1 else 0)
                             // Sin web, libro de ruta, mapa ni avisos, la tira quedaría vacía: no se pinta.
-                            if (tileCount > 0) AssetActionStrip(tileCount = tileCount) {
+                            if (tileCount > 0) AssetActionStrip {
                                 websiteUrl?.let { url ->
                                     AssetChip(icon = Icons.Filled.Language, label = stringResource(R.string.stage_doc_web_official),
                                         onClick = { openExternalUrl(context, url) },

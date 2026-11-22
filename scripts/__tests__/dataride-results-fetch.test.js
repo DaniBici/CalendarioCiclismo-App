@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, markIncompleteArrivals, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizePointsRows, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
+import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, markIncompleteArrivals, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizePointsRows, normalizeRow, uciLicenseFromRow, uciProfileIdFromRow }
   from '../results-fetchers/dataride-results-fetch.mjs';
 import { normalizeUciLicense } from '../results-fetchers/uci-license.mjs';
 
@@ -210,16 +210,15 @@ describe('fixDisguisedGaps — regresión (gaps sin + en timeText)', () => {
   });
 });
 
-describe('_pressToSeconds — notación de prensa de la UCI', () => {
-  it('NO parsea un entero suelto ni el formato con ":"', () => {
-    expect(_pressToSeconds('12')).toBeNull();       // sin h ni ' → no es tiempo de prensa
-    expect(_pressToSeconds('3:00:02')).toBeNull();  // formato clásico → lo maneja _toSeconds
-  });
-});
-
 describe('fixPressFormattedAbsolute — tiempos absolutos en notación de prensa (comp 77761)', () => {
   const pRow = (rank, timeText, extra = {}) => ({
     rank, rankText: rank == null ? 'DNF' : String(rank), irm: null, timeText, gapText: null, ...extra,
+  });
+  it('no reescribe si el ganador trae un entero suelto o el formato clásico con ":"', () => {
+    for (const winnerText of ['12', '3:00:02']) {
+      const rows = [pRow(1, winnerText), pRow(2, '3h 00\'05"')];
+      expect(fixPressFormattedAbsolute(rows, false)).toEqual(rows);
+    }
   });
   it('Memorial Trochanowski 2026: gaps reales y +0 (m.t.) para el grupo del ganador', () => {
     const rows = [

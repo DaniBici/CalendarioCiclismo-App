@@ -106,6 +106,14 @@ struct RaceDayHeading: View {
     var nameLineLimit = 3
     /// Sin logo, hueco de la marca (no en los Campeonatos Nacionales).
     var logoPlaceholder = false
+    private var showsLogo: Bool { (logoUrl?.isEmpty == false) || logoPlaceholder }
+    /// Alto de la columna del logo con la bandera debajo (32 + 4 + 15): el bloque de
+    /// texto de la derecha se centra en vertical respecto a ella mientras quepa; con
+    /// más líneas, crece hacia abajo desde la parte alta.
+    private var leadingColumnHeight: CGFloat {
+        let flag: CGFloat = showFlag ? 15 : 0
+        return (showsLogo ? 32 : 0) + (showsLogo && showFlag ? 4 : 0) + flag
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Carrera
@@ -113,27 +121,26 @@ struct RaceDayHeading: View {
                 // Logo y bandera arriba aunque el nombre ocupe varias líneas,
                 // como en las tarjetas de Hoy de Ciclocross.
                 HStack(alignment: .top, spacing: 8) {
-                    RaceLogo(logoUrl, size: 32, placeholder: logoPlaceholder)
+                    // Logo con la bandera debajo, como las tarjetas de Hoy: con letra
+                    // grande la bandera no resta ancho al nombre. Override puramente
+                    // cosmético: si la jornada tiene un país propio (etapas en el
+                    // extranjero), se usa para la bandera y vence a hideFlag.
+                    VStack(spacing: 4) {
+                        RaceLogo(logoUrl, size: 32, placeholder: logoPlaceholder)
+                        if showFlag { CountryFlag(countryCode: countryCode) }
+                    }
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(alignment: .top, spacing: 4) {
-                            // Override puramente cosmético: si la jornada
-                            // tiene un país propio (etapas en el extranjero),
-                            // se usa para la bandera y vence a hideFlag.
-                            if showFlag {
-                                CountryFlag(countryCode: countryCode)
-                                    .padding(.top, 3)
-                            }
-                            Text(name)
-                                .ccFont(.s16, weight: .semibold)
-                                .lineLimit(nameLineLimit)
-                                .truncationMode(.tail)
-                        }
+                        Text(name)
+                            .ccFont(.s16, weight: .semibold)
+                            .lineLimit(nameLineLimit)
+                            .truncationMode(.tail)
                         if let categoryName, !categoryName.isEmpty {
                             Text(categoryName)
                                 .ccFont(.s13)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .frame(minHeight: leadingColumnHeight, alignment: .leading)
                     Spacer()
                 }
                 .accessibilityElement(children: .combine)
@@ -478,7 +485,7 @@ struct StageHeaderCard: View {
         let hasNotificationsChip = !rd.isRestDay && !rd.isCancelledDay
         if isStartOrder || !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasNotificationsChip || hasGPXProfile || hasRouteMap || hasResultsChip {
             Divider()
-            ResultsScrollRail(height: 60, spacing: 0, framed: true) {
+            ResultsFittingRail(height: 60) {
                 // Clasificaciones propias (in-house) — primer chip de la tira,
                 // en azul de marca. Sin clasificaciones no hay chip.
                 if let race = viewModel.race {
@@ -2152,6 +2159,8 @@ struct ActionStripTile: View {
     static let minimumWidth: CGFloat = 100
 
     @Environment(\.actionStripStretches) private var stretches
+    /// Con letra grande la celda crece con ella (las tiras que la alojan, también).
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
 
     private var maximumWidth: CGFloat? {
         if stretches { return .infinity }
@@ -2188,9 +2197,9 @@ struct ActionStripTile: View {
         .frame(minWidth: Self.minimumWidth,
                idealWidth: stretches ? Self.minimumWidth : nil,
                maxWidth: maximumWidth,
-               minHeight: 60, maxHeight: 60)
+               minHeight: 60 * textScale, maxHeight: 60 * textScale)
         .padding(.horizontal, highlighted ? 8 : 0)
-        .background(AppTheme.cardBackgroundHover)
+        .background(AppTheme.railBackground)
         .overlay(alignment: .trailing) {
             if showsTrailingSeparator {
                 Rectangle()

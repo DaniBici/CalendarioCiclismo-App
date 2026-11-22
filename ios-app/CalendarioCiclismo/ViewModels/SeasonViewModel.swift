@@ -18,25 +18,10 @@ final class SeasonViewModel {
     /// temporada vacía.
     var isLoading = true
     var error: String?
-    var activeFilter: Constants.CategoryFilter = .all
+    /// Filtros de carretera, compartidos con Hoy y la otra subvista (`RaceFilterStore`).
+    var filter: RoadRaceFilter { RaceFilterStore.shared.road }
     var activeCountry: String = "all"
 
-    init() {
-        if let raw = UserDefaults.standard.string(forKey: "defaultFilter"),
-           let stored = Constants.CategoryFilter(rawValue: raw) {
-            activeFilter = stored
-        }
-    }
-
-    func setDefaultFilter(_ filter: Constants.CategoryFilter) {
-        activeFilter = filter
-        UserDefaults.standard.set(filter.rawValue, forKey: "defaultFilter")
-    }
-
-    func clearDefaultFilter() {
-        activeFilter = .all
-        UserDefaults.standard.removeObject(forKey: "defaultFilter")
-    }
     /// Indica que los datos mostrados provienen de la caché offline.
     var isFromCache = false
     /// Texto legible con la antigüedad de la caché (ej: "Hace 2 h").
@@ -95,7 +80,7 @@ final class SeasonViewModel {
         races
             .filter {
                 !ChampionshipsConfig.isOnChampionshipsScreen($0)
-                    && RaceLogic.matchesCategory($0, filter: activeFilter)
+                    && filter.matches($0)
                     && matchesCountry($0)
             }
             .sorted { ($0.startDate ?? "") < ($1.startDate ?? "") }

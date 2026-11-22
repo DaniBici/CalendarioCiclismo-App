@@ -1,7 +1,8 @@
-// Antes del primer pintado: la colocación en dos columnas, que depende de la altura
-// medida, y Carretera si está fijada, que se monta en cuanto llegan sus plantillas. Va en
-// línea, tras el panel.
+// Antes del primer pintado: los filtros de Hoy y Calendario (cliente/filtros-resultados.js),
+// la colocación en dos columnas, que depende de la altura medida, y Carretera si está fijada,
+// que se monta en cuanto llegan sus plantillas. Va en línea, tras el panel.
 import { packCxDays, packFeaturedEntries } from '../../../js/resultados-feed-layout.js';
+import { aplicarFiltros, chinchetaPendiente } from './filtros-resultados.js';
 
 const panel = document.getElementById('resultsFeedPanel');
 const raiz = document.getElementById('resultsContent');
@@ -9,6 +10,9 @@ try {
   if (panel.dataset.view === 'cx' && localStorage.getItem('cc_default_discipline') === 'road') raiz.dataset.fijada = '1';
 } catch { /* Almacenamiento no disponible. */ }
 const colocar = () => {
+  aplicarFiltros(raiz, panel, panel.dataset.view);
+  // La chincheta de la 5.2.3 la convierte la isla, que entonces pinta la lista.
+  if (chinchetaPendiente(panel.dataset.view)) panel.style.visibility = 'hidden';
   packFeaturedEntries(raiz);
   packCxDays(raiz);
   raiz.dataset.colocado = '';

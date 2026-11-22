@@ -97,6 +97,6 @@ describe('atresults-results-fetch', () => {
     expect(parseCode('25PLTDL')).toEqual({ folder: '25PLTDL', prefix: '25PLTDL' });
     expect(() => parseCode('../x')).toThrow();
     expect(stagePdfUrl('26ltdl/26LTDL', 3)).toBe('https://atresult.synology.me/PDF/26ltdl/26LTDL%20Results%20Stage%203.pdf');
-    expect(suggestCompetitionId('7TS8g3lC3gzRic1FrrOV')).toBeLessThan(0);
+    expect(suggestCompetitionId('7TS8g3lC3gzRic1FrrOV')).toBe(-4680);   // ancla del ID guardado
   });
 });

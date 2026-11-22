@@ -7,8 +7,9 @@
 //  (js/html-fingerprint.js).
 // ─────────────────────────────────────────────────────────────────
 
-import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, routeBlockDayHtml, resolveTypeBadges, esc, raceUrl, jornadaUrl,
-         buildRaceHero, buildStageNav, buildActionButtons, rdLocation, filterBroadcastsByRegion, enBase,
+import { broadcastRegionBadgeLabel, formatTimeUser, timeWithDay, routeBlockDayHtml, resolveTypeBadges, rdLocation, esc, raceUrl, jornadaUrl, stageLabel,
+         buildRaceHero, buildStageNav, buildActionLinks, buildRaceFacts,
+         raceDateKeys, raceLayoutHtml, inhouseResultsUrl, raceSideStageList, filterBroadcastsByRegion, enBase,
          startFinishLabels } from './shared.js';
 import { fixedDecimal } from './fixed-number.js';
 import { t, getLang } from './i18n.js';
@@ -40,19 +41,6 @@ const TV_STATUS_LABELS = new Proxy({}, {
   },
 });
 
-// URL de la página de resultados PROPIA (in-house, tablas race_uci_*).
-// Espejo del enrutado de js/resultados.js (ES /resultados/<slug>/etapa-N/ · EN /en/results/…).
-function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
-  const isEn = getLang() === 'en';
-  const slug = isEn ? (race.slugEn || race.slug) : race.slug;
-  if (!slug) return null;
-  const base = isEn ? `${enBase()}/results/` : '/resultados/';
-  const sfx = (suffix || '').toLowerCase();   // doble sector: 3A → etapa-3a
-  let seg = '';
-  if (stageNumber === 0) seg = isEn ? 'prologue/' : 'prologo/';
-  else if (stageNumber != null) seg = isEn ? `stage-${stageNumber}${sfx}/` : `etapa-${stageNumber}${sfx}/`;
-  return `${base}${encodeURIComponent(slug)}/${seg}`;
-}
 
 // Bloque de botones de resultados: el CTA propio a /resultados/ se integra como
 // primer botón de la barra de assets (buildActionButtons → resultsUrl). Sin
@@ -74,7 +62,13 @@ function buildInhouseResultsUrl(race, stageNumber, suffix = '') {
  */
 export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStartlist = false, allBroadcasts = broadcasts, inhouseStages = new Set(), { timeZoneLabel = null, videos = [], allVideos = videos } = {}) {
   const _isEn = getLang() === 'en';
-  let html = buildRaceHero(rd, race, { showCancelledBanner: true });
+  // Datos de la carrera (no de la etapa) para la columna lateral de escritorio.
+  const { start: raceStart, end: raceEnd } = raceDateKeys(race, siblings.length ? siblings : [rd]);
+  const facts = buildRaceFacts(race, { startKey: raceStart, endKey: raceEnd, dayKey: rd.dateKey,
+    stage: race.raceFormat === 'one_day' ? '' : stageLabel(rd.stageNumber, rd._stageSuffix) });
+  const heroHtml = buildRaceHero(rd, race, { showCancelledBanner: true, facts });
+  // Contenido de la columna principal (tras la cabecera, en su orden).
+  let html = '';
 
   // Clasificaciones propias (in-house): de esta jornada si ya están volcadas;
   // en su defecto, la GENERAL de la etapa anterior (vueltas por etapas). Una
@@ -88,8 +82,8 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   const hasInhouseResults = inhouseStages.has(rd) || rd.isCancelledDay;
   const hasActualResults = inhouseStages.has(rd);
   const resultsUrl = hasInhouseResults
-    ? buildInhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix)
-    : (_prevHasInhouse ? buildInhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null);
+    ? inhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix)
+    : (_prevHasInhouse ? inhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null);
   // Paridad con las apps: el botón de la jornada actual se destaca; la general
   // arrastrada de la etapa anterior sigue siendo una acción secundaria.
   const resultsHighlighted = hasInhouseResults;
@@ -97,7 +91,7 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
   // Recorrido — panel de botones (clasificaciones · web oficial · inscritos ·
   // rutómetro · perfil · puertos · mapa · live texto), fuente única en
   // shared.buildActionButtons.
-  const assetsHtml = buildActionButtons({
+  const { bar: assetsHtml, side: sideLinksHtml } = buildActionLinks({
     race, rd, view: 'jornada', assets, hasStartlist, resultsUrl, resultsHighlighted,
     style: 'margin-bottom:0.85rem',
   });
@@ -360,6 +354,15 @@ export function jornadaHtml(rd, race, broadcasts, assets, siblings = [], hasStar
 
   // Navegación entre etapas (solo vueltas por etapas con >1 etapa; excluye jornadas de descanso)
   const navSiblings = siblings.filter(s => !s.isRestDay);
-  html = buildStageNav(navSiblings, rd.id, jornadaUrl, raceUrl(race)) + html;
+  // Escritorio: selector de etapas, cabecera, enlaces de la carrera y lista de
+  // etapas a la izquierda; el resto, en la columna principal.
+  html = raceLayoutHtml({
+    navHtml: buildStageNav(navSiblings, rd.id, jornadaUrl, raceUrl(race)),
+    headerHtml: heroHtml,
+    sideLinksHtml,
+    sideExtraHtml: raceSideStageList(race, navSiblings, { currentId: rd.id }),
+    mainHtml: html,
+    facts: !!facts,
+  });
   return { html, hasActualResults };
 }

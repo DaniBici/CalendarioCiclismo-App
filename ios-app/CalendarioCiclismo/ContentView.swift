@@ -144,6 +144,8 @@ struct ContentView: View {
             // tanto en taps del usuario como en cambios programáticos por
             // deep link, que también son eventos de navegación.
             Haptics.play(.navigation)
+            // Una burbuja abierta no sigue sobre la pestaña a la que se cambia.
+            TodayTips.dismissPopovers()
             // Analytics se loguean en cada vista individual (TodayView, MonthView, etc.)
             // con sus parámetros específicos.
         }
@@ -190,6 +192,7 @@ struct ContentView: View {
                     VideosFeedView()
                 }
                 .windowSizeClass(horizontalSizeClass)
+                .environment(\.isTabSelected, selectedTab == value)
             }
             .accessibilityIdentifier(AccessibilityID.tabVideos)
         case RoadTodayAvailability.resultsTab:
@@ -207,6 +210,7 @@ struct ContentView: View {
                     }
                 }
                 .windowSizeClass(horizontalSizeClass)
+                .environment(\.isTabSelected, selectedTab == value)
             }
             .accessibilityIdentifier(AccessibilityID.tabResults)
         case RoadTodayAvailability.transfersTab:
@@ -222,6 +226,7 @@ struct ContentView: View {
                     }
                 }
                 .windowSizeClass(horizontalSizeClass)
+                .environment(\.isTabSelected, selectedTab == value)
             }
             .accessibilityIdentifier(AccessibilityID.tabTransfers)
         case RoadTodayAvailability.cyclocrossTab:
@@ -230,6 +235,7 @@ struct ContentView: View {
             Tab(localeService.t("Hoy", "Today"), systemImage: "calendar.day.timeline.leading", value: value) {
                 cyclocrossStack
                     .windowSizeClass(horizontalSizeClass)
+                    .environment(\.isTabSelected, selectedTab == value)
             }
             .accessibilityIdentifier(AccessibilityID.tabCyclocross)
         default:
@@ -238,6 +244,7 @@ struct ContentView: View {
                     CalendarTabView()
                 }
                 .windowSizeClass(horizontalSizeClass)
+                .environment(\.isTabSelected, selectedTab == value)
             }
             .accessibilityIdentifier(AccessibilityID.tabCalendar)
         }
@@ -317,6 +324,8 @@ struct ContentView: View {
     }
 
     private func handleDeepLink(_ link: NotificationManager.DeepLink) {
+        // Una burbuja abierta no sigue sobre la pantalla a la que se navega.
+        TodayTips.retirePopovers()
         deepLinkRevision += 1
         let revision = deepLinkRevision
         switch link {

@@ -4,13 +4,6 @@ import SwiftUI
 /// La decisión depende del contenedor y de la size class, nunca de la pantalla
 /// física ni del modelo de dispositivo.
 enum AdaptiveLayoutPolicy {
-    struct BalancedBreak: Equatable {
-        /// Número de bloques completos asignados a la primera columna.
-        let blockIndex: Int
-        /// Filas del bloque siguiente que también pasan a la primera columna.
-        let offset: Int
-    }
-
     static let twoColumnThreshold: CGFloat = 620
     static let detailThreshold: CGFloat = 820
     static let spacing: CGFloat = 12
@@ -52,25 +45,6 @@ enum AdaptiveLayoutPolicy {
 
     static func usesWideDetail(width: CGFloat, isRegular: Bool) -> Bool {
         isRegular && width >= detailThreshold
-    }
-
-    /// Divide categorías ordenadas de arriba abajo con un número de filas lo
-    /// más equilibrado posible. Si el corte cae dentro de una categoría,
-    /// devuelve el desplazamiento necesario para repetir su cabecera.
-    static func balancedBreak(counts: [Int]) -> BalancedBreak {
-        let target = (counts.reduce(0, +) + 1) / 2
-        var accumulated = 0
-        for (index, count) in counts.enumerated() {
-            if accumulated + count < target {
-                accumulated += count
-                continue
-            }
-            if accumulated + count == target {
-                return BalancedBreak(blockIndex: index + 1, offset: 0)
-            }
-            return BalancedBreak(blockIndex: index, offset: max(0, target - accumulated))
-        }
-        return BalancedBreak(blockIndex: counts.count, offset: 0)
     }
 
     static func rows<Item: Identifiable>(

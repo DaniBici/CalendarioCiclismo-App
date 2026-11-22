@@ -10,7 +10,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.ui.month.CalendarChampionshipsMark
-import app.calendariociclismo.android.ui.month.CalendarFilterChip
+import app.calendariociclismo.android.ui.components.RoadFiltersMenu
+import app.calendariociclismo.android.util.RoadRaceFilter
 import app.calendariociclismo.android.ui.month.CalendarMonthChip
 import app.calendariociclismo.android.ui.month.CalendarSelectorChip
 import androidx.compose.foundation.clickable
@@ -37,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -89,7 +89,6 @@ import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
-import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.RaceLogic
@@ -127,16 +126,13 @@ fun SeasonScreen(
     // Un año posterior al actual abre en su primer mes con carreras
     // (`bestPageIndex`).
     var year by remember { mutableStateOf(CalendarNavigation.pendingSeasonYear.value ?: CalendarStart.initial().year) }
-    var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var country by remember { mutableStateOf<String?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
     var countryMenuOpen by remember { mutableStateOf(false) }
     var modalItem by remember { mutableStateOf<PlaceholderItem?>(null) }
-    var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
 
-    // Observar el filtro por defecto de forma reactiva (se actualiza cuando otra sección lo cambia)
-    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
-    LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
+    // Filtros de carretera, recordados y compartidos con Hoy y Mes.
+    val category by app.preferences.roadRaceFilter.collectAsState(initial = RoadRaceFilter())
 
     // Challenges del año: sus pruebas se agrupan en una fila. Sin ellos (sin
     // red) la temporada se muestra igual, con las pruebas sueltas.
@@ -159,7 +155,7 @@ fun SeasonScreen(
             "season",
             android.os.Bundle().apply {
                 putString("year", year.toString())
-                putString("category_filter", category.id)
+                putString("category_filter", category.encoded)
                 putString("country_code", country ?: "all")
             },
         )
@@ -174,7 +170,7 @@ fun SeasonScreen(
         allRaces
             .filter { it.year == year }
             .filter { !ChampionshipsConfig.isOnChampionshipsScreen(it) }
-            .filter { race -> RaceLogic.matchesCategory(race, category) }
+            .filter(category::matches)
             .filter { race ->
                 country == null || run {
                     val cc = (race.countryCode ?: "").lowercase()
@@ -280,11 +276,11 @@ fun SeasonScreen(
     // Rastrea si ya se ejecutó el salto inicial al mes actual (para no repetirlo en cambios de filtro)
     var initialScrollDone by remember { mutableStateOf(false) }
 
-    // Maqueta ancha: año y filtro pasan a la agenda; el año puede llegar de su
+    // Maqueta ancha: el año pasa a la agenda (los filtros los comparten por
+    // AppPreferences); el año puede llegar de su
     // botón Hoy. Se lee el valor vigente del enlace, no la clave del efecto.
     if (link != null) {
         LaunchedEffect(year) { link.year = year }
-        LaunchedEffect(category) { link.category = category }
         LaunchedEffect(link.year) {
             if (link.year != year) {
                 year = link.year
@@ -451,37 +447,15 @@ fun SeasonScreen(
                             }
                         }
                     }
-                }
-
-                // Chips de categoría
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(Constants.CategoryFilter.entries.toList(), key = { it.id }) { cat ->
-                        val hideAll = cat == Constants.CategoryFilter.ALL || category == Constants.CategoryFilter.ALL
-                        val isPinnedValid = defaultFilterPref != Constants.CategoryFilter.ALL
-                        val pinFilled = !hideAll && isPinnedValid && defaultFilterPref == cat
-                        val pinOutline = !hideAll && !pinFilled && category == cat
-                        // Pulsar el filtro activo abre el diálogo de filtro
-                        // predeterminado (paridad con iOS).
-                        CalendarFilterChip(
-                            label = stringResource(cat.labelRes),
-                            selected = category == cat,
-                            pinFilled = pinFilled,
-                            pinOutline = pinOutline,
-                            onClick = {
-                                if (cat == category) {
-                                    haptic(Haptics.Event.PrimaryAction)
-                                    pendingDefault = cat
-                                } else {
-                                    haptic(Haptics.Event.Selection)
-                                    category = cat
-                                }
-                            },
-                        )
-                    }
+                    Spacer(Modifier.weight(1f))
+                    // Filtros, con el símbolo de Fichajes.
+                    RoadFiltersMenu(
+                        filter = category,
+                        onChange = {
+                            haptic(Haptics.Event.Selection)
+                            scope.launch { app.preferences.setRoadRaceFilter(it) }
+                        },
+                    )
                 }
 
                 // Chips de mes — sincronizan bidireccionalmente con HorizontalPager
@@ -534,7 +508,7 @@ fun SeasonScreen(
                             month = month,
                             races = races,
                             challengeGroups = seasonGroups,
-                            activeFilter = category,
+                            femaleOnly = category.femaleOnly,
                             showChampionships = hasChampionships,
                             championshipsMonth = championshipsMonth,
                             onChampionshipsClick = {
@@ -575,49 +549,6 @@ fun SeasonScreen(
             item = modalItem,
             onDismiss = { modalItem = null },
         )
-
-        pendingDefault?.let { filter ->
-            val isPinned = filter == defaultFilterPref && defaultFilterPref != Constants.CategoryFilter.ALL
-            val filterLabel = stringResource(filter.labelRes)
-            AlertDialog(
-                onDismissRequest = { pendingDefault = null },
-                title = {
-                    Text(
-                        stringResource(
-                            if (isPinned) R.string.filter_dialog_remove_title
-                            else R.string.filter_dialog_title
-                        )
-                    )
-                },
-                text = {
-                    Text(
-                        stringResource(
-                            if (isPinned) R.string.filter_dialog_remove_message
-                            else R.string.filter_dialog_set_message,
-                            filterLabel,
-                        )
-                    )
-                },
-                confirmButton = {
-                    if (isPinned) {
-                        TextButton(onClick = {
-                            scope.launch { app.preferences.clearDefaultFilter() }
-                            category = Constants.CategoryFilter.ALL
-                            pendingDefault = null
-                        }) { Text(stringResource(R.string.action_remove)) }
-                    } else {
-                        TextButton(onClick = {
-                            scope.launch { app.preferences.setDefaultFilter(filter) }
-                            category = filter
-                            pendingDefault = null
-                        }) { Text(stringResource(R.string.action_set)) }
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingDefault = null }) { Text(stringResource(R.string.action_cancel)) }
-                },
-            )
-        }
     }
 }
 
@@ -636,7 +567,7 @@ private fun MonthPage(
     month: Int,
     races: List<Race>,
     challengeGroups: List<ChallengeGroup>,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     showChampionships: Boolean,
     championshipsMonth: Int,
     onChampionshipsClick: () -> Unit,
@@ -723,7 +654,7 @@ private fun MonthPage(
                                     val expanded = row.entry.group.id in expandedChallengeIds
                                     SeasonChallengeRow(
                                         entry = row.entry,
-                                        activeFilter = activeFilter,
+                                        femaleOnly = femaleOnly,
                                         expanded = expanded,
                                         onClick = {
                                             expandedChallengeIds = if (expanded) expandedChallengeIds - row.entry.group.id
@@ -734,7 +665,7 @@ private fun MonthPage(
                                 is SeasonListRow.RaceItem -> Box(if (nested) Modifier.padding(start = 16.dp) else Modifier) {
                                     SeasonRaceRow(
                                         race = row.race,
-                                        activeFilter = activeFilter,
+                                        femaleOnly = femaleOnly,
                                         nested = row.nested,
                                         onClick = { onRaceClick(row.race) },
                                     )
@@ -871,14 +802,13 @@ private fun groupByMonth(races: List<Race>, challengeGroups: List<ChallengeGroup
 @Composable
 private fun SeasonChallengeRow(
     entry: SeasonEntry.Challenge,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     expanded: Boolean,
     onClick: () -> Unit,
 ) {
     val group = entry.group
     val haptic = rememberHaptics()
-    val femaleFilter = activeFilter == Constants.CategoryFilter.WWT ||
-        activeFilter == Constants.CategoryFilter.FEMALE
+    val femaleFilter = femaleOnly
     val isFemale = group.gender == "female"
     val displayName = if (femaleFilter && isFemale) RaceLogic.cleanFeminineDisplayName(group.name) else group.name
     val showFemale = !femaleFilter && isFemale && !RaceLogic.nameImpliesFemale(group.name)
@@ -909,24 +839,20 @@ private fun SeasonChallengeRow(
 @Composable
 private fun SeasonRaceRow(
     race: Race,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     nested: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val displayName = remember(race.id, activeFilter, nested) {
+    val displayName = remember(race.id, femaleOnly, nested) {
         val name = if (nested) SeasonChallengeLogic.nameInGroup(race) else race.localizedName
-        if ((activeFilter == Constants.CategoryFilter.WWT ||
-                activeFilter == Constants.CategoryFilter.FEMALE) && race.isFemale
-        ) {
+        if (femaleOnly && race.isFemale) {
             RaceLogic.cleanFeminineDisplayName(name)
         } else {
             name
         }
     }
-    val showFemale = remember(race.id, activeFilter) {
-        if (activeFilter == Constants.CategoryFilter.WWT ||
-            activeFilter == Constants.CategoryFilter.FEMALE
-        ) false else RaceLogic.shouldShowFemaleIndicator(race)
+    val showFemale = remember(race.id, femaleOnly) {
+        if (femaleOnly) false else RaceLogic.shouldShowFemaleIndicator(race)
     }
     val rowAlpha = if (race.isCancelled) 0.5f else 1f
     val cancelledLabel = stringResource(R.string.race_label_cancelled)

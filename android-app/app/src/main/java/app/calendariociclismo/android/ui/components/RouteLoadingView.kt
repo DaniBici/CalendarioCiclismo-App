@@ -69,6 +69,9 @@ fun AnimatedRouteProfile(
         lineColor.copy(alpha = 0.16f)
     },
     riderColor: Color = lineColor,
+    /** Opacidad del relleno en la base. Con 0 el perfil se funde con el fondo
+     *  cuando no llega al borde de la pantalla. */
+    bottomAlpha: Float = FILL_BOTTOM_ALPHA,
 ) {
     val context = LocalContext.current
     // Equivalente Android de Reducir movimiento: animaciones del sistema en 0.
@@ -109,7 +112,7 @@ fun AnimatedRouteProfile(
         drawPath(
             fill,
             brush = Brush.verticalGradient(
-                colors = listOf(fillColor, fillColor.copy(alpha = FILL_BOTTOM_ALPHA)),
+                colors = listOf(fillColor, fillColor.copy(alpha = bottomAlpha)),
                 startY = 0f,
                 endY = size.height,
             ),

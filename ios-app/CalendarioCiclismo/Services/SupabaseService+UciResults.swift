@@ -777,6 +777,51 @@ extension SupabaseService {
         try await teamIdentitiesByIds(ids).mapValues(\.name)
     }
 
+    /// Equipo de cada corredor en cada carrera: clave `raceId:globalRiderId` →
+    /// nombre del equipo. Los rank 1 de race_uci_results no traen teamId, así
+    /// que se resuelve por la startlist (startlist_riders_resolved →
+    /// startlist_teams → teams), con el nombre canónico si el equipo está
+    /// enlazado. Un corredor con más de un equipo en la carrera (fichaje a
+    /// mitad de vuelta) queda sin equipo. Cualquier fallo devuelve el mapa
+    /// vacío. Espejo de `resolveRiderTeams` en `js/services/result-feed-context.js`.
+    private func feedRiderTeams(_ pairs: [(raceId: String, riderId: String)]) async -> [String: String] {
+        let wanted = Set(pairs.map { "\($0.raceId):\($0.riderId)" })
+        guard !wanted.isEmpty else { return [:] }
+        do {
+            let refs = try await startlistRiderTeamRefs(
+                raceIds: Array(Set(pairs.map(\.raceId))),
+                riderIds: Array(Set(pairs.map(\.riderId)))
+            )
+            var pksByKey: [String: Set<String>] = [:]
+            for ref in refs {
+                guard let gid = ref.globalRiderId, let pk = ref.teamId else { continue }
+                let key = "\(ref.raceId):\(gid)"
+                guard wanted.contains(key) else { continue }
+                pksByKey[key, default: []].insert(pk)
+            }
+            let uniquePks = Set(pksByKey.values.compactMap { $0.count == 1 ? $0.first : nil })
+            let slTeams = try await startlistTeamsByPks(Array(uniquePks))
+            let slTeamByPk = Dictionary(slTeams.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let canonTeams = (try? await teamIdentitiesByIds(Array(Set(slTeams.compactMap(\.teamId))))) ?? [:]
+            var out: [String: String] = [:]
+            for (key, pks) in pksByKey {
+                guard pks.count == 1, let pk = pks.first, let slt = slTeamByPk[pk] else { continue }
+                let canon = slt.teamId.flatMap { canonTeams[$0] }
+                let name = canon.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? slt.teamName ?? ""
+                guard !name.isEmpty else { continue }
+                out[key] = Team.localizedName(
+                    name,
+                    teamKind: canon?.teamKind, selectionScope: canon?.selectionScope,
+                    countryCode: canon?.countryCode, selectionCode: canon?.selectionCode,
+                    isEnglish: LocaleService.shouldShowEnglishContent
+                )
+            }
+            return out
+        } catch {
+            return [:]
+        }
+    }
+
     /// Fechas YYYY-MM-DD del rango [fromKey, toKey].
     private static func dateKeys(from fromKey: String, to toKey: String) -> [String] {
         var keys: [String] = []
@@ -992,26 +1037,54 @@ extension SupabaseService {
             let canonicalTeamNames = await canonicalTeamNamesReq
             let rowsByRef = Dictionary(grouping: rows) { $0.stageRef }
 
+            func resolvedRiderId(_ row: FeedRank1Row) -> String? {
+                row.globalRiderId ?? Int(row.bib ?? "").flatMap { startlistByBib["\(row.raceId)#\($0)"]?.globalRiderId }
+            }
+            // Corredor → nombre, por clasificación (sin repetir nombre).
+            func riderLeaders(_ ref: String) -> [(name: String, riderId: String?)] {
+                var seen = Set<String>()
+                return (rowsByRef[ref] ?? []).compactMap { row in
+                    guard let name = resolvedRiderName(row), seen.insert(name).inserted else { return nil }
+                    return (name, resolvedRiderId(row))
+                }
+                .sorted { $0.name < $1.name }
+            }
+            // Corredores cuyo equipo en la carrera se pide: el ganador de cada
+            // entrada y los líderes de las clasificaciones de corredor de las
+            // destacadas (las únicas que los pintan). Espejo de `teamPairs`.
+            var teamPairs: [(raceId: String, riderId: String)] = []
+
             for i in entries.indices {
                 guard entries[i].kind == .inhouse else { continue }
+                let raceId = entries[i].race.id
                 if let ref = entries[i].stageRefId {
-                    let names = Array(Set((rowsByRef[ref] ?? []).compactMap(resolvedRiderName)))
-                    if nonWinnerRefs.contains(ref), names.isEmpty { entries[i].winner = "" }
-                    if names.count == 1, entries[i].rd?.primaryType != "ttt" {
-                        entries[i].winner = names[0]
+                    let leaders = riderLeaders(ref)
+                    if nonWinnerRefs.contains(ref), leaders.isEmpty { entries[i].winner = "" }
+                    if leaders.count == 1, entries[i].rd?.primaryType != "ttt" {
+                        entries[i].winner = leaders[0].name
+                        if let gid = leaders[0].riderId { teamPairs.append((raceId, gid)) }
                     }
                 }
 
                 entries[i].complementary = entries[i].complementary.map { item in
                     let leaderRows = rowsByRef[item.stageRef] ?? []
-                    let names: [String]
                     if item.classKind == "teams" {
-                        names = Array(Set(leaderRows.compactMap { row in
+                        let names = Array(Set(leaderRows.compactMap { row in
                             row.teamId.flatMap { canonicalTeamNames[$0] }
                                 ?? ResultsFeedLogic.cleanWinner(row.riderDisplay)
                         }))
-                    } else {
-                        names = Array(Set(leaderRows.compactMap(resolvedRiderName)))
+                        return FeedComplementaryClassification(
+                            stageRef: item.stageRef,
+                            classKind: item.classKind,
+                            labelEs: item.labelEs,
+                            labelEn: item.labelEn,
+                            colorHex: item.colorHex,
+                            winner: names.isEmpty ? item.winner : names.sorted().joined(separator: " / ")
+                        )
+                    }
+                    let leaders = riderLeaders(item.stageRef)
+                    if entries[i].isFeatured {
+                        teamPairs.append(contentsOf: leaders.compactMap { $0.riderId.map { (raceId, $0) } })
                     }
                     return FeedComplementaryClassification(
                         stageRef: item.stageRef,
@@ -1019,8 +1092,31 @@ extension SupabaseService {
                         labelEs: item.labelEs,
                         labelEn: item.labelEn,
                         colorHex: item.colorHex,
-                        winner: names.isEmpty ? item.winner : names.sorted().joined(separator: " / ")
+                        winner: leaders.isEmpty ? item.winner : leaders.map(\.name).joined(separator: " / "),
+                        leaders: leaders.map { FeedWinnerName(name: $0.name, team: nil) }
                     )
+                }
+            }
+
+            // Equipo de cada corredor en su carrera, por lotes. Es decoración:
+            // si falla, el feed se queda sin equipos.
+            let teamByRider = await feedRiderTeams(teamPairs)
+            if !teamByRider.isEmpty {
+                for i in entries.indices where entries[i].kind == .inhouse {
+                    let raceId = entries[i].race.id
+                    if let ref = entries[i].stageRefId, entries[i].rd?.primaryType != "ttt" {
+                        let leaders = riderLeaders(ref)
+                        if leaders.count == 1, leaders[0].name == entries[i].winner,
+                           let gid = leaders[0].riderId {
+                            entries[i].winnerTeam = teamByRider["\(raceId):\(gid)"]
+                        }
+                    }
+                    for c in entries[i].complementary.indices where entries[i].complementary[c].classKind != "teams" {
+                        let leaders = riderLeaders(entries[i].complementary[c].stageRef)
+                        entries[i].complementary[c].leaders = leaders.map { leader in
+                            FeedWinnerName(name: leader.name, team: leader.riderId.flatMap { teamByRider["\(raceId):\($0)"] })
+                        }
+                    }
                 }
             }
 

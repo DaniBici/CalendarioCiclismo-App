@@ -1062,21 +1062,29 @@ internal fun RaceDayHeading(
     val detailLine = listOfNotNull(stageLabel.takeIf { it.isNotEmpty() }, categoryName?.takeIf { it.isNotEmpty() })
         .joinToString(" · ")
     val hasStageLabel = detailLine.isNotEmpty()
-    // Fila superior: flecha integrada + nombre de carrera + logo, con el nombre
-    // equilibrado verticalmente respecto al logo (carretera y ciclocross).
+    // Fila superior: flecha integrada + nombre de carrera + logo con la bandera debajo
+    // (como las tarjetas de Hoy: con letra grande la bandera no resta ancho al
+    // nombre). Flecha y nombre comparten el centro vertical de la columna del logo
+    // con la bandera (36 + 4 + 15) en carretera y ciclocross; con varias líneas, el
+    // nombre crece hacia abajo.
+    val showsLogo = !logoUrl.isNullOrBlank() || logoPlaceholder
+    val showsFlag = showFlag && !countryCode.isNullOrBlank()
+    val leadingHeight = ((if (showsLogo) 36.dp else 0.dp) + (if (showsLogo && showsFlag) 4.dp else 0.dp) + (if (showsFlag) 15.dp else 0.dp)).coerceAtLeast(36.dp)
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.size(32.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.stage_action_back_cd),
-                modifier = Modifier.size(18.dp),
-            )
+        Box(Modifier.height(leadingHeight), contentAlignment = Alignment.Center) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.stage_action_back_cd),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
         if (name != null) {
             Row(
@@ -1086,34 +1094,28 @@ internal fun RaceDayHeading(
                         if (onRaceTap != null) Modifier.clickable(role = Role.Button, onClick = onRaceTap)
                         else Modifier
                     ),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.Top,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        // Override puramente cosmético de la jornada
-                        // (etapas en el extranjero p.ej.). El override
-                        // vence al hideFlag de la carrera.
-                        if (showFlag) {
-                            CountryFlag(countryCode = countryCode, modifier = Modifier.padding(top = 7.dp))
-                        }
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.titleLarge,
-                            // Peso igualado al titular del cintillo (Medium) en
-                            // lugar de Bold; se mantiene el tamaño titleLarge de
-                            // cabecera. Compartido por jornada, perfil y orden de
-                            // salida (todas reutilizan StageInfoBlock).
-                            fontWeight = FontWeight.Medium,
-                            maxLines = nameMaxLines,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                Box(Modifier.weight(1f).heightIn(min = leadingHeight), contentAlignment = Alignment.CenterStart) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleLarge,
+                        // Peso igualado al titular del cintillo (Medium) en
+                        // lugar de Bold; se mantiene el tamaño titleLarge de
+                        // cabecera. Compartido por jornada, perfil y orden de
+                        // salida (todas reutilizan StageInfoBlock).
+                        fontWeight = FontWeight.Medium,
+                        maxLines = nameMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                RaceLogo(url = logoUrl, size = 36.dp, placeholder = logoPlaceholder)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    RaceLogo(url = logoUrl, size = 36.dp, placeholder = logoPlaceholder)
+                    // Override puramente cosmético de la jornada (etapas en el
+                    // extranjero p.ej.). El override vence al hideFlag de la carrera.
+                    if (showFlag) CountryFlag(countryCode = countryCode)
+                }
             }
         }
     }

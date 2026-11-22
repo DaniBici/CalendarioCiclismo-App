@@ -31,6 +31,15 @@ struct CxMonth: Codable, Sendable, Hashable, Comparable {
 enum CyclocrossLogic {
     static let categories = ["ME", "WE", "MU", "WU", "MJ", "WJ"]
     static let classes = ["CM", "CDM", "CC", "C1", "C2", "CN", "NAC"]
+    /// Orden de clases de la agenda, como el de carretera: Mundial, Copa del
+    /// Mundo, Europeo, C1, C2, otros Continentales, Nacionales y NAC. Espejo de
+    /// `cxClassRank` (web) y `CyclocrossLogic.classRank` (Android).
+    private static let classOrder = ["CM", "CDM", "CC_EU", "C1", "C2", "CC", "CN", "NAC"]
+    static func classRank(_ race: CxRace) -> Int {
+        let european = race.raceClass == "CC"
+            && "\(race.name) \(race.nameEn ?? "")".range(of: "europ", options: .caseInsensitive) != nil
+        return classOrder.firstIndex(of: european ? "CC_EU" : race.raceClass) ?? classOrder.count
+    }
     static let durationVersion = "2026-07-01"
 
     static func offlineMonths(at date: Date = Date()) -> [CxMonth] {
@@ -131,8 +140,8 @@ enum CyclocrossLogic {
         races.filter { dates($0).contains(date) }.sorted { lhs, rhs in
             let lFeatured = featured.contains(lhs.id), rFeatured = featured.contains(rhs.id)
             if lFeatured != rFeatured { return lFeatured }
-            let lClass = classes.firstIndex(of: lhs.raceClass) ?? classes.count
-            let rClass = classes.firstIndex(of: rhs.raceClass) ?? classes.count
+            let lClass = classRank(lhs)
+            let rClass = classRank(rhs)
             if lClass != rClass { return lClass < rClass }
             let lTime = agendaTime(on: date, race: lhs)
             let rTime = agendaTime(on: date, race: rhs)

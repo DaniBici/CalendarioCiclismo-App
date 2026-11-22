@@ -2,7 +2,8 @@
 --   node scripts/db/sql.mjs --read-only --file tools/site/prerender-fichajes.sql > datos.json
 -- Mismas filas y columnas que la lectura por API del build (fetchMarket() de
 -- js/fichajes.js) para la temporada de mercado 2027 y la temporada en curso
--- 2026, y el mismo JSON que devuelve PostgREST (horas en UTC con +00:00). Al
+-- 2026, y el mismo JSON que devuelve PostgREST (horas en UTC con +00:00). Las
+-- fichas no llevan fecha de nacimiento (ningún filtro usa la edad). Al
 -- cambiar SEASON en js/fichajes-html.js, cambiar aquí los dos años.
 set local timezone = 'UTC';
 with params as (
@@ -37,4 +38,6 @@ select
             'nationality', r.nationality, 'contractUntil', r."contractUntil") order by r.id), '[]'::jsonb)
      from riders_women r where r.id in (select "riderId" from moves where "riderGender" = 'female')) as women,
   (select coalesce(jsonb_agg(jsonb_build_object('id', tm.id, 'name', tm.name) order by tm.id), '[]'::jsonb)
-     from teams tm where tm.id in (select id from extra)) as "extraTeams";
+     from teams tm where tm.id in (select id from extra)) as "extraTeams",
+  (select coalesce(jsonb_agg(jsonb_build_object('id', tm.id, 'countryCode', tm."countryCode") order by tm.id), '[]'::jsonb)
+     from teams tm where tm.id in (select s."teamId" from team_seasons s, params p where s.year = p.season)) as "teamCountries";

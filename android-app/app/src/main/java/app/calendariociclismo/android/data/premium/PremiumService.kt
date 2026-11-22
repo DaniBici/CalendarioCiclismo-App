@@ -37,6 +37,7 @@ class PremiumService(
 
     enum class SupporterIcon(val storageValue: String) {
         DEFAULT("default"),
+        CYCLOCROSS("cyclocross"),
         FOUNDER("founder"),
         FRIEND("friend");
 
@@ -55,9 +56,12 @@ class PremiumService(
                 preferences.setFriendSubscribed(active)
                 if (!active && preferences.snapshotSupporterIcon() == "friend") {
                     val previous = SupporterIcon.fromStorage(preferences.snapshotPreviousSupporterIcon())
-                    val fallback = if (
-                        previous == SupporterIcon.FOUNDER && preferences.snapshotFounderRecognized()
-                    ) SupporterIcon.FOUNDER else SupporterIcon.DEFAULT
+                    val fallback = when {
+                        previous == SupporterIcon.FOUNDER && preferences.snapshotFounderRecognized() ->
+                            SupporterIcon.FOUNDER
+                        previous == SupporterIcon.CYCLOCROSS -> SupporterIcon.CYCLOCROSS
+                        else -> SupporterIcon.DEFAULT
+                    }
                     setSupporterIcon(fallback)
                 }
             }
@@ -203,7 +207,7 @@ class PremiumService(
 
     fun setSupporterIcon(icon: SupporterIcon) {
         val allowed = when (icon) {
-            SupporterIcon.DEFAULT -> true
+            SupporterIcon.DEFAULT, SupporterIcon.CYCLOCROSS -> true
             SupporterIcon.FOUNDER -> isFounder.value
             SupporterIcon.FRIEND -> isSubscribed.value
         }

@@ -4,7 +4,9 @@
 // encima si no cabe), con flechas, Inicio y Fin entre opciones. El marcado no
 // depende del dispositivo; bindMenuButtons() instala el comportamiento una vez
 // por documento. El clic en el botón no llega a la tarjeta; el de una opción
-// sí, para que la lista decida (modal de TV o pestaña nueva).
+// sí, para que la lista decida (modal de TV o pestaña nueva). Las opciones con
+// marca (role="menuitemcheckbox", filtros de Fichajes) cambian sin cerrar el
+// menú, y el teclado salta las desactivadas.
 
 const escAttr = value => String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -23,7 +25,7 @@ const supportsPopover = typeof HTMLElement !== 'undefined' && typeof HTMLElement
 let openMenu = null;
 
 const buttonOf = menu => document.querySelector(`[data-menu-button][aria-controls="${CSS.escape(menu.id)}"]`);
-const itemsOf = menu => [...menu.querySelectorAll('[role="menuitem"]')];
+const itemsOf = menu => [...menu.querySelectorAll('[role^="menuitem"]:not([disabled])')];
 
 function place(button, menu) {
   const box = button.getBoundingClientRect();
@@ -79,8 +81,9 @@ export function bindMenuButtons(root = document) {
       return;
     }
     const item = event.target.closest?.('.menu-popover__item');
-    if (item) hide(item.closest('.menu-popover'));
-    else if (openMenu && !supportsPopover && !event.target.closest?.('.menu-popover')) hide(openMenu);
+    if (item) {
+      if (item.getAttribute('role') !== 'menuitemcheckbox') hide(item.closest('.menu-popover'));
+    } else if (openMenu && !supportsPopover && !event.target.closest?.('.menu-popover')) hide(openMenu);
   }, true);
   root.addEventListener('keydown', event => {
     const button = event.target.closest?.('[data-menu-button]');

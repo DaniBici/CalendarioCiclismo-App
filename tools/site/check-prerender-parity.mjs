@@ -180,15 +180,16 @@ const PAGES = {
       en: { dir: 'en/cyclocross', container: 'cxRaceContent', timeZone: 'Europe/London', locale: 'en-GB', scope: 'all' },
     },
   },
-  // Torneos CX (prerender-cx.mjs): esqueleto y lista con la huella de su
-  // versión sin estado de categorías ni insignias, que no depende de la zona.
+  // Torneos CX (prerender-cx.mjs): esqueleto, lista con la huella de su
+  // versión sin estado de categorías ni insignias, y datos y lista de pruebas
+  // de la columna lateral; nada depende de la zona.
   torneo: {
     family: 'cx',
     script: 'tools/site/prerender-cx.mjs',
     slugs: data => data.tournaments.map(tournament => tournament.slug).filter(Boolean),
     failed: '#cxAgendaError:not(:empty)',
     zoned: false,
-    slots: ['#cxAgendaList > *'],
+    slots: ['#cxAgendaList > *', '[data-cx-tournament-facts] > *', '[data-cx-tournament-races] > *'],
     langs: {
       es: { dir: 'ciclocross/torneos', container: 'cxAgendaContent', timeZone: 'Europe/Madrid', locale: 'es-ES', scope: 'es' },
       en: { dir: 'en/cyclocross/series', container: 'cxAgendaContent', timeZone: 'Europe/London', locale: 'en-GB', scope: 'all' },

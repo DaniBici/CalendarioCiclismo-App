@@ -2,9 +2,12 @@
 //  TEMPORADA — temporada.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, setMeta, setMetaProperty, initPhTooltip, bulkCacheRaces,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed }
+import { supabase, setMeta, setMetaProperty, initPhTooltip, bulkCacheRaces }
          from './shared.js';
+import { bindMenuButtons } from './components/menu-button.js';
+import { bindFilterMenu } from './components/filter-menu.js';
+import { patchHtml as patchFilterMenu } from './dom-patch.js';
+import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, sharedRoadFilters, setSharedRoadFilters, filterLabels } from './race-filters.js';
 import { S, _getFilteredData, tCountryName, temporadaCountries, temporadaListHtml } from './temporada-html.js';
 import { t, initI18n, getLang } from './i18n.js';
 import { readCalendarMonth } from './calendario-query.js';
@@ -27,16 +30,16 @@ S.expandedChallenges = new Set(_navOnLoad.from === 'temporada' ? _navOnLoad.expa
 const _now = new Date();
 S.activeYear = seasonCalendarYear(`${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`);
 window._icalYear = S.activeYear;
-S.activeCat = getPinnedFilter() || 'all';
+S.filters = sharedRoadFilters();
 
-let _pendingMonth  = null;       // ?mes= / ?month=: mes al que se desplaza la primera pintura
+let _pendingMonth  = null;
+let _filterMenu    = null;       // menú «Filtros» (bindFilterMenu)       // ?mes= / ?month=: mes al que se desplaza la primera pintura
 
 // ── Carga inicial ────────────────────────────────────────────────
 async function init() {
   // Leer año y filtro de categoría de la URL si vienen como parámetros
   const params = new URLSearchParams(location.search);
   if (params.get('year')) S.activeYear = parseInt(params.get('year'));
-  if (params.get('cat'))  S.activeCat  = params.get('cat');
   // Mes de la URL (compartido con la subvista Mes): fija el año si no viene
   // ?year y desplaza la primera pintura a ese mes.
   const mesParam = readCalendarMonth(params);
@@ -44,7 +47,6 @@ async function init() {
     _pendingMonth = mesParam;
     if (!params.get('year')) S.activeYear = Number(mesParam.slice(0, 4));
   }
-window._temporadaCat = S.activeCat;
 
   // Actualizar el label del nav con el año activo
   document.querySelectorAll('#navTemporadaLabel').forEach(el => {
@@ -88,31 +90,19 @@ window._temporadaCat = S.activeCat;
     this.value = '';
   });
 
-  // Filtros de categoría
-  // Sincronizar botones de filtro con el estado inicial (puede venir de URL o pin)
-  const filterCats = document.getElementById('filterCats');
-  filterCats.querySelectorAll('.tcat-btn').forEach(b => {
-    setPressed(b, b.dataset.cat === S.activeCat);
+  // Filtros de carretera, compartidos con la subvista Mes (js/race-filters.js).
+  bindMenuButtons();
+  _filterMenu = bindFilterMenu(document.getElementById('filterCats'), {
+    idPrefix: 'temporadaFilter', activeClass: 'tcat-btn--active',
+    groups: ROAD_FILTER_GROUPS, clearLabel: filterLabels().clearLabel, storageKey: ROAD_FILTERS_KEY,
+    getFilters: sharedRoadFilters,
+    setFilters: setSharedRoadFilters,
+    patch: patchFilterMenu,
+    onChange: () => render(),
   });
-  renderFilterPins(filterCats, S.activeCat);
-
-  const onTempFilterEvent = e => {
-    const res = handleFilterEvent(e);
-    if (!res) return;
-    if (res.type === 'pin') {
-      renderFilterPins(filterCats, S.activeCat);
-      return;
-    }
-    S.activeCat = res.cat;
-    window._temporadaCat = S.activeCat;
-    filterCats.querySelectorAll('.tcat-btn').forEach(b =>
-      setPressed(b, b.dataset.cat === S.activeCat)
-    );
-    renderFilterPins(filterCats, S.activeCat);
-    render();
-  };
-  filterCats.addEventListener('click', onTempFilterEvent);
-  filterCats.addEventListener('keydown', onTempFilterEvent);
+  _filterMenu.render();
+  // Al volver desde Mes (js/calendario.js), con lo que se haya marcado allí.
+  addEventListener('cc-calendario-temporada', () => { _filterMenu.render(); render({ refresh: true }); });
 
   const filterCountrySel = document.getElementById('filterCountry');
   if (filterCountrySel) {
@@ -143,7 +133,7 @@ window._temporadaCat = S.activeCat;
   document.getElementById('temporadaContent').addEventListener('click', e => {
     if (e.target.closest('.t-race:not(.t-race--challenge)')) {
       sessionStorage.setItem('cc_nav', JSON.stringify({
-        from: 'temporada', year: S.activeYear, cat: S.activeCat,
+        from: 'temporada', year: S.activeYear,
         scrollY: Math.round(window.scrollY),
         expanded: [...S.expandedChallenges],
       }));
@@ -241,6 +231,7 @@ async function loadYear() {
 // `refresh`: repintado por revalidación en segundo plano; conserva el scroll
 // y no repite el desplazamiento inicial ni la analítica.
 function render({ refresh = false } = {}) {
+  S.filters = sharedRoadFilters();
   const content = document.getElementById('temporadaContent');
   const keepScrollY = refresh ? window.scrollY : null;
 

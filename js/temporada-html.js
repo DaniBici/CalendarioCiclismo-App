@@ -1,11 +1,11 @@
 // HTML y filtros de Temporada, sin DOM: lo usan el navegador y el servidor que publica
 // la página. El estado vive en `S`, compartido con js/temporada.js.
 import { categoryRank, countryFlag, jornadaUrl, raceUrl, raceName, categoryBadge, femaleMark, needsFemaleMark, cleanFeminineName } from './shared.js';
-import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
+import { roadRaceMatches, roadFiltersActive, femaleMarkCat } from './race-filters.js';
 import { t, getLang } from './i18n.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData } from './race-data-modal.js';
-import { CAMP, campUrl, campTitle, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
+import { CAMP, campUrl, campTitle, isOnChampionshipsPage } from './campeonatos-config.js';
 import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 
 export const S = {
@@ -14,7 +14,7 @@ export const S = {
   // Ids de los grupos desplegados: sobreviven a los repintados y a la vuelta desde una carrera.
   expandedChallenges: new Set(),
   activeYear: null,
-  activeCat: 'all',
+  filters: null,           // filtros de carretera (js/race-filters.js); null, sin filtrar
   activeCountry: '',
 };
 
@@ -255,31 +255,12 @@ function tNormalizeCC(code) {
 }
 
 // ── Filtros reutilizables ────
-const _EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RS','RU','SE','SI','SK','SM','TR','UA','VA','XK']);
-
+// Filtros de carretera (js/race-filters.js). Las CN de la página de Campeonatos
+// van en su fila sintética, que se añade después y no se filtra.
 function _applyCategoryFilter(races) {
-  // CN fuera de la página de Campeonatos: mismas reglas que en Hoy y Mes.
-  const championships = races.filter(r => r.uciCategory === 'CN' && !isOnChampionshipsPage(r)
-    && (S.activeCat === 'all' || championshipMatchesCategoryFilter(r, S.activeCat)));
-  races = races.filter(r => r.uciCategory !== 'CN');
-  if (S.activeCat === 'pro') {
-    races = races.filter(r => r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
-  } else if (S.activeCat === 'uwt') {
-    races = races.filter(r => r.uciCategory === '1.UWT' || r.uciCategory === '2.UWT');
-  } else if (S.activeCat === 'wwt') {
-    races = races.filter(r => r.uciCategory === '1.WWT' || r.uciCategory === '2.WWT');
-  } else if (S.activeCat === 'male') {
-    races = races.filter(r => (r.gender === 'male' || isGenderNeutral(r) || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
-  } else if (S.activeCat === 'female') {
-    races = races.filter(r => (r.gender === 'female' || isGenderNeutral(r) || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
-  }
-  if (S.activeCat !== 'all') {
-    races = races.filter(r => {
-      if (r.uciCategory === 'WC' || r.uciCategory === 'CC') return /europa|mundo/i.test(r.name || '');
-      return true;
-    });
-  }
-  return [...races, ...championships];
+  races = races.filter(r => r.uciCategory !== 'CN' || !isOnChampionshipsPage(r));
+  if (!roadFiltersActive(S.filters)) return races;
+  return races.filter(r => roadRaceMatches(r, S.filters));
 }
 
 function _applyCountryFilter(races) {
@@ -288,11 +269,8 @@ function _applyCountryFilter(races) {
 }
 
 function _applyCategoryFilterCG(challengeGroups) {
-  if (S.activeCat === 'male') return challengeGroups.filter(cg => cg.gender !== 'female' && cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  if (S.activeCat === 'female') return challengeGroups.filter(cg => cg.gender === 'female' && cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  if (S.activeCat === 'uwt' || S.activeCat === 'wwt') return [];
-  if (S.activeCat === 'pro') return challengeGroups.filter(cg => cg.uciCategory !== '1.2' && cg.uciCategory !== '2.2');
-  return challengeGroups;
+  if (!roadFiltersActive(S.filters)) return challengeGroups;
+  return challengeGroups.filter(cg => roadRaceMatches(cg, S.filters));
 }
 
 function _applyCountryFilterCG(challengeGroups) {
@@ -380,8 +358,8 @@ function _lastDateKeyGroup(cg) {
 
 function _buildSortedItems(standaloneRaces, challengeGroups) {
   const items = [
-    ...standaloneRaces.map(r => ({ type: 'race', data: r, sortKey: _firstDateKey(r), endKey: _lastDateKey(r), rankVal: categoryRank(r.uciCategory, r.name, r.countryCode) })),
-    ...challengeGroups.map(cg => ({ type: 'challenge', data: cg, sortKey: _firstDateKeyGroup(cg), endKey: _lastDateKeyGroup(cg), rankVal: categoryRank(cg.uciCategory || '1.1', cg.name, cg.countryCode) })),
+    ...standaloneRaces.map(r => ({ type: 'race', data: r, sortKey: _firstDateKey(r), endKey: _lastDateKey(r), rankVal: categoryRank(r.uciCategory, r.name) })),
+    ...challengeGroups.map(cg => ({ type: 'challenge', data: cg, sortKey: _firstDateKeyGroup(cg), endKey: _lastDateKeyGroup(cg), rankVal: categoryRank(cg.uciCategory || '1.1', cg.name) })),
   ];
   items.sort((a, b) => {
     if (a.sortKey !== b.sortKey) return a.sortKey.localeCompare(b.sortKey);
@@ -493,7 +471,7 @@ function renderRaceRow(race, name = raceName(race)) {
 
   const flag    = race.hideFlag ? '' : countryFlag(race.countryCode);
   const cat     = race.uciCategory || '';
-  const isFemale = needsFemaleMark(race, S.activeCat);
+  const isFemale = needsFemaleMark(race, femaleMarkCat(S.filters));
   const colorStyle = `--rc:${raceColor(race.colorHex)}`;
   const isPlaceholder = !hasDays;
   // Los Campeonatos Nacionales no llevan logo: sin hueco.
@@ -506,7 +484,7 @@ function renderRaceRow(race, name = raceName(race)) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" ${LOGO_ONERROR}>`
       : logoPlaceholderHtml('t-race__logo-empty')
     }
-    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, S.activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name${race.isCancelled ? ' t-race__name--cancelled' : ''}">${cleanFeminineName(name, femaleMarkCat(S.filters))}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -542,8 +520,8 @@ function renderChallengeGroup(cg) {
   const expanded   = S.expandedChallenges.has(cg.id);
   const panelId    = `cg-panel-${cg.id}`;
 
-  const showFemale = needsFemaleMark(cg, S.activeCat);
-  const displayName = cleanFeminineName(cg.name, S.activeCat);
+  const showFemale = needsFemaleMark(cg, femaleMarkCat(S.filters));
+  const displayName = cleanFeminineName(cg.name, femaleMarkCat(S.filters));
   const femaleSuffix = showFemale
     ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
     : '';

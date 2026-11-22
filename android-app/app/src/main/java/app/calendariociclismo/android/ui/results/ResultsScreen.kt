@@ -441,36 +441,30 @@ private fun ResultsContent(
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.background),
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                        ) {
+                        // Cabecera fija: pestañas de clasificación y, debajo, el
+                        // estado («Etapa · Oficial») con el filtro de equipos. En
+                        // carreras de un día solo lleva la línea de estado.
+                        if (hasClassTabs) {
+                            Spacer(Modifier.height(4.dp))
                             ResultsClassTabsBar(
                                 stages = activeStages,
                                 classificationConfig = data.classificationConfig,
                                 activeClassKind = activeStage.classKind,
                                 isEn = isEn,
-                                teamsAvailable = teamsAvailable,
-                                selectedTeam = selectedTeam,
                                 onSelectClass = { activeClassKind = it },
-                                onSelectTeam = { selectedTeam = it },
-                                publicationStage = if (hasClassTabs) null else activeStage,
                             )
                         }
-                        // Con pestañas, el estado va en la línea del título de
-                        // la clasificación («Etapa · Oficial»); sin ellas, en la
-                        // fila del filtro de equipos.
-                        if (hasClassTabs) {
-                            val config = data.classificationConfig.firstOrNull { it.classKind == activeStage.classKind }
-                            val classificationLabel = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
-                                ?: classLabel(activeStage.classKind)
-                            ResultsPublicationStatus(
-                                stage = activeStage,
-                                classificationLabel = classificationLabel,
-                                showClassificationLabel = true,
-                            )
-                        }
+                        val config = data.classificationConfig.firstOrNull { it.classKind == activeStage.classKind }
+                        val classificationLabel = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
+                            ?: classLabel(activeStage.classKind)
+                        ResultsStatusFilterRow(
+                            stage = activeStage,
+                            classificationLabel = classificationLabel,
+                            showClassificationLabel = hasClassTabs,
+                            teamsAvailable = teamsAvailable,
+                            selectedTeam = selectedTeam,
+                            onSelectTeam = { selectedTeam = it },
+                        )
                         ResultsLastUpdate(activeStage)
                         Spacer(Modifier.height(4.dp))
                         tableHeader?.let { header ->

@@ -35,7 +35,10 @@ const SYNC_STOP_OFFSET_MINUTES = 2160;
 // autonómico y con la misma tabla. «ELITE FEM.» no entra: excluye a las Sub-23
 // de la manga conjunta, que rfec.com publica como «FEM ELITE-SUB23». Castilla y
 // León (fedciclismocyl.com) usa «ELITE/SUB23», «ELITE SUB 23 FEM» y «JUNIOR FEM».
-export const SMARTWEB_LABELS = Object.freeze({ ME: ['ELITE-SUB23', 'ELITE/SUB23'], WE: ['FEM ELITE-SUB23', 'ELITE SUB 23 FEM'], MJ: ['JUNIOR'],
+// Madrid (fmciclismo.com) publica la manga conjunta como «ELITE FEM. - SUB-23 FEM.»
+// (normalizada a «ELITE FEM.-SUB23 FEM.»), que sí es WE y no el «ELITE FEM.» de rfec.com.
+// Euskadi (fvascicli.eus; Zornotzako Ziklokrosa y Tolosa) publica la manga conjunta como «OPEN» y «FEM OPEN».
+export const SMARTWEB_LABELS = Object.freeze({ ME: ['ELITE-SUB23', 'ELITE/SUB23', 'OPEN'], WE: ['FEM ELITE-SUB23', 'ELITE SUB 23 FEM', 'ELITE FEM.-SUB23 FEM.', 'FEM OPEN'], MJ: ['JUNIOR'],
   WJ: ['FEM JUNIOR', 'JUNIOR FEM.', 'JUNIOR FEM'],
   MU: ['SUB23'], WU: ['FEM SUB23', 'SUB23 FEM.', 'SUB23-FEM.'] });
 

@@ -66,14 +66,14 @@ export function publicarInscritosSinLista(activos, salida, escribir, conservar =
  * Lo que publica la familia del mercado y lee su JS. `tablas`: volcados de
  * tools/site/prerender-fichajes.sql y mercado-plantillas.sql.
  */
-export async function datosMercado({ seasons, prevSeasons, transfers, men, women, extraTeams, afiliaciones, plantillaHombres, plantillaMujeres }) {
+export async function datosMercado({ seasons, prevSeasons, transfers, men, women, extraTeams, teamCountries = [], afiliaciones, plantillaHombres, plantillaMujeres }) {
   const { installBrowserEnv } = await import('../site/prerender-jornadas.mjs');
   const pedir = globalThis.fetch;
   installBrowserEnv('es');
   globalThis.fetch = pedir;
   const { attachRiders, buildMarket, hasTeamView, rosterFromRows, rosterGender } = await import('../../js/fichajes-html.js');
   const movimientos = attachRiders(transfers, men, women);
-  const market = buildMarket({ seasons, prevSeasons, transfers: movimientos, extraTeams });
+  const market = buildMarket({ seasons, prevSeasons, transfers: movimientos, extraTeams, teamCountries });
   const hombres = new Map(plantillaHombres.map(ficha => [ficha.id, ficha]));
   const mujeres = new Map(plantillaMujeres.map(ficha => [ficha.id, ficha]));
   const rosters = {};
@@ -84,7 +84,7 @@ export async function datosMercado({ seasons, prevSeasons, transfers, men, women
     const fichas = (tabla, nombre) => filas.filter(fila => (fila.riderGender || genero) === nombre).map(fila => tabla.get(fila.riderId)).filter(Boolean);
     rosters[teamId] = rosterFromRows(filas, fichas(hombres, 'male'), fichas(mujeres, 'female'));
   }
-  return { seasons, prevSeasons, transfers: movimientos, extraTeams, rosters };
+  return { seasons, prevSeasons, transfers: movimientos, extraTeams, teamCountries, rosters };
 }
 
 /** Filas de Campeonatos Nacionales, con lo que embebe la lectura de js/campeonatos.js. `tablas`: campeonatos.sql. */

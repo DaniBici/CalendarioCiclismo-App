@@ -45,7 +45,7 @@ const LEER = `(async () => {
     vacio: limpio(document.querySelector('#raceList .empty-state')?.textContent),
     fecha: limpio(document.getElementById('agendaDate')?.textContent),
     barra: [...document.querySelectorAll('#dateBar button')].map(b => [b.className.split(' ').sort().join('.'), b.getAttribute('aria-label'), b.getAttribute('aria-current'), b.dataset.dk, b.dataset.direction, limpio(b.textContent)].join('~')).join('|'),
-    filtros: [...document.querySelectorAll('#agendaFilterCats .tcat-btn')].map(b => b.dataset.cat + ':' + b.getAttribute('aria-pressed') + ':' + b.style.display).join('|'),
+    filtros: [...document.querySelectorAll('#agendaFilterMenu [data-group]')].map(b => b.dataset.value + ':' + b.getAttribute('aria-checked')).join('|') + '|' + document.getElementById('agendaFilterBtn')?.className,
   };
 })()`;
 
@@ -217,15 +217,22 @@ if (!SOLO || SOLO === 'funciones') {
     const ruta = decodeURI(await tab.valor('location.pathname'));
     return { ok: pulsado && ruta.startsWith('/resultados/'), detalle: ruta };
   });
-  await funcion('Filtro de categoría', ESCRITORIO, D, 'Europe/Madrid', async tab => {
+  await funcion('Filtros', ESCRITORIO, D, 'Europe/Madrid', async tab => {
     const antes = await tab.valor(estado);
-    await tab.valor(clic('.tcat-btn[data-cat="uwt"]'));
+    await tab.valor(clic('#agendaFilterBtn'));
     await espera(1500);
+    await tab.valor(clic('#agendaFilterMenu [data-value="pro"]'));
+    await tab.valor(clic('#agendaFilterMenu [data-value="dev"]'));
+    await espera(800);
     const despues = await tab.valor(estado);
-    return { ok: await tab.valor(`document.querySelector('.tcat-btn[data-cat="uwt"]').getAttribute('aria-pressed') === 'true'`), detalle: { antes: antes.tarjetas, despues: despues.tarjetas, activa: despues.activa } };
+    const ok = await tab.valor(`document.getElementById('agendaFilterBtn').classList.contains('agenda-filter-btn--active')`);
+    await tab.valor(clic('#agendaFilterClear'));
+    await tab.valor(`localStorage.removeItem('cc_road_filters')`);
+    return { ok, detalle: { antes: antes.tarjetas, despues: despues.tarjetas, activa: despues.activa } };
   });
   await funcion('Ordenar por Hora TV', ESCRITORIO, D, 'Europe/Madrid', async tab => {
-    await tab.valor(`(() => { const s = document.getElementById('agendaSortSelect'); s.value = 'tvtime'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await tab.valor(clic('#agendaSortBtn'));
+    await tab.valor(clic('#agendaSortMenu [data-sort="tvtime"]'));
     await espera(1500);
     const despues = await tab.valor(estado);
     return { ok: despues.tarjetas > 0, detalle: despues.tarjetas };

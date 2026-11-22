@@ -13,9 +13,13 @@
 //  las emisiones, sin updatedAt, y la temporada CX.
 // ─────────────────────────────────────────────────────────────────
 import { supabase, setMetaProperty, filterBroadcastsByRegion, esc } from './shared.js';
-import { getLang, initI18n } from './i18n.js';
+import { getLang, t, initI18n } from './i18n.js';
+import { filtersActive, bindFilterMenu } from './components/filter-menu.js';
+import { bindMenuButtons } from './components/menu-button.js';
+import { patchHtml } from './dom-patch.js';
+import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, CX_FILTERS_KEY, cxFilterGroups, loadRoadFilters, loadCxFilters, roadRaceMatches, cxRaceMatches, filterLabels } from './race-filters.js';
 import { fetchRoadVideoDays, roadVideoEntries, cxVideoEntries, videoFeedDays, latestVideoDate } from './services/video-feed-entries.js';
-import { videoDaysHtml, videosEmptyHtml, videosHeroHtml, videosMoreHtml, videosSwitchHtml } from './videos-feed-html.js';
+import { videoDaysHtml, videosEmptyHtml, videosHeroHtml, videosMoreHtml, videosSwitchHtml, videosFilterSlotHtml } from './videos-feed-html.js';
 import { bindVideoCards } from './stage/videos-panel.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
 import { cxSeason } from './cx/presentation.js';
@@ -80,19 +84,53 @@ async function init() {
   let loadedAt = 0;
   let busy = false;
 
-  const cxEntries = () => cxVideoEntries(cxRaces, filterBroadcastsByRegion);
+  // Filtros de carreras: la misma selección de Hoy, Calendario y Resultados
+  // (js/race-filters.js), por disciplina.
+  const cxGroups = cxFilterGroups();
+  let roadFilters = loadRoadFilters();
+  let cxFilters = loadCxFilters(cxGroups);
+  const FILTER_MENUS = {
+    road: { idPrefix: 'videosRoadFilter', groups: ROAD_FILTER_GROUPS, storageKey: ROAD_FILTERS_KEY, get: () => roadFilters, set: filters => { roadFilters = filters; } },
+    cx: { idPrefix: 'videosCxFilter', groups: cxGroups, storageKey: CX_FILTERS_KEY, get: () => cxFilters, set: filters => { cxFilters = filters; } },
+  };
+  const FILTER_ACTIVE_CLASS = 'agenda-filter-btn--active';
+  const filterSlotHtml = () => videosFilterSlotHtml(view, FILTER_MENUS[view].get());
+  const filteredEmptyHtml = () => `<div class="startlist-empty">${esc(t('filter.resultsEmpty'))}</div>`;
 
-  function render() {
+  const cxEntries = () => cxVideoEntries(cxRaces, filterBroadcastsByRegion);
+  const roadEntries = days => roadVideoEntries(days, filterBroadcastsByRegion);
+  const visibleEntries = (entries, which) => entries.filter(entry => which === 'cx'
+    ? cxRaceMatches(entry.race, cxFilters, cxGroups) : roadRaceMatches(entry.race, roadFilters));
+  const filtersOn = which => which === 'cx' ? filtersActive(cxGroups, cxFilters) : filtersActive(ROAD_FILTER_GROUPS, roadFilters);
+
+  function render({ panelOnly = false } = {}) {
     const days = view === 'cx'
-      ? videoFeedDays([], cxEntries(), { fromKey: from.cx, toKey: todayKey })
-      : videoFeedDays(roadVideoEntries(roadDays, filterBroadcastsByRegion), [], { fromKey: from.road, toKey: todayKey });
-    let body = days.length ? videoDaysHtml(days, { isEn, locale, rounds: cxRounds }) : videosEmptyHtml(isEn, view === 'cx');
+      ? videoFeedDays([], visibleEntries(cxEntries(), 'cx'), { fromKey: from.cx, toKey: todayKey })
+      : videoFeedDays(visibleEntries(roadEntries(roadDays), 'road'), [], { fromKey: from.road, toKey: todayKey });
+    let body = days.length ? videoDaysHtml(days, { isEn, locale, rounds: cxRounds })
+      : filtersOn(view) ? filteredEmptyHtml() : videosEmptyHtml(isEn, view === 'cx');
     if (from[view] > RESULTS_SEASON_START) body += videosMoreHtml(isEn);
-    const html = `${videosHeroHtml(videosSwitchHtml({ view, pinned: roadPinned(), isEn }))}<div id="videosFeedPanel" data-view="${view}">${body}</div>`;
+    // Con la cabecera ya pintada, un filtro solo cambia el panel: su menú sigue abierto.
+    const panel = content.querySelector('#videosFeedPanel');
+    if (panelOnly && panel && panel.dataset.view === view) {
+      panel.innerHTML = body;
+      content.querySelector('#videosMoreBtn')?.addEventListener('click', loadMore);
+      return;
+    }
+    const html = `${videosHeroHtml(videosSwitchHtml({ view, pinned: roadPinned(), isEn }), filterSlotHtml())}<div id="videosFeedPanel" data-view="${view}">${body}</div>`;
     if (!prerendered || htmlFingerprint(html) !== prerendered) content.innerHTML = html;
     prerendered = null;
     delete content.dataset.prerendered;
     content.querySelector('#videosMoreBtn')?.addEventListener('click', loadMore);
+  }
+
+  bindMenuButtons();
+  for (const [which, menu] of Object.entries(FILTER_MENUS)) {
+    bindFilterMenu(content, {
+      idPrefix: menu.idPrefix, groups: menu.groups, storageKey: menu.storageKey, activeClass: FILTER_ACTIVE_CLASS,
+      clearLabel: filterLabels().clearLabel, getFilters: menu.get, setFilters: menu.set, patch: patchHtml,
+      onChange: () => { if (view === which) render({ panelOnly: true }); },
+    });
   }
 
   // Conmutador y chincheta, delegados: el contenido se repinta entero.
@@ -146,9 +184,9 @@ async function init() {
         if (panelView === 'road') {
           const older = await fetchRoadVideoDays(supabase, fromKey, slot.toKey);
           roadDays = [...roadDays, ...older];
-          days = videoFeedDays(roadVideoEntries(older, filterBroadcastsByRegion), [], { fromKey, toKey: slot.toKey });
+          days = videoFeedDays(visibleEntries(roadEntries(older), 'road'), [], { fromKey, toKey: slot.toKey });
         } else {
-          days = videoFeedDays([], cxEntries(), { fromKey, toKey: slot.toKey });
+          days = videoFeedDays([], visibleEntries(cxEntries(), 'cx'), { fromKey, toKey: slot.toKey });
         }
         from[panelView] = fromKey;
       }

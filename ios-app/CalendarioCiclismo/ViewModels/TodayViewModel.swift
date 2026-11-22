@@ -41,8 +41,10 @@ final class TodayViewModel {
     var allRaces: [Race] = []
     var isLoading = false
     var error: String?
-    var activeFilter: Constants.CategoryFilter = .all
-    var sortMode: SortMode = .category
+    /// Orden de la agenda, recordado (`road_sort_mode`).
+    var sortMode: SortMode = SortMode(rawValue: UserDefaults.standard.string(forKey: "road_sort_mode") ?? "") ?? .category {
+        didSet { UserDefaults.standard.set(sortMode.rawValue, forKey: "road_sort_mode") }
+    }
     var nextDayWithRaces: String?
     var hasLoaded = false
     /// Indica que los datos mostrados provienen de la caché offline.
@@ -82,59 +84,13 @@ final class TodayViewModel {
         }
     }
 
-    /// Pin del usuario (UserDefaults), independiente del filtro mostrado. Dentro
-    /// de la ventana de Campeonatos no se aplica; fuera, gobierna `activeFilter`.
-    private var pinnedFilter: Constants.CategoryFilter = .all
-    /// Filtro elegido manualmente DENTRO de la ventana (o nil). Se descarta al
-    /// salir → "fuera funciona normal" (se restaura el pin del usuario).
-    private var champManualFilter: Constants.CategoryFilter?
-
-    /// `true` si la jornada mostrada cae en la ventana de Campeonatos (22-28 jun).
-    var isChampWeekLock: Bool { ChampionshipsConfig.isChampWeekFilterLock(today: dateKey) }
-
-    init() {
-        if let raw = UserDefaults.standard.string(forKey: "defaultFilter"),
-           let stored = Constants.CategoryFilter(rawValue: raw) {
-            pinnedFilter = stored
-        }
-        // El bloqueo se evalúa contra la JORNADA MOSTRADA (al arrancar = hoy), no
-        // contra una fecha fija. Dentro de la ventana → Masculino forzado; fuera →
-        // el pin del usuario.
-        activeFilter = ChampionshipsConfig.isChampWeekFilterLock(today: dateKey)
-            ? ChampionshipsConfig.champWeekHoyDefault
-            : pinnedFilter
-    }
-
-    func setDefaultFilter(_ filter: Constants.CategoryFilter) {
-        pinnedFilter = filter
-        activeFilter = filter
-        UserDefaults.standard.set(filter.rawValue, forKey: "defaultFilter")
-    }
-
-    func clearDefaultFilter() {
-        pinnedFilter = .all
-        activeFilter = .all
-        UserDefaults.standard.removeObject(forKey: "defaultFilter")
-    }
-
-    /// Registra un cambio MANUAL de filtro hecho desde la vista. Dentro de la
-    /// ventana de Campeonatos el cambio es contextual (se recuerda para esos días
-    /// pero no altera el pin del usuario).
-    func selectFilter(_ filter: Constants.CategoryFilter) {
-        if isChampWeekLock { champManualFilter = filter }
-        activeFilter = filter
-    }
-
-    /// Sincroniza el pin del usuario cuando cambia desde otra pantalla. Solo se
-    /// refleja en el filtro mostrado si la jornada actual no está bloqueada.
-    func syncPinnedFilter(_ filter: Constants.CategoryFilter) {
-        pinnedFilter = filter
-        if !isChampWeekLock { activeFilter = filter }
-    }
+    /// Filtros de carretera, recordados y compartidos con Mes y Temporada
+    /// (`RaceFilterStore`).
+    var filter: RoadRaceFilter { RaceFilterStore.shared.road }
 
     /// Items filtrados y ordenados.
     var displayItems: [EnrichedRaceDay] {
-        let filtered = RaceLogic.filterByCategory(items, category: activeFilter)
+        let filtered = filter.apply(items)
         return RaceLogic.sortTodayAgenda(filtered, sortMode: sortMode, featuredRaceIds: featuredRaceIds)
     }
 
@@ -328,14 +284,9 @@ final class TodayViewModel {
             // Buscar siguiente día con carreras (respetando filtro activo)
             nextDayWithRaces = nextDayMatchingFilter(after: dateKey)
 
-            // Auto-navegar si no hay items visibles. Solo con el filtro "Todas"
-            // (evita saltos sorpresa cuando el usuario filtra a propósito), CON UNA
-            // EXCEPCIÓN: dentro de la ventana de Campeonatos el filtro Masculino
-            // está FORZADO (no lo eligió el usuario) y los días 22-23 no tienen
-            // carreras → se auto-avanza igual al siguiente día con carreras
-            // masculinas (el escaneo respeta el filtro activo, sin bucle).
-            let champLock = ChampionshipsConfig.isChampWeekFilterLock(today: dateKey)
-            if (activeFilter == .all || champLock), displayItems.isEmpty, let next = nextDayWithRaces {
+            // Sin carreras visibles (con o sin filtros), salta siempre al
+            // siguiente día que las tenga.
+            if displayItems.isEmpty, let next = nextDayWithRaces {
                 isLoading = false
                 isNetworkLoading = false
                 goToDate(next)
@@ -414,24 +365,8 @@ final class TodayViewModel {
         do { return .success(try await operation()) } catch { return .failure(error) }
     }
 
-    /// Ajusta `dateKey` y `activeFilter` según el bloqueo de Campeonatos de la
-    /// jornada destino (entrar/salir de la ventana). NO dispara la carga.
-    func applyDateForChampLock(_ newDate: String) {
-        let wasLock = ChampionshipsConfig.isChampWeekFilterLock(today: dateKey)
-        let nowLock = ChampionshipsConfig.isChampWeekFilterLock(today: newDate)
-        if nowLock && !wasLock {
-            // Entramos → Masculino forzado (o el manual previo de esta sesión).
-            activeFilter = champManualFilter ?? ChampionshipsConfig.champWeekHoyDefault
-        } else if !nowLock && wasLock {
-            // Salimos → restaurar el pin del usuario; olvidar el manual de ventana.
-            champManualFilter = nil
-            activeFilter = pinnedFilter
-        }
-        dateKey = newDate
-    }
-
     func goToDate(_ newDate: String) {
-        applyDateForChampLock(newDate)
+        dateKey = newDate
         Task { await loadDay() }
     }
 
@@ -461,7 +396,7 @@ final class TodayViewModel {
     /// de red continúa después sin pantalla de carga. Sin caché cae a la carga
     /// normal (pantalla de marca durante la entrada).
     func navigate(to newDate: String) async {
-        applyDateForChampLock(newDate)
+        dateKey = newDate
         let key = CacheManager.dayKey(dateKey)
         if let cached: DayData = await CacheManager.shared.load(DayData.self, forKey: key) {
             items = cached.raceDays
@@ -494,7 +429,7 @@ final class TodayViewModel {
         for _ in 0..<180 {
             guard let next = DateFormatting.nextDay(candidate) else { break }
             candidate = next
-            if hasMatchingRaces(on: candidate, filter: activeFilter) {
+            if hasMatchingRaces(on: candidate, filter: filter) {
                 return candidate
             }
         }
@@ -509,7 +444,7 @@ final class TodayViewModel {
         for _ in 0..<180 {
             guard let prev = DateFormatting.previousDay(candidate) else { break }
             candidate = prev
-            if hasMatchingRaces(on: candidate, filter: activeFilter) {
+            if hasMatchingRaces(on: candidate, filter: filter) {
                 return candidate
             }
         }
@@ -517,11 +452,11 @@ final class TodayViewModel {
     }
 
     /// Comprueba si hay carreras que coincidan con el filtro en un día dado.
-    private func hasMatchingRaces(on dateKey: String, filter: Constants.CategoryFilter) -> Bool {
+    private func hasMatchingRaces(on dateKey: String, filter: RoadRaceFilter) -> Bool {
         allRaces.contains { race in
             guard !race.isCancelled else { return false }
             guard RaceLogic.isRaceDay(race: race, dateKey: dateKey) else { return false }
-            return RaceLogic.matchesCategory(race, filter: filter)
+            return filter.matches(race)
         }
     }
 }

@@ -684,6 +684,18 @@ window.openStartlistEditor = async function(raceId) {
     document.getElementById('saveStartlistBtn').disabled = true;
     return;
   }
+  // La vista ya no trae la fecha de nacimiento (birthDate es nula para todos los
+  // roles): el editor la toma de riders_men/women, que el panel sí puede leer.
+  let birthDates;
+  try {
+    birthDates = await loadRiderBirthDates(supabase, (riders || []).map(r => r.globalRiderId).filter(Boolean));
+  } catch (error) {
+    content.textContent = `No se pudieron cargar las fechas de nacimiento: ${error.message}`;
+    document.getElementById('saveStartlistBtn').disabled = true;
+    return;
+  }
+  if (panelState._editingRaceId !== raceId) return;
+  (riders || []).forEach(r => { r.birthDate = birthDates.get(r.globalRiderId) ?? null; });
 
   const ridersByTeam = {};
   (riders || []).forEach(r => {
@@ -940,4 +952,22 @@ async function saveStartlistEdits() {
   } finally {
     _slSaving = false; button.disabled = false; editor.inert = false;
   }
+}
+
+// Fecha de nacimiento de los corredores dados (riders_men y riders_women; los ids
+// son únicos entre géneros). Por tramos para no alargar la URL de la consulta.
+// Un error se propaga: el editor no debe guardar sin estos datos.
+async function loadRiderBirthDates(supabase, ids) {
+  const birthDates = new Map();
+  const unique = [...new Set(ids)];
+  for (let i = 0; i < unique.length; i += 200) {
+    const chunk = unique.slice(i, i + 200);
+    const results = await Promise.all(['riders_men', 'riders_women'].map(table =>
+      supabase.from(table).select('id, birthDate').in('id', chunk)));
+    for (const { data, error } of results) {
+      if (error) throw error;
+      (data || []).forEach(row => { if (row.birthDate) birthDates.set(row.id, row.birthDate); });
+    }
+  }
+  return birthDates;
 }

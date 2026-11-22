@@ -33,7 +33,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { STAGE_SIBLING_COLUMNS, buildInhouseResultsMatcher, firstTechnicalGuide, stageSiblings } from '../../js/services/races.js';
 
@@ -259,7 +259,7 @@ export function composePage(source, { container, headerInner, html, fingerprint,
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, main.index)
     + `<main id="${container}"${mainAttrs} data-prerendered="${attr(fingerprint)}"${style == null ? '' : ` style="${attr(style)}"`}>\n${html}\n`
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
 }
 
 /** Atributos de la cabecera vacía: data-back y, si los hay, data-lang y data-active. */

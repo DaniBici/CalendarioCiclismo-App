@@ -13,13 +13,14 @@ object Constants {
 
     /** Orden de importancia de las categorías UCI (menor = más importante). */
     val UCI_ORDER: Map<String, Double> = mapOf(
-        "WC" to 1.0, "CC" to 2.0,
-        "1.UWT" to 3.0, "2.UWT" to 4.0,
-        "CN" to 4.5,
-        "1.WWT" to 5.0, "2.WWT" to 6.0,
+        "WC" to 1.0,
+        "1.UWT" to 2.0, "2.UWT" to 3.0, "1.WWT" to 4.0, "2.WWT" to 5.0,
+        "CC" to 6.0,
         "1.Pro" to 7.0, "2.Pro" to 8.0,
         "1.1" to 9.0, "2.1" to 10.0,
-        "1.2" to 11.0, "2.2" to 12.0, "1.2U" to 13.0, "2.2U" to 14.0,
+        "CN" to 12.0,
+        "1.2" to 13.0, "2.2" to 14.0, "1.2U" to 15.0, "2.2U" to 16.0,
+        "1.Ncup" to 17.0, "2.Ncup" to 18.0, "1.NE" to 19.0, "2.NE" to 20.0,
     )
 
     // ── Tipos de etapa ────────────────────────────────────────────
@@ -91,26 +92,4 @@ object Constants {
     }
 
     val ASSET_ORDER: List<String> = listOf("technicalGuide", "startOrder", "roadbook", "profile", "ports", "map", "live_text")
-
-    // ── Países ────────────────────────────────────────────────────
-
-    val EUROPE_COUNTRIES: Set<String> = setOf(
-        "AD", "AL", "AT", "BA", "BE", "BG", "BY", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
-        "FI", "FR", "GB", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MC",
-        "MD", "ME", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "RS", "RU", "SE", "SI", "SK",
-        "SM", "TR", "UA", "VA", "XK",
-    )
-
-    val ASIA_1_COUNTRIES: Set<String> = setOf("CN", "TH", "JP", "TW", "KR", "HK", "AZ")
-
-    // ── Filtros de categoría ──────────────────────────────────────
-
-    enum class CategoryFilter(val id: String, @StringRes val labelRes: Int) {
-        ALL("all", R.string.filter_all),
-        PRO("pro", R.string.filter_pro),
-        UWT("uwt", R.string.filter_uwt),
-        WWT("wwt", R.string.filter_wwt),
-        MALE("male", R.string.filter_male),
-        FEMALE("female", R.string.filter_female);
-    }
 }

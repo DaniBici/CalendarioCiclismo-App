@@ -3,7 +3,8 @@
 // (docs/plans/contenido-generado-build.md, «Fichajes»).
 //
 // Escribe en _site/fichajes/index.html y _site/en/transfers/index.html la
-// portada del mercado (feed y equipos WT) que pinta js/fichajes.js, con el
+// portada del mercado (pantalla única: filtros, feed y equipos WT) que pinta
+// js/fichajes.js, con el
 // mismo código (js/fichajes-html.js y js/header-html.js) importado en Node con
 // el entorno mínimo de navegador de prerender-jornadas.mjs:
 //
@@ -23,7 +24,8 @@
 //   la página ES; all: ES y EN.
 // - Datos: por la API pública con SUPABASE_ANON_KEY, con las lecturas de
 //   fetchMarket() de js/fichajes.js (temporadas del mercado y en curso,
-//   movimientos, fichas y equipos fuera de ambas temporadas). En local, --data
+//   movimientos, fichas, equipos fuera de ambas temporadas y país de los equipos
+//   de la temporada). En local, --data
 //   con el volcado de prerender-fichajes.sql (scripts/db/sql.mjs --read-only).
 // - La portada no depende de la zona, la región ni la hora (fechas del feed
 //   con tablas fijas): un proceso por idioma (el idioma se fija al cargar
@@ -36,7 +38,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { headerOptions, installBrowserEnv, pageErrors, readDump, summarize } from './prerender-jornadas.mjs';
 import { apiFetch, inFilter } from './prerender-inscritos.mjs';
@@ -69,8 +71,10 @@ export function parseScope(value) {
 
 // ── Datos ──────────────────────────────────────────────────────────────────
 // Mismas lecturas que fetchMarket() (js/fichajes.js): mismas columnas,
-// filtros y orden, con desempate por id en las paginadas. Las fichas y los
-// equipos fuera de ambas temporadas, por tramos de API_IN_CHUNK ids.
+// filtros y orden, con desempate por id en las paginadas. Las fichas, los
+// equipos fuera de ambas temporadas y el país de los equipos de la temporada,
+// por tramos de API_IN_CHUNK ids. Las fichas salen de riders_men/women con
+// RIDER_COLUMNS (sin fecha de nacimiento).
 const columns = list => list.replace(/\s+/g, '');
 
 const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_CHUNK) },
@@ -80,24 +84,26 @@ const chunked = values => Array.from({ length: Math.ceil(values.length / API_IN_
 // navegador instalado (js/shared.js lo necesita al cargarse).
 async function loadApiData(market, key, fetchImpl = fetch) {
   if (!key) throw new Error('Falta SUPABASE_ANON_KEY para leer los datos de fichajes');
-  const { SEASON, PREV_SEASON, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS } = market;
+  const { SEASON, PREV_SEASON, SEASON_COLUMNS, PREV_SEASON_COLUMNS, RIDER_COLUMNS, RIDER_TABLES, TEAM_COUNTRY_COLUMNS } = market;
   const queries = {
     seasons: `team_seasons?select=${columns(SEASON_COLUMNS)}&year=eq.${SEASON}&order=teamId.asc,id.asc`,
     prevSeasons: `team_seasons?select=${columns(PREV_SEASON_COLUMNS)}&year=eq.${PREV_SEASON}&order=teamId.asc,id.asc`,
     transfers: `rider_transfers?select=*&season=eq.${SEASON}&order=announcedAt.desc,createdAt.desc,id.asc`,
   };
   const byId = {
-    men: filter => `riders_men?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
-    women: filter => `riders_women?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
+    men: filter => `${RIDER_TABLES.male}?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
+    women: filter => `${RIDER_TABLES.female}?select=${columns(RIDER_COLUMNS)}&${filter}&order=id.asc`,
     extraTeams: filter => `teams?select=id,name&${filter}&order=id.asc`,
+    teamCountries: filter => `teams?select=${columns(TEAM_COUNTRY_COLUMNS)}&${filter}&order=id.asc`,
   };
   const names = Object.keys(queries);
   const rows = await apiFetch(names.map(name => ({ path: queries[name] })), key, { fetchImpl });
-  const data = { ...Object.fromEntries(names.map((name, at) => [name, rows[at]])), men: [], women: [], extraTeams: [] };
+  const data = { ...Object.fromEntries(names.map((name, at) => [name, rows[at]])), men: [], women: [], extraTeams: [], teamCountries: [] };
   const ids = {
     men: market.marketRiderIds(data.transfers, 'male'),
     women: market.marketRiderIds(data.transfers, 'female'),
     extraTeams: market.marketExtraTeamIds(data.seasons, data.prevSeasons, data.transfers),
+    teamCountries: market.marketSeasonTeamIds(data.seasons),
   };
   const parts = Object.entries(ids).flatMap(([name, values]) =>
     chunked(values).map(chunk => ({ name, path: byId[name](inFilter('id', chunk)) })));
@@ -126,7 +132,7 @@ export function composePage(source, { headerInner, html, fingerprint }) {
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, mainEnd)
     + `\n    <div id="transfersContent" data-prerendered="${attr(fingerprint)}">${html}</div>\n  `
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
 }
 
 /**

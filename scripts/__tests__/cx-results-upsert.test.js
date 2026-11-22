@@ -136,18 +136,23 @@ describe('preparación del contrato CX', () => {
     expect(() => prepare(input, { status: 'official', officialUciResults: true })).toThrow(/inválidos/);
   });
   it('rechaza disciplina, competición, temporada y Race ID sin correspondencia verificada', () => {
-    for (const edit of [input => input.document.disciplineId = 10, input => input.context.link = null,
-      input => input.context.link.disciplineId = 10, input => input.document.competitionId = 101,
-      input => input.document.seasonId = 455, input => input.context.link.seasonId = null,
-      input => input.document.seasonKey = '2025-26',
-      input => input.context.link.uciRaceId = 11]) {
-      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow();
+    for (const [edit, motivo] of [[input => input.document.disciplineId = 10, /Contrato CX/],
+      [input => input.context.link = null, /Correspondencia DataRide no verificada/],
+      [input => input.context.link.disciplineId = 10, /Correspondencia DataRide no verificada/],
+      [input => input.document.competitionId = 101, /Correspondencia DataRide no verificada/],
+      [input => input.document.seasonId = 455, /Correspondencia DataRide no verificada/],
+      [input => input.context.link.seasonId = null, /Correspondencia DataRide no verificada/],
+      [input => input.document.seasonKey = '2025-26', /Edición DataRide CX distinta/],
+      [input => input.context.link.uciRaceId = 11, /Race ID de DataRide no corresponde/]]) {
+      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow(motivo);
     }
   });
   it('rechaza marzo–julio, finales fuera de ventana y fecha multidía errónea', () => {
-    for (const edit of [input => input.context.race.dateKey = '2027-03-01', input => input.context.race.endDateKey = '2027-03-01',
-      input => input.document.categories[0].dateKey = '2026-09-13', input => input.context.categories[0].dateKey = '2026-09-11']) {
-      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow();
+    for (const [edit, motivo] of [[input => input.context.race.dateKey = '2027-03-01', /agosto–febrero/],
+      [input => input.context.race.endDateKey = '2027-03-01', /agosto–febrero/],
+      [input => input.document.categories[0].dateKey = '2026-09-13', /Fecha civil/],
+      [input => input.context.categories[0].dateKey = '2026-09-11', /Fecha civil/]]) {
+      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow(motivo);
     }
   });
   it('omite canceladas, mangas inexistentes, bloqueadas y filas aún no publicadas', () => {
@@ -168,11 +173,11 @@ describe('preparación del contrato CX', () => {
     expect(() => prepare(input, { status: 'official' })).toThrow(/inválidos/);
   });
   it('rechaza puesto/conflicto/ID/dorsal duplicados y tiempo inseguro', () => {
-    for (const edit of [input => input.document.categories[0].rows[0].sourceConflict = 'Conflicto',
-      input => input.document.categories[0].rows[0].timeSeconds = 9007199254740992,
-      input => input.document.categories[0].rows.push({ ...input.document.categories[0].rows[0], rank: 2 }),
-      input => input.document.categories.push(input.document.categories[0])]) {
-      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow();
+    for (const [edit, motivo] of [[input => input.document.categories[0].rows[0].sourceConflict = 'Conflicto', /Conflicto/],
+      [input => input.document.categories[0].rows[0].timeSeconds = 9007199254740992, /Segundos no representables/],
+      [input => input.document.categories[0].rows.push({ ...input.document.categories[0].rows[0], rank: 2 }), /Ficha CX o dorsal duplicados/],
+      [input => input.document.categories.push(input.document.categories[0]), /Categoría no reconocida o duplicada/]]) {
+      const input = fixture(); edit(input); expect(() => prepare(input)).toThrow(motivo);
     }
   });
   it('exige fuente de bonos/ajustes y mantiene puntos separados de segundos', () => {

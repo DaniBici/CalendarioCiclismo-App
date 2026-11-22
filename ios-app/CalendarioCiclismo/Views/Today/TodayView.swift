@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Wrapper Identifiable para usar un raceId con `.sheet(item:)`.
 struct IdentifiableID: Identifiable, Hashable {
@@ -8,7 +9,6 @@ struct IdentifiableID: Identifiable, Hashable {
 /// Vista principal de agenda del día — equivalente a `index.html` + `app.js`.
 struct TodayView: View {
     var initialDateKey: String?
-    var initialFilter: Constants.CategoryFilter?
     /// Binding al `NavigationPath` del `NavigationStack` que contiene este Today.
     /// Solo lo pasa el tab Hoy (ContentView), cuyo stack usa `path:` explícito.
     /// Cuando existe, los pushes programáticos (p. ej. Campeonatos desde el
@@ -43,14 +43,10 @@ struct TodayView: View {
     @State private var highlightedStageDayId: IdentifiableID?
     @State private var startlistRouteRaceId: IdentifiableID?
     @State private var startOrderRouteRaceDayId: IdentifiableID?
+    /// Burbujas de la primera visita (Filtros y Ordenar).
+    @State private var tips = TodayTips.group(.road)
     @State private var showSettings = false
     @State private var safariURL: URL?
-    @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
-    @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
-    /// Semana de Campeonatos (22-28 jun): cuando la JORNADA MOSTRADA cae en la
-    /// ventana, "Hoy" impone Masculino por defecto, solo ofrece Todas/Pro/Masc/Fem
-    /// y no permite fijar otro predeterminado. Reactivo al día mostrado.
-    private var champWeekLock: Bool { viewModel.isChampWeekLock }
     @State private var contentOffset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
     @State private var isAnimatingNavigation = false
@@ -72,32 +68,6 @@ struct TodayView: View {
 
     var body: some View {
         withObservers
-            .alert(
-                pendingDefaultFilter?.rawValue == storedDefaultFilter
-                    ? localeService.t("Quitar filtro por defecto", "Remove default filter")
-                    : localeService.t("Filtro por defecto", "Default filter"),
-                isPresented: Binding(get: { pendingDefaultFilter != nil }, set: { if !$0 { pendingDefaultFilter = nil } }),
-                presenting: pendingDefaultFilter
-            ) { filter in
-                if filter.rawValue == storedDefaultFilter {
-                    Button(localeService.t("Quitar", "Remove"), role: .destructive) { viewModel.clearDefaultFilter(); pendingDefaultFilter = nil }
-                } else {
-                    Button(localeService.t("Establecer", "Set")) { viewModel.setDefaultFilter(filter); pendingDefaultFilter = nil }
-                }
-                Button(localeService.t("Cancelar", "Cancel"), role: .cancel) { pendingDefaultFilter = nil }
-            } message: { filter in
-                if filter.rawValue == storedDefaultFilter {
-                    Text(localeService.t(
-                        "Se eliminará «\(filter.label)» como filtro predeterminado y se mostrarán todas las categorías.",
-                        "«\(filter.label)» will be removed as the default filter and all categories will be shown."
-                    ))
-                } else {
-                    Text(localeService.t(
-                        "El filtro «\(filter.label)» se aplicará como predeterminado en Hoy, Mes y Temporada.",
-                        "The filter «\(filter.label)» will be applied as default in Today, Month and Season."
-                    ))
-                }
-            }
             .onChange(of: network.isOnline) { _, isOnline in
                 guard isOnline else { return }
                 let needsReload = viewModel.isFromCache || viewModel.isUncachedOffline || viewModel.error != nil
@@ -119,22 +89,21 @@ struct TodayView: View {
                     : "\(label), \(LocaleService.t("sin carreras", "no races"))"
                 AccessibilityAnnouncement.announce(msg)
             }
-            .onChange(of: viewModel.activeFilter) { _, _ in
+            .onChange(of: viewModel.filter) { _, _ in
                 viewModel.nextDayWithRaces = viewModel.nextDayMatchingFilter(after: viewModel.dateKey)
+                // Con el filtro nuevo el día queda sin carreras: salta al siguiente que las tenga.
+                // Sin items aún (carga en curso o sin conexión) lo decide `loadDay`.
+                if !viewModel.isLoading, !viewModel.items.isEmpty, viewModel.displayItems.isEmpty,
+                   let next = viewModel.nextDayWithRaces {
+                    animateNavigation(forward: true) { await viewModel.navigate(to: next) }
+                }
             }
             .onChange(of: viewModel.sortMode) { _, _ in
                 Haptics.play(.selection)
             }
-            .onChange(of: storedDefaultFilter) { _, newValue in
-                // El pin pudo cambiar desde otra pantalla (Mes/Temporada). Se
-                // guarda en el VM; solo se refleja en el filtro mostrado si la
-                // jornada actual NO está en la ventana de Campeonatos.
-                let filter = Constants.CategoryFilter(rawValue: newValue) ?? .all
-                viewModel.syncPinnedFilter(filter)
-            }
             .onAppear {
                 AnalyticsService.shared.logScreenView("today", parameters: [
-                    "category_filter": viewModel.activeFilter.rawValue,
+                    "category_filter": viewModel.filter.widgetParameter,
                 ])
             }
     }
@@ -143,10 +112,7 @@ struct TodayView: View {
         configuredView
             .task {
                 guard !viewModel.hasLoaded else { return }
-                // Si el deep link abre una jornada concreta, aplicar la transición
-                // de bloqueo de Campeonatos (puede ser un día de la ventana).
-                if let initial = initialDateKey { viewModel.applyDateForChampLock(initial) }
-                if let filter = initialFilter { viewModel.activeFilter = filter }
+                if let initial = initialDateKey { viewModel.dateKey = initial }
                 await viewModel.loadDay()
             }
             .task(id: scenePhase) {
@@ -472,7 +438,7 @@ struct TodayView: View {
     // MARK: - Sort menu bar
 
     /// Fila de la fecha: día y mes (la tira ya muestra el día de la semana) y,
-    /// a la derecha, «Categoría» y «Ordenar». Los desplegables conservan su
+    /// a la derecha, «Filtros» y «Ordenar». Los desplegables conservan su
     /// ancho; si no cabe, se acorta la fecha.
     @ViewBuilder private var sortMenuBar: some View {
         HStack(spacing: 12) {
@@ -483,8 +449,9 @@ struct TodayView: View {
 
             Spacer(minLength: 0)
 
-            categoryMenu
+            filtersMenu
                 .fixedSize()
+                .todayTip(tips, TodayFiltersTip.self, discipline: .road)
 
             Menu {
                 Picker(localeService.t("Ordenar", "Sort"), selection: $viewModel.sortMode) {
@@ -493,14 +460,9 @@ struct TodayView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text(viewModel.sortMode.label)
-                }
-                .ccFont(.s13, weight: .semibold)
-                .foregroundStyle(.secondary)
+                TodaySortLabel(label: viewModel.sortMode.label)
             }
-            // Control secundario en gris, como `.agenda-sort-select` de la web:
+            // Control secundario en gris, como `.agenda-filter-btn` de la web:
             // el acento queda para la selección.
             .tint(AppTheme.textMuted)
             .accessibilityLabel(localeService.t("Ordenar carreras por \(viewModel.sortMode.label)", "Sort races by \(viewModel.sortMode.label)"))
@@ -508,6 +470,7 @@ struct TodayView: View {
             .accessibilityIdentifier(AccessibilityID.sortMenu)
             .accessibilityInputLabels([localeService.t("Ordenar", "Sort"), localeService.t("Cambiar orden", "Change order"), localeService.t("Orden", "Order")])
             .fixedSize()
+            .todayTip(tips, TodaySortTip.self, discipline: .road)
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -656,64 +619,15 @@ struct TodayView: View {
         }
     }
 
-    // MARK: - Category menu
+    // MARK: - Filters menu
 
-    /// Desplegable «Categoría»: muestra «Categoría» con Todas y, si no, la
-    /// categoría activa, con la chincheta cuando es la predeterminada. Al final,
-    /// fijar o quitar la activa como predeterminada (diálogo de siempre). En la
-    /// semana de Campeonatos solo ofrece sus filtros y no permite fijar.
-    private var categoryMenu: some View {
-        let options = champWeekLock ? ChampionshipsConfig.champWeekHoyFilters : Constants.CategoryFilter.allCases
-        let active = viewModel.activeFilter
-        let canPin = !champWeekLock && active != .all
-        let isPinned = canPin && active.rawValue == storedDefaultFilter
-        let title = active == .all ? localeService.t("Categoría", "Category") : active.label
-        return Menu {
-            Picker(localeService.t("Categoría", "Category"), selection: Binding(
-                get: { viewModel.activeFilter },
-                set: { filter in
-                    guard filter != viewModel.activeFilter else { return }
-                    Haptics.play(.selection)
-                    viewModel.selectFilter(filter)
-                }
-            )) {
-                ForEach(options) { filter in
-                    Text(filter.label).tag(filter)
-                }
-            }
-            if canPin {
-                Divider()
-                Button {
-                    Haptics.play(.primaryAction)
-                    pendingDefaultFilter = active
-                } label: {
-                    Label(isPinned
-                          ? localeService.t("Quitar «\(active.label)» como predeterminada", "Remove «\(active.label)» as default")
-                          : localeService.t("Fijar «\(active.label)» como predeterminada", "Set «\(active.label)» as default"),
-                          systemImage: isPinned ? "pin.slash" : "pin")
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
-                Text(title)
-                if isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .ccFont(.s13, weight: .semibold)
-            .foregroundStyle(.secondary)
-            .contentShape(Rectangle())
-        }
-        // Control secundario en gris, como «Ordenar».
-        .tint(AppTheme.textMuted)
-        .accessibilityLabel(isPinned
-            ? localeService.t("Categoría: \(title), predeterminada", "Category: \(title), default")
-            : localeService.t("Categoría: \(title)", "Category: \(title)"))
-        .accessibilityHint(localeService.t("Pulsa dos veces para elegir la categoría", "Double tap to choose the category"))
-        .accessibilityIdentifier(AccessibilityID.categoryFilters)
+    /// «Filtros»: nivel (WorldTour, Profesional, .2) y género, combinables y
+    /// recordados (`RaceFilterStore`), con el menú de Fichajes.
+    private var filtersMenu: some View {
+        RoadFiltersMenu { isActive in RaceFiltersMenuLabel(isActive: isActive) }
+            // Control secundario en gris, como «Ordenar»; con filtros, el acento.
+            .tint(AppTheme.textMuted)
+            .accessibilityIdentifier(AccessibilityID.categoryFilters)
     }
 
     // MARK: - Race item
@@ -754,7 +668,7 @@ struct TodayView: View {
                 RaceCardView(
                     item: item,
                     refreshToken: viewModel.refreshToken,
-                    activeFilter: viewModel.activeFilter,
+                    femaleOnly: viewModel.filter.femaleOnly,
                     isFinalStage: isFinalStage,
                     showsFinishTimeOnly: showsFinishTime,
                     isWaitingForResults: isWaiting
@@ -772,7 +686,7 @@ struct TodayView: View {
             RaceCardView(
                 item: item,
                 refreshToken: viewModel.refreshToken,
-                activeFilter: viewModel.activeFilter,
+                femaleOnly: viewModel.filter.femaleOnly,
                 isFinalStage: isFinalStage,
                 showsFinishTimeOnly: showsFinishTime,
                 isWaitingForResults: isWaiting
@@ -784,7 +698,7 @@ struct TodayView: View {
                 RaceCardView(
                     item: item,
                     refreshToken: viewModel.refreshToken,
-                    activeFilter: viewModel.activeFilter,
+                    femaleOnly: viewModel.filter.femaleOnly,
                     onShowResults: hasInhouse ? {
                         Haptics.play(.primaryAction)
                         guard let race = item.race else { return }

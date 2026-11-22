@@ -1,5 +1,7 @@
 // Script en línea tras la agenda, antes del primer pintado: día, región y zona del visitante sobre
-// el HTML ya recibido. Se minifica con la detección de región de js/shared.js (construir.mjs).
+// el HTML ya recibido. Se empaqueta con la detección de región de js/shared.js (construir.mjs).
+import { aplicarFiltrosGuardados } from './filtros-guardados.js';
+
 (function () {
   /*__GRUPOS__*/
   var doc = document;
@@ -60,10 +62,19 @@
     }
   });
 
-  // Con un filtro fijado la lista es otra: espera al JS, que llega enseguida (cliente/isla-hoy.js).
-  try {
-    if (['pro', 'uwt', 'wwt', 'male', 'female'].indexOf(localStorage.getItem('cc_default_filter')) >= 0) main.style.visibility = 'hidden';
-  } catch (e) { /* Sin almacenamiento no hay filtro fijado. */ }
+  // Filtros y orden recordados (cliente/filtros-guardados.js): solo Femenino cambia también los
+  // nombres de las tarjetas, que espera al JS (cliente/isla-hoy.js).
+  aplicarFiltrosGuardados({
+    lista: main, clave: 'cc_road_filters', chincheta: 'cc_default_filter', claveOrden: 'cc_road_sort',
+    boton: doc.getElementById('agendaFilterBtn'), botonOrden: doc.getElementById('agendaSortBtn'),
+    grupos: [
+      { clave: 'level', atributo: 'data-level', valores: ['wt', 'pro', 'dev'] },
+      { clave: 'gender', atributo: 'data-genders', valores: ['male', 'female'] },
+    ],
+    esperarSi: function (activos) {
+      return activos.some(function (g) { return g.clave === 'gender' && g.marcados.length === 1 && g.marcados[0] === 'female'; });
+    },
+  });
 
   var pastillas = doc.querySelector('.date-bar__pills');
   var activa = pastillas && pastillas.querySelector('.date-pill.active');

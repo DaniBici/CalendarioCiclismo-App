@@ -244,9 +244,11 @@ describe('cliente DataRide CX paginado', () => {
     expect(requests.filter(r=>r.url.endsWith('Races/'))).toHaveLength(1);
   });
   it('rechaza temporadas de forma desconocida sin consultar competiciones', async () => {
-    for(const invalid of [response('<html>'),response([{Id:472,Year:'2027'}]),response({data:[]}),response([],503)]){
-      const client=createCxDataRideClient({delayMs:0,fetchImpl:async()=>invalid});
-      await expect(fetchCxCompetition({competitionId:100,seasonId:472,client})).rejects.toThrow();
+    for(const [invalid,motivo] of [[response('<html>'),/no JSON/],[response([{Id:472,Year:'2027'}]),/inválido/],[response({data:[]}),/inválido/],[response([],503),/HTTP 503/]]){
+      const requests=[];
+      const client=createCxDataRideClient({delayMs:0,fetchImpl:async url=>{requests.push(url);return invalid;}});
+      await expect(fetchCxCompetition({competitionId:100,seasonId:472,client})).rejects.toThrow(motivo);
+      expect(requests.some(url=>url.endsWith('Competitions/'))).toBe(false);
     }
   });
   it('obtiene más de 300 filas, mantiene disciplineId=3 y no expone la cookie', async () => {
@@ -273,13 +275,13 @@ describe('cliente DataRide CX paginado', () => {
     await expect(bad.events(1)).rejects.toThrow(/array/);
   });
   it('rechaza HTML con 200, HTTP erróneo, página vacía, total variable e IDs repetidos', async () => {
-    for (const replies of [
-      [response('<html>error</html>')], [response({}, 503)], [response({ total: 1, data: [] })],
-      [response({ total: 2, data: [{ Id: 1 }] }), response({ total: 3, data: [{ Id: 2 }] })],
-      [response({ total: 2, data: [{ Id: 1 }] }), response({ total: 2, data: [{ Id: 1 }] })],
+    for (const [replies, motivo] of [
+      [[response('<html>error</html>')], /no JSON/], [[response({}, 503)], /HTTP 503/], [[response({ total: 1, data: [] })], /página vacía/],
+      [[response({ total: 2, data: [{ Id: 1 }] }), response({ total: 3, data: [{ Id: 2 }] })], /forma o total paginado cambió/],
+      [[response({ total: 2, data: [{ Id: 1 }] }), response({ total: 2, data: [{ Id: 1 }] })], /ID repetido/],
     ]) {
       const client = createCxDataRideClient({ delayMs: 0, pageSize: 1, fetchImpl: async url => url.endsWith('uci.ch/') ? response('') : replies.shift() });
-      await expect(client.pages('Races/', {}, 'Id')).rejects.toThrow();
+      await expect(client.pages('Races/', {}, 'Id')).rejects.toThrow(motivo);
     }
   });
   it('recorre el padre de cada categoría aunque los IDs del evento sean cero y no crea WU', async () => {

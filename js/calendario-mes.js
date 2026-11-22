@@ -11,10 +11,12 @@
 import { supabase, toDateKey, stageLabel, categoryRank, countryFlag, effectiveCountryCode,
          jornadaUrl, raceUrl, raceName, categoryBadge, rdLocation,
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
-         needsFemaleMark, cleanFeminineName }
+         femaleMark, needsFemaleMark, cleanFeminineName }
          from './shared.js';
-import { isTourDelPorvenir, isGenderNeutral } from './category-filter.js';
+import { bindMenuButtons } from './components/menu-button.js';
+import { bindFilterMenu } from './components/filter-menu.js';
+import { patchHtml } from './dom-patch.js';
+import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, sharedRoadFilters, setSharedRoadFilters, roadFiltersActive, roadRaceMatches, femaleMarkCat, filterLabels } from './race-filters.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { readCalendarMonth, writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
@@ -23,14 +25,14 @@ import { fetchAllRows, fetchByIds } from './services/paged-query.js';
 import { staleWhileRevalidate } from './services/local-cache.js';
 import { PROFILE_PROBE_COLUMN, hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships, championshipMatchesCategoryFilter, isOnChampionshipsPage } from './campeonatos-config.js';
+import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships, isOnChampionshipsPage } from './campeonatos-config.js';
 import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
 
 // ── Estado ────────────────────────────────────────────────────────
 const today = new Date();
 let viewYear  = today.getFullYear();
 let viewMonth = today.getMonth(); // 0-based
-let activeCat = getPinnedFilter() || 'all';
+let _filterMenu = null; // menú «Filtros», compartido con Temporada (js/race-filters.js)
 let _initialized = false;
 let _scrolledToToday = false;
 
@@ -126,33 +128,14 @@ function buildPlaceholders(races, coveredRaceIds, startKey, endKey, year) {
   return out;
 }
 
-// ── Filtro de categoría (mismas reglas que la web de siempre) ─────
-const EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RS','RU','SE','SI','SK','SM','TR','UA','VA','XK']);
-const ASIA_1 = /^(CN|TH|JP|TW|KR|HK|AZ)$/i;
-
+// ── Filtros de carretera (js/race-filters.js) ─────────────────────
 function passesCategoryFilter(rd) {
   if (rd._race?.isCancelled && rd._placeholder) return false;
-  const cat    = rd._race?.uciCategory || '';
-  const gender = rd._race?.gender || '';
-  const name   = rd._race?.name || '';
-  const isMixedRelay = (cat === 'WC' || cat === 'CC') && /relevo mixto|mixed relay/i.test(name);
-  const isNeutral = isGenderNeutral(rd._race);
   // CN de la página de Campeonatos: van en su fila sintética. Las de fuera de su
-  // ventana se listan sueltas, con las reglas de filtro de las CN.
-  if (cat === 'CN') {
-    if (isOnChampionshipsPage(rd._race)) return false;
-    return activeCat === 'all' || championshipMatchesCategoryFilter(rd._race, activeCat);
-  }
-  if ((cat === 'WC' || cat === 'CC') && activeCat !== 'all') {
-    if (!/europa|mundo/i.test(name)) return false;
-  }
-  const isAsia1 = (cat === '1.1' || cat === '2.1') && ASIA_1.test(rd._race?.countryCode || '');
-  if (activeCat === 'pro')    return !isAsia1 && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
-  if (activeCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
-  if (activeCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-  if (activeCat === 'male')   return !isAsia1 && (gender === 'male' || isNeutral || isMixedRelay) && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
-  if (activeCat === 'female') return !isAsia1 && (gender === 'female' || isNeutral || isMixedRelay) && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
-  return true; // 'all'
+  // ventana se listan sueltas, con los mismos filtros.
+  if (rd._race?.uciCategory === 'CN' && isOnChampionshipsPage(rd._race)) return false;
+  const filters = sharedRoadFilters();
+  return !roadFiltersActive(filters) || roadRaceMatches(rd._race || {}, filters);
 }
 
 function sortDayRaces(list) {
@@ -162,8 +145,8 @@ function sortDayRaces(list) {
     // Dos Campeonatos Nacionales: orden interno por país → línea/CRI → categoría.
     const cn = compareChampionships(a._race, a, b._race, b);
     if (cn != null && cn !== 0) return cn;
-    const catDiff = categoryRank(a._race?.uciCategory, a._race?.name, a._race?.countryCode)
-                  - categoryRank(b._race?.uciCategory, b._race?.name, b._race?.countryCode);
+    const catDiff = categoryRank(a._race?.uciCategory, a._race?.name)
+                  - categoryRank(b._race?.uciCategory, b._race?.name);
     if (catDiff !== 0) return catDiff;
     const genA = a._race?.gender === 'female' ? 2 : 1;
     const genB = b._race?.gender === 'female' ? 2 : 1;
@@ -188,8 +171,8 @@ function raceRowHtml(rd, refId) {
   const cancelled = race.isCancelled === true || rd.isCancelledDay === true;
 
   const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race), { lazy: true });
-  const isFemale = needsFemaleMark(race, activeCat);
-  const name = cleanFeminineName(raceName(race) || '-', activeCat);
+  const isFemale = needsFemaleMark(race, femaleMarkCat(sharedRoadFilters()));
+  const name = cleanFeminineName(raceName(race) || '-', femaleMarkCat(sharedRoadFilters()));
 
   let l1Extra = '';
   if (isRestDay)       l1Extra = `<span class="cal-race__note">· ${t('stage.restDay')}</span>`;
@@ -314,27 +297,45 @@ function paintMonth(data, { refresh = false } = {}) {
   const MESES = t('months.long');
   const monthTitle = `${MESES[viewMonth] || ''} ${viewYear}`;
 
-  let html = `<div class="cal-mes-list"><h2 class="cal-mes-title">${monthTitle}</h2>`;
+  // Un día por elemento; los días vacíos consecutivos (sin hoy) se agrupan en una
+  // sola línea compacta para que el mes no sea una columna de «Sin carreras».
+  const days = [];
   for (let d = 1; d <= lastDay; d++) {
     const dk = `${monthKey}-${String(d).padStart(2, '0')}`;
-    const isToday = dk === todayKey;
     const weekdayRaw = new Date(dk + 'T12:00:00').toLocaleDateString(getLocale(), { weekday: 'long' });
     const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
-
     const dayRaces = sortDayRaces((byDate[dk] || []).filter(passesCategoryFilter));
     const isChampDay = viewYear === CAMP.YEAR && CAMP_DATES.has(dk);
+    days.push({ d, dk, weekday, dayRaces, isChampDay, isToday: dk === todayKey, empty: !dayRaces.length && !isChampDay });
+  }
+  const anchor = day => `<i class="cal-day__anchor" id="cal-day-${day.dk}"></i>`;
+  const noRaces = t("cal.noRaces");
+
+  let html = `<div class="cal-mes-list"><h2 class="cal-mes-title">${monthTitle}</h2>`;
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    if (day.empty && !day.isToday) {
+      let j = i;
+      while (j + 1 < days.length && days[j + 1].empty && !days[j + 1].isToday) j++;
+      const run = days.slice(i, j + 1);
+      const label = run.length > 1 ? `${run[0].d}–${run[run.length - 1].d}` : `${day.d}`;
+      const text = run.length > 1 ? noRaces : `${day.weekday} · ${noRaces}`;
+      html += `<div class="cal-gap">${run.map(anchor).join('')}<span class="cal-gap__label">${label}</span><span class="cal-gap__text">${text}</span></div>`;
+      i = j;
+      continue;
+    }
 
     let rowsHtml = '';
-    dayRaces.forEach(rd => {
+    day.dayRaces.forEach(rd => {
       const refId = rd.id;
       _rowRefs.set(refId, rd);
       rowsHtml += raceRowHtml(rd, refId);
     });
-    if (isChampDay) rowsHtml = champRowHtml() + rowsHtml;
+    if (day.isChampDay) rowsHtml = champRowHtml() + rowsHtml;
 
-    html += `<section class="cal-day${isToday ? ' cal-day--today' : ''}" id="cal-day-${dk}">
-      <div class="cal-day__head"><span class="cal-day__num">${d}</span><span class="cal-day__wd">${weekday}</span></div>
-      ${rowsHtml ? `<div class="cal-day__races">${rowsHtml}</div>` : `<p class="cal-day__empty">${t('cal.noRaces')}</p>`}
+    html += `<section class="cal-day${day.isToday ? ' cal-day--today' : ''}" id="cal-day-${day.dk}">
+      <div class="cal-day__head"><span class="cal-day__num">${day.d}</span><span class="cal-day__wd">${day.weekday}</span></div>
+      ${rowsHtml ? `<div class="cal-day__races">${rowsHtml}</div>` : `<p class="cal-day__empty">${noRaces}</p>`}
     </section>`;
   }
   html += '</div>';
@@ -359,10 +360,11 @@ function paintMonth(data, { refresh = false } = {}) {
 function scrollToToday(smooth = true) {
   const el = document.getElementById(`cal-day-${toDateKey(today)}`);
   if (!el) return;
-  const headerH = document.querySelector('.site-header')?.offsetHeight || 56;
-  const navH = document.querySelector('.primary-nav')?.offsetHeight || 0;
+  // Alto de la cabecera fija (navegación incluida) que publica js/header.js;
+  // vale 0 cuando la cabecera no es fija (móvil).
+  const headerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--site-header-h')) || 0;
   const barH = document.getElementById('mesBar')?.offsetHeight || 0;
-  const top = el.getBoundingClientRect().top + window.scrollY - headerH - navH - barH - 6;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerH - barH - 6;
   window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'instant' });
 }
 
@@ -466,23 +468,17 @@ function buildBar() {
     else renderMes().then(() => scrollToToday());
   });
 
-  // Filtros de categoría (mismo patrón pin/click que temporada)
-  const mesCats = document.getElementById('mesCats');
-  mesCats.querySelectorAll('.tcat-btn').forEach(b =>
-    setPressed(b, b.dataset.cat === activeCat));
-  renderFilterPins(mesCats, activeCat);
-  const onFilterEvent = e => {
-    const res = handleFilterEvent(e);
-    if (!res) return;
-    if (res.type === 'pin') { renderFilterPins(mesCats, activeCat); return; }
-    activeCat = res.cat;
-    mesCats.querySelectorAll('.tcat-btn').forEach(b =>
-      setPressed(b, b.dataset.cat === activeCat));
-    renderFilterPins(mesCats, activeCat);
-    renderMes();
-  };
-  mesCats.addEventListener('click', onFilterEvent);
-  mesCats.addEventListener('keydown', onFilterEvent);
+  // Filtros de carretera, compartidos con Temporada.
+  bindMenuButtons();
+  _filterMenu = bindFilterMenu(document.getElementById('mesCats'), {
+    idPrefix: 'mesFilter', activeClass: 'tcat-btn--active',
+    groups: ROAD_FILTER_GROUPS, clearLabel: filterLabels().clearLabel, storageKey: ROAD_FILTERS_KEY,
+    getFilters: sharedRoadFilters,
+    setFilters: setSharedRoadFilters,
+    patch: patchHtml,
+    onChange: () => renderMes(),
+  });
+  _filterMenu.render();
 
   // Delegación de clics del contenido (modales, placeholders, nav-state)
   document.getElementById('mesContent').addEventListener('click', e => {
@@ -557,7 +553,7 @@ function updateSeoMes(byDate) {
 
 // ── API pública (la consume js/calendario.js) ─────────────────────
 export async function initMesView() {
-  if (_initialized) { renderMes(); return; }
+  if (_initialized) { _filterMenu?.render(); renderMes(); return; }
   _initialized = true;
 
   await initI18n();
@@ -570,7 +566,6 @@ export async function initMesView() {
     viewMonth = m - 1;
     _scrolledToToday = true; // mes explícito en la URL → no saltar a hoy
   }
-  if (params.get('cat')) activeCat = params.get('cat');
 
   buildBar();
   initPhTooltip();

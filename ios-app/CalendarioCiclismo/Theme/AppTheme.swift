@@ -16,6 +16,9 @@ enum AppTheme {
     /// paleta Grafito de la web (`css/tokens.css`): superficies casi sin croma.
     static let background = Color(light: "eef1f5", dark: "0b0c0f")
     static let cardBackground = Color(light: "fafbfc", dark: "24262b")
+    /// Fondo común de las bandas con flechas (documentos, etapas, categorías y
+    /// clasificaciones): el mismo en las celdas y en las zonas de flecha.
+    static let railBackground = cardBackground
     static let cardBackgroundHover = Color(light: "e9edf3", dark: "2e3036")
     static let headerBackground = Color(light: "edf1f6", dark: "222429")
     static let secondaryBackground = Color(light: "e9edf3", dark: "2e3036")

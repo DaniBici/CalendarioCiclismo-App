@@ -172,4 +172,5 @@ docs/design/**/*.mov
 .agents/skills/cc-graficos-sociales/examples/maqueta/*.png
 .agents/skills/cc-graficos-sociales/examples/dispositivos/*.png
 .agents/skills/cc-graficos-sociales/examples/lanzamiento/*.png
+.agents/skills/cc-graficos-sociales/examples/maqueta-movil/c/
 .agents/skills/cc-graficos-sociales/examples/*-4x5.json

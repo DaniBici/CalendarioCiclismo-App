@@ -16,6 +16,9 @@ final class SupabaseService {
     /// Error de configuración si las variables de entorno no están definidas.
     /// Cuando no es nil, la UI debe mostrar un mensaje de error en lugar del contenido.
     private(set) var configurationError: String?
+    /// Nombre de cada equipo en el último mercado de fichajes cargado: rotula
+    /// la pantalla de carga de la ficha de un equipo antes de tener sus datos.
+    var transfersTeamNames: [String: String] = [:]
 
     private init() {
         guard let infoPlist = Bundle.main.infoDictionary,

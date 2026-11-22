@@ -41,13 +41,11 @@ const agendaPublicada = {
         ['else root.innerHTML=tournamentMode', 'else if(root.dataset.publicada==null)root.innerHTML=tournamentMode'],
         ["  list.innerHTML=LOADING_HTML;\n  try {\n    const [rows,rounds]", "  if(root.dataset.publicada==null)list.innerHTML=LOADING_HTML;\n  try {\n    const [rows,rounds]"],
         ["list.innerHTML=races.map(race=>card(race,currentDay)).join('');", "patchHtml(list,races.map(race=>card(race,currentDay)).join(''));"],
-        ['if(filterCatsNode){\n  renderFilterPins(', "if(filterCatsNode){\n  if(root.dataset.publicada!=null&&agendaFilter!=='all')for(const node of filterCatsNode.querySelectorAll('.tcat-btn'))setPressed(node,node.dataset.cat===agendaFilter);\n  renderFilterPins("],
       ];
       for (const [de, a] of cambios) {
         if (!source.includes(de)) throw new Error(`js/ciclocross.js sin «${de}»`);
         source = source.replace(de, a);
       }
-      source = `import {patchHtml} from ${JSON.stringify(join(ROOT, 'js/dom-patch.js'))};\n${source}`;
       return { contents: source, loader: 'js', resolveDir: dirname(args.path) };
     });
   },
@@ -79,7 +77,7 @@ const calendarioPublicado = {
     ]);
     parchear(/js\/temporada\.js$/, [
       ['  years.forEach(y => {', '  yearSel.replaceChildren();\n  years.forEach(y => {'],
-      ['S.activeCat = getPinnedFilter() || \'all\';', "S.activeCat = getPinnedFilter() || 'all';\ndocument.querySelectorAll('.t-race--challenge[aria-expanded=\"true\"]').forEach(boton => S.expandedChallenges.add(boton.dataset.cgid));"],
+      ['S.filters = sharedRoadFilters();\n', "S.filters = sharedRoadFilters();\ndocument.querySelectorAll('.t-race--challenge[aria-expanded=\"true\"]').forEach(boton => S.expandedChallenges.add(boton.dataset.cgid));\n"],
       ['    if (raceObj) openRaceDataModal(rdId, raceObj);', ''],
       [/content\.innerHTML = `<div class="loading">[\s\S]*?`;\n/, ''],
       ['  await loadYear();\n}\n', "  await loadYear();\n  dispatchEvent(new Event('cc-temporada-lista'));\n}\n"],
@@ -358,9 +356,17 @@ export async function construirActivos(salida, config, publicadas) {
   })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
 
   const preHoy = readFileSync(join(HERE, 'cliente/pre-pintado-hoy.js'), 'utf8').replace('/*__GRUPOS__*/', () => shared.slice(desde, hasta));
-  const prePintadoHoy = (await transform(preHoy, { loader: 'js', minify: true, legalComments: 'none', target: 'es2020' })).code.replace(/<\/script/g, '<\\/script').trim();
+  const prePintadoHoy = (await build({
+    stdin: { contents: preHoy, resolveDir: join(HERE, 'cliente'), loader: 'js' }, bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
+  })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
+  const prePintadoPortada = (await build({
+    entryPoints: [join(HERE, 'cliente/pre-pintado-portada.js')], bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
+  })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
   const prePintadoMercado = (await build({
     entryPoints: [join(HERE, 'cliente/pre-pintado-mercado.js')], bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
+  })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
+  const prePintadoFichajes = (await build({
+    entryPoints: [join(HERE, 'cliente/pre-pintado-fichajes.js')], bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
   })).outputFiles[0].text.replace(/<\/script/g, '<\\/script').trim();
   const prePintadoOrden = (await build({
     entryPoints: [join(HERE, 'cliente/pre-pintado-orden.js')], bundle: true, write: false, format: 'iife', minify: true, target: 'es2020', legalComments: 'none', logLevel: 'warning',
@@ -386,7 +392,7 @@ export async function construirActivos(salida, config, publicadas) {
     tema: escribirConHash(dir, 'tema', 'js', tema),
     prePintado,
     hibrido: Object.fromEntries(['jornada', 'inscritos'].map(familia => [familia, shellPublicada(publicadas[familia])])),
-    portada: { css: `/a/${relative(dir, hojaPortada)}`, isla: `/a/${relative(dir, entradaPortada)}`, paginas: {} },
+    portada: { css: `/a/${relative(dir, hojaPortada)}`, isla: `/a/${relative(dir, entradaPortada)}`, prePintado: prePintadoPortada, paginas: {} },
     resultados: { isla: `/a/${relative(dir, entradaResultados)}`, prePintado: prePintadoResultados, paginas: {} },
     calendario: { css: `/a/${relative(dir, hojaCalendario)}`, isla: `/a/${relative(dir, entradaCalendario)}`, prePintado: prePintadoCalendario, paginas: {} },
     carrera: { css: `/a/${relative(dir, hojaCarrera)}`, isla: `/a/${relative(dir, entradaCarrera)}`, prePintado: prePintadoCarrera },
@@ -398,7 +404,7 @@ export async function construirActivos(salida, config, publicadas) {
       cx: { css: `/a/${relative(dir, hojaPortada)}`, isla: salidaDatos('cliente/isla-cx.js') },
       torneo: { css: `/a/${relative(dir, hojaPortada)}`, isla: salidaDatos('cliente/isla-torneo.js') },
       campeonatos: { css: `/a/${relative(dir, hojaCampeonatos)}`, isla: salidaDatos('cliente/isla-campeonatos.js') },
-      fichajes: { css: `/a/${relative(dir, hojaFichajes)}`, isla: salidaDatos('cliente/isla-fichajes.js'), prePintado: prePintadoMercado },
+      fichajes: { css: `/a/${relative(dir, hojaFichajes)}`, isla: salidaDatos('cliente/isla-fichajes.js'), prePintado: prePintadoMercado, prePintadoPortada: prePintadoFichajes },
     },
   };
   manifiesto.portada.paginas = {

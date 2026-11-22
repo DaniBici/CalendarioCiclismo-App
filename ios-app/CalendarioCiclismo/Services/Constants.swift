@@ -7,13 +7,14 @@ enum Constants {
 
     /// Orden de importancia de las categorías UCI (menor = más importante).
     static let uciOrder: [String: Double] = [
-        "WC": 1, "CC": 2,
-        "1.UWT": 3, "2.UWT": 4,
-        "CN": 4.5,
-        "1.WWT": 5, "2.WWT": 6,
+        "WC": 1,
+        "1.UWT": 2, "2.UWT": 3, "1.WWT": 4, "2.WWT": 5,
+        "CC": 6,
         "1.Pro": 7, "2.Pro": 8,
         "1.1": 9, "2.1": 10,
-        "1.2": 11, "2.2": 12, "1.2U": 13, "2.2U": 14,
+        "CN": 12,
+        "1.2": 13, "2.2": 14, "1.2U": 15, "2.2U": 16,
+        "1.Ncup": 17, "2.Ncup": 18, "1.NE": 19, "2.NE": 20,
     ]
 
     // MARK: - Tipos de etapa
@@ -73,39 +74,4 @@ enum Constants {
 
     static let assetOrder = ["technicalGuide", "startOrder", "roadbook", "profile", "ports", "map", "live_text"]
 
-    // MARK: - Países europeos
-
-    static let europeCountries: Set<String> = [
-        "AD","AL","AT","BA","BE","BG","BY","CH","CY","CZ","DE","DK","EE","ES",
-        "FI","FR","GB","GR","HR","HU","IE","IS","IT","LI","LT","LU","LV","MC",
-        "MD","ME","MK","MT","NL","NO","PL","PT","RO","RS","RU","SE","SI","SK",
-        "SM","TR","UA","VA","XK",
-    ]
-
-    /// Países asiáticos con tratamiento especial en rankings.
-    static let asia1Countries: Set<String> = ["CN", "TH", "JP", "TW", "KR", "HK", "AZ"]
-
-    // MARK: - Filtros de categoría
-
-    enum CategoryFilter: String, CaseIterable, Identifiable {
-        case all = "all"
-        case pro = "pro"
-        case uwt = "uwt"
-        case wwt = "wwt"
-        case male = "male"
-        case female = "female"
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .all:    return LocaleService.t("Todas", "All")
-            case .pro:    return "Pro"
-            case .uwt:    return "WT"
-            case .wwt:    return "WWT"
-            case .male:   return LocaleService.t("Masc", "Men")
-            case .female: return LocaleService.t("Fem", "Women")
-            }
-        }
-    }
 }

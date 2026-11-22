@@ -72,8 +72,14 @@ describe('verificador de identidades por lote', () => {
       if (path.endsWith('/7')) throw new Error('uci_rate_limited');
       return { text: riderPage({ givenName: 'Ana', familyName: 'GARCIA', dob: '01.02.2000', nationality: 'ESP' }), sha256: 'sha-x' };
     } };
-    await expect(verifyRiders([{ dorsal: '1', uciProfileId: '7' }, { dorsal: '2', uciProfileId: '8' }], { collector }))
-      .rejects.toMatchObject({ message: 'uci_rate_limited', results: [] });
+    const failure = await verifyRiders([{ dorsal: '1', uciProfileId: '8' }, { dorsal: '2', uciProfileId: '7' }, { dorsal: '3', uciProfileId: '9' }], { collector })
+      .then(() => null, error => error);
+    expect(failure?.message).toBe('uci_rate_limited');
+    expect(failure.results).toHaveLength(1);
+    expect(failure.results[0]).toMatchObject({ dorsal: '1', uciProfileId: '8' });
+  });
+
+  it('rechaza una página de ficha sin el módulo de detalle', () => {
     expect(() => parseRider('sin modulo')).toThrow('missing_rider_module');
   });
 });

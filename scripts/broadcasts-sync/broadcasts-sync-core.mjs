@@ -229,11 +229,6 @@ export function parseStageNumber(value) {
   return match ? Number(match[1]) : null;
 }
 
-function classText(body, className) {
-  const match = body.match(new RegExp(`<[^>]+class="[^"]*\\b${className}\\b[^"]*"[^>]*>([\\s\\S]*?)<\\/[^>]+>`, 'i'));
-  return stripHtml(match?.[1]);
-}
-
 export function isMontoneraEligible(title, subtitle) {
   const race = fold(title);
   const detail = fold(subtitle);
@@ -322,12 +317,6 @@ const SPANISH_MONTHS = new Map([
   ['julio', 7], ['agosto', 8], ['septiembre', 9], ['octubre', 10], ['noviembre', 11], ['diciembre', 12],
 ]);
 
-export function parseSpanishDate(value) {
-  const match = fold(value).match(/\b(\d{1,2}) de ([a-z]+) de (\d{4})\b/);
-  const month = match && SPANISH_MONTHS.get(match[2]);
-  return month ? `${match[3]}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}` : null;
-}
-
 export function zonedTimeToUtc(dateKey, time, timeZone = 'Europe/Madrid') {
   const [year, month, day] = dateKey.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
@@ -353,12 +342,6 @@ export function dateKeyInZone(now = new Date(), timeZone = 'Europe/Madrid') {
   });
   const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function addDays(dateKey, amount) {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const value = new Date(Date.UTC(year, month - 1, day + amount));
-  return value.toISOString().slice(0, 10);
 }
 
 function rtveChannel(value) {
@@ -612,53 +595,6 @@ export function parseRtveVueltaVideos(payload) {
     });
   }
   return events;
-}
-
-export function parseRtveGuide(html, { channel: channelOption = null, referenceDate = dateKeyInZone() } = {}) {
-  const events = [];
-  const blocks = [...html.matchAll(/<li\b[^>]*class="[^"]*\belem_[^"]*"[^>]*>([\s\S]*?)<\/li>/gi)];
-  for (const block of blocks) {
-      const item = block[1];
-      const timeRange = item.match(/class="horemi"[^>]*>(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/i);
-      if (!timeRange) continue;
-      const dateLabel = classText(item, 'datemi');
-      const explicitDate = parseSpanishDate(dateLabel);
-      const offset = fold(dateLabel) === 'manana' ? 1 : fold(dateLabel) === 'hoy' ? 0 : null;
-      const dateKey = explicitDate || (offset == null ? null : addDays(referenceDate, offset));
-      const channel = channelOption || rtveChannel(classText(item, 'cademi'));
-      if (!channel || !dateKey) continue;
-      const strong = item.match(/<strong>([\s\S]*?)<\/strong>/i)?.[1] || '';
-      const title = classText(strong, 'maintitle') || stripHtml(strong);
-      const description = stripHtml(item.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1]);
-      if (!CYCLING_RE.test(`${title} ${description}`)) continue;
-      const link = item.match(/href="([^"]+)"/i)?.[1] || 'https://www.rtve.es/play/';
-      const programId = item.match(/data-idprogram="([^"]+)"/i)?.[1] || 'sin-programa';
-      const stageNumber = parseStageNumber(`${title} ${description}`);
-      const stableKey = `${channel}|${dateKey}|${programId}|${stageNumber ?? fold(title)}`;
-      events.push({
-        source: 'rtve',
-        externalEventId: contentHash(stableKey).slice(0, 32),
-        dateKey,
-        title,
-        subtitle: description,
-        sourceChannel: channel,
-        channel: 'RTVE',
-        country: 'ES',
-        sourceUrl: new URL(link, 'https://www.rtve.es').href,
-        broadcastUrl: channel === 'Teledeporte'
-          ? 'https://www.rtve.es/play/teledeporte/ciclismo/'
-          : new URL(link, 'https://www.rtve.es').href,
-        startTimeUtc: zonedTimeToUtc(dateKey, timeRange[1]),
-        endTimeUtc: zonedTimeToUtc(dateKey, timeRange[2]),
-        stageNumber,
-      });
-  }
-  events.sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
-  const firstByEvent = new Map();
-  for (const event of events) {
-    if (!firstByEvent.has(event.externalEventId)) firstByEvent.set(event.externalEventId, event);
-  }
-  return [...firstByEvent.values()];
 }
 
 export function normalizedObservation(event) {

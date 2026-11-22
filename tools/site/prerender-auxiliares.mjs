@@ -174,6 +174,7 @@ function sharedDataDir() {
   return dir && existsSync(join(dir, 'manifest.json')) ? dir : null;
 }
 
+const ORDEN_SIBLING_COLUMNS = `${PERFIL_SIBLING_COLUMNS},startOrderImportedAt`;
 const pick = (row, columns) => Object.fromEntries(columns.split(',').map(column => [column, row[column] ?? null]));
 
 /** Índices por jornada y carrera de los datos (volcado o API). */
@@ -211,7 +212,13 @@ export function pageInputs(type, index, dayId) {
   if (type === 'orden') {
     const entries = index.entriesByDay.get(dayId) || [];
     if (!entries.length) return { rd: row, notice: 'orden' };
-    return { rd: row, race: raceRow, entries, startlistRows: index.teamsByRace.get(row.raceId) || [], assets, guide };
+    // Etapas de la lista lateral: las columnas de js/orden-salida.js
+    // (ORDEN_SIBLING_COLUMNS de js/orden-salida-html.js, que aquí no se importa
+    // hasta instalar el entorno del navegador).
+    const siblings = row.raceId && raceRow?.raceFormat !== 'one_day'
+      ? sortStagePageSiblings((index.daysByRace.get(row.raceId) || []).map(day => pick(day, ORDEN_SIBLING_COLUMNS)))
+      : [];
+    return { rd: row, race: raceRow, entries, startlistRows: index.teamsByRace.get(row.raceId) || [], assets, guide, siblings };
   }
   const perfil = type === 'perfil';
   const rd = pick(row, perfil ? PERFIL_DAY_COLUMNS : MAPA_DAY_COLUMNS);

@@ -35,11 +35,12 @@ final class PremiumService {
     }
 
     enum SupporterIcon: String, Identifiable, CaseIterable {
-        case standard, founder, friend
+        case standard, cyclocross, founder, friend
         var id: String { rawValue }
         var alternateIconName: String? {
             switch self {
             case .standard: nil
+            case .cyclocross: "AppIconCiclocross"
             case .founder: "AppIconFounder"
             case .friend: "AppIconFriend"
             }
@@ -278,7 +279,7 @@ final class PremiumService {
 
     func setSupporterIcon(_ icon: SupporterIcon) {
         let allowed = switch icon {
-        case .standard: true
+        case .standard, .cyclocross: true
         case .founder: isFounder
         case .friend: isSubscribed
         }
@@ -302,7 +303,11 @@ final class PremiumService {
             let previous = SupporterIcon(
                 rawValue: UserDefaults.standard.string(forKey: Self.previousSupporterIconKey) ?? ""
             ) ?? .standard
-            setSupporterIcon(previous == .founder && isFounder ? .founder : .standard)
+            switch previous {
+            case .founder where isFounder: setSupporterIcon(.founder)
+            case .cyclocross: setSupporterIcon(.cyclocross)
+            default: setSupporterIcon(.standard)
+            }
         }
     }
 

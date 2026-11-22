@@ -7,6 +7,7 @@ import { formatTime, formatTimeUser, stageLabel, countryFlag, effectiveCountryCo
          categoryBadge, raceUrl, raceName, rdLocation, tsSeconds, needsFemaleMark, cleanFeminineName,
          startlistUrl, startOrderUrl, jornadaUrl, esc } from './shared.js';
 import { t, getLang, getLocale } from './i18n.js';
+import { roadRaceLevel, roadRaceGenders } from './category-filter.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { todayRaceState, startlistCyclistHtml, tvIconHtml, tvStatusChipHtml } from './services/race-presentation.js';
 import { pickBadgeBroadcast } from './broadcast-priority.js';
@@ -89,9 +90,12 @@ function tvBadgeHtml(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBl
 }
 
 // Tarjeta completa. `data-key`: al refrescar se actualiza solo lo que difiere (js/dom-patch.js).
-function cardHtml({ key, color, classes = [], attrs = '', style = '', html }) {
+// `data-level` y `data-genders` (js/category-filter.js): con ellos, la página publicada aplica
+// los filtros guardados antes del primer pintado (tools/publicacion/cliente/pre-pintado-hoy.js).
+function cardHtml({ key, race, color, classes = [], attrs = '', style = '', html }) {
   const clases = ['race-card', ...classes].filter(Boolean).join(' ');
-  return `<div class="${clases}" style="--card-color:${safeCardColor(color)}${style}" data-key="${attr(key)}"${attrs}>${html}</div>`;
+  const filtro = race ? ` data-level="${attr(roadRaceLevel(race) || '')}" data-genders="${attr(roadRaceGenders(race).join(' '))}"` : '';
+  return `<div class="${clases}" style="--card-color:${safeCardColor(color)}${style}" data-key="${attr(key)}"${filtro}${attrs}>${html}</div>`;
 }
 
 // Tarjeta sin página ni modal: tooltip al pasar el ratón y aviso al pulsar en
@@ -128,12 +132,12 @@ const catBadgesHtml = (race, uci, agendaCat) => `<span class="race-card__name-ca
 const cardAriaLabel = (name, stage, uci) => [name, stage, uci].filter(Boolean).join(' · ');
 
 function placeholderCardHtml(race, agendaCat) {
-  const flag = race.hideFlag ? '' : countryFlag(race.countryCode);
+  const flag = race.hideFlag ? '' : countryFlag(race.countryCode, { outline: true });
   const name = cleanFeminineName(raceName(race) || t('race.unknown'), agendaCat);
   const uci = race.uciCategory || '';
   const stage = race.raceFormat === 'stage_race' ? stageLabel(theoreticalStageNumber(race, race._dateKey)) : '';
   return cardHtml({
-    key: `ph-${race.id}`, color: race.colorHex, classes: ['race-card--placeholder'], style: NO_POINTER,
+    key: `ph-${race.id}`, race, color: race.colorHex, classes: ['race-card--placeholder'], style: NO_POINTER,
     attrs: infoTooltipAttrs({
       message: noExtraInfoMessage(race.startDate), name, flag,
       sub: [stage, shortDate(race._dateKey), uci].filter(Boolean).join(' · '),
@@ -150,7 +154,7 @@ function placeholderCardHtml(race, agendaCat) {
 function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
   const race = rd._race || {};
   const key = rd.id;
-  const flag = countryFlag(effectiveCountryCode(rd, race));
+  const flag = countryFlag(effectiveCountryCode(rd, race), { outline: true });
   // El override de país de la jornada vence al hideFlag de la carrera:
   // si la jornada fija un país, se muestra bandera aunque la carrera la oculte.
   const hideFlag = race.hideFlag && !rd.countryCode;
@@ -168,7 +172,7 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
 
   if (rd.isRestDay) {
     return cardHtml({
-      key, color: race.colorHex, classes: ['race-card--rest-day'],
+      key, race, color: race.colorHex, classes: ['race-card--rest-day'],
       html: raceCardHtml({
         logo, name: `<span>${name}</span>${overviewBtn}`,
         sub: `<span class="race-card__stage">${t('stage.restDay')}</span>`,
@@ -179,7 +183,7 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
 
   if (race.isCancelled) {
     return cardHtml({
-      key, color: race.colorHex, classes: ['race-card--placeholder', 'race-card--cancelled'], style: NO_POINTER,
+      key, race, color: race.colorHex, classes: ['race-card--placeholder', 'race-card--cancelled'], style: NO_POINTER,
       attrs: infoTooltipAttrs({ message: t('race.cancelled'), name, flag: hideFlag ? '' : flag, sub: uci }),
       html: raceCardHtml({
         logo, name: `<span>${name}</span>`,
@@ -264,7 +268,7 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
     : rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU);
 
   return cardHtml({
-    key, color: race.colorHex, classes, attrs, style,
+    key, race, color: race.colorHex, classes, attrs, style,
     html: raceCardHtml({
       logo,
       name: `<span>${name}</span>${overviewBtn}`,

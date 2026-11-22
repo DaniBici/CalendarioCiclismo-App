@@ -13,7 +13,6 @@ struct SeasonView: View {
     var link: CalendarLink? = nil
     @State private var viewModel = SeasonViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
-    @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
     @State private var loadingOneDayRaceId: String?
     @State private var loadingStageRaceId: String?
     /// Challenges desplegados (muestran sus pruebas bajo la fila del grupo).
@@ -22,16 +21,12 @@ struct SeasonView: View {
     /// por índice: al filtrar cambian las páginas disponibles y un índice
     /// pasaría a señalar otro mes.
     @State private var currentMonth: Int = 0
-    @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     @State private var localeService = LocaleService.shared
     @State private var notifications = NotificationManager.shared
     @State private var network = NetworkMonitor.shared
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filtros de categoría
-            categoryFilterBar
-
             // Pills de mes — sincronizan con el TabView
             if !viewModel.racesByMonth.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -122,12 +117,13 @@ struct SeasonView: View {
         .onAppear {
             AnalyticsService.shared.logScreenView("season", parameters: [
                 "year": String(viewModel.year),
-                "category_filter": viewModel.activeFilter.rawValue,
+                "category_filter": viewModel.filter.widgetParameter,
                 "country_code": viewModel.activeCountry,
             ])
         }
+        // Sin título: año, país, filtros y cambio de vista no dejan sitio
+        // para «Calendario», que ya nombra la pestaña.
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(localeService.t("Calendario", "Calendar"))
         .toolbar {
             // Año a la izquierda, como en Mes; país y cambio de vista a la
             // derecha. Menús nativos: el fondo es la cápsula de la barra.
@@ -137,6 +133,7 @@ struct SeasonView: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 countryMenu
+                filtersMenu
                 if let switchAction {
                     Button {
                         Haptics.play(.navigation)
@@ -172,7 +169,6 @@ struct SeasonView: View {
         .placeholderModal(item: $placeholderItem)
         .task {
             link?.year = viewModel.year
-            link?.filter = viewModel.activeFilter
             // Apertura desde el cintillo con otro año: carga onChange(of: year).
             if let year = notifications.pendingSeasonYear, year != viewModel.year {
                 applyPendingSeasonYear()
@@ -200,89 +196,21 @@ struct SeasonView: View {
                 currentMonth = bestMonth()
             }
         }
-        .onChange(of: viewModel.activeFilter) { _, newValue in
-            link?.filter = newValue
+        .onChange(of: viewModel.filter) { _, _ in
             syncMonth()
         }
         .onChange(of: viewModel.activeCountry) { _, _ in
             syncMonth()
         }
-        .onChange(of: storedDefaultFilter) { _, newValue in
-            if let filter = Constants.CategoryFilter(rawValue: newValue) {
-                viewModel.activeFilter = filter
-            }
-        }
-        .alert(
-            (pendingDefaultFilter?.rawValue == storedDefaultFilter)
-                ? localeService.t("Quitar filtro por defecto", "Remove default filter")
-                : localeService.t("Filtro por defecto", "Default filter"),
-            isPresented: Binding(get: { pendingDefaultFilter != nil }, set: { if !$0 { pendingDefaultFilter = nil } }),
-            presenting: pendingDefaultFilter
-        ) { filter in
-            if filter.rawValue == storedDefaultFilter {
-                Button(localeService.t("Quitar", "Remove"), role: .destructive) {
-                    viewModel.clearDefaultFilter()
-                    pendingDefaultFilter = nil
-                }
-            } else {
-                Button(localeService.t("Establecer", "Set")) {
-                    viewModel.setDefaultFilter(filter)
-                    pendingDefaultFilter = nil
-                }
-            }
-            Button(localeService.t("Cancelar", "Cancel"), role: .cancel) { pendingDefaultFilter = nil }
-        } message: { filter in
-            if filter.rawValue == storedDefaultFilter {
-                Text(localeService.t(
-                    "Se eliminará «\(filter.label)» como filtro predeterminado y se mostrarán todas las categorías.",
-                    "«\(filter.label)» will be removed as the default filter and all categories will be shown."
-                ))
-            } else {
-                Text(localeService.t(
-                    "El filtro «\(filter.label)» se aplicará como predeterminado en Hoy, Mes y Temporada.",
-                    "The filter «\(filter.label)» will be applied as default in Today, Month and Season."
-                ))
-            }
-        }
     }
 
-    @ViewBuilder
-    private var categoryFilterBar: some View {
-        if #available(iOS 26.0, *) {
-            // En iOS 27 Beta, ScrollEdgeEffectView se extiende bajo la barra
-            // superior y absorbe los toques de esta primera fila en hardware.
-            categoryFilterScrollView
-                .scrollEdgeEffectHidden()
-        } else {
-            categoryFilterScrollView
+    /// «Filtros» con el símbolo de Fichajes, relleno con algún filtro: nivel y
+    /// género, compartidos con Hoy y Mes (`RaceFilterStore`).
+    private var filtersMenu: some View {
+        RoadFiltersMenu { isActive in
+            Image(systemName: isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-    }
-
-    private var categoryFilterScrollView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Constants.CategoryFilter.allCases) { filter in
-                    SeasonFilterChip(
-                        filter: filter,
-                        isActive: viewModel.activeFilter == filter,
-                        activeFilter: viewModel.activeFilter,
-                        pinnedRawValue: storedDefaultFilter,
-                        onTap: {
-                            if viewModel.activeFilter == filter {
-                                Haptics.play(.primaryAction)
-                                pendingDefaultFilter = filter
-                            } else {
-                                Haptics.play(.selection)
-                                viewModel.activeFilter = filter
-                            }
-                        }
-                    )
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 4)
-            .padding(.bottom, 2)
-        }
+        .accessibilityIdentifier(AccessibilityID.categoryFilters)
     }
 
     // MARK: - Month page
@@ -471,16 +399,14 @@ struct SeasonView: View {
     }
 
     private func challengeDisplayName(_ group: ChallengeGroup) -> String {
-        let filter = viewModel.activeFilter
-        if (filter == .wwt || filter == .female), group.gender == "female" {
+        if viewModel.filter.femaleOnly, group.gender == "female" {
             return RaceLogic.cleanFeminineDisplayName(group.name)
         }
         return group.name
     }
 
     private func showFemaleIndicator(for group: ChallengeGroup) -> Bool {
-        let filter = viewModel.activeFilter
-        if filter == .wwt || filter == .female { return false }
+        if viewModel.filter.femaleOnly { return false }
         return group.gender == "female" && !RaceLogic.nameImpliesFemale(group.name)
     }
 
@@ -572,16 +498,14 @@ struct SeasonView: View {
 
     private func displayName(for race: Race, inGroup: Bool = false) -> String {
         let name = inGroup ? SeasonChallengeLogic.nameInGroup(race) : race.localizedName
-        let filter = viewModel.activeFilter
-        if (filter == .wwt || filter == .female), race.isFemale {
+        if viewModel.filter.femaleOnly, race.isFemale {
             return RaceLogic.cleanFeminineDisplayName(name)
         }
         return name
     }
 
     private func showFemaleIndicator(for race: Race) -> Bool {
-        let filter = viewModel.activeFilter
-        if filter == .wwt || filter == .female { return false }
+        if viewModel.filter.femaleOnly { return false }
         return RaceLogic.shouldShowFemaleIndicator(race)
     }
 
@@ -775,49 +699,5 @@ private struct SeasonChallengeRow: View {
             trailing: { SeasonRowChevron(expanded: expanded) }
         )
         .accessibilityElement(children: .ignore)
-    }
-}
-
-// MARK: - Filter chip
-
-/// Chip de filtro de categoría para SeasonView.
-private struct SeasonFilterChip: View {
-    let filter: Constants.CategoryFilter
-    let isActive: Bool
-    let activeFilter: Constants.CategoryFilter
-    let pinnedRawValue: String
-    let onTap: () -> Void
-
-    private enum PinDisplay { case filled, outline, hidden }
-
-    private var pinDisplay: PinDisplay {
-        if filter == .all || activeFilter == .all { return .hidden }
-        let pinned = Constants.CategoryFilter(rawValue: pinnedRawValue)
-        if let p = pinned, p != .all, p == filter { return .filled }
-        if filter == activeFilter { return .outline }
-        return .hidden
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            CalendarFilterChipLabel(
-                label: filter.label,
-                isActive: isActive,
-                pinFilled: pinDisplay == .filled,
-                pinOutline: pinDisplay == .outline
-            )
-            .frame(minHeight: 44)
-        }
-        // Mantener el Button estándar: los estilos primitivos basados en
-        // Gesture siguen perdiendo el toque frente al pager en iOS 27.
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
-        .accessibilityLabel(pinDisplay == .filled
-            ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"
-            : "\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
-        .accessibilityHint(isActive
-            ? LocaleService.t("Filtro activo. Actívalo de nuevo para establecerlo como filtro por defecto.", "Active filter. Activate it again to set it as the default filter.")
-            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label).", "Double tap to filter by \(filter.label)."))
-        .accessibilityIdentifier(AccessibilityID.filterButton(filter.rawValue))
     }
 }

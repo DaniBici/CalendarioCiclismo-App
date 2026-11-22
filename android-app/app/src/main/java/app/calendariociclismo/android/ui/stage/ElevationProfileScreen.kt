@@ -389,9 +389,11 @@ internal fun ElevationChart(
     }
 
     val mlDp: Dp = 44.dp
-    val mrDp: Dp = 8.dp
+    // Margen derecho para que la última etiqueta del eje y el marcador de meta no
+    // toquen el borde de la tarjeta; el inferior aloja las etiquetas con aire.
+    val mrDp: Dp = 16.dp
     val mtDp: Dp = 14.dp
-    val mbDp: Dp = 24.dp
+    val mbDp: Dp = 28.dp
 
     var chartWidth by remember { mutableFloatStateOf(0f) }
     // Último toque, para reconocer el doble toque sin retrasar el sencillo.
@@ -518,13 +520,16 @@ internal fun ElevationChart(
             var gridAlt = (yMin / yStep).toInt() * yStep
             while (gridAlt <= yMax) {
                 val gy = y(gridAlt.toDouble())
-                drawLine(
-                    color = gridColor,
-                    start = Offset(ml, gy),
-                    end = Offset(ml + pw, gy),
-                    strokeWidth = 1.dp.toPx(),
-                    pathEffect = dashEffect,
-                )
+                // Una línea bajo el suelo del gráfico caería sobre las etiquetas de km.
+                if (gy >= mt - 0.5f && gy <= mt + ph + 0.5f) {
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(ml, gy),
+                        end = Offset(ml + pw, gy),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = dashEffect,
+                    )
+                }
                 gridAlt += yStep
             }
 
@@ -606,15 +611,15 @@ internal fun ElevationChart(
                     textAlign = Paint.Align.CENTER
                     isAntiAlias = true
                 }
+                val edge = 4.dp.toPx()
                 for (i in 0..numXLines) {
                     val kmVal = i * distance / numXLines
-                    val gx = ml + i * pw / numXLines
-                    canvas.nativeCanvas.drawText(
-                        "${kmVal.roundToInt()}",
-                        gx,
-                        mt + ph + mb - 2f,
-                        paint,
-                    )
+                    val text = "${kmVal.roundToInt()}"
+                    // Centrada bajo su línea; si se saldría de la tarjeta, se recoloca
+                    // dentro con `edge` de aire.
+                    val half = paint.measureText(text) / 2f
+                    val gx = (ml + i * pw / numXLines).coerceIn(half + edge, size.width - half - edge)
+                    canvas.nativeCanvas.drawText(text, gx, mt + ph + 18.dp.toPx(), paint)
                 }
             }
 

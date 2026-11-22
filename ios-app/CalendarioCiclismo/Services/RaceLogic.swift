@@ -299,35 +299,23 @@ enum RaceLogic {
     // MARK: - Rankings UCI
 
     /// Rango de categoría: menor va antes. Tabla única, espejo de
-    /// `categoryRank` en `js/services/race-order.js`. Las grandes vueltas
-    /// encabezan; el Tour del Porvenir sube al nivel de las .1; las Pro y .1 del
-    /// circuito asiático (salvo la Japan Cup) bajan tras las .1 europeas; los
-    /// continentales que no son el Europeo bajan tras las .2U.
+    /// `categoryRank` en `js/services/race-order.js`: Grandes Vueltas,
+    /// Mundiales, WorldTour, Continental europeo, ProSeries, .1, Continentales
+    /// de otras áreas, Nacionales y .2. Sin excepciones por país; `country` no
+    /// interviene.
     static func categoryRank(category: String?, name: String?, country: String?) -> Double {
         let n = name ?? ""
         if n.localizedCaseInsensitiveContains("giro de italia") { return 0.1 }
         if n.localizedCaseInsensitiveContains("tour de francia") { return 0.2 }
         if n.localizedCaseInsensitiveContains("la vuelta") { return 0.3 }
-
         let cat = category ?? ""
-        let cc = (country ?? "").uppercased()
-
-        if (cat == "1.2U" || cat == "2.2U") && n.localizedCaseInsensitiveContains("tour del porvenir") { return 8.5 }
-        if cat == "CC" && !n.localizedCaseInsensitiveContains("europa") && !n.localizedCaseInsensitiveContains("europe") { return 14.5 }
-        if ["1.Pro","2.Pro","1.1","2.1"].contains(cat)
-            && isAsiaCountry(cc)
-            && !n.localizedCaseInsensitiveContains("japan cup") { return 10.5 }
-
+        if cat == "CC" && !n.localizedCaseInsensitiveContains("europa") && !n.localizedCaseInsensitiveContains("europe") { return 11 }
         return Constants.uciOrder[cat] ?? 99
     }
 
     /// `categoryRank` de la carrera (nil → 99).
     static func raceCategoryRank(_ race: Race?) -> Double {
         categoryRank(category: race?.uciCategory, name: race?.name, country: race?.countryCode)
-    }
-
-    private static func isAsiaCountry(_ cc: String) -> Bool {
-        ["CN","TH","JP","TW","KR","HK","AZ"].contains(cc)
     }
 
     static func genderRank(_ gender: String?) -> Int {
@@ -469,88 +457,6 @@ enum RaceLogic {
         if (fA == nil) != (fB == nil) { return fA != nil }
         if let fA, let fB, fA != fB { return fA < fB }
         return sortByCategory(a, b)
-    }
-
-    // MARK: - Filtros de categoría
-
-    /// True si el nombre corresponde al Tour del Porvenir (excepción para 1.2U/2.2U).
-    private static func isTourDelPorvenir(_ name: String) -> Bool {
-        name.localizedCaseInsensitiveContains("tour del porvenir")
-    }
-
-    private static func isMixedRelayChampionship(category: String, name: String) -> Bool {
-        guard category == "WC" || category == "CC" else { return false }
-        return name.localizedCaseInsensitiveContains("relevo mixto")
-            || name.localizedCaseInsensitiveContains("mixed relay")
-    }
-
-    /// Carrera sin género (`gender` nulo): prueba mixta o campeonato con pruebas
-    /// de ambos sexos, como «Campeonatos de Europa».
-    static func isGenderNeutral(_ race: Race) -> Bool {
-        race.gender != "male" && race.gender != "female"
-    }
-
-    /// Comprueba si una carrera coincide con un filtro de categoría (mismas reglas que web).
-    /// Una carrera sin género pasa Masculino y Femenino (Hoy, Mes y Temporada).
-    static func matchesCategory(_ race: Race, filter: Constants.CategoryFilter) -> Bool {
-        guard filter != .all else { return true }
-        let cat = race.uciCategory ?? ""
-        let gender = race.gender ?? ""
-        let cc = (race.countryCode ?? "").uppercased()
-        let name = race.name
-        let neutral = isGenderNeutral(race)
-
-        // Campeonatos Nacionales: las élite (masc/fem) cuentan como "pro"; las
-        // sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U). Masc/Fem
-        // respetan el género de la prueba. uwt/wwt no aplican a CN.
-        if cat == "CN" {
-            if ChampionshipsConfig.isU23Championship(race) { return false }
-            switch filter {
-            case .pro: return true
-            case .male: return !ChampionshipsConfig.isFemaleChampionship(race)
-            case .female: return ChampionshipsConfig.isFemaleChampionship(race)
-            default: return false
-            }
-        }
-
-        let baseMatch: Bool
-        switch filter {
-        case .all: baseMatch = true
-        case .pro:
-            baseMatch = cat != "1.2" && cat != "2.2"
-                && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
-        case .uwt:
-            baseMatch = cat == "1.UWT" || cat == "2.UWT"
-        case .wwt:
-            baseMatch = cat == "1.WWT" || cat == "2.WWT"
-        case .male:
-            baseMatch = (gender == "male" || neutral || isMixedRelayChampionship(category: cat, name: name))
-                && cat != "1.2" && cat != "2.2"
-                && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
-        case .female:
-            baseMatch = (gender == "female" || neutral || isMixedRelayChampionship(category: cat, name: name))
-                && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
-                && ((cat != "1.2" && cat != "2.2") || Constants.europeCountries.contains(cc))
-        }
-
-        guard baseMatch else { return false }
-
-        // Ocultar WC/CC que no sean Campeonato de Europa/Mundo
-        if cat == "WC" || cat == "CC" {
-            return name.localizedCaseInsensitiveContains("europa")
-                || name.localizedCaseInsensitiveContains("europe")
-                || name.localizedCaseInsensitiveContains("mundo")
-        }
-        return true
-    }
-
-    /// Filtra items según categoría activa (usa las mismas reglas que matchesCategory).
-    static func filterByCategory(_ items: [EnrichedRaceDay], category: Constants.CategoryFilter) -> [EnrichedRaceDay] {
-        guard category != .all else { return items }
-        return items.filter { item in
-            guard let race = item.race else { return true }
-            return matchesCategory(race, filter: category)
-        }
     }
 
     /// Determina si un nombre indica carrera femenina.

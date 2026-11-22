@@ -8,6 +8,12 @@ import SwiftUI
 /// la línea de cifras debajo y las etiquetas a todo el ancho a 6 pt de las
 /// cifras. El miniperfil ocupa la banda inferior.
 ///
+/// Altura única: todas las tarjetas miden lo que una tarjeta completa (nombre,
+/// cifras, una fila de etiquetas y banda del miniperfil), tengan o no perfil,
+/// cifras, etiquetas o botón de competición, como `--road-card-h` de la web. El
+/// contenido se alinea arriba y el perfil queda anclado al pie. Nombre, cifras y
+/// etiquetas ocupan una línea cada uno: las etiquetas que no caben se omiten.
+///
 /// Superficie neutra: el color de la carrera solo marca el avance de una
 /// jornada en directo (perfil recorrido o, sin perfil, relleno del 8 % hasta el
 /// porcentaje de avance). Las destacadas no tienen diseño propio.
@@ -16,7 +22,8 @@ struct RaceCardView: View {
     /// Fuerza la evaluación con datos nuevos conservando la identidad de la tarjeta.
     var refreshToken: Int = 0
     /// Filtro activo de Hoy; permite ocultar redundancias femeninas en Femenino/WWT.
-    var activeFilter: Constants.CategoryFilter = .all
+    /// Solo Femenino marcado en los filtros: sin sufijo femenino ni ♀.
+    var femaleOnly = false
     /// Llamada cuando el usuario pulsa el icono de resultados (trofeo).
     /// Nil = no mostrar botón de resultados.
     var onShowResults: (() -> Void)? = nil
@@ -45,7 +52,7 @@ struct RaceCardView: View {
 
     private var race: Race? { item.race }
     private var rd: RaceDay { item.raceDay }
-    private var isFemaleFilterActive: Bool { activeFilter == .female || activeFilter == .wwt }
+    private var isFemaleFilterActive: Bool { femaleOnly }
     private var displayRaceName: String {
         let fallback = LocaleService.t("Carrera", "Race")
         guard let race else { return fallback }
@@ -249,27 +256,33 @@ struct RaceCardView: View {
 
     var body: some View {
         CCCard {
-            VStack(spacing: 0) {
-                Group {
-                    if rd.isRestDay {
-                        restDayLayout
-                    } else if useVerticalLayout {
-                        verticalLayout
-                    } else {
-                        standardLayout
+            // La plantilla fija el alto mínimo de todas las tarjetas; el
+            // contenido recibe ese alto y ancla el miniperfil al pie.
+            RaceCardMinHeightLayout {
+                heightTemplate
+
+                VStack(spacing: 0) {
+                    Group {
+                        if rd.isRestDay {
+                            restDayLayout
+                        } else if useVerticalLayout {
+                            verticalLayout
+                        } else {
+                            standardLayout
+                        }
                     }
-                }
-                .padding(.horizontal, isPhone ? 16 : 20)
-                .padding(.top, isPhone ? 14 : 16)
-                // Con banda de perfil, el contenido deja 12 pt sobre ella.
-                .padding(.bottom, showsMiniProfile ? 12 : (isPhone ? 14 : 16))
+                    .padding(.horizontal, isPhone ? 16 : 20)
+                    .padding(.top, isPhone ? 14 : 16)
+                    // Con banda de perfil, el contenido deja 12 pt sobre ella.
+                    .padding(.bottom, showsMiniProfile ? 12 : (isPhone ? 14 : 16))
 
-                // En una fila de dos tarjetas estiradas al alto de la más
-                // alta, el miniperfil queda anclado al pie.
-                Spacer(minLength: 0)
+                    // Con el alto único, o en una fila de dos tarjetas estiradas
+                    // al alto de la más alta, el miniperfil queda anclado al pie.
+                    Spacer(minLength: 0)
 
-                if showsMiniProfile, let profile = rd.elevationProfile {
-                    miniProfileBand(profile)
+                    if showsMiniProfile, let profile = rd.elevationProfile {
+                        miniProfileBand(profile)
+                    }
                 }
             }
             .frame(maxHeight: .infinity, alignment: .top)
@@ -314,6 +327,44 @@ struct RaceCardView: View {
         race.map { [$0.localizedName] } ?? []
     }
 
+    // MARK: - Altura única
+
+    /// Alto mínimo de la fila del nombre: el del botón de competición (20 pt),
+    /// igual con y sin él, para que las cifras y las etiquetas queden a la misma
+    /// altura en todas las tarjetas (`.race-card__name` de la web).
+    private static let nameRowMinHeight: CGFloat = 20
+
+    /// Plantilla invisible de una tarjeta completa: relleno superior, nombre,
+    /// cifras, una fila de etiquetas (la de icono y texto, la más alta), 12 pt
+    /// sobre la banda y la banda del miniperfil. `RaceCardMinHeightLayout` la
+    /// mide con las mismas fuentes que la tarjeta, así que el alto sigue el
+    /// tamaño de letra. Al cambiar el relleno, las separaciones o las fuentes
+    /// del contenido, cambiarlos aquí.
+    private var heightTemplate: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(verbatim: "Ag")
+                .ccFont(.s16, weight: .medium)
+                .lineLimit(1)
+                .frame(minHeight: Self.nameRowMinHeight)
+            // Cifras o, en un descanso, su rótulo con icono: la más alta de las dos.
+            ZStack(alignment: .leading) {
+                Text(verbatim: "Ag")
+                    .ccFont(.s13)
+                    .lineLimit(1)
+                Label { Text(verbatim: "Ag") } icon: { Image(systemName: "moon.zzz") }
+                    .ccFont(.s13, weight: .semibold)
+                    .lineLimit(1)
+            }
+            .padding(.top, 2)
+            RaceActionLabel(label: "Ag", icon: "tv")
+                .padding(.top, 6)
+            Color.clear.frame(height: 12 + miniProfileBandHeight)
+        }
+        .padding(.top, isPhone ? 14 : 16)
+        .hidden()
+        .accessibilityHidden(true)
+    }
+
     // MARK: - Identidad (logotipo y bandera)
 
     private var showsFlag: Bool { race?.hideFlag != true || rd.countryCode != nil }
@@ -331,7 +382,7 @@ struct RaceCardView: View {
                     RaceLogo(race?.logoUrl, size: 32, placeholder: true)
                 }
                 if showsFlag {
-                    CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
+                    CountryFlag(countryCode: rd.countryCode ?? race?.countryCode, outlined: true)
                 }
             }
             .frame(width: 32)
@@ -358,6 +409,7 @@ struct RaceCardView: View {
                     .accessibilityLabel(LocaleService.t("Carrera femenina", "Women's race"))
             }
         }
+        .frame(minHeight: Self.nameRowMinHeight)
     }
 
     // MARK: - Rest day layout
@@ -587,37 +639,58 @@ struct RaceCompetitionIdentity: View {
     let countryCode: String?
     var hideFlag = false
     var originalName: String? = nil
+    /// Línea bajo el nombre, en la columna principal junto al logo: número de
+    /// rondas de un torneo de ciclocross; categoría, etapas y fechas de una
+    /// competición de carretera.
+    var detail: AnyView? = nil
     var showFemale = false
     /// Sin logo, hueco de la marca (no en los Campeonatos Nacionales).
     var logoPlaceholder = false
+    private var showsLogo: Bool { (logoUrl?.isEmpty == false) || logoPlaceholder }
+    /// Alto de la columna del logo con la bandera debajo (48 + 4 + 15): el bloque de
+    /// texto de la derecha se centra en vertical respecto a ella mientras quepa.
+    private var leadingColumnHeight: CGFloat {
+        let flag: CGFloat = hideFlag ? 0 : 15
+        return (showsLogo ? 48 : 0) + (showsLogo && !hideFlag ? 4 : 0) + flag
+    }
+    /// Nombre con el símbolo femenino al final del mismo texto: no resta un hueco aparte
+    /// al nombre ni lo desplaza. El símbolo va en color secundario, como en Hoy, Últimos
+    /// resultados, Android y la web.
+    private var nameText: Text {
+        let title = Text(name).font(.title3).fontWeight(.bold)
+        guard showFemale else { return title }
+        return title + Text(" ♀").font(.subheadline).foregroundStyle(.secondary)
+    }
     var body: some View {
         // Logo y bandera arriba aunque el nombre ocupe varias líneas, como en
-        // las tarjetas de Hoy de Ciclocross. Sin nombre original y con logo
-        // (o su hueco), el nombre se centra en vertical respecto al logo
-        // mientras quepa en su alto.
-        let centersName = originalName == nil && (logoUrl != nil || logoPlaceholder)
+        // las tarjetas de Hoy de Ciclocross. Con el bloque de texto más bajo que
+        // la columna del logo y la bandera, se centra en vertical respecto a ella.
         HStack(alignment: .top, spacing: 12) {
-            RaceLogo(logoUrl, size: 48, placeholder: logoPlaceholder)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .top, spacing: 6) {
-                    if !hideFlag { CountryFlag(countryCode: countryCode).padding(.top, 5) }
-                    Text(name).font(.title3).fontWeight(.bold).lineLimit(3).truncationMode(.tail)
-                    if showFemale { Text("♀").foregroundStyle(AppTheme.green).accessibilityLabel("Carrera femenina") }
-                }
-                if let originalName { Text(originalName).font(.subheadline).foregroundStyle(.secondary) }
+            // Logo con la bandera debajo, como las tarjetas de Hoy: con letra grande
+            // la bandera no resta ancho al nombre.
+            VStack(spacing: 4) {
+                RaceLogo(logoUrl, size: 48, placeholder: logoPlaceholder)
+                if !hideFlag { CountryFlag(countryCode: countryCode) }
             }
-            .frame(minHeight: centersName ? 48 : nil, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                nameText.lineLimit(3).truncationMode(.tail)
+                    .accessibilityLabel(showFemale ? "\(name), \(LocaleService.t("carrera femenina", "women's race"))" : name)
+                if let originalName { Text(originalName).font(.subheadline).foregroundStyle(.secondary) }
+                if let detail { detail.font(.subheadline).foregroundStyle(.secondary) }
+            }
+            .frame(minHeight: leadingColumnHeight, alignment: .leading)
             Spacer()
         }.accessibilityElement(children: .combine)
     }
 }
 
 /// Cabecera de la tarjeta de Hoy: nombre y cifras (`.main`) a la izquierda,
-/// horario o accesos (`.trailing`) arriba a la derecha y las etiquetas en
-/// flujo a 6 pt de las cifras. Cuando el horario es más alto que las cifras
-/// («(sáb.)» bajo la hora), las etiquetas no esperan a su final: la línea que
-/// empieza a su altura termina antes de la columna y las siguientes usan todo
-/// el ancho. Mismo reparto que `RaceCardHeader` en Android.
+/// horario o accesos (`.trailing`) arriba a la derecha y las etiquetas en una
+/// sola línea a 6 pt de las cifras: la etiqueta que no cabe, y las que la
+/// siguen, se omiten para que todas las tarjetas midan lo mismo. Cuando el
+/// horario es más alto que las cifras («(sáb.)» bajo la hora), la línea de
+/// etiquetas, que empieza a su altura, dispone solo del ancho de las cifras.
+/// Mismo reparto que `RaceCardHeader` en Android.
 private struct RaceCardHeaderLayout: Layout {
     enum Role { case main, trailing, badge }
 
@@ -628,6 +701,8 @@ private struct RaceCardHeaderLayout: Layout {
     var columnSpacing: CGFloat = 12
     var badgesTop: CGFloat = 6
     var badgeSpacing: CGFloat = 6
+    /// Posición de las etiquetas omitidas: lejos de cualquier tarjeta visible.
+    private static let hiddenOrigin = CGPoint(x: -10_000, y: -10_000)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrange(width: proposal.width, subviews: subviews).size
@@ -666,26 +741,23 @@ private struct RaceCardHeaderLayout: Layout {
             frames[trailingIndex] = CGRect(origin: CGPoint(x: totalWidth - trailingSize.width, y: 0), size: trailingSize)
         }
 
-        // Etiquetas en flujo, centradas en vertical dentro de cada línea como
-        // en `FlowLayout`. Una línea que empieza a la altura del horario
-        // dispone solo del ancho de las cifras.
+        // Etiquetas en una sola línea, centradas en vertical. Una línea que
+        // empieza a la altura del horario dispone solo del ancho de las cifras.
+        // Las omitidas se colocan fuera de la tarjeta, que recorta su contenido,
+        // y no suman altura.
         var x: CGFloat = 0
         var y = mainHeight + badgesTop
         var rowHeight: CGFloat = 0
         var row: [Int] = []
+        var overflowed = false
         func available() -> CGFloat { y < trailingSize.height ? mainWidth : totalWidth }
-        func closeRow() {
-            for i in row { frames[i].origin.y = y + (rowHeight - frames[i].height) / 2 }
-        }
         for index in subviews.indices where subviews[index][RoleKey.self] == .badge {
             let size = subviews[index].sizeThatFits(.unspecified)
             guard size.width > 0 || size.height > 0 else { continue }
-            if x > 0 && x + size.width > available() {
-                closeRow()
-                x = 0
-                y += rowHeight + badgeSpacing
-                rowHeight = 0
-                row = []
+            if x > 0 && x + size.width > available() { overflowed = true }
+            if overflowed {
+                frames[index] = CGRect(origin: Self.hiddenOrigin, size: size)
+                continue
             }
             // Etiqueta que no cabe junto al horario: la línea empieza bajo él.
             if x == 0 && size.width > available() && y < trailingSize.height {
@@ -696,9 +768,28 @@ private struct RaceCardHeaderLayout: Layout {
             rowHeight = max(rowHeight, size.height)
             x += size.width + badgeSpacing
         }
-        closeRow()
+        for i in row { frames[i].origin.y = y + (rowHeight - frames[i].height) / 2 }
 
         let height = max(trailingSize.height, mainHeight, y + rowHeight)
         return (CGSize(width: totalWidth, height: height), frames)
+    }
+}
+
+/// Contenedor de la tarjeta de Hoy con el alto de una tarjeta completa como
+/// mínimo. El primer subview es la plantilla invisible, que solo se mide; el
+/// segundo, el contenido, que recibe el alto resultante para anclar el
+/// miniperfil al pie.
+private struct RaceCardMinHeightLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 2 else { return .zero }
+        let content = subviews[1].sizeThatFits(proposal)
+        let template = subviews[0].sizeThatFits(ProposedViewSize(width: content.width, height: nil))
+        return CGSize(width: content.width, height: max(content.height, template.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: nil))
+        subviews[1].place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }

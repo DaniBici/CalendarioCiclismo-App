@@ -1,6 +1,8 @@
 package app.calendariociclismo.android.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -28,6 +30,10 @@ import coil3.request.ImageRequest
  * `height` permite ajustar el tamaño en contextos densos (p.ej. orden de
  * salida usa 11dp para alinear con la altura visual del glifo del nombre).
  * El ancho se calcula automáticamente preservando la proporción 4:3.
+ *
+ * `outlined`: filete tenue, como el de los círculos de maillot de Últimos
+ * resultados; una bandera con blanco o negro no desaparece sobre la tarjeta
+ * clara u oscura. Solo en las tarjetas de Hoy y en Últimos resultados.
  */
 @Composable
 fun CountryFlag(
@@ -35,6 +41,7 @@ fun CountryFlag(
     modifier: Modifier = Modifier,
     height: Dp = 15.dp,
     countryName: String? = null,
+    outlined: Boolean = false,
 ) {
     if (countryCode.isNullOrBlank()) return
     val code = countryCode.lowercase()
@@ -71,6 +78,7 @@ fun CountryFlag(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .size(width = height * 4 / 3, height = height)
-            .clipToBounds(),
+            .clipToBounds()
+            .then(if (outlined) Modifier.border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)) else Modifier),
     )
 }

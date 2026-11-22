@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  LEQUIPE_GRID_BASE_URL, LEQUIPE_GUIDE_URL, LEQUIPE_TV_URL, collectLequipe, parseLequipeGrid,
+  LEQUIPE_GUIDE_URL, LEQUIPE_TV_URL, collectLequipe, parseLequipeGrid,
 } from '../broadcasts-sync/lequipe.mjs';
 import { contentHash } from '../broadcasts-sync/broadcasts-sync-core.mjs';
 import { adoptionCandidate, mergeManagedBroadcast } from '../broadcasts-sync/broadcasts-sync.mjs';
@@ -54,7 +54,7 @@ describe('colector aislado de emisiones L\'Équipe TV', () => {
     expect(direct.externalEventId).toBe(contentHash('2026-09-18|3|tour de luxembourg').slice(0, 32));
   });
 
-  it('trata las carreras de un día sin etapa y construye la URL de parrilla diaria', () => {
+  it('trata las carreras de un día sin etapa', () => {
     const oneDay = {
       __type: 'tv_guide_schedule_item',
       date: '2026-09-16T15:30:00+02:00',
@@ -67,7 +67,6 @@ describe('colector aislado de emisiones L\'Équipe TV', () => {
     const [event] = parseLequipeGrid(JSON.stringify({ items: [oneDay] }));
     expect(event.stageNumber).toBeNull();
     expect(event.externalEventId).toBe(contentHash('2026-09-16|one-day|grand prix de wallonie bel').slice(0, 32));
-    expect(new URL(`${LEQUIPE_GRID_BASE_URL}/20260916`).href).toBe(`${LEQUIPE_GRID_BASE_URL}/20260916`);
   });
 
   it('valida la envoltura de la parrilla', () => {

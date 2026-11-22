@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
@@ -37,7 +35,6 @@ import app.calendariociclismo.android.ui.theme.CCText
 /**
  * Filtro de categoría (`.tcat-btn`): inactivo sobre la superficie de tarjeta
  * con texto secundario; activo con el acento al 15 % y texto de acento.
- * Chincheta del filtro predeterminado a la derecha.
  */
 @Composable
 fun CalendarFilterChip(
@@ -45,8 +42,6 @@ fun CalendarFilterChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    pinFilled: Boolean = false,
-    pinOutline: Boolean = false,
 ) {
     val primary = MaterialTheme.colorScheme.primary
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
@@ -59,15 +54,6 @@ fun CalendarFilterChip(
                     style = CCText.S13,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 )
-            },
-            trailingIcon = when {
-                pinFilled -> {
-                    { Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp)) }
-                }
-                pinOutline -> {
-                    { Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp)) }
-                }
-                else -> null
             },
             shape = RoundedCornerShape(CCRadius.Control),
             colors = FilterChipDefaults.filterChipColors(

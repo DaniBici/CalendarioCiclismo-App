@@ -22,9 +22,25 @@ export function automaticTeamHeaderText(background) {
   return blackContrast > whiteContrast ? '#000000' : '#ffffff';
 }
 
+// Texto legible sobre la cabecera: la pareja editorial se respeta si llega a 4,5:1
+// (WCAG AA); si no, se usa blanco o negro, el que más contraste dé.
+function relativeLuminance(value) {
+  const hex = color(value);
+  if (!hex) return null;
+  const full = hex.length === 4 ? [...hex.slice(1)].map(c => c + c).join('') : hex.slice(1);
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function readableTeamHeaderText(background, text) {
+  const l1 = relativeLuminance(background), l2 = relativeLuminance(text);
+  if (l1 == null || l2 == null) return text;
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) >= 4.5 ? text : automaticTeamHeaderText(background);
+}
+
 export function teamHeaderColors(team) {
   const background = color(team?.headerBg), text = color(team?.headerText);
-  return background && text ? { background, text } : { background: 'var(--bg-card)', text: 'var(--text)' };
+  return background && text ? { background, text: readableTeamHeaderText(background, text) } : { background: 'var(--bg-card)', text: 'var(--text)' };
 }
 
 export const TEAM_COLUMNS = 'id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle,teamKind,selectionScope,countryCode,selectionCode';

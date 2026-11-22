@@ -2,23 +2,41 @@
 
 ## Vista Hoy — filtros y ordenación
 
-Filtros: `all`, `pro`, `uwt`, `wwt`, `male`, `female`. Ordenación: Cat. UCI / Hora TV / Hora de meta.
+Día sin carreras del filtro (desde la 5.2.5 y la web de 2026-11-20): Hoy de
+carretera y de Ciclocross salta siempre al siguiente día con carreras que pasen
+la selección, al abrir, al cambiar de día y al cambiar los filtros. El botón
+«Ir al próximo día con carreras» solo aparece si no hay ningún día posterior.
 
-Categoría en desplegable (apps y web móvil desde la 5.1.2, solo en Hoy de
-carretera y de Ciclocross): el filtro se elige en un desplegable «Categoría»
-con el aspecto de «Ordenar», en la fila de la fecha: el día y el mes a la
-izquierda, «24 de octubre», sin el día de la semana que ya muestra la tira, y
-«Categoría» y «Ordenar» a la derecha (iOS y Android desde la `680`; web
-hasta 600 px, ver «Franja web» abajo).
-Muestra «Categoría» con Todas y, si no, la categoría activa, con la chincheta
-cuando es la predeterminada; la última opción fija o quita la activa. La web
-de escritorio (desde 1080 px con el conmutador «CX | Ruta» y desde 860 px sin
-él), Mes y Temporada conservan los chips. La opción
-de orden por categoría se rotula «Cat. UCI» en las tres plataformas para no
-repetir «Categoría». Código: iOS `categoryMenu` y `sortMenuBar` (`TodayView`,
-`CyclocrossView`) con `DateFormatting.formatDayMonth`, Android `CategoryMenu` (`TodayScreen.kt`), web
-`syncCategorySelect`/`handleCategorySelect` (`js/shared.js`) y
-`.agenda-cat-wrap` (`css/app.css`). Android: `DateFormatting.formatDayMonth`.
+Filtros (desde la 5.2.4 y en la web desde 2026-11-19): menú «Filtros» de
+opciones marcables, el del Mercado de Fichajes, en Hoy, Mes, Temporada y la
+agenda de Ciclocross. Dentro de un grupo se suman y entre grupos se combinan;
+un grupo con todo marcado no filtra y nunca queda vacío; «Limpiar filtros»
+marca todo. Carretera: nivel (WorldTour, Profesional, .2) y género (Masculino,
+Femenino), separados por un filete y sin rótulo. Ciclocross: Big, UCI y
+Nacional (sin Nacional en inglés). Reglas en «Reglas de filtros». Ordenación:
+Cat. UCI / Hora TV / Hora de meta, recordada por disciplina (web `cc_road_sort`
+y `cc_cx_sort`; apps `road_sort_mode` y `cx_sort_mode`). «Ordenar» muestra las
+flechas y el orden activo en las tres plataformas (web
+`js/components/sort-menu.js`).
+
+Burbujas de la primera visita (web y apps desde la 5.2.4): la primera vez que
+se ve Hoy de carretera y la primera vez que se ve Hoy de Ciclocross, una sobre
+«Filtros» y, tras «Siguiente», otra sobre «Ordenar». Nunca bajo el arranque,
+la bienvenida, la hoja de apoyo o el aviso de cookies. Web
+`js/components/today-tip.js`; iOS TipKit (`TodayTips.swift`); Android
+`RichTooltip` (`TodayTips.kt`).
+
+Posición: en Hoy de carretera y de Ciclocross, «Filtros» y «Ordenar» van a la
+derecha de la fila de la fecha (el día y el mes a la izquierda, «24 de
+octubre», sin el día de la semana que ya muestra la tira). Web: botón
+`.agenda-filter-btn` con el aspecto de «Ordenar»; en Mes y Temporada, un chip
+`.tcat-btn` en la primera fila de la barra (en móvil, en su propia línea).
+iOS: etiqueta «Filtros» con `line.3.horizontal.decrease.circle` (relleno con
+filtros) en Hoy y Ciclocross; el icono solo, en la barra de Mes y Temporada.
+Android: `Icons.Filled.FilterList` con texto en Hoy y Ciclocross y en la fila
+de Año y País de Temporada; el icono con punto de aviso en la barra de Mes.
+Código: web `js/components/filter-menu.js` y `js/race-filters.js`; iOS
+`RaceFilters.swift`; Android `RaceFilters.kt` y `ui/components/RaceFiltersMenu.kt`.
 
 Franja web (Hoy de carretera y de Ciclocross, desde 2026-10-21): conmutador
 «CX | Ruta» (si existe) y fecha a la izquierda, categoría y «Ordenar» a la
@@ -32,9 +50,18 @@ Las carreras seleccionadas como destacadas solo reciben prioridad y presentació
 Orden (web `js/services/today-agenda-order.js`, espejo `RaceLogic` en iOS y
 Android): destacadas primero solo en Categoría; carreras sin jornada publicada
 y canceladas siempre al final, aunque estén destacadas; después campeonatos
-nacionales, gran vuelta, `categoryRank` (tabla única de
+nacionales entre sí, gran vuelta, `categoryRank` (tabla única de
 `js/services/race-order.js`), sexo, hora de salida, sector A/B y nombre. El
 miniperfil no interviene en el orden. Ningún día tiene destacada obligatoria.
+
+`categoryRank` (desde la 5.2.4 y en la web desde 2026-11-19): Grandes Vueltas,
+Mundiales (WC), WorldTour (1.UWT, 2.UWT, 1.WWT, 2.WWT), Continental europeo
+(CC con `europa|europe` en el nombre), ProSeries, .1, Continentales de otras
+áreas, Nacionales (CN) y .2 (1.2, 2.2, 1.2U, 2.2U y las clases sueltas). Sin
+excepciones por país ni para el Tour del Porvenir. Ciclocross, por clase: CM,
+CDM, Europeo, C1, C2, otros Continentales, CN y NAC (`cxClassRank` en la web,
+`CyclocrossLogic.classRank` en las apps). El widget sigue el mismo orden
+(`widget_day`).
 
 Tarjetas web: una sola estructura (logo | datos | horario, miniperfil en banda
 inferior) para carreras, carreras sin jornada, canceladas y descansos. Desde
@@ -43,6 +70,17 @@ reservan la banda del perfil y alinean su contenido arriba; la destacada ocupa
 la fila y lleva el perfil a una columna central. El DOM no cambia con el ancho.
 El ♀ junto a la categoría se omite si el nombre, la categoría WWT o el filtro
 femenino ya lo indican.
+
+Altura única de las tarjetas de carretera en las tres plataformas: todas miden
+lo que una tarjeta completa (relleno, nombre, cifras, una fila de etiquetas y
+banda del miniperfil), con o sin perfil, cifras, etiquetas o botón ☰. Web:
+`--road-card-h` en `css/app.css`. Apps: una plantilla invisible de la tarjeta
+completa, medida con las mismas tipografías (`heightTemplate` y
+`RaceCardMinHeightLayout` en iOS; `RaceCardHeightTemplate` y `RaceCardColumn` en
+Android), fija el alto mínimo y el perfil queda anclado al pie. Nombre, cifras y
+etiquetas ocupan una línea y las etiquetas que no caben se omiten. Al cambiar el
+relleno, las separaciones o las tipografías de la tarjeta, cambiar también la
+plantilla.
 
 En web, «Hora Meta» también muestra la llegada prevista en las tarjetas, aunque
 la etapa aún no haya empezado. Al volver a Categoría o Hora TV se recupera la
@@ -64,19 +102,37 @@ navegación de regreso explícita.
 
 ### Reglas de filtros
 
-- **CN:** las pruebas élite entran en Pro y en su género; las sub23 quedan fuera de Pro/Masc/Fem.
-- **WC/CC:** Masculino exige `gender='male'` y Femenino exige `gender='female'`; el relevo mixto y cualquier carrera sin género (`gender` nulo) aparecen en ambos. Fuera de Todas, se muestran solo Europa/Mundo (regex `europa|europe|mundo` en iOS/Android; la web aplica `europa|europe` a CC).
-- **Carreras sin género (`races.gender` nulo) en Hoy, Mes y Temporada:** pasan Masculino y Femenino, con las demás condiciones de cada filtro (WC/CC solo Europa/Mundo; 1.2/2.2 solo en Femenino y en Europa; 1.2U/2.2U solo el Tour del Porvenir). Web: `isGenderNeutral` (`js/category-filter.js`) en `matchesCategoryFilter` (`js/services/today-nav.js`, Hoy y navegación entre días), `passesCategoryFilter` (`js/calendario-mes.js`) y `_applyCategoryFilter` (`js/temporada-html.js`). Apps: `RaceLogic.isGenderNeutral` dentro de `RaceLogic.matchesCategory`, que usan Hoy, Mes y Temporada.
-- **Auto-navegación:** solo filtro `all`. Ejecutar al final de `loadDay()` directamente, no con `onChange(of:)` en SwiftUI.
-- **`nextDayWithRaces`:** recalcular al cambiar filtro. Flechas prev/next escanean 180 días; fallback ±1 día si `allRaces` no cargado.
+- **Nivel de carretera** (`uciCategory`): WorldTour = 1.UWT, 2.UWT, 1.WWT,
+  2.WWT y WC; Profesional = 1.Pro, 2.Pro, 1.1, 2.1, CC y CN (sub23 incluidas);
+  .2 = 1.2, 2.2, 1.2U, 2.2U y la lista cerrada 1.Ncup, 2.Ncup, 1.NE y 2.NE.
+  Una clase fuera de las tres listas no tiene nivel: solo se ve con el grupo
+  entero marcado. Ampliar la lista de .2 es una decisión de Dani.
+- **Género:** `gender` masculino o femenino; una carrera sin género y los
+  relevos mixtos de WC/CC cuentan en los dos.
+- **Ciclocross:** Big = CM, CDM, CC y las pruebas de los torneos Copa del
+  Mundo, Superprestige, X2O y HG Cross (antes Exact Cross); Nacional = `NAC`;
+  UCI = el resto (C1, C2 y CN de cualquier país, también las pruebas UCI en
+  España). En un torneo no se filtra.
+- **Solo Femenino marcado:** nombres sin sufijo femenino y sin ♀
+  (`needsFemaleMark`/`cleanFeminineName` con `femaleMarkCat` en la web;
+  `femaleOnly` en las apps).
+- **Auto-navegación:** con o sin filtros (desde la 5.2.5). Se ejecuta al final de `loadDay()` directamente. Al cambiar el filtro con el día ya cargado, iOS la dispara desde `onChange(of: viewModel.filter)` solo si hay items y la carga terminó; Android, desde `skipDayEmptiedByFilter`.
+- **`nextDayWithRaces`:** recalcular al cambiar filtros. Flechas prev/next escanean 180 días; fallback ±1 día si `allRaces` no cargado.
+- Las CN de la ventana de la página de Campeonatos no se listan sueltas en Mes y Temporada (fila sintética), con o sin filtros.
 
-### Filtro predeterminado fijado (pin)
+### Memoria de los filtros
 
-Persistencia: iOS `UserDefaults.defaultFilter` / Android DataStore `default_filter` / web `localStorage['cc_default_filter']`. Helpers web en `js/shared.js`: `getPinnedFilter`, `setPinnedFilter`, `renderFilterPins`, `handleFilterEvent`.
-
-- **Prioridad al cargar:** URL `?cat=` > pin > default por vista (Hoy `all`, Mes/Temporada `pro`).
-- **UX chincheta:** pulsación larga o segundo toque sobre chip activo abre el modal. "Todas" → ninguna; fijado → relleno; activo ≠ fijado ≠ "Todas" → contorno en activo. En el desplegable «Categoría» de Hoy, la opción final «Fijar/Quitar «X» como predeterminada» (apps: abre el modal; web móvil: alterna directamente, como el icono del chip) y la chincheta junto a la categoría activa si es la fijada.
-- **Modal:** chip no fijado → "Establecer como por defecto"; chip fijado → "Quitar" → vuelve a `ALL`.
+La selección se recuerda por disciplina; carretera la comparten Hoy, Mes y
+Temporada. Web `localStorage` `cc_road_filters` y `cc_cx_filters` (JSON por
+grupo; sin clave con todo marcado); iOS `UserDefaults` `road_race_filters` y
+`cx_race_filters` (JSON); Android DataStore `road_race_filters` y
+`cx_race_filters` (formato del widget, `level:wt,pro;gender:female`). La
+chincheta de la 5.2.3 (`cc_default_filter`/`defaultFilter`/`default_filter` y
+sus equivalentes de CX) se convierte una vez y se retira: WT → WorldTour +
+Masculino; WWT → WorldTour + Femenino; Pro → WorldTour + Profesional; Masc →
+WorldTour + Profesional + Masculino; Fem → Femenino; CX Big → Big; CX Pro →
+Big + UCI; España → Nacional. Fichajes recuerda también los suyos
+(`cc_transfer_filters` en la web, `transfer_filters` en las apps).
 
 ### Auto-recarga al recuperar conectividad
 
@@ -88,13 +144,14 @@ Persistencia: iOS `UserDefaults.defaultFilter` / Android DataStore `default_filt
 
 Desde 2026-10-08 (apps 5.0.15) la agenda general de Ciclocross es una vista
 Hoy con la navegación de carretera; la agenda mensual se retiró. Filtros CX:
-Todas, Big, Pro y España, con chincheta propia (web `cc_cx_default_filter`,
-iOS `cx_default_filter`). Rango: temporada CX del día civil (1 de agosto – fin
+Big, UCI y Nacional, combinables y recordados (ver «Memoria de los
+filtros»). Rango: temporada CX del día civil (1 de agosto – fin
 de febrero); hoy fuera de rango se acota al extremo. Tira de siete días
 desplazada en los extremos; flechas y deslizamiento al día con carreras del
 filtro o al contiguo, deshabilitados en los extremos. Apertura en el próximo
-día con carreras del filtro; después, avance automático desde un día vacío
-solo con Todas. Pruebas de la temporada cargadas una vez; filtro y día en
+día con carreras del filtro; después, avance automático desde un día sin
+carreras que pasen el filtro (desde la 5.2.5 y la web de 2026-11-20, con o sin
+filtros; antes solo con todos marcados). Pruebas de la temporada cargadas una vez; filtro y día en
 memoria. La página de torneo conserva la lista de temporada. Las destacadas
 (`cx_race_featured`) de la primera pintura desde caché salen de la última
 lectura del repositorio (sesión o caché local, `cachedFeaturedRaceIds`), de
@@ -192,8 +249,10 @@ Web: cada cambio de día muestra la carga y relee el mes del día de destino.
   Ruta sobre CX en todas las secciones desde esa fecha. Sustituye, en lo
   relativo a la pestaña Ciclocross, la vuelta a la configuración del 17-18 de
   octubre de 2026.
-- **Actualización de enero de 2027 (apps):** icono Original de nuevo. La
-  vista por días de Ciclocross sigue sustituyendo a la agenda mensual.
+- **Icono de las apps (5.2.2, adelantado desde enero de 2027):** el icono
+  Original vuelve al azul y Tierra seca queda como «Ciclocross», elegible por
+  cualquier usuario en Ajustes. La vista por días de Ciclocross sigue
+  sustituyendo a la agenda mensual.
 
 Tarjeta CX de altura única en Hoy y Torneos: la fila de estado reserva el alto
 de la copa, la variante sin horarios reserva caja y estado, y nombre y línea

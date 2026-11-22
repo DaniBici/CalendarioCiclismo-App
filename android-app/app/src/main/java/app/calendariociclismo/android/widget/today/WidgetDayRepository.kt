@@ -53,8 +53,8 @@ class WidgetDayRepository(private val context: Context) {
             put("p_disciplines", JsonArray(config.discipline.rpcValue.map(::JsonPrimitive)))
             when (config.scope) {
                 WidgetScope.APP_FILTER -> {
-                    put("p_filter", prefs.defaultFilter.first().id)
-                    put("p_cx_filter", prefs.snapshotCxDefaultFilter() ?: "all")
+                    put("p_filter", prefs.snapshotRoadRaceFilter().encoded)
+                    put("p_cx_filter", prefs.snapshotCxRaceFilter().encoded)
                 }
                 WidgetScope.ALL -> {
                     put("p_filter", "all")

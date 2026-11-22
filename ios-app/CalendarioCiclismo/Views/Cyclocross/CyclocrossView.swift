@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 struct CxDestination: Hashable {
     let raceId: String
@@ -38,6 +39,8 @@ struct CyclocrossView: View {
         _model = State(initialValue: CyclocrossAgendaModel(tournamentId: tournament?.id))
     }
     @State private var now = Date()
+    /// Burbujas de la primera visita a la agenda (Filtros y Ordenar).
+    @State private var tips = TodayTips.group(.cyclocross)
     @State private var locale = LocaleService.shared
     @State private var championshipsRoute: ChampionshipsRoute?
     @State private var highlightedStageDayId: IdentifiableID?
@@ -47,7 +50,6 @@ struct CyclocrossView: View {
     /// Carrera cuya card es placeholder: muestra el aviso de información.
     @State private var placeholderRace: CxRace?
     /// Filtro cuya chincheta se está alternando (alert de predeterminado).
-    @State private var pendingDefaultFilter: CxAgendaFilter?
     /// Deslizamiento entre días con la animación de Hoy en Carretera.
     @State private var contentOffset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
@@ -119,32 +121,7 @@ struct CyclocrossView: View {
         .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarItems }
-        .alert(
-            pendingDefaultFilter == model.pinnedFilter && model.pinnedFilter != .all
-                ? CyclocrossPresentation.t("Quitar filtro por defecto", "Remove default filter")
-                : CyclocrossPresentation.t("Filtro por defecto", "Default filter"),
-            isPresented: Binding(get: { pendingDefaultFilter != nil }, set: { if !$0 { pendingDefaultFilter = nil } }),
-            presenting: pendingDefaultFilter
-        ) { filter in
-            if filter == model.pinnedFilter && model.pinnedFilter != .all {
-                Button(CyclocrossPresentation.t("Quitar", "Remove"), role: .destructive) { model.clearDefaultFilter(); pendingDefaultFilter = nil }
-            } else {
-                Button(CyclocrossPresentation.t("Establecer", "Set")) { model.setDefaultFilter(filter); pendingDefaultFilter = nil }
-            }
-            Button(CyclocrossPresentation.t("Cancelar", "Cancel"), role: .cancel) { pendingDefaultFilter = nil }
-        } message: { filter in
-            if filter == model.pinnedFilter && model.pinnedFilter != .all {
-                Text(CyclocrossPresentation.t(
-                    "Se eliminará «\(filter.label)» como filtro predeterminado de la agenda de Ciclocross.",
-                    "«\(filter.label)» will no longer be the default for the Cyclocross agenda."
-                ))
-            } else {
-                Text(CyclocrossPresentation.t(
-                    "El filtro «\(filter.label)» se aplicará como predeterminado solo en la agenda de Ciclocross.",
-                    "The filter «\(filter.label)» will be applied as default only in the Cyclocross agenda."
-                ))
-            }
-        }
+        .onChange(of: RaceFilterStore.shared.cx) { _, _ in model.filtersChanged() }
         .task { await model.open(selectedSeason ?? model.season) }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -306,8 +283,9 @@ struct CyclocrossView: View {
 
             Spacer(minLength: 0)
 
-            categoryMenu
+            filtersMenu
                 .fixedSize()
+                .todayTip(tips, TodayFiltersTip.self, discipline: .cyclocross)
 
             Menu {
                 Picker(CyclocrossPresentation.t("Ordenar", "Sort"), selection: Binding(
@@ -322,18 +300,14 @@ struct CyclocrossView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text(model.sort.label)
-                }
-                .ccFont(.s13, weight: .semibold)
-                .foregroundStyle(.secondary)
+                TodaySortLabel(label: model.sort.label)
             }
             .tint(AppTheme.textMuted)
             .accessibilityLabel(CyclocrossPresentation.t("Ordenar carreras por \(model.sort.label)", "Sort races by \(model.sort.label)"))
             .accessibilityHint(CyclocrossPresentation.t("Pulsa dos veces para cambiar el orden", "Double tap to change sort order"))
             .accessibilityIdentifier("cx_sort_menu")
             .fixedSize()
+            .todayTip(tips, TodaySortTip.self, discipline: .cyclocross)
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -397,13 +371,13 @@ struct CyclocrossView: View {
             ErrorView(message: error) { Task { await model.retry() } }
                 .frame(maxWidth: .infinity, minHeight: 320)
         } else if model.dayRaces.isEmpty {
-            // Estado vacío de Hoy; con Todas solo aparece si no queda ningún
+            // Estado vacío de Hoy; sin filtros solo aparece si no queda ningún
             // día con carreras (la auto-navegación ya avanzó).
             VStack(spacing: 16) {
                 EmptyStateView(
                     icon: "calendar.badge.exclamationmark",
                     title: CyclocrossPresentation.t("No hay carreras", "No races"),
-                    subtitle: model.filter == .all
+                    subtitle: !model.filter.isActive
                         ? CyclocrossPresentation.t("No hay carreras programadas para este día", "No races scheduled for this day")
                         : CyclocrossPresentation.t("No hay carreras con este filtro para este día", "No races matching this filter for this day")
                 )
@@ -439,18 +413,20 @@ struct CyclocrossView: View {
                 // Estructura de las vueltas por etapas de carretera, sin el logo
                 // simplificado en la barra superior.
                 if let tournament {
-                    VStack(alignment: .leading, spacing: 10) {
-                        RaceCompetitionIdentity(name: CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name), logoUrl: tournament.logoUrl, countryCode: nil, hideFlag: true)
-                        HStack(spacing: 8) {
-                            if roundTotal > 1 {
-                                Text(CyclocrossPresentation.t("\(roundTotal) rondas", "\(roundTotal) rounds")).ccFont(.s13).foregroundStyle(AppTheme.textMuted)
-                                Text("·").ccFont(.s13).foregroundStyle(AppTheme.textMuted).accessibilityHidden(true)
-                            }
-                            Text(tournament.seasonKey ?? model.season).ccFont(.s13).foregroundStyle(AppTheme.textMuted)
-                            Spacer()
-                        }
-                    }
-                    .padding().background(AppTheme.cardBackground)
+                    // Tarjeta, como la cabecera de la jornada: el logo, el nombre y,
+                    // bajo él, el recuento de rondas (sin la temporada, que el torneo
+                    // ya implica). La negrita es de la manga «n/total» de cada prueba.
+                    RaceCompetitionIdentity(
+                        name: CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name),
+                        logoUrl: tournament.logoUrl, countryCode: nil, hideFlag: true,
+                        detail: roundTotal > 1
+                            ? AnyView(Text("\(roundTotal) " + CyclocrossPresentation.t("rondas", "rounds")))
+                            : nil)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .ccCardSurface()
+                        .padding(.horizontal)
+                        .padding(.top, 8)
                 }
                 if !generalCategories.isEmpty { tournamentSectionControls }
                 if showsGeneral, let standings {
@@ -771,58 +747,13 @@ struct CyclocrossView: View {
         .accessibilityHint(CyclocrossPresentation.t("Calendario iCal, notificaciones y privacidad", "iCal calendar, notifications and privacy"))
         .accessibilityIdentifier(AccessibilityID.settingsButton)
     }
-    /// Desplegable «Categoría»: muestra «Categoría» con Todas y, si no, la
-    /// categoría activa, con la chincheta cuando es la predeterminada de esta
-    /// vista. Al final, fijar o quitar la activa como predeterminada.
-    private var categoryMenu: some View {
-        let active = model.filter
-        let isPinned = active != .all && model.pinnedFilter == active
-        let title = active == .all ? CyclocrossPresentation.t("Categoría", "Category") : active.label
-        return Menu {
-            Picker(CyclocrossPresentation.t("Categoría", "Category"), selection: Binding(
-                get: { model.filter },
-                set: { filter in
-                    guard filter != model.filter else { return }
-                    Haptics.play(.selection)
-                    model.selectFilter(filter)
-                }
-            )) {
-                ForEach(CxAgendaFilter.allCases) { filter in
-                    Text(filter.label).tag(filter)
-                }
-            }
-            if active != .all {
-                Divider()
-                Button {
-                    Haptics.play(.primaryAction)
-                    pendingDefaultFilter = active
-                } label: {
-                    Label(isPinned
-                          ? CyclocrossPresentation.t("Quitar «\(active.label)» como predeterminada", "Remove «\(active.label)» as default")
-                          : CyclocrossPresentation.t("Fijar «\(active.label)» como predeterminada", "Set «\(active.label)» as default"),
-                          systemImage: isPinned ? "pin.slash" : "pin")
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
-                Text(title)
-                if isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .ccFont(.s13, weight: .semibold)
-            .foregroundStyle(.secondary)
-            .contentShape(Rectangle())
-        }
-        .tint(AppTheme.textMuted)
-        .accessibilityLabel(isPinned
-            ? CyclocrossPresentation.t("Categoría: \(title), predeterminada", "Category: \(title), default")
-            : CyclocrossPresentation.t("Categoría: \(title)", "Category: \(title)"))
-        .accessibilityHint(CyclocrossPresentation.t("Pulsa dos veces para elegir la categoría", "Double tap to choose the category"))
-        .accessibilityIdentifier("cx_agenda_filters")
+    /// «Filtros»: Big, UCI y Nacional, combinables y recordados
+    /// (`RaceFilterStore`), con el menú de Fichajes.
+    private var filtersMenu: some View {
+        CxFiltersMenu { isActive in RaceFiltersMenuLabel(isActive: isActive) }
+            // Control secundario en gris, como «Ordenar»; con filtros, el acento.
+            .tint(AppTheme.textMuted)
+            .accessibilityIdentifier("cx_agenda_filters")
     }
     @ViewBuilder private func agendaRow(_ row: CxAgendaRow) -> some View {
         switch row {
@@ -938,16 +869,19 @@ struct CxRaceCard: View {
                     }
                     // Orden de metadatos: torneo · ronda · localización, en
                     // una línea. Se recorta primero la sede y después el
-                    // torneo; la ronda no se recorta.
+                    // torneo; la ronda no se recorta. En Hoy (con el acceso
+                    // al torneo), torneo en negrita y color principal y
+                    // manga en negrita y gris; en la página de torneo (sin el acceso al
+                    // torneo), solo la manga en negrita y gris.
                     HStack(spacing: 5) {
                         if let tournament {
                             Text(CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name))
-                                .ccFont(.s12).foregroundStyle(AppTheme.textMuted).lineLimit(1)
+                                .ccFont(.s12, weight: .bold).foregroundStyle(AppTheme.textPrimary).lineLimit(1)
                                 .layoutPriority(1)
                             if currentRound != nil || venue != nil { metaDot.fixedSize() }
                         }
                         if let currentRound {
-                            Text("\(currentRound.n)/\(currentRound.total)").ccFont(.s12).foregroundStyle(AppTheme.textMuted).monospacedDigit()
+                            Text("\(currentRound.n)/\(currentRound.total)").ccFont(.s12, weight: .bold).foregroundStyle(AppTheme.textMuted).monospacedDigit()
                                 .fixedSize()
                             if venue != nil { metaDot.fixedSize() }
                         }

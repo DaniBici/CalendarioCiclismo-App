@@ -6,7 +6,7 @@
 - Las versiones 4.3 no muestran publicidad, no reservan espacio para ella y no inicializan SDK publicitarios.
 - Premium está retirado de la venta y no se convierte en Amigo.
 - Amigo y las aportaciones puntuales requieren una compra expresa.
-- Fundador y Amigo solo habilitan reconocimiento e iconos cosméticos.
+- Fundador y Amigo solo habilitan reconocimiento e iconos cosméticos. Original y Ciclocross están disponibles para todos.
 
 ## Productos
 
@@ -28,7 +28,7 @@ Los productos Premium históricos se consultan solo para restauración y reconoc
 - `isSubscribed`: membresía Amigo activa. No controla funciones.
 - `isLegacyPremiumActive` (Android) / `legacyPremiumEntitlementActive` (iOS): Premium histórico todavía vigente. Impide ofrecer otra suscripción durante el periodo pagado y excluye del aviso de uso posterior.
 - `isFounder`: existe una compra Premium histórica no revocada. Es permanente aunque expire.
-- `supporterIcon`: `default`, `founder` o `friend`. El icono Amigo solo está disponible con membresía activa; Fundador permanece disponible.
+- `supporterIcon`: `default` (iOS: `standard`), `cyclocross`, `founder` o `friend`. `default` y `cyclocross` están disponibles para todos; el icono Amigo solo con membresía activa; Fundador permanece disponible.
 - `contributionCount`: confirmación local para mostrar el agradecimiento por consumibles.
 
 ## Restauración y transiciones
@@ -36,18 +36,19 @@ Los productos Premium históricos se consultan solo para restauración y reconoc
 1. Consultar derechos activos de Amigo y Premium.
 2. Consultar el historial de Premium en iOS para recuperar Fundador aunque el plan haya expirado.
 3. No comprar Amigo mientras Premium anterior siga activo.
-4. Al expirar Amigo, retirar el icono temporal Amigo y recuperar la elección elegible anterior: Fundador si estaba seleccionado y sigue reconocido; Original en cualquier otro caso.
+4. Al expirar Amigo, retirar el icono temporal Amigo y recuperar la elección elegible anterior: Fundador si estaba seleccionado y sigue reconocido; Ciclocross si estaba seleccionado; Original en cualquier otro caso.
 5. Al expirar Premium, conservar Fundador y permitir una nueva compra voluntaria de Amigo.
 6. Una aportación puntual no desbloquea nada y se consume en Google Play para permitir repetirla.
 
 ## Presentación
 
-- La pantalla de sostenimiento explica que la app es gratuita, abierta y sin anuncios.
-- La hoja de apoyo es `SupportSheet` (Android) y `SupportView` (iOS). `PremiumService.presentSupport()` la abre desde la presentación inicial (`SupportIntroOnboarding*`), la tarjeta de Ajustes y el aviso de uso posterior.
-- La versión 4.3 usa el gate `support_intro_v4_3_1_done` (misma clave en iOS y Android) para mostrar una vez el anuncio a todas las instalaciones. Una clave de audiencia fijada antes del primer paso distingue instalaciones nuevas de actualizaciones: las primeras explican el sostenimiento y la autoría, mientras que las actualizaciones explican la retirada de publicidad y Fundador.
-- El onboarding espera a la primera comprobación de compras antes de ofrecer Amigo; con Premium vigente o Amigo activo prioriza Continuar y no ofrece una alta duplicada.
+- El tercer paso de la bienvenida («Apoya el proyecto») explica que la app es gratuita, abierta y sin anuncios, y que el apoyo es voluntario.
+- La hoja de apoyo es `SupportSheet` (Android) y `SupportView` (iOS). `PremiumService.presentSupport()` la abre desde el tercer paso de la bienvenida (`WelcomeOnboardingView` / `WelcomeOnboardingScreen`), la tarjeta de Ajustes y el aviso de uso posterior. Desde la bienvenida la hoja se abre encima y la bienvenida sigue debajo.
+- La clave `support_intro_v4_3_1_done` (la misma en iOS y Android) marca el tercer paso como completado al pulsar «Abrir Calendario Ciclismo». Desde la 5.2.2 el paso es igual para todas las instalaciones: se retiraron los textos para quien actualizaba desde antes de la 4.3.1 y la clave de audiencia `support_intro_v4_3_new_installation`.
+- El botón de apoyo de la bienvenida espera a la primera comprobación de compras. Con Premium vigente ofrece solo las aportaciones puntuales; con Amigo activo, el paso agradece el apoyo y no ofrece otra alta.
 - Ajustes contiene un enlace breve a `/apoyar/` o `/en/support/`; la explicación extensa no se duplica dentro de la app.
-- Original, Fundador y Amigo se mantienen como composiciones por capas de Icon Composer; la selección siempre es expresa.
+- Original (azul), Ciclocross (Tierra seca), Fundador y Amigo se mantienen como composiciones por capas de Icon Composer; la selección siempre es expresa.
+- El selector «Icono de la aplicación» de Ajustes lo ven todos los usuarios, en una sola fila con igual reparto del ancho: Original y Ciclocross para todos, Fundador con el reconocimiento de Fundador y Amigo con la membresía activa. Un Fundador con Amigo activo ve cuatro opciones (Original, Ciclocross, Fundador y Amigo), sin desplazamiento.
 - El aviso de uso posterior no se muestra a Amigo ni mientras Premium histórico siga activo.
 - Restaurar compras recupera Amigo y, en iOS, cualquier Premium histórico no revocado.
 

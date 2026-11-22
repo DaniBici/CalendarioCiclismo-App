@@ -187,6 +187,8 @@ struct TransfersView: View {
     @State private var error: String?
     @State private var activeDivision = TransfersLogic.divisions[0]
     @State private var activeFeed = TransfersFeed.signings
+    /// Filtros de Fichajes y Renovaciones (categoría y división), recordados.
+    @State private var filters = TransfersLogic.FeedFilters.load()
     @State private var teamRoute: TransfersTeamRoute?
     @State private var localeService = LocaleService.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -229,11 +231,18 @@ struct TransfersView: View {
                     }
                 }
             }
+            // Filtros de Fichajes y Renovaciones: menú nativo de la barra.
+            if data != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    TransfersFiltersMenu(filters: $filters)
+                }
+            }
         }
         .navigationDestination(item: $teamRoute) { route in
             TransfersTeamView(teamId: route.teamId)
         }
         .task { await load() }
+        .onChange(of: filters) { _, newValue in newValue.save() }
         .onAppear { openDeepLinkedTeamIfNeeded() }
         .onChange(of: deepLinkedTeamId) { _, _ in openDeepLinkedTeamIfNeeded() }
         .onAppear {
@@ -274,6 +283,18 @@ struct TransfersView: View {
         isLoading = false
     }
 
+    /// Pone al día solo Fichajes o solo Renovaciones (pull-to-refresh arriba
+    /// de su lista, en pantallas anchas). El otro panel no cambia.
+    private func refreshFeed(renewals: Bool) async {
+        guard let current = data else { return await load() }
+        do {
+            let fresh = try await SupabaseService.shared.loadTransfersMarket(season: TransfersLogic.marketSeason)
+            data = current.replacingFeed(renewals: renewals, with: fresh)
+        } catch {
+            // Se conserva lo que ya se ve, como en la recarga completa.
+        }
+    }
+
     // MARK: - Lista principal
 
     private func marketList(_ data: TransfersLogic.MarketData) -> some View {
@@ -294,10 +315,12 @@ struct TransfersView: View {
             )
         }
         let signingsFeed = cut(TransfersLogic.confirmedFeed(
-            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById,
+            filters: filters
         ))
         let renewalsFeed = cut(TransfersLogic.renewalFeed(
-            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById,
+            filters: filters
         ))
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)
         let signingsTitle = localeService.t("Fichajes", "Signings")
@@ -309,11 +332,22 @@ struct TransfersView: View {
         if inSplitDetail {
             return AnyView(GeometryReader { proxy in
                 let bottomInset = proxy.safeAreaInsets.bottom
+                // Un desplazamiento del alto de la columna: no mueve nada, pero
+                // un tirón fuera de las listas actualiza las dos.
+                ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    if filters.isActive {
+                        TransfersActiveFilters(filters: $filters)
+                            .padding(.bottom, 8)
+                    }
                     if wide {
                         HStack(alignment: .top, spacing: 24) {
-                            feedPanel(title: signingsTitle, feed: signingsFeed, data: data, bottomInset: bottomInset)
-                            feedPanel(title: renewalsTitle, feed: renewalsFeed, data: data, bottomInset: bottomInset)
+                            feedPanel(title: signingsTitle, feed: signingsFeed, data: data, bottomInset: bottomInset) {
+                                await refreshFeed(renewals: false)
+                            }
+                            feedPanel(title: renewalsTitle, feed: renewalsFeed, data: data, bottomInset: bottomInset) {
+                                await refreshFeed(renewals: true)
+                            }
                         }
                     } else {
                         Picker(localeService.t("Movimientos", "Moves"), selection: $activeFeed) {
@@ -326,29 +360,44 @@ struct TransfersView: View {
                             title: nil,
                             feed: activeFeed == .signings ? signingsFeed : renewalsFeed,
                             data: data,
-                            bottomInset: bottomInset
+                            bottomInset: bottomInset,
+                            refresh: { await load() }
                         )
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .frame(height: proxy.size.height + bottomInset, alignment: .top)
+                }
+                .scrollBounceBehavior(.always, axes: .vertical)
+                .refreshable { await load() }
                 .ignoresSafeArea(.container, edges: .bottom)
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
             .background(AppTheme.background)
-            .onChange(of: activeFeed) { _, _ in Haptics.play(.selection) })
+            .onChange(of: activeFeed) { _, _ in Haptics.play(.selection) }
+            .onChange(of: filters) { _, _ in Haptics.play(.selection) })
         }
 
         // Un único scroll permite que el feed crezca y todos los equipos sigan accesibles.
         return AnyView(ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // ── Filtros activos (se eligen en el menú de la barra) ──
+                if filters.isActive {
+                    TransfersActiveFilters(filters: $filters)
+                        .padding(.bottom, 8)
+                }
                 // ── Fichajes y Renovaciones ────────────────────────
                 if wide {
                     HStack(alignment: .top, spacing: 24) {
-                        feedPanel(title: signingsTitle, feed: signingsFeed, data: data)
-                        feedPanel(title: renewalsTitle, feed: renewalsFeed, data: data)
+                        feedPanel(title: signingsTitle, feed: signingsFeed, data: data) {
+                            await refreshFeed(renewals: false)
+                        }
+                        feedPanel(title: renewalsTitle, feed: renewalsFeed, data: data) {
+                            await refreshFeed(renewals: true)
+                        }
                     }
                 } else {
                     Picker(localeService.t("Movimientos", "Moves"), selection: $activeFeed) {
@@ -360,7 +409,8 @@ struct TransfersView: View {
                     feedPanel(
                         title: nil,
                         feed: activeFeed == .signings ? signingsFeed : renewalsFeed,
-                        data: data
+                        data: data,
+                        refresh: { await load() }
                     )
                 }
 
@@ -401,6 +451,7 @@ struct TransfersView: View {
         .background(AppTheme.background)
         .refreshable { await load() }
         .onChange(of: activeFeed) { _, _ in Haptics.play(.selection) }
+        .onChange(of: filters) { _, _ in Haptics.play(.selection) }
         .onChange(of: activeDivision) { _, _ in Haptics.play(.selection) })
     }
 
@@ -408,12 +459,14 @@ struct TransfersView: View {
     /// separadas por filete y lista de altura fija con desplazamiento propio.
     /// En pantallas anchas lleva título.
     /// `bottomInset` (solo en la columna de detalle): el panel ocupa el alto
-    /// disponible y la lista reserva ese margen al final.
+    /// disponible y la lista reserva ese margen al final. `refresh`: acción del
+    /// tirón arriba de la lista.
     private func feedPanel(
         title: String?,
         feed: [RiderTransfer],
         data: TransfersLogic.MarketData,
-        bottomInset: CGFloat? = nil
+        bottomInset: CGFloat? = nil,
+        refresh: @escaping () async -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let title {
@@ -428,6 +481,9 @@ struct TransfersView: View {
                 feedRows(feed, data: data)
             }
             .contentMargins(.bottom, bottomInset ?? 0, for: .scrollContent)
+            // Tirón arriba de la lista: actualiza solo este panel en pantallas
+            // anchas y todo en una columna.
+            .refreshable { await refresh() }
             .frame(height: bottomInset == nil ? Self.feedHeight : nil)
             .frame(maxHeight: bottomInset == nil ? nil : .infinity)
         }
@@ -516,6 +572,103 @@ struct TransfersView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Filtros
+
+/// Opciones de los filtros de Fichajes y Renovaciones, con los textos de la
+/// web (`FILTER_GROUPS` de `js/fichajes-html.js`).
+enum TransfersFilterOptions {
+    static var genders: [(value: String, label: String)] {
+        [("male", LocaleService.t("Masculino", "Men")), ("female", LocaleService.t("Femenino", "Women"))]
+    }
+    static let divisions: [(value: String, label: String)] = [("world", "WorldTeam"), ("pro", "ProTeam")]
+
+    /// Opciones activas de los grupos filtrados, p. ej. «Femenino · WorldTeam».
+    static func summary(_ filters: TransfersLogic.FeedFilters) -> String {
+        var parts: [String] = []
+        if filters.genders.count < TransfersLogic.FeedFilters.allGenders.count {
+            parts += genders.filter { filters.genders.contains($0.value) }.map(\.label)
+        }
+        if filters.divisions.count < TransfersLogic.FeedFilters.allDivisions.count {
+            parts += divisions.filter { filters.divisions.contains($0.value) }.map(\.label)
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// Menú de filtros de la barra de navegación: Categoría y División como
+/// secciones con marcas, y «Limpiar filtros». El menú sigue abierto al marcar,
+/// para combinar opciones; un grupo nunca queda vacío
+/// (`TransfersLogic.FeedFilters`). El icono se rellena con algún filtro activo.
+struct TransfersFiltersMenu: View {
+    @Binding var filters: TransfersLogic.FeedFilters
+    private var localeService: LocaleService { LocaleService.shared }
+
+    var body: some View {
+        Menu {
+            Section(localeService.t("Categoría", "Category")) {
+                ForEach(TransfersFilterOptions.genders, id: \.value) { option in
+                    Toggle(option.label, isOn: Binding(
+                        get: { filters.genders.contains(option.value) },
+                        set: { _ in filters.toggleGender(option.value) }
+                    ))
+                }
+            }
+            Section(localeService.t("División", "Division")) {
+                ForEach(TransfersFilterOptions.divisions, id: \.value) { option in
+                    Toggle(option.label, isOn: Binding(
+                        get: { filters.divisions.contains(option.value) },
+                        set: { _ in filters.toggleDivision(option.value) }
+                    ))
+                }
+            }
+            Section {
+                Button(localeService.t("Limpiar filtros", "Clear filters"), systemImage: "xmark.circle") {
+                    filters = TransfersLogic.FeedFilters()
+                }
+                .disabled(!filters.isActive)
+            }
+        } label: {
+            Label(
+                localeService.t("Filtros", "Filters"),
+                systemImage: filters.isActive
+                    ? "line.3.horizontal.decrease.circle.fill"
+                    : "line.3.horizontal.decrease.circle"
+            )
+        }
+        .menuActionDismissBehavior(.disabled)
+        .accessibilityValue(filters.isActive
+            ? TransfersFilterOptions.summary(filters)
+            : localeService.t("Sin filtros", "No filters"))
+    }
+}
+
+/// Línea de los filtros activos sobre los paneles, para que el feed recortado
+/// no pase inadvertido: qué se muestra y «Limpiar filtros».
+struct TransfersActiveFilters: View {
+    @Binding var filters: TransfersLogic.FeedFilters
+    private var localeService: LocaleService { LocaleService.shared }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            Text(TransfersFilterOptions.summary(filters))
+                .ccFont(.s14, weight: .medium)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+            Button(localeService.t("Limpiar filtros", "Clear filters")) {
+                filters = TransfersLogic.FeedFilters()
+            }
+            .ccFont(.s14, weight: .semibold)
+            .buttonStyle(.borderless)
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -304,36 +304,24 @@ object RaceLogic {
 
     /**
      * Rango de categoría: menor va antes. Tabla única, espejo de `categoryRank`
-     * en `js/services/race-order.js`. Las grandes vueltas encabezan; el Tour del
-     * Porvenir sube al nivel de las .1; las Pro y .1 del circuito asiático (salvo
-     * la Japan Cup) bajan tras las .1 europeas; los continentales que no son el
-     * Europeo bajan tras las .2U.
+     * en `js/services/race-order.js`: Grandes Vueltas, Mundiales, WorldTour,
+     * Continental europeo, ProSeries, .1, Continentales de otras áreas,
+     * Nacionales y .2. Sin excepciones por país; `country` no interviene.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun categoryRank(category: String?, name: String?, country: String?): Double {
         val n = name.orEmpty()
         if (n.containsIgnoreCase("giro de italia")) return 0.1
         if (n.containsIgnoreCase("tour de francia")) return 0.2
         if (n.containsIgnoreCase("la vuelta")) return 0.3
-
         val cat = category.orEmpty()
-        val cc = country.orEmpty().uppercase()
-
-        if ((cat == "1.2U" || cat == "2.2U") && n.containsIgnoreCase("tour del porvenir")) return 8.5
-        if (cat == "CC" && !n.containsIgnoreCase("europa") && !n.containsIgnoreCase("europe")) return 14.5
-        if (cat in listOf("1.Pro", "2.Pro", "1.1", "2.1") &&
-            isAsiaCountry(cc) &&
-            !n.containsIgnoreCase("japan cup")
-        ) return 10.5
-
+        if (cat == "CC" && !n.containsIgnoreCase("europa") && !n.containsIgnoreCase("europe")) return 11.0
         return Constants.UCI_ORDER[cat] ?: 99.0
     }
 
     /** [categoryRank] de la carrera (null → 99). */
     fun raceCategoryRank(race: Race?): Double =
         categoryRank(race?.uciCategory, race?.name, race?.countryCode)
-
-    private fun isAsiaCountry(cc: String): Boolean =
-        cc in setOf("CN", "TH", "JP", "TW", "KR", "HK", "AZ")
 
     fun genderRank(gender: String?): Int = if (gender == "female") 2 else 1
 
@@ -484,78 +472,6 @@ object RaceLogic {
         if ((fA == null) != (fB == null)) return@Comparator if (fA != null) -1 else 1
         if (fA != null && fB != null && fA != fB) return@Comparator fA.compareTo(fB)
         byCategory.compare(a, b)
-    }
-
-    // ── Filtros de categoría ────────────────────────────────────
-
-    private fun isTourDelPorvenir(name: String): Boolean =
-        name.containsIgnoreCase("tour del porvenir")
-
-    private fun isMixedRelayChampionship(category: String, name: String): Boolean =
-        (category == "WC" || category == "CC") &&
-            (name.containsIgnoreCase("relevo mixto") || name.containsIgnoreCase("mixed relay"))
-
-    /** Carrera sin género (`gender` nulo): prueba mixta o campeonato con pruebas de ambos sexos, como «Campeonatos de Europa». */
-    fun isGenderNeutral(race: Race): Boolean = race.gender != "male" && race.gender != "female"
-
-    /** Una carrera sin género pasa Masculino y Femenino (Hoy, Mes y Temporada). */
-    fun matchesCategory(race: Race, filter: Constants.CategoryFilter): Boolean {
-        if (filter == Constants.CategoryFilter.ALL) return true
-        val cat = race.uciCategory.orEmpty()
-        val gender = race.gender.orEmpty()
-        val cc = race.countryCode.orEmpty().uppercase()
-        val name = race.name
-        val neutral = isGenderNeutral(race)
-
-        // Campeonatos Nacionales: las élite (masc/fem) cuentan como "pro"; las
-        // sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U). Masc/Fem
-        // respetan el género de la prueba. uwt/wwt no aplican a CN.
-        if (cat == "CN") {
-            if (ChampionshipsConfig.isU23Championship(race)) return false
-            return when (filter) {
-                Constants.CategoryFilter.PRO -> true
-                Constants.CategoryFilter.MALE -> !ChampionshipsConfig.isFemaleChampionship(race)
-                Constants.CategoryFilter.FEMALE -> ChampionshipsConfig.isFemaleChampionship(race)
-                else -> false
-            }
-        }
-
-        val baseMatch = when (filter) {
-            Constants.CategoryFilter.ALL -> true
-            Constants.CategoryFilter.PRO ->
-                cat != "1.2" && cat != "2.2" &&
-                    ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name))
-            Constants.CategoryFilter.UWT -> cat == "1.UWT" || cat == "2.UWT"
-            Constants.CategoryFilter.WWT -> cat == "1.WWT" || cat == "2.WWT"
-            Constants.CategoryFilter.MALE ->
-                (gender == "male" || neutral || isMixedRelayChampionship(cat, name)) &&
-                    cat != "1.2" && cat != "2.2" &&
-                    ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name))
-            Constants.CategoryFilter.FEMALE ->
-                (gender == "female" || neutral || isMixedRelayChampionship(cat, name)) &&
-                    ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name)) &&
-                    ((cat != "1.2" && cat != "2.2") || cc in Constants.EUROPE_COUNTRIES)
-        }
-
-        if (!baseMatch) return false
-
-        if (cat == "WC" || cat == "CC") {
-            return name.containsIgnoreCase("europa") ||
-                name.containsIgnoreCase("europe") ||
-                name.containsIgnoreCase("mundo")
-        }
-        return true
-    }
-
-    fun filterByCategory(
-        items: List<EnrichedRaceDay>,
-        category: Constants.CategoryFilter,
-    ): List<EnrichedRaceDay> {
-        if (category == Constants.CategoryFilter.ALL) return items
-        return items.filter { item ->
-            val race = item.race ?: return@filter true
-            matchesCategory(race, category)
-        }
     }
 
     private val FEMALE_KEYWORDS = listOf(

@@ -22,13 +22,15 @@ export async function crearFamiliaMercado({ lang, t, huella }) {
   return function componerMercado(item, activos) {
     const { datos } = item.input;
     const market = buildMarket(datos);
-    const { css, isla, prePintado } = activos.regeneradas.fichajes;
+    const { css, isla, prePintado, prePintadoPortada } = activos.regeneradas.fichajes;
     const plantilla = conIsla(readFileSync(join(activos.base, dir, 'index.html'), 'utf8'), { tema: activos.tema, fuente: activos.fuente, clasicos: activos.clasicos, css, isla });
     if (!plantilla) throw new Error('Mercado sin la estructura esperada');
 
-    const documento = (slug, ruta, html, { equipo = null, flecha = null } = {}) => {
-      const atributos = `data-prerendered="${attr(htmlFingerprint(html))}"${equipo ? ` data-painted-team="${attr(equipo)}"` : ''}`;
-      const posterior = equipo ? `<script>${prePintado}</script>` : '';
+    // `huella`: la del HTML que pinta el JS sin filtros; la portada lleva además filas de reserva
+    // ocultas (cliente/pre-pintado-fichajes.js) y sin filtros se conserva tal cual.
+    const documento = (slug, ruta, html, { equipo = null, flecha = null, huellaDe = html } = {}) => {
+      const atributos = `data-prerendered="${attr(htmlFingerprint(huellaDe))}"${equipo ? ` data-painted-team="${attr(equipo)}"` : ''}`;
+      const posterior = `<script>${equipo ? prePintado : prePintadoPortada}</script>`;
       let pagina = plantilla.replace(/(<main\b[^>]*>)[\s\S]*?(<\/main>)/, (_, abre, cierra) => `${abre}\n<div id="transfersContent" ${atributos}>${html}</div>\n${cierra}${posterior}`);
       // La página fuente oculta la portada con ?team= hasta que llega el JS: aquí el equipo ya está.
       if (equipo) pagina = pagina.replace(/<script>(?:(?!<\/script>)[\s\S])*trStaticLoading(?:(?!<\/script>)[\s\S])*<\/script>\s*/, '');
@@ -38,8 +40,9 @@ export async function crearFamiliaMercado({ lang, t, huella }) {
     };
 
     const salida = DIVISIONS.map((activeDiv, at) => {
-      const html = marketHomeHtml(market, { activeDiv });
-      return at === 0 ? documento('portada', dir, html) : documento(`_${activeDiv}`, `f/mercado-${lang}/_${activeDiv}`, html);
+      const html = marketHomeHtml(market, { activeDiv, reserve: true });
+      const huellaDe = marketHomeHtml(market, { activeDiv });
+      return at === 0 ? documento('portada', dir, html, { huellaDe }) : documento(`_${activeDiv}`, `f/mercado-${lang}/_${activeDiv}`, html, { huellaDe });
     });
     for (const [teamId, season] of market.seasonsByTeamId) {
       if (!hasTeamView(market, teamId)) continue;

@@ -64,7 +64,20 @@ object TransfersLogic {
          *  mercado no están publicados. Un equipo NUEVO (nacido en la temporada del
          *  mercado) no tiene entrada aquí → sin colores (mig. 129). */
         val prevSeasonsByTeamId: Map<String, TeamSeason> = emptyMap(),
-    )
+    ) {
+        /**
+         * Datos actuales con solo uno de los dos listados puesto al día: las
+         * renovaciones ([renewals]) o el resto de movimientos, que alimentan
+         * Fichajes. El otro listado conserva lo que ya mostraba.
+         */
+        fun replacingFeed(renewals: Boolean, fresh: MarketData): MarketData = copy(
+            transfers = transfers.filter { (it.type == "renewal") != renewals } +
+                fresh.transfers.filter { (it.type == "renewal") == renewals },
+            ridersById = ridersById + fresh.ridersById,
+            teamNameById = teamNameById + fresh.teamNameById,
+            teamNamePrev = teamNamePrev + fresh.teamNamePrev,
+        )
+    }
 
     /** Lado del movimiento del que se pide el nombre de un equipo. */
     enum class TeamSide { FROM, TO }
@@ -162,8 +175,11 @@ object TransfersLogic {
         transfers: List<RiderTransfer>,
         categoryByTeamId: Map<String, String> = emptyMap(),
         teamNameById: Map<String, String> = emptyMap(),
+        filters: FeedFilters? = null,
     ): List<RiderTransfer> =
-        transfers.filter { it.status == "confirmed" && it.dateVisible && isRealSigning(it) }
+        transfers.filter {
+            it.status == "confirmed" && it.dateVisible && isRealSigning(it) && matches(it, filters, categoryByTeamId)
+        }
             .sortedWith(feedComparator(categoryByTeamId, teamNameById))
 
     /** Feed público de renovaciones confirmadas con fecha visible. */
@@ -171,9 +187,80 @@ object TransfersLogic {
         transfers: List<RiderTransfer>,
         categoryByTeamId: Map<String, String> = emptyMap(),
         teamNameById: Map<String, String> = emptyMap(),
+        filters: FeedFilters? = null,
     ): List<RiderTransfer> =
-        transfers.filter { it.status == "confirmed" && it.dateVisible && it.type == "renewal" }
+        transfers.filter {
+            it.status == "confirmed" && it.dateVisible && it.type == "renewal" && matches(it, filters, categoryByTeamId)
+        }
             .sortedWith(feedComparator(categoryByTeamId, teamNameById))
+
+    /**
+     * Filtros de Fichajes y Renovaciones, espejo de `FILTER_GROUPS` en
+     * `js/fichajes-html.js`: categoría (género del corredor) y división del
+     * equipo de destino (en una renovación, el propio equipo). Dentro de un
+     * grupo es O y entre grupos, Y. Empiezan con todo activo.
+     */
+    data class FeedFilters(
+        val genders: Set<String> = ALL_GENDERS.toSet(),
+        val divisions: Set<String> = ALL_DIVISIONS.toSet(),
+    ) {
+        /** Algún chip apagado. */
+        val isActive: Boolean
+            get() = genders.size < ALL_GENDERS.size || divisions.size < ALL_DIVISIONS.size
+
+        /** Un grupo nunca queda vacío: sin ninguna opción equivaldría a
+         *  ocultarlo todo, así que vuelve a activarse entero. */
+        fun toggleGender(value: String) = copy(genders = toggled(genders, value, ALL_GENDERS))
+        fun toggleDivision(value: String) = copy(divisions = toggled(divisions, value, ALL_DIVISIONS))
+
+        /** Valor guardado (AppPreferences): «all» o `gender:…;division:…`. */
+        val encoded: String
+            get() {
+                if (!isActive) return "all"
+                val parts = mutableListOf<String>()
+                if (genders.size < ALL_GENDERS.size) parts += "gender:" + ALL_GENDERS.filter { it in genders }.joinToString(",")
+                if (divisions.size < ALL_DIVISIONS.size) parts += "division:" + ALL_DIVISIONS.filter { it in divisions }.joinToString(",")
+                return parts.joinToString(";")
+            }
+
+        companion object {
+            val ALL_GENDERS = listOf("male", "female")
+            val ALL_DIVISIONS = listOf("world", "pro")
+
+            fun decode(raw: String?): FeedFilters {
+                val groups = raw.orEmpty().split(';').mapNotNull { part ->
+                    part.split(':', limit = 2).takeIf { it.size == 2 }?.let { (key, values) -> key to values.split(',').toSet() }
+                }.toMap()
+                return FeedFilters(
+                    genders = groups["gender"]?.filter { it in ALL_GENDERS }?.toSet()?.ifEmpty { null } ?: ALL_GENDERS.toSet(),
+                    divisions = groups["division"]?.filter { it in ALL_DIVISIONS }?.toSet()?.ifEmpty { null } ?: ALL_DIVISIONS.toSet(),
+                )
+            }
+
+            private fun toggled(set: Set<String>, value: String, all: List<String>): Set<String> {
+                val next = if (value in set) set - value else set + value
+                return next.ifEmpty { all.toSet() }
+            }
+        }
+    }
+
+    /** División del destino agrupada en los dos chips; PTW es el alias de PRW. */
+    private val divisionGroup = mapOf("WT" to "world", "WWT" to "world", "PT" to "pro", "PRW" to "pro", "PTW" to "pro")
+
+    /**
+     * Un grupo con algún chip apagado exige que el valor conocido del
+     * movimiento esté entre los activos; un valor desconocido solo se oculta
+     * entonces. Sin filtros, todo pasa.
+     */
+    fun matches(x: RiderTransfer, filters: FeedFilters?, categoryByTeamId: Map<String, String>): Boolean {
+        if (filters == null) return true
+        if (filters.genders.size < FeedFilters.ALL_GENDERS.size && x.riderGender !in filters.genders) return false
+        if (filters.divisions.size < FeedFilters.ALL_DIVISIONS.size) {
+            val group = x.toTeamId?.let { categoryByTeamId[it] }?.let { divisionGroup[it] }
+            if (group == null || group !in filters.divisions) return false
+        }
+        return true
+    }
 
     /**
      * Corte del feed de Fichajes y Renovaciones: hasta [maxDays] fechas
@@ -240,13 +327,42 @@ object TransfersLogic {
         val contractUntil: Int?,
     )
 
+    /** Fila de la plantilla del mercado: quien continúa o una llegada
+     *  confirmada. [rider] puede faltar en una llegada sin ficha hidratada. */
+    data class SquadRow(
+        val rider: RiderProfile?,
+        val riderId: String,
+        val contractUntil: Int?,
+        val isRumor: Boolean,
+        val isArrival: Boolean,
+    )
+
     data class TeamDetail(
         val staying: List<StayingRow>,
         val doubtful: List<DoubtRow>,
         val contractEnds: List<RiderTransfer>,
         val arrivals: List<RiderTransfer>,
         val departures: List<RiderTransfer>,
-    )
+        /** Plantilla de la temporada del mercado: los que continúan más las
+         *  llegadas confirmadas, por año de contrato descendente y apellido.
+         *  Espejo de la sección «Plantilla» de `teamViewHtml` (web). */
+        val squad: List<SquadRow> = emptyList(),
+    ) {
+        /** Ciclistas confirmados de la plantilla (sin renovación rumoreada). */
+        val confirmedCount: Int get() = squad.count { !it.isRumor }
+    }
+
+    /** Tinte de la fila de plantilla según el año de fin de contrato respecto
+     *  a la temporada del mercado: dos o más años de margen, verde; uno,
+     *  amarillo; vence esa temporada (o antes), rojo. Sin año, sin tinte. */
+    enum class ContractTint { GREEN, YELLOW, RED }
+
+    fun contractTint(year: Int?): ContractTint? = when {
+        year == null -> null
+        year >= MARKET_SEASON + 2 -> ContractTint.GREEN
+        year == MARKET_SEASON + 1 -> ContractTint.YELLOW
+        else -> ContractTint.RED
+    }
 
     /**
      * Un "fin de contrato sin destino": acaba contrato sin equipo conocido
@@ -344,7 +460,26 @@ object TransfersLogic {
                 alphabeticalKey(if (r != null) "${r.lastName.orEmpty()} ${r.firstName.orEmpty()}" else it.riderId)
             }
 
-        return TeamDetail(staying = staying, doubtful = doubtful, contractEnds = contractEnds, arrivals = arrivals, departures = departures)
+        // Plantilla: los que continúan MÁS las llegadas CONFIRMADAS (un rumor
+        // no entra; la llegada sigue también en «Llegan»).
+        val squadIds = staying.map { it.rider.id }.toMutableSet()
+        val squad = staying.map { SquadRow(it.rider, it.rider.id, it.contractUntil, it.isRumor, isArrival = false) } +
+            arrivals.filter { it.status == "confirmed" && it.riderId !in doubtsByRider && squadIds.add(it.riderId) }
+                .map { SquadRow(ridersById[it.riderId], it.riderId, it.contractUntil, isRumor = false, isArrival = true) }
+        return TeamDetail(
+            staying = staying, doubtful = doubtful, contractEnds = contractEnds,
+            arrivals = arrivals, departures = departures, squad = sortedSquad(squad),
+        )
+    }
+
+    /**
+     * Orden de la plantilla: por año de contrato descendente (sin año al
+     * final) y apellido o, con [alphabetical], solo por apellido. Espejo del
+     * `squadOrder` de `teamViewHtml` (web).
+     */
+    fun sortedSquad(rows: List<SquadRow>, alphabetical: Boolean = false): List<SquadRow> {
+        val byName = compareBy<SquadRow> { alphabeticalKey("${it.rider?.lastName.orEmpty()} ${it.rider?.firstName.orEmpty()}") }
+        return rows.sortedWith(if (alphabetical) byName else compareByDescending<SquadRow> { it.contractUntil ?: 0 }.then(byName))
     }
 
     /**

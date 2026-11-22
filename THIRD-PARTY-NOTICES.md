@@ -238,3 +238,37 @@ cd android-app && ./gradlew :app:dependencies --configuration releaseRuntimeClas
 - **Esri World Imagery** — imágenes de satélite. Tiles © Esri — Source: Esri,
   Maxar, Earthstar Geographics, and the GIS User Community.
 - **AWS Terrain Tiles** — datos de elevación (relieve 3D), AWS Open Data.
+
+---
+
+## Skill de poda de pruebas
+
+`.agents/skills/testectomy/SKILL.md` es una adaptación al castellano y a este
+repositorio de [testectomy](https://github.com/felipebasurto/testectomy),
+© 2026 Felipe Basurto, licencia MIT. Ese proyecto adapta a su vez el skill de
+auditoría de pruebas de [OpenClaw](https://github.com/openclaw/openclaw),
+también bajo licencia MIT.
+
+```text
+MIT License
+
+Copyright (c) 2026 Felipe Basurto
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

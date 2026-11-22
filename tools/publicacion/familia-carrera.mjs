@@ -29,7 +29,7 @@ export async function crearFamiliaCarrera({ lang, headerHtml, pie, huella }) {
   /** Huecos de una clasificación: estado, filtro, aviso y tabla. */
   async function huecos(fila, { race, raceDay, resolver, datos, configByKind, isOneDay, conPestanas, ahora }) {
     const barra = conPestanas || !(fila.classKind === 'teams' || fila.isTeamEvent);
-    const publicacion = H.publicationHtml(fila, { configByKind, isOneDay, inBar: barra && !conPestanas, isEn, timeZone, now: ahora.getTime() });
+    const publicacion = H.publicationHtml(fila, { configByKind, isOneDay, inBar: barra, isEn, timeZone, now: ahora.getTime() });
     let tabla;
     let filtro = '';
     if (fila._cancelledStage) tabla = H.cancelledNoticeHtml(isEn);

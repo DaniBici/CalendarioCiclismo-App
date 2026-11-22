@@ -444,19 +444,6 @@ struct ResultsView: View {
 
                 let hasClassTabs = sortedStages(data, for: activeStageKey).count > 1
                 Section {
-                    // Con pestañas, el estado va en la línea del título de la
-                    // clasificación («Etapa · Oficial»); sin ellas, en la fila
-                    // del filtro de equipos (ResultsClassTabsBar).
-                    if hasClassTabs {
-                        ResultsPublicationStatus(
-                            stage: stage,
-                            classificationLabel: classificationLabel,
-                            showClassificationLabel: true
-                        )
-                            .padding(.horizontal)
-                            .padding(.top, 2)
-                            .padding(.bottom, 4)
-                    }
                     ResultsLastUpdate(stage: stage)
                         .padding(.horizontal)
                         .padding(.bottom, 4)
@@ -501,16 +488,27 @@ struct ResultsView: View {
                             .padding(.bottom, 16)
                     }
                 } header: {
-                    ResultsClassTabsBar(
-                        stages: sortedStages(data, for: activeStageKey),
-                        classificationConfig: data.classificationConfig,
-                        activeClassKind: stage.classKind,
-                        teamsAvailable: teamsAvailable,
-                        selectedTeam: selectedTeam,
-                        onSelectClass: { activeClassKind = $0 },
-                        onSelectTeam: { selectedTeam = $0 },
-                        publicationStage: hasClassTabs ? nil : stage
-                    )
+                    // Cabecera fijada: pestañas de clasificación y, debajo, el
+                    // estado («Etapa · Oficial») con el filtro de equipos. En
+                    // carreras de un día solo lleva la línea de estado.
+                    VStack(alignment: .leading, spacing: 4) {
+                        if hasClassTabs {
+                            ResultsClassTabsBar(
+                                stages: sortedStages(data, for: activeStageKey),
+                                classificationConfig: data.classificationConfig,
+                                activeClassKind: stage.classKind,
+                                onSelectClass: { activeClassKind = $0 }
+                            )
+                        }
+                        ResultsStatusFilterRow(
+                            stage: stage,
+                            classificationLabel: classificationLabel,
+                            showClassificationLabel: hasClassTabs,
+                            teamsAvailable: teamsAvailable,
+                            selectedTeam: selectedTeam,
+                            onSelectTeam: { selectedTeam = $0 }
+                        )
+                    }
                     .padding(.horizontal)
                     .padding(.vertical, 4)
                     .background(AppTheme.background)
@@ -553,7 +551,7 @@ struct ResultsView: View {
             return (Constants.assetOrder.firstIndex(of: asset.type ?? "") ?? Constants.assetOrder.count) >= profileIndex
         }
 
-        ResultsScrollRail(height: 60, spacing: 0, framed: true) {
+        ResultsFittingRail(height: 60) {
             if let website = data.race.websiteUrl, let url = URL(string: website) {
                 Button { safariURL = url } label: {
                     ActionStripTile(icon: "globe", label: LocaleService.t("Web oficial", "Official website"))

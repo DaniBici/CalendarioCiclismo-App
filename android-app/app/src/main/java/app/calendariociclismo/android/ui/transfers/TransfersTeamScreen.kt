@@ -1,11 +1,20 @@
 package app.calendariociclismo.android.ui.transfers
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,10 +38,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.composed
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.round
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -57,6 +77,15 @@ import app.calendariociclismo.android.ui.theme.CCText
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.pluralStringResource
+import kotlinx.coroutines.async
+import app.calendariociclismo.android.util.Haptics
+import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.rememberHaptics
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.util.TransfersLogic
 
@@ -66,6 +95,8 @@ private sealed class TeamState {
         val season: TeamSeason,
         val data: TransfersLogic.MarketData,
         val detail: TransfersLogic.TeamDetail,
+        /** País del equipo, para la cabecera (null si no consta). */
+        val countryCode: String? = null,
     ) : TeamState()
 
     data class Error(val message: String) : TeamState()
@@ -73,8 +104,10 @@ private sealed class TeamState {
 
 /**
  * Detalle de equipo del mercado (apps 4.0) — espejo de la vista de equipo de
- * /fichajes/ web: continúan (plantilla actual con fin de contrato) / llegan /
- * se marchan, con badge Rumor donde proceda. Regla Dani: una salida rumoreada
+ * /fichajes/ web, en dos columnas: plantilla de la temporada del mercado
+ * (continúan y llegadas confirmadas, tintadas por años de contrato) y estados
+ * (en duda, terminan contrato, llegan, se marchan), con badge Rumor donde
+ * proceda. Regla Dani: una salida rumoreada
  * saca al corredor de "continúan" y lo pinta como baja·Rumor.
  *
  * Ruta a pantalla completa (móvil, enlaces profundos). En tablets, Fichajes
@@ -138,12 +171,15 @@ fun TransfersTeamPane(
             val season = data.seasons.firstOrNull { it.teamId == teamId }
                 ?: error("team season not found")
             val gender = season.gender ?: TransfersLogic.divisionGender(season.category)
-            val roster = app.repository.transfersRoster(teamId, gender)
+            val (roster, countryCode) = kotlinx.coroutines.coroutineScope {
+                val country = async { app.repository.teamCountryCode(teamId) }
+                app.repository.transfersRoster(teamId, gender) to country.await()
+            }
             // Hidratar también las fichas de llegadas/salidas que no estén ya
             // (loadTransfersMarket ya trae todas las de los movimientos).
             // Categoría del equipo de destino (para ordenar "se marchan").
             val categoryByTeamId = data.seasons.mapNotNull { s -> s.category?.let { s.teamId to it } }.toMap()
-            Triple(
+            TeamState.Ready(
                 season, data,
                 TransfersLogic.teamDetail(
                     data.transfers, roster, teamId,
@@ -151,9 +187,10 @@ fun TransfersTeamPane(
                     categoryByTeamId = categoryByTeamId,
                     teamNameById = data.teamNameById,
                 ),
+                countryCode,
             )
-        }.onSuccess { (season, data, detail) ->
-            state = TeamState.Ready(season, data, detail)
+        }.onSuccess { ready ->
+            state = ready
         }.onFailure { error ->
             state = TeamState.Error(error.message ?: unknownError)
         }
@@ -165,7 +202,11 @@ fun TransfersTeamPane(
     when {
         loadingVisible -> RouteLoadingView(
             message = stringResource(R.string.loading),
-            title = (current as? TeamState.Ready)?.season?.name ?: title,
+            // El nombre del equipo si el mercado ya se cargó.
+            title = (current as? TeamState.Ready)?.season?.name
+                ?: market?.seasons?.firstOrNull { it.teamId == teamId }?.name
+                ?: app.repository.transfersTeamNames[teamId]
+                ?: title,
             modifier = modifier.padding(padding),
         )
         current is TeamState.Error -> Box(
@@ -183,6 +224,7 @@ fun TransfersTeamPane(
             season = current.season,
             data = current.data,
             detail = current.detail,
+            countryCode = current.countryCode,
             padding = padding,
             modifier = modifier,
             onLinkTeam = onLinkTeam,
@@ -195,21 +237,54 @@ private fun TeamContent(
     season: TeamSeason,
     data: TransfersLogic.MarketData,
     detail: TransfersLogic.TeamDetail,
+    countryCode: String?,
     padding: PaddingValues,
     onLinkTeam: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
-    val sections = buildList {
-        if (detail.staying.isNotEmpty()) add(TeamSectionBlock("staying", detail.staying.size, stringResource(R.string.transfers_staying)) {
-            CCCard(modifier = Modifier.fillMaxWidth()) { Column {
-                detail.staying.forEachIndexed { i, row ->
-                    if (i > 0) TeamRowDivider()
-                    PersonRow(row.rider.nationality, row.rider.fullName.ifBlank { row.rider.id }, null, row.contractUntil, row.isRumor)
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val arrivalCue = stringResource(R.string.transfers_arrival_cue)
+    val haptic = rememberHaptics()
+    // Orden de la plantilla: por año de contrato (por defecto) o alfabético.
+    var squadAlphabetical by rememberSaveable(season.teamId) { mutableStateOf(false) }
+    // Plantilla: los que continúan y las llegadas confirmadas, tintados por
+    // años de contrato (fuerte en las llegadas).
+    val squad = if (detail.squad.isEmpty()) null else TeamSectionBlock(
+        "squad", stringResource(R.string.transfers_squad, TransfersLogic.MARKET_SEASON),
+        action = if (detail.squad.size > 1) {
+            {
+                SquadOrderButton(squadAlphabetical) {
+                    haptic(Haptics.Event.Selection)
+                    squadAlphabetical = !squadAlphabetical
                 }
-            } }
-        })
-        if (detail.doubtful.isNotEmpty()) add(TeamSectionBlock("doubtful", detail.doubtful.size, stringResource(R.string.transfers_doubtful)) {
+            }
+        } else null,
+    ) {
+        CCCard(modifier = Modifier.fillMaxWidth()) { Column {
+            TransfersLogic.sortedSquad(detail.squad, squadAlphabetical).forEachIndexed { i, row ->
+                if (i > 0) TeamRowDivider()
+                // Cada fila conserva su identidad (key) y, al cambiar el orden,
+                // se desplaza desde su sitio anterior, como en iOS y la web.
+                key(row.riderId) {
+                    Box(Modifier.animatePlacement()) {
+                        PersonRow(
+                            nationality = row.rider?.nationality,
+                            name = row.rider?.fullName?.ifBlank { row.riderId } ?: row.riderId,
+                            detail = null,
+                            contractUntil = row.contractUntil,
+                            isRumor = row.isRumor,
+                            tint = contractTintColor(TransfersLogic.contractTint(row.contractUntil), row.isArrival, dark),
+                            // El color no es la única señal de una llegada.
+                            accessibilityNote = if (row.isArrival) arrivalCue else null,
+                        )
+                    }
+                }
+            }
+        } }
+    }
+    val sections = buildList {
+        if (detail.doubtful.isNotEmpty()) add(TeamSectionBlock("doubtful", stringResource(R.string.transfers_doubtful)) {
             CCCard(modifier = Modifier.fillMaxWidth()) { Column {
                 detail.doubtful.forEachIndexed { i, row ->
                     if (i > 0) TeamRowDivider()
@@ -217,7 +292,7 @@ private fun TeamContent(
                 }
             } }
         })
-        if (detail.contractEnds.isNotEmpty()) add(TeamSectionBlock("contract_ends", detail.contractEnds.size, stringResource(R.string.transfers_contract_ends)) {
+        if (detail.contractEnds.isNotEmpty()) add(TeamSectionBlock("contract_ends", stringResource(R.string.transfers_contract_ends)) {
             CCCard(modifier = Modifier.fillMaxWidth()) { Column {
                 detail.contractEnds.forEachIndexed { i, transfer ->
                     if (i > 0) TeamRowDivider()
@@ -226,36 +301,45 @@ private fun TeamContent(
                 }
             } }
         })
-        if (detail.arrivals.isNotEmpty()) add(TeamSectionBlock("arrivals", detail.arrivals.size, stringResource(R.string.transfers_arrivals)) {
+        if (detail.arrivals.isNotEmpty()) add(TeamSectionBlock("arrivals", stringResource(R.string.transfers_arrivals)) {
             MovementCard(detail.arrivals, data, true, onLinkTeam)
         })
-        if (detail.departures.isNotEmpty()) add(TeamSectionBlock("departures", detail.departures.size, stringResource(R.string.transfers_departures)) {
+        if (detail.departures.isNotEmpty()) add(TeamSectionBlock("departures", stringResource(R.string.transfers_departures)) {
             MovementCard(detail.departures, data, false, onLinkTeam)
         })
     }
 
     BoxWithConstraints(modifier.fillMaxSize().padding(padding)) {
-        val wide = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo) && sections.size > 1
+        // Dos columnas, como la web: la plantilla y, juntos, los estados (en
+        // duda, terminan contrato, llegan y se marchan). En ancho estrecho,
+        // una columna con la plantilla primero.
+        val wide = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo) && squad != null && sections.isNotEmpty()
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            item(key = "header") { TeamHeader(season, data) }
+            item(key = "header") {
+                TeamHeader(season, data, countryCode, confirmedCount = if (detail.squad.isEmpty()) null else detail.confirmedCount)
+            }
             if (season.continuityDoubt) {
                 item(key = "team_doubt_notice") {
                     TeamDoubtNotice(stringResource(R.string.transfers_team_doubt_notice, TransfersLogic.MARKET_SEASON))
                 }
             }
             when {
-                sections.isEmpty() -> item(key = "team_empty") { TeamEmptyText(stringResource(R.string.transfers_team_empty)) }
-                wide -> item(key = "wide_sections") {
-                    val split = AdaptiveLayoutPolicy.balancedBlockBreak(sections.map { it.weight })
+                squad == null && sections.isEmpty() -> item(key = "team_empty") { TeamEmptyText(stringResource(R.string.transfers_team_empty)) }
+                wide && squad != null -> item(key = "wide_sections") {
                     Row(horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing), verticalAlignment = Alignment.Top) {
-                        TeamSectionColumn(sections.take(split), Modifier.weight(1f))
-                        TeamSectionColumn(sections.drop(split), Modifier.weight(1f))
+                        TeamSectionColumn(listOf(squad), Modifier.weight(1f))
+                        TeamSectionColumn(sections, Modifier.weight(1f))
                     }
                 }
-                else -> sections.forEach { section -> item(key = section.key) { TeamSection(section) } }
+                else -> (listOfNotNull(squad) + sections).forEach { section -> item(key = section.key) { TeamSection(section) } }
+            }
+            // Leyenda de los tintes bajo todas las listas, si alguna fila de
+            // la plantilla lleva tinte.
+            if (detail.squad.any { TransfersLogic.contractTint(it.contractUntil) != null }) {
+                item(key = "contract_legend") { ContractLegend(dark) }
             }
             item(key = "bottom_spacer") { Spacer(Modifier.height(24.dp)) }
         }
@@ -264,43 +348,236 @@ private fun TeamContent(
 
 private data class TeamSectionBlock(
     val key: String,
-    val weight: Int,
     val title: String,
+    /** Control a la derecha del título (orden de la plantilla). */
+    val action: (@Composable () -> Unit)? = null,
     val content: @Composable () -> Unit,
 )
 
-/** Cabecera sobre superficie neutra con el cuadrado de colores de Resultados. */
-@Composable
-private fun TeamHeader(season: TeamSeason, data: TransfersLogic.MarketData) {
-    CCCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
-                Text(
-                    season.name.orEmpty(),
-                    style = CCText.S20,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { heading() },
-                )
+/**
+ * Desplaza el elemento desde su posición anterior hasta la nueva cuando cambia
+ * de sitio dentro de su padre (cambio de orden de la plantilla). Respeta la
+ * escala de animaciones del sistema.
+ */
+private fun Modifier.animatePlacement(): Modifier = composed {
+    val scope = rememberCoroutineScope()
+    var placed by remember { mutableStateOf<IntOffset?>(null) }
+    val offset = remember { Animatable(IntOffset.Zero, IntOffset.VectorConverter) }
+    onPlaced { coordinates ->
+        val now = coordinates.positionInParent().round()
+        val previous = placed
+        placed = now
+        if (previous != null && previous != now) {
+            scope.launch {
+                offset.snapTo(offset.value + (previous - now))
+                offset.animateTo(IntOffset.Zero, tween(durationMillis = 350, easing = FastOutSlowInEasing))
             }
-            Text(
-                listOfNotNull(season.category?.takeUnless(String::isBlank), TransfersLogic.MARKET_SEASON.toString()).joinToString(" · "),
-                style = CCText.S13,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+    }.offset { offset.value }
+}
+
+/**
+ * Conmutador del orden de la plantilla, como en la web: muestra el orden al
+ * que cambia (A-Z con el de contrato activo; un lápiz sobre una hoja, el
+ * contrato, con el alfabético).
+ */
+@Composable
+private fun SquadOrderButton(alphabetical: Boolean, onToggle: () -> Unit) {
+    IconButton(onClick = onToggle) {
+        Icon(
+            painterResource(if (alphabetical) R.drawable.ic_squad_order_contract else R.drawable.ic_squad_order_az),
+            contentDescription = stringResource(
+                if (alphabetical) R.string.transfers_squad_order_contract else R.string.transfers_squad_order_alpha,
+            ),
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Leyenda de los tintes de la plantilla bajo las listas del equipo
+ * (`.tr-legend` web): un cuadrado por color con el año de fin de contrato y,
+ * aparte, el tono fuerte de los fichajes, centrada. Pasa a otra línea si no
+ * cabe.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ContractLegend(dark: Boolean) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val season = TransfersLogic.MARKET_SEASON
+    @Composable
+    fun Item(tint: TransfersLogic.ContractTint, strong: Boolean, text: String) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(
+                Modifier
+                    .size(12.dp)
+                    .background(contractTintColor(tint, strong, dark) ?: Color.Transparent)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant),
             )
+            Text(text, style = CCText.S13, color = dim)
         }
     }
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(top = 20.dp).semantics(mergeDescendants = true) {},
+        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(stringResource(R.string.transfers_legend_contract), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = dim)
+        Item(TransfersLogic.ContractTint.GREEN, false, stringResource(R.string.transfers_legend_or_later, season + 2))
+        Item(TransfersLogic.ContractTint.YELLOW, false, (season + 1).toString())
+        Item(TransfersLogic.ContractTint.RED, false, season.toString())
+        Item(TransfersLogic.ContractTint.GREEN, true, stringResource(R.string.transfers_legend_arrival))
+    }
+}
+
+/**
+ * Cabecera de la vista de equipo, espejo de `.tr-team-header` web, con la
+ * disposición de iOS: cuadrado de colores y nombre, con la división y la
+ * temporada al final de la línea (el nombre largo pasa a dos líneas); debajo,
+ * país y ciclistas confirmados separados por «·», o uno bajo otro si no caben.
+ */
+@Composable
+private fun TeamHeader(
+    season: TeamSeason,
+    data: TransfersLogic.MarketData,
+    countryCode: String?,
+    confirmedCount: Int?,
+) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    CCCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
+                    Text(
+                        season.name.orEmpty(),
+                        style = CCText.S20,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                }
+                Text(
+                    listOfNotNull(season.category?.takeUnless(String::isBlank), TransfersLogic.MARKET_SEASON.toString()).joinToString(" · "),
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    color = dim,
+                    maxLines = 1,
+                )
+            }
+            if (countryCode != null || confirmedCount != null) {
+                HeaderFacts(
+                    country = countryCode?.let { code ->
+                        {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                CountryFlag(countryCode = code, height = 11.dp)
+                                val locale = if (LocaleHolder.shouldShowEnglishContent) java.util.Locale.ENGLISH else java.util.Locale.forLanguageTag("es")
+                                Text(
+                                    java.util.Locale("", code.uppercase()).getDisplayCountry(locale),
+                                    style = CCText.S13,
+                                    color = dim,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    },
+                    count = confirmedCount?.let { n ->
+                        {
+                            // «N ciclistas confirmados», con el número en negrita; sin el año,
+                            // que la cabecera ya muestra junto a la categoría.
+                            val text = pluralStringResource(R.plurals.transfers_squad_count, n, n)
+                            val number = n.toString()
+                            Text(
+                                buildAnnotatedString {
+                                    if (text.startsWith(number)) {
+                                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(number) }
+                                        append(text.removePrefix(number))
+                                    } else {
+                                        append(text)
+                                    }
+                                },
+                                style = CCText.S13,
+                                color = dim,
+                            )
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * País y recuento en una línea con «·» a 6 dp de cada lado si caben; si no,
+ * uno debajo de otro y sin separador.
+ */
+@Composable
+private fun HeaderFacts(country: (@Composable () -> Unit)?, count: (@Composable () -> Unit)?) {
+    val gap = 6.dp
+    Layout(
+        content = {
+            country?.invoke()
+            if (country != null && count != null) HeaderSeparator()
+            count?.invoke()
+        },
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val placeables = measurables.map { it.measure(loose) }
+        val gapPx = gap.roundToPx()
+        val rowWidth = placeables.sumOf { it.width } + gapPx * (placeables.size - 1)
+        if (rowWidth <= constraints.maxWidth) {
+            val height = placeables.maxOf { it.height }
+            layout(rowWidth, height) {
+                var x = 0
+                placeables.forEach { p ->
+                    p.placeRelative(x, (height - p.height) / 2)
+                    x += p.width + gapPx
+                }
+            }
+        } else {
+            // Sin el separador, uno debajo de otro.
+            val stacked = if (placeables.size == 3) listOf(placeables[0], placeables[2]) else placeables
+            val width = stacked.maxOf { it.width }.coerceAtMost(constraints.maxWidth)
+            val height = stacked.sumOf { it.height } + gapPx * (stacked.size - 1)
+            layout(width, height) {
+                var y = 0
+                stacked.forEach { p ->
+                    p.placeRelative(0, y)
+                    y += p.height + gapPx
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderSeparator() {
+    Text(
+        "·",
+        style = CCText.S13,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.clearAndSetSemantics { },
+    )
+}
+
+/** Tintes de la plantilla por años de contrato (`.tr-tint--*` web): pálido
+ *  para los que continúan y fuerte para las llegadas. El texto pasa 4,5:1
+ *  sobre cada tinte en los dos temas. */
+private fun contractTintColor(tint: TransfersLogic.ContractTint?, strong: Boolean, dark: Boolean): Color? = when (tint) {
+    null -> null
+    TransfersLogic.ContractTint.GREEN -> Color(if (strong) { if (dark) 0xFF1F5A2C else 0xFF8DFE96 } else { if (dark) 0xFF12301C else 0xFFE3F9E0 })
+    TransfersLogic.ContractTint.YELLOW -> Color(if (strong) { if (dark) 0xFF5C5217 else 0xFFFEF18D } else { if (dark) 0xFF3A3512 else 0xFFFCF8DB })
+    TransfersLogic.ContractTint.RED -> Color(if (strong) { if (dark) 0xFF6B2424 else 0xFFF9A8A8 } else { if (dark) 0xFF3D1B1B else 0xFFFCDBDB })
 }
 
 @Composable
@@ -311,7 +588,16 @@ private fun TeamSectionColumn(sections: List<TeamSectionBlock>, modifier: Modifi
 @Composable
 private fun TeamSection(section: TeamSectionBlock) {
     Column {
-        TeamSectionTitle(section.title)
+        if (section.action == null) {
+            TeamSectionTitle(section.title)
+        } else {
+            // El botón (48 dp de área táctil) se centra en la línea del título
+            // sin añadir altura: las dos columnas siguen alineadas.
+            Box(Modifier.fillMaxWidth()) {
+                TeamSectionTitle(section.title)
+                Box(Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = 6.dp)) { section.action.invoke() }
+            }
+        }
         section.content()
     }
 }
@@ -438,6 +724,8 @@ private fun PersonRow(
     isDoubt: Boolean = false,
     linkTeamId: String? = null,
     onLinkTeam: (String) -> Unit = {},
+    tint: Color? = null,
+    accessibilityNote: String? = null,
 ) {
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
     val personLine = buildAnnotatedString {
@@ -447,6 +735,8 @@ private fun PersonRow(
         }
     }
     val base = Modifier.fillMaxWidth()
+        .then(if (tint != null) Modifier.background(tint) else Modifier)
+        .then(if (accessibilityNote != null) Modifier.semantics(mergeDescendants = true) { stateDescription = accessibilityNote } else Modifier)
     val rowModifier = if (linkTeamId != null) {
         base.clickable { onLinkTeam(linkTeamId) }
     } else {

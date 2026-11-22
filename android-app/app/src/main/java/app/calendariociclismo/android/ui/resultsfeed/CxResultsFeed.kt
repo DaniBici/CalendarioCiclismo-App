@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +44,7 @@ import app.calendariociclismo.android.ui.cyclocross.CxMetaLine
 import app.calendariociclismo.android.ui.cyclocross.CyclocrossAgendaState
 import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.util.CxPresentation
+import app.calendariociclismo.android.util.CxRaceFilter
 import app.calendariociclismo.android.util.CxResultsFeedLogic
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.ResultsFeedLogic
@@ -61,17 +63,26 @@ internal fun CxResultsContent(
     adaptiveInfo: AdaptiveLayoutInfo,
     onRetry: () -> Unit,
     onEntryTap: (CxResultsFeedLogic.Entry) -> Unit,
+    filter: CxRaceFilter = CxRaceFilter(),
 ) {
     val days by remember(state) { derivedStateOf { CxResultsFeedLogic.days(state.races, state.season, state.featured) } }
+    // Filtros de Hoy y Calendario: los días sin pruebas que los pasen no se muestran.
+    val filtered = remember(days, filter) {
+        days.mapNotNull { day -> day.entries.filter { filter.matches(it.race) }.takeIf { it.isNotEmpty() }?.let { day.copy(entries = it) } }
+    }
     // Como en carretera: 14 días contados desde el último día con resultados
     // (como mucho, hoy), para que un periodo sin pruebas no deje la lista
-    // vacía; «Cargar más» amplía otros 14.
-    var extraWindows by rememberSaveable { mutableStateOf(0) }
+    // vacía; «Cargar más» amplía otros 14 desde lo que se ve.
+    // Inicio fijado por «Cargar más» desde lo que se ve, que con filtros puede ser anterior a la ventana.
+    var floorStart by rememberSaveable { mutableStateOf<String?>(null) }
     val today = LocalDate.now().toString()
     val anchor = days.map { it.date }.filter { it <= today }.maxOrNull() ?: today
-    val windowStart = LocalDate.parse(anchor)
-        .minusDays(CX_WINDOW_DAYS - 1L + extraWindows * CX_WINDOW_DAYS.toLong()).toString()
-    val visible = days.filter { it.date >= windowStart }
+    val baseStart = LocalDate.parse(anchor)
+        .minusDays(CX_WINDOW_DAYS - 1L).toString()
+    val windowStart = floorStart?.takeIf { it < baseStart } ?: baseStart
+    // Al menos MIN_DAYS días con pruebas que pasen los filtros.
+    val start = ResultsFeedLogic.startKey(filtered.map { it.date }, windowStart)
+    val visible = filtered.filter { it.date >= start }
     when {
         !state.loaded && state.error != null && !state.busy -> Column(
             modifier = Modifier.fillMaxSize(),
@@ -97,8 +108,11 @@ internal fun CxResultsContent(
             rounds = state.rounds,
             adaptiveInfo = adaptiveInfo,
             onEntryTap = onEntryTap,
-            canLoadMore = days.any { it.date < windowStart },
-            onLoadMore = { extraWindows += 1 },
+            canLoadMore = filtered.any { it.date < start },
+            onLoadMore = { floorStart = LocalDate.parse(start).minusDays(CX_WINDOW_DAYS.toLong()).toString() },
+            emptyMessage = if (visible.isEmpty()) {
+                stringResource(if (filter.isActive) R.string.results_feed_filter_empty else R.string.results_feed_empty)
+            } else null,
         )
     }
 }
@@ -111,6 +125,7 @@ private fun CxFeedList(
     onEntryTap: (CxResultsFeedLogic.Entry) -> Unit,
     canLoadMore: Boolean,
     onLoadMore: () -> Unit,
+    emptyMessage: String? = null,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
@@ -119,6 +134,9 @@ private fun CxFeedList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (emptyMessage != null) {
+                item(key = "cx-empty") { FeedFilterEmpty(emptyMessage) }
+            }
             days.forEachIndexed { index, day ->
                 item(key = "cx-hdr-${day.date}") {
                     FeedDayHeader(date = day.date, isFirst = index == 0)
@@ -223,17 +241,43 @@ private fun CxFeedEntryRow(
         // Manga n/total como en la tarjeta de Hoy: la sede se recorta antes.
         val roundLabel = CxPresentation.roundLabel(round)
         if (tournament != null || roundLabel != null || venue != null) {
-            CxMetaLine(tournament = tournament, round = roundLabel, venue = venue, style = CCText.S13)
+            CxMetaLine(tournament = tournament, round = roundLabel, venue = venue, style = CCText.S13, emphasize = true)
         }
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 2.dp),
             color = MaterialTheme.colorScheme.outlineVariant,
         )
+        // Ganador con el marcado del de carretera: nombre en seminegrita y
+        // equipo entre paréntesis (`.feed-row__winner` web).
+        val dim = MaterialTheme.colorScheme.onSurfaceVariant
         entry.categories.forEach { category ->
-            FeedComplementaryLine(
-                label = category.category,
-                value = ResultsFeedLogic.cleanWinner(category.winnerName),
+            CxWinnerLine(
+                category = category.category,
+                winner = feedTeamLine(
+                    ResultsFeedLogic.cleanWinner(category.winnerName),
+                    category.winnerTeam,
+                    dim,
+                ),
             )
         }
+    }
+}
+
+/** Código de categoría y ganador de una prueba CX en una línea. */
+@Composable
+private fun CxWinnerLine(category: String, winner: androidx.compose.ui.text.AnnotatedString) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Ancho mínimo: los nombres quedan alineados aunque MU sea más ancho que ME.
+        Text(
+            category,
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.widthIn(min = 24.dp),
+        )
+        Text(winner, style = CCText.S13, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

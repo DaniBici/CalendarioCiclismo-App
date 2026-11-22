@@ -35,20 +35,6 @@ enum ChampionshipsConfig {
         today >= todayFilterStart && today <= rangeEnd
     }
 
-    /// `true` si hoy (fecha real del dispositivo) cae en la semana de Campeonatos
-    /// (22-28 jun, ventana completa). Durante esta ventana la vista "Hoy" impone el
-    /// filtro Masculino por defecto y solo ofrece cuatro filtros (Todas/Pro/Masc/Fem),
-    /// sin posibilidad de fijar otro predeterminado. Espejo de `js/campeonatos-config.js`.
-    static func isChampWeekFilterLock(today: String = DateFormatting.todayKey()) -> Bool {
-        today >= rangeStart && today <= rangeEnd
-    }
-
-    /// Filtros visibles en la vista "Hoy" durante la semana de Campeonatos (sin WT/WWT).
-    static let champWeekHoyFilters: [Constants.CategoryFilter] = [.all, .pro, .male, .female]
-
-    /// Filtro forzado por defecto en la vista "Hoy" durante la semana de Campeonatos.
-    static let champWeekHoyDefault: Constants.CategoryFilter = .male
-
     /// Filtros visibles en la rejilla: `today` solo se ofrece en su rango.
     static var visibleFilters: [Filter] {
         isTodayFilterActive() ? Filter.allCases : Filter.allCases.filter { $0 != .today }
@@ -178,25 +164,6 @@ enum ChampionshipsConfig {
 
     private static func matches(_ text: String, _ pattern: String) -> Bool {
         text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-    }
-
-    // ── Clasificación de una CN para los filtros de categoría (Pro/Masc/Fem) ──
-    // Misma señal que slot() (nombre con respaldo en gender). Una CN élite cuenta
-    // como "pro"; las sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U).
-    // Masc/Fem además respetan el género de la prueba.
-
-    /// ¿Es una CN de categoría sub23? (línea o CRI; masc o fem)
-    static func isU23Championship(_ race: Race?) -> Bool {
-        guard let race, isChampionship(race) else { return false }
-        return matches(race.name, #"\bsub-?23\b|\bu-?23\b"#)
-    }
-
-    /// Género de una CN: femenino si el nombre lo dice o gender=='female'
-    /// (sin que el nombre diga masculino); masculino en otro caso.
-    static func isFemaleChampionship(_ race: Race?) -> Bool {
-        guard let race else { return false }
-        return matches(race.name, #"\bfemenin"#)
-            || (race.gender == "female" && !matches(race.name, #"\bmasculin"#))
     }
 
     // ── Orden interno de la categoría CN en Hoy/Mes ───────────────────

@@ -54,7 +54,7 @@ describe('plan sin borrado', () => {
     }],
   });
 
-  it('cuelga las filas de la cabecera resuelta en la base, no del eventId entrante', () => {
+  it('genera una sentencia de reconciliación por fila, cada una con su consulta de cabecera', () => {
     const { plan } = buildPlan(datos([fila('11', 1), fila('12', 2)]), null, null, null, null, null, { noDelete: true });
     const filas = plan.filter((st) => st.resultRow);
     expect(filas).toHaveLength(2);

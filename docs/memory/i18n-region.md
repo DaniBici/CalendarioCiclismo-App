@@ -13,7 +13,7 @@ Idioma controlado por preferencia local. **Ambos idiomas son gratuitos desde 2.1
 
 ### Aplicación al runtime
 
-- **iOS:** `CalendarioCiclismoApp.swift` inyecta `.environment(\.locale, localeService.current.locale)` en `ContentView` y los 4 onboardings.
+- **iOS:** `CalendarioCiclismoApp.swift` inyecta `.environment(\.locale, localeService.current.locale)` en `ContentView` y en la bienvenida.
 - **Android:** `MainActivity.onCreate()` lee `snapshotAppLocale()` con `runBlocking` ANTES de `setContent`. Aplica `AppCompatDelegate.setApplicationLocales` + actualiza `LocaleHolder.current`. El cambio desde Settings reinicia la activity.
 
 ### Strings — fuentes de verdad
@@ -33,18 +33,17 @@ Ambas plataformas leen el locale activo en cada llamada. iOS usa `nonIsolatedUIL
 
 **Widget iOS:** usa `formatTimeLocal` con `Locale("es_ES")` fijo. No leer `LocaleService.shared` allí.
 
-### Onboarding paso 1 — selección de idioma (one-shot)
+### Bienvenida, paso 1: idioma
 
-- `Views/Onboarding/LanguageAnnouncementOnboardingView.swift` (iOS) / `ui/onboarding/LanguageAnnouncementOnboardingScreen.kt` (Android).
-- Pantalla de elección de idioma (español/inglés sin coste; el inglés dejó de ser Premium en 2.1).
-- **Layout (rediseño 2026-06-04):** bloque compacto centrado verticalmente — icono globo + título "Elige tu idioma" + los dos botones justo debajo, agrupados en el centro (NO anclados al fondo como las otras 3 pantallas de onboarding). **Sin párrafo de cuerpo**: se eliminó el texto "El inglés ahora forma parte de la app gratuita…" (anuncio ya caducado) y su string `onboarding_language_body`. Es una excepción consciente al patrón común icono→título→cuerpo→botones-abajo porque esta pantalla es una bifurcación A/B, no "acción + omitir".
-- Botón principal "Continuar en español" → `setLocale(.spanish)` + avanza.
-- Botón secundario "Switch to English" → `setLocale(.english)` (recrea la activity en Android) + avanza.
+- Primer paso de la bienvenida única (`WelcomeOnboardingView` en iOS, `WelcomeOnboardingScreen` en Android; resto de pasos en `docs/memory/apps.md`, «Bienvenida»).
+- Tarjeta «Idioma / Language», sin subtítulo, con los botones «Español» y «English», los dos con el mismo peso visual (decisión de Dani, 2026-11-17: ningún idioma se destaca). Hasta elegir, el lema de la cabecera usa el idioma del dispositivo.
+- Al elegir, la tarjeta se pliega a una fila «Idioma» o «Language» con el selector segmentado, que se puede seguir cambiando.
 - **Persistencia:**
   - iOS: `LocaleService.hasShownLanguageAnnouncement` (`UserDefaults["language_announcement_done"]`).
   - Android: `AppPreferences.languageAnnouncementDone` (DataStore `language_announcement_done`).
-- **Migración usuarios 2.0 con inglés Premium activado:** si `app_locale == "en"` al arrancar 2.1, el flag se marca `true` automáticamente — no ven la pantalla.
-- **Orden Android:** el flag se persiste ANTES de aplicar el locale al sistema, porque cambiar a inglés recrea la activity; al rearrancar, `nextOnboardingStep` salta a `Notifications`.
+- **Migración de quien usaba la 2.0 en inglés:** si `app_locale == "en"` al arrancar, la marca pasa a `true` y el paso aparece ya respondido.
+- **Android, dispositivo en otro idioma:** en una instalación limpia la app arranca con los recursos del sistema aunque `appLocale` valga español por defecto (observado en el emulador con Android en inglés, 2026-11-17: la llamada a `AppCompatDelegate.setApplicationLocales` de `onCreate` no cambia los recursos; sí lo hace `LocaleManager` al elegir idioma). Por eso `chooseLanguage` aplica el idioma también cuando coincide con la preferencia guardada, si no es el que se está mostrando.
+- **Orden en Android:** la marca se guarda antes de aplicar el idioma al sistema, porque cambiar a inglés recrea la actividad; al recrearse, la bienvenida abre en el paso de notificaciones y el arranque de Compose no se repite (`showSplash` con `rememberSaveable`).
 
 ### Reglas al modificar strings
 

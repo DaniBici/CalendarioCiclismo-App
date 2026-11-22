@@ -21,7 +21,7 @@
 // Overlay de carga a pantalla completa: importarlo aquí lo activa en TODAS
 // las páginas (también las generadas). Se auto-inicializa al cargarse.
 import './page-loading.js';
-import { STRINGS, PRIMARY_ICONS, headerHtml } from './header-html.js';
+import { STRINGS, PRIMARY_ICONS, headerHtml, PRIMARY_NAV_ITEMS, footerBrandHtml } from './header-html.js';
 import { headerBack } from './header-back.js';
 
 function detectLang() {
@@ -58,21 +58,65 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
-// Destinos secundarios en el pie de todas las páginas: tras el copyright, en
-// la misma fila que Gestión de cookies (js/cookie-consent.js la completa).
+// Pie de todas las páginas, montado sobre el de cada página (que conserva su
+// línea de copyright): marca con la descripción del perfil de X, «Secciones»
+// y «Más» (Acerca de mí, Datos abiertos, Calendario iCal, Apoyar, Apps,
+// Privacidad y Términos y, en la misma lista, Gestión de cookies, que
+// js/cookie-consent.js añade antes o después). Se antepone un bloque al
+// contenido del pie, sin vaciarlo: lo que una página añada como hijo directo
+// de .site-footer se conserva.
+// El botón «Apps» del pie abre el modal de apps (window.openAppsModal, que deja
+// apps-modal.js); se consulta al pulsar, porque el script puede cargar después.
+function bindFooterApps(root) {
+  root.querySelector('.footer-link--apps')?.addEventListener('click', () => {
+    if (typeof window.openAppsModal === 'function') window.openAppsModal();
+  });
+}
+
 function buildFooterNav(s) {
   const footer = document.querySelector('.site-footer');
-  if (!footer || footer.querySelector('.footer-link--about')) return;
+  if (!footer) return;
+  // Pie ya generado en el build (tools/publicacion): la estructura viene hecha y
+  // solo falta enlazar el botón «Apps».
+  if (footer.querySelector('.site-footer__top')) { bindFooterApps(footer); return; }
   let actions = footer.querySelector('.site-footer__actions');
   if (!actions) {
     actions = document.createElement('p');
     actions.className = 'site-footer__actions';
-    footer.appendChild(actions);
   }
+  // Las páginas generadas por tools/publicacion traen ya los tres primeros
+  // enlaces: se rehace la fila entera (el botón de cookies se conserva).
+  actions.querySelectorAll('a.footer-link').forEach(link => link.remove());
   actions.insertAdjacentHTML('afterbegin',
     `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
     `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>` +
-    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.calendar}<span>${s.icalText}</span></a>`);
+    `<a class="footer-link footer-link--icon" href="${s.icalHref}">${PRIMARY_ICONS.ical}<span>${s.icalText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.supportHref}" target="_blank" rel="noopener">${PRIMARY_ICONS.support}<span>${s.supportText}</span></a>` +
+    `<button class="footer-link footer-link--icon footer-link--apps" type="button">${PRIMARY_ICONS.apps}<span>${s.appsText}</span></button>` +
+    `<a class="footer-link footer-link--icon" href="${s.privacyHref}">${PRIMARY_ICONS.privacy}<span>${s.privacyText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.termsHref}">${PRIMARY_ICONS.terms}<span>${s.termsText}</span></a>`);
+  bindFooterApps(actions);
+
+  const sections = PRIMARY_NAV_ITEMS.map(key =>
+    `<li><a class="footer-link footer-link--icon" href="${s[key].href}">${PRIMARY_ICONS[key]}<span>${s[key].text}</span></a></li>`).join('');
+  const top = document.createElement('div');
+  top.className = 'site-footer__top';
+  top.innerHTML = footerBrandHtml(s) +
+    `<nav class="site-footer__col" aria-label="${s.footerSections}"><p class="site-footer__heading" aria-hidden="true">${s.footerSections}</p><ul class="site-footer__list">${sections}</ul></nav>` +
+    `<div class="site-footer__col"><p class="site-footer__heading">${s.footerMore}</p></div>`;
+  top.lastElementChild.append(actions);
+  footer.prepend(top);
+
+  // Privacidad y Términos pasan a «Más»: la línea de copyright queda con la autoría.
+  const copyright = footer.querySelector(':scope > p');
+  if (copyright) {
+    for (const legal of copyright.querySelectorAll('a[href*="privacidad"], a[href*="privacy"], a[href*="terminos"], a[href*="/terms"]')) {
+      const sep = legal.previousSibling;
+      if (sep && sep.nodeType === 3) sep.textContent = sep.textContent.replace(/\s*-\s*$/, '');
+      legal.remove();
+    }
+    copyright.classList.add('site-footer__legal');
+  }
 }
 
 function buildHeader(el) {

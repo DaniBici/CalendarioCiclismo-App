@@ -60,6 +60,22 @@ enum TransfersLogic {
         /// están publicados. Un equipo NUEVO (nacido en la temporada del mercado) no tiene
         /// entrada aquí → sin colores (mig. 129).
         var prevSeasonsByTeamId: [String: TeamSeason] = [:]
+
+        /// Datos actuales con solo uno de los dos listados puesto al día: las
+        /// renovaciones (`renewals`) o el resto de movimientos, que alimentan
+        /// Fichajes. El otro listado conserva lo que ya mostraba.
+        func replacingFeed(renewals: Bool, with fresh: MarketData) -> MarketData {
+            let kept = transfers.filter { ($0.type == "renewal") != renewals }
+            let updated = fresh.transfers.filter { ($0.type == "renewal") == renewals }
+            return MarketData(
+                transfers: kept + updated,
+                seasons: seasons,
+                ridersById: ridersById.merging(fresh.ridersById) { _, new in new },
+                teamNameById: teamNameById.merging(fresh.teamNameById) { _, new in new },
+                teamNamePrev: teamNamePrev.merging(fresh.teamNamePrev) { _, new in new },
+                prevSeasonsByTeamId: prevSeasonsByTeamId
+            )
+        }
     }
 
     /// Lado del movimiento del que se pide el nombre de un equipo.
@@ -157,15 +173,91 @@ enum TransfersLogic {
         return a.id < b.id
     }
 
+    // MARK: - Filtros del feed
+
+    /// Filtros de Fichajes y Renovaciones, espejo de `FILTER_GROUPS` en
+    /// `js/fichajes-html.js`: categoría (género del corredor) y división del
+    /// equipo de destino (en una renovación, el propio equipo). Dentro de un
+    /// grupo es O y entre grupos, Y. Empiezan con todo activo.
+    struct FeedFilters: Equatable, Codable {
+        static let allGenders = ["male", "female"]
+        static let allDivisions = ["world", "pro"]
+
+        var genders = Set(allGenders)
+        var divisions = Set(allDivisions)
+
+        /// Algún chip apagado.
+        var isActive: Bool {
+            genders.count < Self.allGenders.count || divisions.count < Self.allDivisions.count
+        }
+
+        /// Cambia un chip. Un grupo nunca queda vacío: sin ninguna opción
+        /// equivaldría a ocultarlo todo, así que vuelve a activarse entero.
+        mutating func toggleGender(_ value: String) {
+            Self.toggle(&genders, value, all: Self.allGenders)
+        }
+
+        mutating func toggleDivision(_ value: String) {
+            Self.toggle(&divisions, value, all: Self.allDivisions)
+        }
+
+        private static func toggle(_ set: inout Set<String>, _ value: String, all: [String]) {
+            if set.contains(value) { set.remove(value) } else { set.insert(value) }
+            if set.isEmpty { set = Set(all) }
+        }
+
+        /// Selección recordada, como en la web (`cc_transfer_filters`).
+        static let storageKey = "transfer_filters"
+
+        static func load() -> FeedFilters {
+            guard let data = UserDefaults.standard.data(forKey: storageKey),
+                  let value = try? JSONDecoder().decode(FeedFilters.self, from: data) else { return FeedFilters() }
+            return value
+        }
+
+        func save() {
+            guard isActive, let data = try? JSONEncoder().encode(self) else {
+                UserDefaults.standard.removeObject(forKey: Self.storageKey)
+                return
+            }
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+    }
+
+    /// División del destino agrupada en los dos chips; PTW es el alias de PRW.
+    static let divisionGroup = ["WT": "world", "WWT": "world", "PT": "pro", "PRW": "pro", "PTW": "pro"]
+
+    /// Un grupo con algún chip apagado exige que el valor conocido del
+    /// movimiento esté entre los activos; un valor desconocido solo se oculta
+    /// entonces. Sin filtros, todo pasa.
+    static func matches(
+        _ x: RiderTransfer,
+        filters: FeedFilters?,
+        categoryByTeamId: [String: String]
+    ) -> Bool {
+        guard let filters else { return true }
+        if filters.genders.count < FeedFilters.allGenders.count,
+           !filters.genders.contains(x.riderGender) { return false }
+        if filters.divisions.count < FeedFilters.allDivisions.count {
+            guard let group = x.toTeamId.flatMap({ categoryByTeamId[$0] }).flatMap({ divisionGroup[$0] }),
+                  filters.divisions.contains(group) else { return false }
+        }
+        return true
+    }
+
     /// Feed público: solo FICHAJES confirmados CON fecha visible, cronológico
     /// inverso. `dateVisible=false` es un flag de publicación, no una fecha
     /// ausente: el movimiento sigue contando en el detalle de equipo.
     static func confirmedFeed(
         _ transfers: [RiderTransfer],
         categoryByTeamId: [String: String] = [:],
-        teamNameById: [String: String] = [:]
+        teamNameById: [String: String] = [:],
+        filters: FeedFilters? = nil
     ) -> [RiderTransfer] {
-        transfers.filter { $0.status == "confirmed" && $0.dateVisible && isRealSigning($0) }
+        transfers.filter {
+            $0.status == "confirmed" && $0.dateVisible && isRealSigning($0)
+                && matches($0, filters: filters, categoryByTeamId: categoryByTeamId)
+        }
             .sorted {
                 feedPrecedes($0, $1, categoryByTeamId: categoryByTeamId, teamNameById: teamNameById)
             }
@@ -175,9 +267,13 @@ enum TransfersLogic {
     static func renewalFeed(
         _ transfers: [RiderTransfer],
         categoryByTeamId: [String: String] = [:],
-        teamNameById: [String: String] = [:]
+        teamNameById: [String: String] = [:],
+        filters: FeedFilters? = nil
     ) -> [RiderTransfer] {
-        transfers.filter { $0.status == "confirmed" && $0.dateVisible && $0.type == "renewal" }
+        transfers.filter {
+            $0.status == "confirmed" && $0.dateVisible && $0.type == "renewal"
+                && matches($0, filters: filters, categoryByTeamId: categoryByTeamId)
+        }
             .sorted {
                 feedPrecedes($0, $1, categoryByTeamId: categoryByTeamId, teamNameById: teamNameById)
             }
@@ -249,12 +345,41 @@ enum TransfersLogic {
         var id: String { riderId }
     }
 
+    /// Fila de la plantilla del mercado: quien continúa o una llegada
+    /// confirmada. `rider` puede faltar en una llegada sin ficha hidratada.
+    struct SquadRow: Identifiable {
+        let rider: TransferRider?
+        let riderId: String
+        let contractUntil: Int?
+        let isRumor: Bool
+        let isArrival: Bool
+        var id: String { riderId }
+    }
+
     struct TeamDetail {
         let staying: [StayingRow]
         let doubtful: [DoubtRow]
         let contractEnds: [RiderTransfer]
         let arrivals: [RiderTransfer]
         let departures: [RiderTransfer]
+        /// Plantilla de la temporada del mercado: los que continúan más las
+        /// llegadas confirmadas, por año de contrato descendente y apellido.
+        /// Espejo de la sección «Plantilla» de `teamViewHtml` (web).
+        var squad: [SquadRow] = []
+
+        /// Ciclistas confirmados de la plantilla (sin renovación rumoreada).
+        var confirmedCount: Int { squad.filter { !$0.isRumor }.count }
+    }
+
+    /// Tinte de la fila de plantilla según el año de fin de contrato respecto
+    /// a la temporada del mercado: dos o más años de margen, verde; uno,
+    /// amarillo; vence esa temporada (o antes), rojo. Sin año, sin tinte.
+    enum ContractTint { case green, yellow, red }
+
+    static func contractTint(_ year: Int?) -> ContractTint? {
+        guard let year else { return nil }
+        if year >= marketSeason + 2 { return .green }
+        return year == marketSeason + 1 ? .yellow : .red
     }
 
     /// Un "fin de contrato sin destino": acaba contrato sin equipo conocido
@@ -375,7 +500,29 @@ enum TransfersLogic {
                 return alphabeticallyPrecedes(ka, kb)
             }
 
-        return TeamDetail(staying: staying, doubtful: doubtful, contractEnds: contractEnds, arrivals: arrivals, departures: departures)
+        // Plantilla: los que continúan MÁS las llegadas CONFIRMADAS (un rumor
+        // no entra; la llegada sigue también en «Llegan»).
+        let stayingIds = Set(staying.map(\.rider.id))
+        var squad = staying.map {
+            SquadRow(rider: $0.rider, riderId: $0.rider.id, contractUntil: $0.contractUntil, isRumor: $0.isRumor, isArrival: false)
+        }
+        for x in arrivals where x.status == "confirmed" && !stayingIds.contains(x.riderId) && doubtsByRider[x.riderId] == nil
+            && !squad.contains(where: { $0.riderId == x.riderId }) {
+            squad.append(SquadRow(rider: ridersById[x.riderId], riderId: x.riderId, contractUntil: x.contractUntil, isRumor: false, isArrival: true))
+        }
+        return TeamDetail(staying: staying, doubtful: doubtful, contractEnds: contractEnds, arrivals: arrivals, departures: departures, squad: sortedSquad(squad))
+    }
+
+    /// Orden de la plantilla: por año de contrato descendente (sin año al
+    /// final) y apellido o, con `alphabetical`, solo por apellido. Espejo del
+    /// `squadOrder` de `teamViewHtml` (web).
+    static func sortedSquad(_ rows: [SquadRow], alphabetical: Bool = false) -> [SquadRow] {
+        rows.sorted { a, b in
+            if !alphabetical, a.contractUntil != b.contractUntil { return (a.contractUntil ?? 0) > (b.contractUntil ?? 0) }
+            let ka = "\(a.rider?.lastName ?? "") \(a.rider?.firstName ?? "")"
+            let kb = "\(b.rider?.lastName ?? "") \(b.rider?.firstName ?? "")"
+            return alphabeticallyPrecedes(ka, kb)
+        }
     }
 
     /// Nombre a mostrar de un equipo referenciado (catálogo > texto libre > fallback).

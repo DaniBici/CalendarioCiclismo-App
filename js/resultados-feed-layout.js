@@ -1,5 +1,6 @@
-// Lo que Últimos resultados hace sobre el DOM ya pintado, sin dependencias: lo
-// usan la página completa y la versión publicada.
+// Lo que Últimos resultados hace sobre el DOM ya pintado: lo usan la página
+// completa y la versión publicada.
+import { resultsStartKey } from './services/result-feed-pagination.js';
 // ── Rejilla de dos columnas ────────────────────────────────────────
 // Desde 761 px, como la rejilla de Hoy, cada día es una rejilla de dos
 // columnas (css/resultados.css, mismo punto de corte). Cada destacada ocupa en
@@ -13,11 +14,11 @@ const FEED_TWO_COLUMNS = window.matchMedia('(min-width:761px)');
 const FEED_SPAN_TOLERANCE = 12;
 export function packFeaturedEntries(root) {
   root.querySelectorAll('.feed-day').forEach((day) => {
-    const featured = [...day.querySelectorAll(':scope>.feed-row--featured')];
+    const featured = [...day.querySelectorAll(':scope>.feed-row--featured:not([hidden])')];
     if (!featured.length) return;
     featured.forEach((el) => { el.style.gridRow = ''; });
     if (!FEED_TWO_COLUMNS.matches) return;
-    const rows = [...day.querySelectorAll(':scope>.feed-row:not(.feed-row--featured)')];
+    const rows = [...day.querySelectorAll(':scope>.feed-row:not(.feed-row--featured):not([hidden])')];
     const items = [...featured, ...rows];
     items.forEach((el) => { el.style.alignSelf = 'start'; });
     const featuredHeights = featured.map(el => el.offsetHeight);
@@ -40,12 +41,39 @@ export function packFeaturedEntries(root) {
 const CX_CARD_GAP = 10;
 export function packCxDays(root) {
   root.querySelectorAll('.feed-day__cx-grid').forEach((grid) => {
-    const cards = [...grid.children];
+    const cards = [...grid.children].filter(el => !el.hidden);
     cards.forEach((el) => { el.style.gridRow = ''; });
     if (!FEED_TWO_COLUMNS.matches) return;
     const heights = cards.map(el => el.getBoundingClientRect().height);
     cards.forEach((el, i) => { el.style.gridRow = `span ${Math.ceil(heights[i]) + CX_CARD_GAP}`; });
   });
+}
+
+// Filtros sobre las filas ya pintadas (página publicada): `pasa(fila)` decide con
+// `data-level` y `data-genders`. Se ven las que pasan desde `desde` o, si así
+// quedan menos de RESULTS_MIN_DAYS días, desde el día número RESULTS_MIN_DAYS
+// más reciente con filas que pasan (las demás llegan ocultas, de reserva). Un
+// día sin filas visibles se oculta y, sin ninguna, el panel muestra `vacio`.
+// Devuelve el inicio de lo que se ve.
+export function filterFeedRows(panel, pasa, vacio, desde) {
+  const filas = [...panel.querySelectorAll('.feed-row[data-level]')].map(fila => ({ fila, dia: fila.closest('.feed-day')?.dataset.dk || '', pasa: pasa(fila) }));
+  const inicio = resultsStartKey(filas.filter(f => f.pasa && f.dia).map(f => f.dia), desde || '9999-12-31');
+  let visibles = 0;
+  for (const { fila, dia, pasa: ok } of filas) {
+    fila.hidden = !ok || dia < inicio;
+    if (!fila.hidden) visibles++;
+  }
+  panel.querySelectorAll('.feed-day').forEach((day) => { day.hidden = !day.querySelector('.feed-row:not([hidden])'); });
+  let aviso = panel.querySelector(':scope > .feed-filter-empty');
+  if (filas.length && !visibles) {
+    if (!aviso) {
+      aviso = document.createElement('div');
+      aviso.className = 'startlist-empty feed-filter-empty';
+      aviso.textContent = vacio;
+      panel.prepend(aviso);
+    }
+  } else aviso?.remove();
+  return inicio;
 }
 
 // Filas del ránking con explicación: un toque abre y cierra su regla.

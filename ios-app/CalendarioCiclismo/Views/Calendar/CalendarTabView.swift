@@ -12,13 +12,12 @@ private enum CalendarSelection: Identifiable, Hashable {
     }
 }
 
-/// Año, filtro y mes compartidos por Temporada y la agenda en la maqueta
-/// ancha. Temporada tiene los selectores de año y filtro; el mes se mueve
-/// desde cualquiera de las dos vistas.
+/// Año y mes compartidos por Temporada y la agenda en la maqueta ancha.
+/// Temporada tiene el selector de año; el mes se mueve desde cualquiera de las
+/// dos vistas. Los filtros los comparten todas por `RaceFilterStore`.
 @Observable
 final class CalendarLink {
     var year = DateFormatting.calendarStart().year
-    var filter: Constants.CategoryFilter = .all
     /// Mes visible de 1 a 12. «Todos» de Temporada no lo modifica.
     var month = DateFormatting.calendarStart().month
 }
@@ -113,35 +112,21 @@ struct CalendarPressStyle: ButtonStyle {
     }
 }
 
-/// Chip de filtro de categoría (`.tcat-btn`): inactivo sobre la superficie de
-/// tarjeta con texto secundario; activo con el acento al 15 % y texto de
-/// acento. Chincheta del filtro predeterminado a la derecha.
+/// Chip de filtro (`.tcat-btn`) de Campeonatos: inactivo sobre la superficie
+/// de tarjeta con texto secundario; activo con el acento al 15 % y texto de
+/// acento.
 struct CalendarFilterChipLabel: View {
     let label: String
     let isActive: Bool
-    var pinFilled = false
-    var pinOutline = false
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .ccFont(.s13, weight: isActive ? .semibold : .medium)
-            if pinFilled {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            } else if pinOutline {
-                Image(systemName: "pin")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(0.55)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(isActive ? Color.accentColor.opacity(0.15) : AppTheme.cardBackground)
-        .foregroundStyle(isActive ? Color.accentColor : AppTheme.textMuted)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
+        Text(label)
+            .ccFont(.s13, weight: isActive ? .semibold : .medium)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isActive ? Color.accentColor.opacity(0.15) : AppTheme.cardBackground)
+            .foregroundStyle(isActive ? Color.accentColor : AppTheme.textMuted)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
     }
 }
 

@@ -54,7 +54,7 @@ export async function crearFamiliaHoy({ lang, t, headerHtml, pie, huella, grupos
       return { dia, html: orden.map(item => agendaCardHtml(item, { agendaCat: 'all', agendaSort: 'category', variantes, now: ahora })).join('') };
     }
     // Sin carreras: como en el navegador, el siguiente día con carreras de ese año.
-    const siguiente = findNextDayWithRaces(dia, 'all', input.anios[dia.slice(0, 4)] || []);
+    const siguiente = findNextDayWithRaces(dia, null, input.anios[dia.slice(0, 4)] || []);
     if (siguiente && input.dias[siguiente]) return contenidoDia(siguiente, input, ahora);
     return siguiente ? null : { dia, html: emptyDayHtml(t('today.noRaces'), null) };
   }

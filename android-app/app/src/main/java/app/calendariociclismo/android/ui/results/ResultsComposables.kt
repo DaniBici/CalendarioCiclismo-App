@@ -3,6 +3,16 @@ package app.calendariociclismo.android.ui.results
 import app.calendariociclismo.android.ui.stage.StageVideosPanel
 import app.calendariociclismo.android.util.StageVideoLogic
 import java.math.BigDecimal
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import app.calendariociclismo.android.ui.components.railBackground
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -238,8 +248,29 @@ private fun ResultsContextMetric(label: String, value: String) {
 }
 
 /**
- * Selector de etapa: P · 1 · 2 · … · F, con `FilterChip` con el aspecto de los
- * filtros de Hoy (`.res-stage-btn`). Compartido con Ciclocross (categorías).
+ * Ancho natural de una celda de banda: el texto en negrita, para que no cambie
+ * al seleccionarla, más 8 dp de relleno por lado, con un mínimo.
+ */
+private fun bandCellWidth(
+    measurer: TextMeasurer,
+    density: Density,
+    label: String,
+    style: TextStyle,
+    minWidth: Dp,
+): Dp {
+    val textWidth = measurer.measure(
+        text = label,
+        style = style.copy(fontWeight = FontWeight.Bold),
+        maxLines = 1,
+    ).size.width
+    return maxOf(minWidth, with(density) { textWidth.toDp() } + 16.dp)
+}
+
+/**
+ * Selector de etapa (P · 1 · 2 · … · F) y de categoría de Ciclocross: banda
+ * enmarcada como la tira de documentos. Si las celdas caben, la banda ocupa el
+ * 100 % del ancho y cada una el 1/n; si no (21 etapas), es un carril con
+ * flechas que centra la celda activa. Paridad: iOS `ResultsStageSelector`.
  */
 @Composable
 internal fun ResultsStageSelector(
@@ -253,52 +284,59 @@ internal fun ResultsStageSelector(
     val finalLbl = stringResource(R.string.results_stage_final_short)
     val finalAccessibilityLabel = stringResource(R.string.results_stage_final_accessibility)
     val prologueAccessibilityLabel = stringResource(R.string.results_stage_prologue_accessibility)
-    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
-    val listState = rememberLazyListState()
+    val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    // Autoscroll: en etapas avanzadas (p. ej. la 18 de una Gran Vuelta) la
-    // cápsula activa queda fuera de pantalla; la centramos al aparecer y cada
-    // vez que cambia la etapa activa.
-    val activeIndex = stageKeys.indexOf(activeKey).coerceAtLeast(0)
-    LaunchedEffect(activeKey, stageKeys) {
-        if (stageKeys.isEmpty()) return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.viewportSize.width }.first { it > 0 }
-        val viewportWidth = listState.layoutInfo.viewportSize.width
-        val itemHalfWidthPx = with(density) { 16.dp.roundToPx() }
-        val offset = -(viewportWidth / 2 - itemHalfWidthPx)
-        if (animationsEnabled) {
-            listState.animateScrollToItem(index = activeIndex, scrollOffset = offset)
-        } else {
-            listState.scrollToItem(index = activeIndex, scrollOffset = offset)
+    val cells = stageKeys.map { key ->
+        // 'final'→F · '0'→P · '3'/'3A' → el número con su sufijo de sector.
+        val (num, sfx) = UciResultsLogic.parseResultStageKey(key)
+        val lbl = labelForKey?.invoke(key) ?: when {
+            key == "final" -> finalLbl
+            num == 0 -> "P"
+            else -> "$num$sfx"
+        }
+        val accessibilityLabel = accessibilityLabelForKey?.invoke(key) ?: when {
+            key == "final" -> finalAccessibilityLabel
+            num == 0 -> prologueAccessibilityLabel
+            else -> stringResource(R.string.results_stage_accessibility, "$num$sfx")
+        }
+        BandCell(key, bandCellWidth(measurer, density, lbl, CCText.S14, 48.dp)) { cellModifier ->
+            StageBandCell(lbl, key == activeKey, accessibilityLabel, cellModifier) { onSelect(key) }
         }
     }
-    LazyRow(
-        state = listState,
-        modifier = Modifier.fillMaxWidth(),
-        // Cada elemento ya reserva 48 dp de objetivo táctil. No añadimos otro
-        // hueco entre ellos para que el carril de etapas mantenga la densidad
-        // visual de la web sin reducir su superficie accesible.
+    ResultsBand(
+        cells = cells,
+        activeKey = activeKey,
+        height = 48.dp,
+        moreLabel = stringResource(R.string.results_rail_more),
+        previousLabel = stringResource(R.string.results_rail_previous),
+    )
+}
+
+/** Celda de la banda de etapas y categorías: la activa, con el acento al 15 % y texto de acento. */
+@Composable
+private fun StageBandCell(
+    label: String,
+    selected: Boolean,
+    accessibilityLabel: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier
+            .background(if (selected) colors.primary.copy(alpha = 0.15f) else Color.Transparent)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .semantics { contentDescription = accessibilityLabel },
+        contentAlignment = Alignment.Center,
     ) {
-        items(stageKeys, key = { it }) { key ->
-            // 'final'→F · '0'→P · '3'/'3A' → el número con su sufijo de sector.
-            val (num, sfx) = UciResultsLogic.parseResultStageKey(key)
-            val lbl = labelForKey?.invoke(key) ?: when {
-                key == "final" -> finalLbl
-                num == 0 -> "P"
-                else -> "$num$sfx"
-            }
-            val accessibilityLabel = accessibilityLabelForKey?.invoke(key) ?: when {
-                key == "final" -> finalAccessibilityLabel
-                num == 0 -> prologueAccessibilityLabel
-                else -> stringResource(R.string.results_stage_accessibility, "$num$sfx")
-            }
-            ResultsPill(
-                label = lbl,
-                selected = key == activeKey,
-                accessibilityLabel = accessibilityLabel,
-                onClick = { onSelect(key) },
-            )
-        }
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp),
+            style = CCText.S14,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (selected) colors.primary else colors.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
@@ -371,204 +409,192 @@ internal fun Modifier.classificationSwipe(
     }
 }
 
-/** Barra de pestañas de clasificación + dropdown de filtro por equipo. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Banda de pestañas de clasificación: mismo fondo y mismos separadores que la
+ * de etapas. Si caben, cada pestaña ocupa el 1/n del ancho; si no, carril con
+ * flechas que centra la activa. Paridad: iOS `ResultsClassTabsBar`.
+ */
 @Composable
 internal fun ResultsClassTabsBar(
     stages: List<RaceUciStage>,
     classificationConfig: List<RaceClassificationConfig>,
     activeClassKind: String,
     isEn: Boolean,
+    onSelectClass: (String) -> Unit,
+) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val cells = stages.map { st ->
+        val config = classificationConfig.firstOrNull { it.classKind == st.classKind }
+        val label = config?.let { UciResultsLogic.classificationLabel(it, isEn) } ?: classLabel(st.classKind)
+        val tint = UciResultsLogic.classificationColor(config)?.let {
+            app.calendariociclismo.android.ui.theme.colorFromHex(it)
+        }
+        BandCell(st.classKind, bandCellWidth(measurer, density, label, CCText.S13, 48.dp)) { cellModifier ->
+            ClassBandTab(label, st.classKind == activeClassKind, tint, cellModifier) { onSelectClass(st.classKind) }
+        }
+    }
+    ResultsBand(
+        cells = cells,
+        activeKey = activeClassKind,
+        height = 48.dp,
+        moreLabel = stringResource(R.string.results_more_classifications),
+        previousLabel = stringResource(R.string.results_previous_classifications),
+    )
+}
+
+/**
+ * Pestaña de la banda de clasificaciones: el color del maillot, si la
+ * clasificación lo declara, va pegado al borde superior de la celda (Etapa y
+ * Equipos no lo llevan); la activa, con texto principal en negrita y subrayado
+ * de acento de 2 dp; las inactivas, en gris.
+ */
+@Composable
+private fun ClassBandTab(
+    label: String,
+    selected: Boolean,
+    tint: Color?,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(modifier = modifier.selectable(selected = selected, role = Role.Tab, onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().height(3.dp).background(tint ?: Color.Transparent))
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                label,
+                modifier = Modifier.padding(horizontal = 8.dp),
+                style = CCText.S13,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) colors.primary else Color.Transparent))
+    }
+}
+
+/**
+ * Línea de estado de la clasificación («General · Oficial») con el filtro de
+ * equipos en el extremo derecho; en carreras de un día solo lleva el estado.
+ * Reserva el alto del filtro: la lista de equipos llega con la tabla.
+ */
+@Composable
+internal fun ResultsStatusFilterRow(
+    stage: RaceUciStage,
+    classificationLabel: String,
+    showClassificationLabel: Boolean,
     teamsAvailable: List<String>,
     selectedTeam: String?,
-    onSelectClass: (String) -> Unit,
     onSelectTeam: (String?) -> Unit,
-    /**
-     * Clasificación activa: sin pestañas (carreras de un día), su estado
-     * (Oficial/Provisional) ocupa la izquierda de la fila del filtro.
-     */
-    publicationStage: RaceUciStage? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val hasTabs = stages.size > 1
-        if (hasTabs) {
-            val scrollState = rememberScrollState()
-            val scope = rememberCoroutineScope()
-            val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
-            // Posición de cada pestaña en el carril: la activa se centra al
-            // cambiar (también tras un deslizamiento sobre la tabla).
-            val tabBounds = remember { mutableStateMapOf<String, Pair<Int, Int>>() }
-            LaunchedEffect(activeClassKind, scrollState.viewportSize, tabBounds[activeClassKind]) {
-                val (x, width) = tabBounds[activeClassKind] ?: return@LaunchedEffect
-                val target = (x + width / 2 - scrollState.viewportSize / 2).coerceIn(0, scrollState.maxValue)
-                if (animationsEnabled) scrollState.animateScrollTo(target) else scrollState.scrollTo(target)
-            }
+        Box(Modifier.weight(1f)) {
+            ResultsPublicationStatus(
+                stage = stage,
+                classificationLabel = classificationLabel,
+                showClassificationLabel = showClassificationLabel,
+            )
+        }
+        if (teamsAvailable.size >= 2) {
+            ResultsTeamFilter(teams = teamsAvailable, selected = selectedTeam, onSelect = onSelectTeam)
+        }
+    }
+}
+
+/**
+ * Filtro por equipo: «Equipo ▾» en reposo; con un equipo elegido, su nombre en
+ * una etiqueta de acento con una x que lo quita. El menú conserva «Todos los
+ * equipos» como primer elemento y marca el elegido. Es un menú anclado a un
+ * botón, no el menú de un campo de texto.
+ */
+@Composable
+private fun ResultsTeamFilter(
+    teams: List<String>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    var expanded by remember { mutableStateOf(false) }
+    val allLabel = stringResource(R.string.results_filter_all_teams)
+    val title = stringResource(R.string.results_filter_team)
+    val description = stringResource(R.string.results_filter_team_a11y)
+    val clear = stringResource(R.string.results_filter_team_clear)
+    val shape = RoundedCornerShape(CCRadius.Surface)
+    Box {
+        Row(
+            modifier = Modifier
+                .height(32.dp)
+                .clip(shape)
+                .background(if (selected == null) colors.railBackground else colors.primary.copy(alpha = 0.15f))
+                .then(if (selected == null) Modifier.border(1.dp, colors.outlineVariant, shape) else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Row(
-                modifier = Modifier.weight(1f).height(48.dp),
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .clickable(role = Role.Button, onClickLabel = description) { expanded = true }
+                    .semantics { stateDescription = selected ?: allLabel }
+                    .padding(start = 12.dp, end = if (selected == null) 6.dp else 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val hasOverflow = scrollState.maxValue > 0
-                if (hasOverflow) {
-                    ResultsRailArrow(forward = false, enabled = scrollState.value > 0) {
-                        scope.launch {
-                            val step = maxOf(80, scrollState.viewportSize * 3 / 4)
-                            val target = (scrollState.value - step).coerceAtLeast(0)
-                            if (animationsEnabled) scrollState.animateScrollTo(target)
-                            else scrollState.scrollTo(target)
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.weight(1f).horizontalScroll(scrollState),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    stages.forEach { st ->
-                        val config = classificationConfig.firstOrNull { it.classKind == st.classKind }
-                        val tint = UciResultsLogic.classificationColor(config)?.let {
-                            app.calendariociclismo.android.ui.theme.colorFromHex(it)
-                        }
-                        Box(Modifier.onGloballyPositioned {
-                            tabBounds[st.classKind] = it.positionInParent().x.toInt() to it.size.width
-                        }) {
-                            ResultsClassificationTab(
-                                label = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
-                                    ?: classLabel(st.classKind),
-                                selected = st.classKind == activeClassKind,
-                                tint = tint,
-                                onClick = { onSelectClass(st.classKind) },
-                            )
-                        }
-                    }
-                }
-                if (hasOverflow) {
-                    ResultsRailArrow(
-                        forward = true,
-                        enabled = scrollState.value < scrollState.maxValue,
-                    ) {
-                        scope.launch {
-                            val step = maxOf(80, scrollState.viewportSize * 3 / 4)
-                            val target = (scrollState.value + step).coerceAtMost(scrollState.maxValue)
-                            if (animationsEnabled) scrollState.animateScrollTo(target)
-                            else scrollState.scrollTo(target)
-                        }
-                    }
-                }
-            }
-        } else if (publicationStage != null) {
-            Box(Modifier.weight(1f)) {
-                ResultsPublicationStatus(
-                    stage = publicationStage,
-                    classificationLabel = "",
-                    showClassificationLabel = false,
+                Text(
+                    selected ?: title,
+                    style = CCText.S14,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 140.dp),
                 )
-            }
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
-
-        // Filtro por equipo (solo si hay ≥2 equipos en la clasificación),
-        // separado de las pestañas por un divisor vertical.
-        if (teamsAvailable.size >= 2) {
-            if (hasTabs) {
-                VerticalDivider(
-                    modifier = Modifier.height(22.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-            }
-            var expanded by remember { mutableStateOf(false) }
-            val allLabel = stringResource(R.string.results_filter_all_teams)
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                // Desplegable como `.res-teamfilter__select`: superficie de
-                // tarjeta, texto principal y flecha gris.
-                Surface(
-                    onClick = { expanded = true },
-                    modifier = Modifier
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(CCRadius.Surface),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = CC_CARD_ELEVATION,
-                ) {
-                    Row(
-                        modifier = Modifier.heightIn(min = 48.dp).padding(start = 10.dp, end = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            selectedTeam ?: allLabel,
-                            style = CCText.S14,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 140.dp),
-                        )
-                        Icon(
-                            Icons.Filled.ArrowDropDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    DropdownMenuItem(
-                        text = { Text(allLabel) },
-                        onClick = { onSelectTeam(null); expanded = false },
+                if (selected == null) {
+                    Icon(
+                        Icons.Filled.ArrowDropDown,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(18.dp),
                     )
-                    teamsAvailable.forEach { tn ->
-                        DropdownMenuItem(
-                            text = { Text(tn) },
-                            onClick = { onSelectTeam(tn); expanded = false },
-                        )
-                    }
                 }
+            }
+            if (selected != null) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(role = Role.Button, onClickLabel = clear) { onSelect(null) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = clear,
+                        tint = colors.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(allLabel) },
+                leadingIcon = { TeamCheck(selected == null) },
+                onClick = { onSelect(null); expanded = false },
+            )
+            teams.forEach { team ->
+                DropdownMenuItem(
+                    text = { Text(team) },
+                    leadingIcon = { TeamCheck(team == selected) },
+                    onClick = { onSelect(team); expanded = false },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ResultsRailArrow(
-    forward: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val label = if (forward) {
-        stringResource(R.string.results_more_classifications)
-    } else {
-        stringResource(R.string.results_previous_classifications)
-    }
-    Box(
-        modifier = Modifier
-            .width(48.dp)
-            .fillMaxHeight()
-            .background(colors.onSurfaceVariant.copy(alpha = if (enabled) 0.10f else 0.045f))
-            .drawBehind {
-                val x = if (forward) 0f else size.width
-                drawLine(
-                    color = colors.outlineVariant,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
-            .semantics { contentDescription = label }
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = if (forward) Icons.AutoMirrored.Filled.KeyboardArrowRight
-            else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.48f),
-            modifier = Modifier.size(22.dp),
-        )
-    }
+private fun TeamCheck(checked: Boolean) {
+    if (checked) Icon(Icons.Filled.Check, contentDescription = null) else Spacer(Modifier.size(24.dp))
 }
 
 /**
@@ -623,48 +649,6 @@ internal fun ResultsClassificationTab(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-/**
- * Botón del selector de etapas sobre `FilterChip`, con el aspecto de los
- * filtros de Hoy: inactivo en gris sobre la superficie de tarjeta; activo con
- * el acento al 15 % y texto de acento en negrita. Radio de control.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ResultsPill(
-    label: String,
-    selected: Boolean,
-    tint: Color? = null,
-    accessibilityLabel: String = label,
-    onClick: () -> Unit,
-) {
-    val selectedColor = tint ?: MaterialTheme.colorScheme.primary
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        modifier = Modifier
-            .padding(horizontal = 2.dp)
-            .heightIn(min = 32.dp)
-            .semantics { contentDescription = accessibilityLabel },
-        shape = RoundedCornerShape(CCRadius.Control),
-        border = null,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = selectedColor.copy(alpha = 0.15f),
-            selectedLabelColor = selectedColor,
-        ),
-        label = {
-            Box(modifier = Modifier.widthIn(min = 16.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    label,
-                    style = CCText.S14,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                )
-            }
-        },
-    )
 }
 
 @Composable

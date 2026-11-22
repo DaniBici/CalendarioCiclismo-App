@@ -22,6 +22,21 @@ import app.calendariociclismo.android.data.model.RaceUciStage
  */
 object ResultsFeedLogic {
 
+    /** Días con resultados que siempre se ven, con o sin filtros: si la ventana
+     *  deja menos, se amplía hacia atrás. Espejo de `RESULTS_MIN_DAYS` (web) y
+     *  `ResultsFeedLogic.minDays` (iOS). */
+    const val MIN_DAYS = 15
+
+    /** Inicio de lo que se muestra: [fromKey] o, si hasta él hay menos de
+     *  [MIN_DAYS] días en [dates] (entradas que pasan los filtros), el día
+     *  número [MIN_DAYS] más reciente. */
+    fun startKey(dates: List<String>, fromKey: String): String {
+        val days = dates.distinct().sortedDescending()
+        if (days.isEmpty()) return fromKey
+        val nth = days[minOf(MIN_DAYS, days.size) - 1]
+        return if (nth < fromKey) nth else fromKey
+    }
+
     enum class Kind { INHOUSE }
 
     data class ComplementaryClassification(
@@ -31,7 +46,15 @@ object ResultsFeedLogic {
         val labelEn: String,
         val colorHex: String? = null,
         val winner: String = "",
+        /** Líderes con su equipo en la carrera, cuando el repositorio los
+         *  resuelve (espejo de `c.winners` en `js/resultados-feed-html.js`).
+         *  Vacío: se pinta [winner]. */
+        val leaders: List<FeedWinnerName> = emptyList(),
     )
+
+    /** Ganador o líder del feed con el equipo con el que corre la carrera
+     *  (solo corredores; null si no se conoce o es ambiguo). */
+    data class FeedWinnerName(val name: String, val team: String? = null)
 
     data class FeedEntry(
         val kind: Kind,
@@ -51,6 +74,9 @@ object ResultsFeedLogic {
         /** Ganador: parte del winnerName crudo; el ViewModel lo refina con el
          *  nombre canónico de la ficha (o el equipo en CRE). */
         val winner: String = "",
+        /** Equipo del ganador en la carrera (solo corredores; en CRE el ganador
+         *  ya es el equipo). Espejo de `winnerTeam` en la web. */
+        val winnerTeam: String? = null,
         /** Orden dentro de la MISMA carrera: la general final (0) SIEMPRE por
          *  delante de la etapa (1). Solo lo consulta el comparador. */
         val subOrder: Int = 1,

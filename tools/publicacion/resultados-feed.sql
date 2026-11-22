@@ -1,6 +1,7 @@
 -- Datos de Últimos resultados en la temporada (RESULTS_SEASON_START): las lecturas de
 -- js/services/result-feed-entries.js y result-feed-context.js en una sola consulta,
--- con el mismo JSON que la API, más el ránking UCI. Solo lectura.
+-- con el mismo JSON que la API, más el ránking UCI y los rank 1 de ciclocross (equipo del
+-- ganador de cada categoría: resolveCxWinnerTeams). Solo lectura.
 set local timezone = 'UTC';
 with carreras as (
   select r.* from races r where r."endDate" is null or r."endDate" >= '2026-01-01'
@@ -54,4 +55,8 @@ select
   (select coalesce(json_agg(json_build_object('gender', r.gender, 'rank', r.rank, 'previousRank', r."previousRank", 'uciTeamId', r."uciTeamId",
             'teamId', r."teamId", 'teamCategory', r."teamCategory", 'sourceName', r."sourceName", 'displayName', r."displayName",
             'teamCode', r."teamCode", 'countryCode', r."countryCode", 'points', r.points, 'rankingDate', r."rankingDate", 'sourceUrl', r."sourceUrl")
-          order by r.gender, r.rank), '[]'::json) from uci_team_rankings r) as uci_team_rankings;
+          order by r.gender, r.rank), '[]'::json) from uci_team_rankings r) as uci_team_rankings,
+  (select coalesce(json_agg(json_build_object('id', x.id, 'raceId', x."raceId", 'category', x.category, 'riderDisplay', x."riderDisplay",
+            'teamName', x."teamName", 'rank', x.rank) order by x.id), '[]'::json)
+     from cx_results x join cx_races r on r.id = x."raceId"
+    where x.rank = 1 and r."editorialStatus" = 'published' and r."dateKey" >= '2026-08-01') as cx_results;

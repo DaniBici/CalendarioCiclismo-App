@@ -1,16 +1,17 @@
 import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js';
+import { bindTeamFilterClear } from './results/team-filter.js';
 import { mountStageProfile } from './stage/profile.js';
 import { stageMetricsHtml } from './stage/context.js';
 import { RACE_DAY_VIDEO_COLUMNS } from './services/stage-videos.js';
 import { applyVideoRegion, bindStageVideos } from './stage/videos-panel.js';
 import { startlistTeamsQuery } from './team-appearance.js';
 import { classificationInventory, classificationLabel, classificationColor, visibleStageClassifications } from './services/race-presentation.js';
-import { installScrollRail } from './scroll-rail.js';
+import { installScrollRail, centerRailItem } from './scroll-rail.js';
 import { applyPrerenderedHtml } from './html-fingerprint.js';
 import { patchHtml } from './dom-patch.js';
 import { stagePathLabel, stageSlugSegment, statusIcon, resultsStages, resultsActive, resultsPageHtml, stageNavigationHtml,
          publicationHtml, createResultsResolver, enrichRiders, enrichOverrideTeams, classificationHtml, classificationTableHtml,
-         teamFilterHtml, cancelledNoticeHtml, emptyClassificationHtml, loadingHtml } from './resultados-html.js';
+         teamFilterHtml, cancelledNoticeHtml, emptyClassificationHtml, loadingHtml, isRaceFinalView, gcWinnerSeconds } from './resultados-html.js';
 // ─────────────────────────────────────────────────────────────────
 //  RESULTADOS — clasificaciones oficiales (UCI) de una etapa
 //  URL: /resultados/<race-slug>/etapa-N/   ·   /resultados/<race-slug>/prologo/
@@ -201,7 +202,7 @@ async function init(i18nReady = Promise.resolve()) {
     supabase.from('race_uci_stages').select('*').eq('raceId', raceId).eq('keepForWeb', true).gt('rowCount', 0)
       .order('stageNumber', { ascending: true }).order('id'),
     supabase.from('race_days')
-      .select('id, "stageNumber", "dateKey", "isCancelledDay", "isRestDay", "neutralStartTimeUtc"')
+      .select('id, "stageNumber", "dateKey", "isCancelledDay", "isRestDay", "neutralStartTimeUtc", "startLocation", "startLocationEn", "finishLocation", "finishLocationEn", slug, "slugEn", "distanceKm", elevationGain:elevationProfile->elevationGain')
       .eq('raceId', raceId)
       .order('dateKey', { ascending: true })
       .order('neutralStartTimeUtc', { ascending: true, nullsFirst: true })
@@ -322,6 +323,11 @@ async function init(i18nReady = Promise.resolve()) {
     history.replaceState(null, '', `${canonBase}${encodeURIComponent(canonSlug)}/${seg ? seg + '/' : ''}${hashClass ? '#'+encodeURIComponent(hashClass) : ''}`);
   }
 
+  // Tiempo del ganador de la general: solo lo usan los datos de la carrera de la
+  // general final (resultsPageHtml), así que solo se pide en esa página.
+  const gcStageIds = stages.activeKey === 'final' && race.raceFormat !== 'one_day'
+    ? stagesAll.filter(s => s.classKind === 'gc' && s.stageNumber == null).map(s => s.id) : [];
+
   // ── Reconstruir corredores por dorsal contra la startlist ──────────
   // Jornada de contexto y assets dependen solo de su id: salen a la vez que
   // la resolución de la startlist.
@@ -329,6 +335,7 @@ async function init(i18nReady = Promise.resolve()) {
   const stageDayRequest = Promise.all([
     contextDayId ? supabase.from('race_days').select(RD_COLS).eq('id', contextDayId).maybeSingle() : Promise.resolve({ data: null }),
     contextDayId ? supabase.from('assets').select('*').eq('raceDayId', contextDayId).order('id') : Promise.resolve({ data: [] }),
+    gcStageIds.length ? supabase.from('race_uci_results').select('rank,irm,timeText').in('stageRef', gcStageIds) : Promise.resolve({ data: [] }),
     // Vídeos de la jornada y sus emisiones (la de YouTube pasa a Vídeos), sin
     // filtro regional: el HTML es el mismo que el generado.
     contextDayId ? supabase.from('broadcasts').select('*').eq('raceDayId', contextDayId).order('sortOrder').order('id') : Promise.resolve({ data: [] }),
@@ -339,7 +346,8 @@ async function init(i18nReady = Promise.resolve()) {
   // ── Jornada de la etapa activa (para detalle de cabecera + botón) ──
   // Cada clasificación keepForWeb arrastra su raceDayId; de él salen la ruta
   // (salida › meta), la distancia y el tipo (CRI/CRE), como en orden-salida.
-  const [{ data: rdRow }, { data: stageAssets, error: assetsError }, { data: contextBroadcasts }, { data: contextVideos }] = await stageDayRequest;
+  const [{ data: rdRow }, { data: stageAssets, error: assetsError }, { data: gcRows }, { data: contextBroadcasts }, { data: contextVideos }] = await stageDayRequest;
+  const gcWinnerSecs = gcWinnerSeconds(gcRows);
   let contextDay = rdRow || null;
   let raceDay = raceDayId ? contextDay : null;
   if (assetsError) throw assetsError;
@@ -391,7 +399,7 @@ async function init(i18nReady = Promise.resolve()) {
   // Esqueleto: la página generada en el build con la misma huella se conserva
   // (con sus huecos rellenos, cada uno con su propia huella).
   applyPrerenderedHtml(content, resultsPageHtml({
-    race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn: _isEn,
+    race, stages, active, raceDay, contextDay, contextAssets, actionAssets, canonBase, canonSlug, isEn: _isEn, gcWinnerSecs,
     contextBroadcasts: contextBroadcasts || [], contextVideos: contextVideos || [],
   }));
   applyVideoRegion(content, country => filterBroadcastsByRegion([{ country }]).length > 0);
@@ -399,23 +407,24 @@ async function init(i18nReady = Promise.resolve()) {
   // Datos de la jornada: la hora de salida va en la zona del visitante; fuera
   // de la del build solo se sustituye esta lista.
   const metricsList = content.querySelector('.res-stage-data dl');
-  if (metricsList) updateResultsHtml(metricsList, stageMetricsHtml(contextDay, { timeZoneLabel: visitorTimeZoneLabel() }));
-  syncResultsRaceHeaderHeight(content.querySelector(':scope > .race-header'));
+  if (metricsList && !isRaceFinalView(race, stages.activeKey)) updateResultsHtml(metricsList, stageMetricsHtml(contextDay, { timeZoneLabel: visitorTimeZoneLabel() }));
+  // La cabecera vive en la columna lateral (≥1360px) y deja de ser un bloque
+  // fijo sobre las pestañas, así que su alto ya no desplaza nada.
+  syncResultsRaceHeaderHeight(null);
   syncStickyHeight('--res-tabs-h', content.querySelector('.res-tabs-bar'));
-  if (contextDay) mountStageProfile(document.getElementById('resProfile'), { day:contextDay,race,assets:contextAssets,hidePointNames:true });
+  if (contextDay && !isRaceFinalView(race, stages.activeKey)) mountStageProfile(document.getElementById('resProfile'), { day:contextDay,race,assets:contextAssets,hidePointNames:true });
   content.querySelectorAll('.res-tabs__scroll, #resStages').forEach(shell => installScrollRail(shell));
 
   // El selector de etapas ocupa siempre una sola línea. En vueltas largas la
   // etapa activa puede quedar lejos del inicio: centrarla al montar y al cambiar
   // de ancho evita que el usuario tenga que buscarla (mismo patrón que las apps).
   const stagesInner = document.getElementById('resStagesInner');
+  const tabsInner = document.getElementById('resTabsInner');
   const centerActiveStage = () => {
-    const active = stagesInner?.querySelector('[data-active="true"]');
-    if (!stagesInner || !active || stagesInner.scrollWidth <= stagesInner.clientWidth + 1) return;
-    const left = active.offsetLeft - (stagesInner.clientWidth - active.offsetWidth) / 2;
-    stagesInner.scrollTo({ left: Math.max(0, left), behavior: 'auto' });
+    centerRailItem(stagesInner, stagesInner?.querySelector('[data-active="true"]'));
+    centerRailItem(tabsInner, tabsInner?.querySelector('.res-tab--active'));
   };
-  if (stagesInner) {
+  if (stagesInner || tabsInner) {
     requestAnimationFrame(centerActiveStage);
     window.addEventListener('resize', centerActiveStage);
   }
@@ -467,6 +476,7 @@ async function init(i18nReady = Promise.resolve()) {
     _teamFilter = select.value;
     applyTeamFilter();
   });
+  bindTeamFilterClear(filterSlot);
   // CRE: despliegue por equipo, con clic o con Intro/espacio en la fila.
   const toggleTttGroup = (groupEl) => {
     const idx = groupEl.dataset.tttGroup;
@@ -491,7 +501,7 @@ async function init(i18nReady = Promise.resolve()) {
   const publication = document.getElementById('resPublication');
   const statusSlot = document.getElementById('resStatusSlot');
   const showPublication = (stageRow, error = false) => {
-    const inBar = !!statusSlot && !content.querySelector('#resTabsInner .res-tab');
+    const inBar = !!statusSlot;
     const html = publicationHtml(stageRow, { configByKind, isOneDay, inBar, error, isEn: _isEn });
     if (statusSlot) updateResultsHtml(statusSlot, html.status);
     updateResultsHtml(publication, html.publication);
@@ -562,7 +572,7 @@ async function init(i18nReady = Promise.resolve()) {
     const stage=activeStages.find(s=>s.classKind===button?.dataset.class);
     if(!stage) return;
     content.querySelectorAll('#resTabs .res-tab').forEach(b=> {b.classList.toggle('res-tab--active',b===button);b.setAttribute('aria-pressed',String(b===button));});
-    button.scrollIntoView({block:'nearest',inline:'nearest'});
+    centerRailItem(button.parentElement,button,'smooth');
     history.replaceState(null,'',location.pathname+'#'+stage.classKind);
     // La página sube como máximo hasta donde se fijan las pestañas. La altura
     // de la tabla anterior se conserva mientras carga la nueva para que el
@@ -644,7 +654,7 @@ async function init(i18nReady = Promise.resolve()) {
         if(JSON.stringify([nextDay.elevationProfile,nextDay.profileSummits,nextDay.profileWaypoints,nextDay.distanceKm])!==JSON.stringify([contextDay?.elevationProfile,contextDay?.profileSummits,contextDay?.profileWaypoints,contextDay?.distanceKm])) mountStageProfile(document.getElementById('resProfile'),{day:nextDay,race,assets:contextAssets,hidePointNames:true});
         contextDay=nextDay;
         if(raceDayId) raceDay=nextDay;
-        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(contextDay,{timeZoneLabel:visitorTimeZoneLabel()}));
+        const list=content.querySelector('.res-stage-data dl');if(list&&!isRaceFinalView(race,stages.activeKey)) updateResultsHtml(list,stageMetricsHtml(contextDay,{timeZoneLabel:visitorTimeZoneLabel()}));
       }
       lastProbe = nextProbe;
     } catch { showPublication(displayedStage||activeClass,true); }
@@ -659,7 +669,8 @@ async function init(i18nReady = Promise.resolve()) {
 // botones usa t('assets.*'), que sin esto cae al diccionario ES embebido.
 // El diccionario EN (assets.* de buildActionButtons) se carga en paralelo con
 // los datos; init lo espera antes de pintar.
-init(initI18n()).catch(() => {
+init(initI18n()).catch((error) => {
+  console.error('[resultados]', error);
   const en=getLang()==='en',content=document.getElementById('resultsContent');
   content.innerHTML=`<div class="startlist-empty" role="status">${en?'Unable to load results.':'No se han podido cargar los resultados.'} <button type="button" data-initial-retry>${en?'Retry':'Reintentar'}</button></div>`;
   content.querySelector('[data-initial-retry]').addEventListener('click',()=>location.reload());

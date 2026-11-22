@@ -23,8 +23,14 @@
 import { fetchResultEntries as fetchEntries } from './services/result-feed-entries.js';
 import { cxDaysHtml, cxEmptyHtml, feedDaysHtml, feedEmptyHtml, feedHeroHtml, feedMoreHtml, feedTabsHtml, feedViews, rankingBodyHtml } from './resultados-feed-html.js';
 import { bindRankingRows, packCxDays, packFeaturedEntries } from './resultados-feed-layout.js';
+import { resolveCxWinnerTeams } from './services/result-feed-context.js';
 import { supabase, esc, setMeta, setMetaProperty } from './shared.js';
-import { getLang } from './i18n.js';
+import { getLang, t } from './i18n.js';
+import { filterMenuHtml, filtersActive, bindFilterMenu } from './components/filter-menu.js';
+import { bindMenuButtons } from './components/menu-button.js';
+import { scheduleResultsTip } from './components/today-tip.js';
+import { patchHtml } from './dom-patch.js';
+import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, CX_FILTERS_KEY, cxFilterGroups, loadRoadFilters, loadCxFilters, roadRaceMatches, cxRaceMatches, filterLabels } from './race-filters.js';
 import { cyclocrossHome, roadPinned, setRoadPinned } from './services/today-season.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
 import { cxSeason } from './cx/presentation.js';
@@ -33,6 +39,10 @@ import {
   RESULTS_SEASON_START,
   initialResultsFromKey,
   previousResultsWindow,
+  RESULTS_MIN_DAYS,
+  resultDayCount,
+  resultsStartKey,
+  fillResultsWindow,
 } from './services/result-feed-pagination.js';
 
 function toDateKey(d) {
@@ -101,8 +111,54 @@ export function renderResultsFeed(content) {
   canonEl.href = _isEn ? enUrl : esUrl;
 
   const tabsHtml = () => feedTabsHtml({ cxTab, activeView, pinned: roadPinned(), isEn: _isEn });
-  const shell = body => `${feedHeroHtml(tabsHtml(), _isEn)}
+
+  // Filtros de carreras: la misma selección de Hoy y Calendario (js/race-filters.js),
+  // por disciplina. El Ránking UCI no lleva filtros.
+  const cxGroups = cxFilterGroups();
+  let roadFilters = loadRoadFilters();
+  let cxFilters = loadCxFilters(cxGroups);
+  const FILTER_MENUS = {
+    latest: { idPrefix: 'resultsRoadFilter', groups: ROAD_FILTER_GROUPS, storageKey: ROAD_FILTERS_KEY, get: () => roadFilters, set: filters => { roadFilters = filters; } },
+    cx: { idPrefix: 'resultsCxFilter', groups: cxGroups, storageKey: CX_FILTERS_KEY, get: () => cxFilters, set: filters => { cxFilters = filters; } },
+  };
+  const FILTER_ACTIVE_CLASS = 'agenda-filter-btn--active';
+  const filterSlotHtml = () => {
+    const menu = FILTER_MENUS[activeView];
+    if (!menu) return '';
+    return `<div class="agenda-filter-slot feed-filter-slot">${filterMenuHtml(menu.groups, menu.get(), { idPrefix: menu.idPrefix, activeClass: FILTER_ACTIVE_CLASS, ...filterLabels(), buttonClass: 'agenda-filter-btn' })}</div>`;
+  };
+  const roadVisible = entries => entries.filter(entry => roadRaceMatches(entry.race, roadFilters));
+  const cxVisible = entries => entries.filter(entry => cxRaceMatches(entry.race, cxFilters, cxGroups));
+  const filteredEmptyHtml = () => `<div class="startlist-empty">${esc(t('filter.resultsEmpty'))}</div>`;
+
+  const shell = body => `${feedHeroHtml(tabsHtml() + filterSlotHtml(), _isEn)}
       <div id="resultsFeedPanel">${body}</div>`;
+  // Con la cabecera de la vista ya pintada solo cambia el panel: un filtro no
+  // cierra su menú ni mueve la burbuja.
+  function paint(body) {
+    const panel = content.querySelector('#resultsFeedPanel');
+    if (panel && content.dataset.view === activeView) {
+      panel.innerHTML = body;
+      return;
+    }
+    content.innerHTML = shell(body);
+    content.dataset.view = activeView;
+    bindViewTabs();
+    scheduleResultsTip(content.querySelector('.feed-filter-slot [data-menu-button]'));
+  }
+  bindMenuButtons();
+  for (const [view, menu] of Object.entries(FILTER_MENUS)) {
+    bindFilterMenu(content, {
+      idPrefix: menu.idPrefix, groups: menu.groups, storageKey: menu.storageKey, activeClass: FILTER_ACTIVE_CLASS,
+      clearLabel: filterLabels().clearLabel, getFilters: menu.get, setFilters: menu.set, patch: patchHtml,
+      onChange: () => {
+        if (activeView !== view) return;
+        if (view === 'latest' && feedEntries) refilterFeed();
+        // Equipos de los ganadores que el filtro deja a la vista, antes de pintar.
+        if (view === 'cx' && cxEntries) loadCxTeams().catch(() => false).then(() => { if (activeView === 'cx') renderCx(cxEntries); });
+      },
+    });
+  }
 
   function bindViewTabs() {
     content.querySelector('.feed-view-switch')?.addEventListener('click', (event) => {
@@ -134,10 +190,11 @@ export function renderResultsFeed(content) {
   }
 
   function renderFeed(entries) {
-    let html = entries.length ? feedDaysHtml(entries, _isEn, locale) : feedEmptyHtml(_isEn);
+    const visible = roadVisible(entries);
+    let html = visible.length ? feedDaysHtml(visible, _isEn, locale)
+      : entries.length && filtersActive(ROAD_FILTER_GROUPS, roadFilters) ? filteredEmptyHtml() : feedEmptyHtml(_isEn);
     if (fromKey > RESULTS_SEASON_START) html += feedMoreHtml('feedMoreBtn', _isEn);
-    content.innerHTML = shell(html);
-    bindViewTabs();
+    paint(html);
     packFeaturedEntries(content);
 
     const moreBtn = content.querySelector('#feedMoreBtn');
@@ -164,6 +221,41 @@ export function renderResultsFeed(content) {
     // Nunca acorta la ventana (el ancla es como mucho hoy).
     const anchored = initialResultsFromKey(last < today ? last : today);
     if (anchored < fromKey) fromKey = anchored;
+  }
+
+  // Con menos de RESULTS_MIN_DAYS días que pasen los filtros, lo cargado se
+  // amplía hacia atrás por tramos (fillResultsWindow). Devuelve las entradas
+  // ampliadas, o null si otra carga más reciente la sustituye.
+  const roadDays = entries => resultDayCount(roadVisible(entries).map(e => e.date));
+  async function fillMinDays(entries, request) {
+    let loaded = entries;
+    for (let range = fillResultsWindow(fromKey); range && roadDays(loaded) < RESULTS_MIN_DAYS; range = fillResultsWindow(fromKey)) {
+      const { entries: older } = await fetchEntries(range.fromKey, range.toKey, _isEn);
+      if (request !== feedRequest) return null;
+      loaded = [...loaded, ...older];
+      fromKey = range.fromKey;
+    }
+    return loaded;
+  }
+
+  // Cambio de filtro: si faltan días, se cargan antes de pintar.
+  async function refilterFeed() {
+    if (roadDays(feedEntries) >= RESULTS_MIN_DAYS || !fillResultsWindow(fromKey)) { renderFeed(feedEntries); return; }
+    const request = ++feedRequest;
+    feedLoading = true;
+    paint(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
+    try {
+      const loaded = await fillMinDays(feedEntries, request);
+      if (!loaded) return;
+      feedEntries = loaded;
+    } catch (error) {
+      console.error('[resultados-feed] filtros', error);
+    } finally {
+      if (request === feedRequest) {
+        feedLoading = false;
+        if (activeView === 'latest') renderFeed(feedEntries);
+      }
+    }
   }
 
   function setMoreButtonLoading(loading) {
@@ -223,15 +315,16 @@ export function renderResultsFeed(content) {
     const request=++feedRequest;
     feedLoading=true;
     if (!refresh && !feedEntries) {
-      content.innerHTML = shell(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
-      bindViewTabs();
+      paint(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
     }
     try {
       const today = toDateKey(new Date());
       await anchorFeedWindow(today);
       if (request!==feedRequest) return;
-      const { entries: next, watermark } = await fetchEntries(fromKey,today,_isEn);
+      const { entries: fetched, watermark } = await fetchEntries(fromKey,today,_isEn);
       if (request!==feedRequest) return;
+      const next = await fillMinDays(fetched, request);
+      if (!next) return;
       // La marca de agua solo avanza: incluye el cambio que disparó la recarga
       // aunque quede fuera de la ventana del feed.
       feedWatermark = [watermark, pendingWatermark, feedWatermark].filter(Boolean).sort().at(-1)
@@ -248,7 +341,7 @@ export function renderResultsFeed(content) {
       if (request!==feedRequest || activeView!=='latest') return;
       console.error('[resultados-feed] latest',error);
       if(feedEntries) renderFeed(feedEntries);
-      else { content.innerHTML=shell(''); bindViewTabs(); }
+      else paint('');
       const note=document.createElement('div'); note.className='res-update-note'; note.setAttribute('role','status');
       note.innerHTML=`${feedEntries ? (_isEn?'Unable to update · Saved results':'No se pudo actualizar · Datos conservados') : (_isEn?'Unable to load results':'No se pudieron cargar los resultados')} <button type="button">${_isEn?'Retry':'Reintentar'}</button>`;
       content.append(note);
@@ -283,8 +376,7 @@ export function renderResultsFeed(content) {
   window.addEventListener('pagehide',()=> {clearInterval(feedTimer);document.removeEventListener('visibilitychange',refreshFeed);window.removeEventListener('resize',repackFeed);},{once:true});
 
   function renderRanking(rows) {
-    content.innerHTML = shell(rankingBodyHtml(rows, rankingGender, _isEn));
-    bindViewTabs();
+    paint(rankingBodyHtml(rows, rankingGender, _isEn));
     content.querySelectorAll('[data-ranking-gender]').forEach((button) => {
       button.addEventListener('click', () => {
         rankingGender = button.dataset.rankingGender;
@@ -299,8 +391,7 @@ export function renderResultsFeed(content) {
       renderRanking(rankingRows);
       return;
     }
-    content.innerHTML = shell(loadingHtml(_isEn ? 'Loading UCI ranking' : 'Cargando ránking UCI'));
-    bindViewTabs();
+    paint(loadingHtml(_isEn ? 'Loading UCI ranking' : 'Cargando ránking UCI'));
     try {
       const { data, error } = await supabase
         .from('uci_team_rankings')
@@ -313,10 +404,9 @@ export function renderResultsFeed(content) {
     } catch (error) {
       console.error('[resultados-feed] ranking', error);
       if (activeView === 'ranking') {
-        content.innerHTML = shell(`<div class="startlist-empty">${_isEn
+        paint(`<div class="startlist-empty">${_isEn
           ? 'The UCI ranking could not be loaded.'
           : 'No se pudo cargar el ránking UCI.'}</div>`);
-        bindViewTabs();
       }
     }
   }
@@ -333,28 +423,59 @@ export function renderResultsFeed(content) {
   // Sondeo: marca de agua = última importación de resultados leída antes de
   // descargar la temporada (como `feedWatermark` en carretera).
   let cxWatermark = null, cxLoadedAt = 0, cxProbing = false;
+  // Equipo del ganador de cada categoría (`${raceId}:${category}`), leído de
+  // cx_results con UNA consulta por lotes antes de pintar las pruebas de la
+  // ventana: ganadores y equipos aparecen a la vez.
+  const cxTeams = new Map(), cxTeamsAsked = new Set();
+
+  // Inicio de lo que se muestra: la ventana o, si deja menos de RESULTS_MIN_DAYS
+  // días que pasen los filtros, el día número RESULTS_MIN_DAYS más reciente.
+  const cxStartKey = entries => resultsStartKey(cxVisible(entries || []).map(e => e.date), cxFromKey);
 
   function renderCx(entries) {
-    const visible = entries.filter(e => e.date >= cxFromKey);
-    let html = visible.length ? cxDaysHtml(visible, cxRounds, _isEn, locale) : cxEmptyHtml(entries.length > 0, _isEn);
-    if (entries.some(e => e.date < cxFromKey)) html += feedMoreHtml('cxMoreBtn', _isEn);
-    content.innerHTML = shell(html);
-    bindViewTabs();
+    const matching = cxVisible(entries);
+    const start = cxStartKey(entries);
+    const visible = matching.filter(e => e.date >= start);
+    let html = visible.length ? cxDaysHtml(visible, cxRounds, _isEn, locale, cxTeams)
+      : entries.length && filtersActive(cxGroups, cxFilters) ? filteredEmptyHtml() : cxEmptyHtml(entries.length > 0, _isEn);
+    if (matching.some(e => e.date < start)) html += feedMoreHtml('cxMoreBtn', _isEn);
+    paint(html);
     packCxDays(content);
-    content.querySelector('#cxMoreBtn')?.addEventListener('click', () => {
+    content.querySelector('#cxMoreBtn')?.addEventListener('click', async () => {
+      cxFromKey = addDays(cxStartKey(cxEntries), -CX_WINDOW_DAYS);
+      await loadCxTeams();
+      if (activeView !== 'cx' || !content.isConnected) return;
       const y = window.scrollY;
-      cxFromKey = addDays(cxFromKey, -CX_WINDOW_DAYS);
       renderCx(cxEntries);
       window.scrollTo(0, y);
     });
+  }
+
+  // Equipos de los ganadores de la ventana que aún no se han pedido; quien
+  // llama pinta después. Un fallo deja las tarjetas sin equipo.
+  async function loadCxTeams() {
+    // Clave por ganador: si un refresco cambia el ganador de una categoría, se
+    // vuelve a pedir su equipo.
+    const askKey = (e, c) => `${e.race.id}:${c.category}#${c.winnerName}`;
+    const start = cxStartKey(cxEntries);
+    const pending = (cxEntries || []).filter(e => e.date >= start && e.categories.some(c => !cxTeamsAsked.has(askKey(e, c))));
+    if (!pending.length) return false;
+    pending.forEach(e => e.categories.forEach(c => {
+      if (cxTeamsAsked.has(askKey(e, c))) return;
+      cxTeamsAsked.add(askKey(e, c));
+      cxTeams.delete(`${e.race.id}:${c.category}`);   // el equipo del ganador anterior ya no vale
+    }));
+    const found = await resolveCxWinnerTeams(supabase, pending);
+    let added = false;
+    found.forEach((team, key) => { if (cxTeams.get(key) !== team) { cxTeams.set(key, team); added = true; } });
+    return added;
   }
 
   async function loadCx({ refresh = false } = {}) {
     const request = ++cxRequest;
     cxLoading = true;
     if (!refresh && !cxEntries) {
-      content.innerHTML = shell(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
-      bindViewTabs();
+      paint(loadingHtml(_isEn ? 'Loading results' : 'Cargando resultados'));
     }
     try {
       const season = cxSeason();
@@ -375,12 +496,15 @@ export function renderResultsFeed(content) {
       }
       const changed = !cxEntries || JSON.stringify(next) !== JSON.stringify(cxEntries);
       cxEntries = next;
-      if (activeView === 'cx' && changed) renderCx(cxEntries);
+      // Equipos de la ventana antes de pintar: llegan con los ganadores.
+      const teamsChanged = await loadCxTeams();
+      if (request !== cxRequest) return;
+      if (activeView === 'cx' && (changed || teamsChanged)) renderCx(cxEntries);
     } catch (error) {
       if (request !== cxRequest || activeView !== 'cx') return;
       console.error('[resultados-feed] ciclocross', error);
       if (cxEntries) renderCx(cxEntries);
-      else { content.innerHTML = shell(''); bindViewTabs(); }
+      else paint('');
       const note = document.createElement('div'); note.className = 'res-update-note'; note.setAttribute('role', 'status');
       note.innerHTML = `${cxEntries ? (_isEn ? 'Unable to update · Saved results' : 'No se pudo actualizar · Datos conservados') : (_isEn ? 'Unable to load results' : 'No se pudieron cargar los resultados')} <button type="button">${_isEn ? 'Retry' : 'Reintentar'}</button>`;
       content.append(note);

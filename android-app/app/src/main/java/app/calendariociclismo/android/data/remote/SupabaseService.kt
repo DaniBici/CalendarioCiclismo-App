@@ -88,9 +88,19 @@ class SupabaseService : CxRemote {
         client.from("cx_race_featured").select(columns = Columns.raw("cxRaceId"))
             .decodeList<CxFeaturedRow>().map { it.cxRaceId }.toSet()
 
+    /** Columnas de la agenda con las filas rank 1 de cx_results en cada
+     *  categoría (ganador y equipo), filtradas por `cx_race_categories.cx_results.rank`.
+     *  Solo la consulta por meses, la de Últimos resultados: los equipos llegan
+     *  y se guardan en caché con el resto de la carrera. */
+    private val cxMonthColumns = cxAgendaColumns.replace(
+        "durationRuleSourceUrl),",
+        "durationRuleSourceUrl,cx_results(riderDisplay,teamName)),",
+    )
+
     override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> =
-        client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
+        client.from("cx_races").select(columns = Columns.raw(cxMonthColumns)) {
             filter {
+                eq("cx_race_categories.cx_results.rank", 1)
                 eq("seasonKey", season)
                 eq("editorialStatus", "published")
                 lte("dateKey", month.atEndOfMonth().toString())

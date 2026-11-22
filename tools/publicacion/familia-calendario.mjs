@@ -1,5 +1,6 @@
 // Calendario pintado en el servidor con el HTML y los filtros del navegador
 // (js/temporada-html.js): la temporada del año por defecto, con todas sus jornadas.
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RESERVA_ANDROID } from './familia-portada.mjs';
@@ -14,7 +15,7 @@ export async function crearFamiliaCalendario({ lang, t, headerHtml, pie, huella 
   const { S, temporadaCountries, temporadaListHtml, tCountryName } = await load('js/temporada-html.js');
   const { seasonCalendarYear } = await load('js/services/today-season.js');
   const { isOnChampionshipsPage } = await load('js/campeonatos-config.js');
-  const { PIN_STORAGE_KEY } = await load('js/shared.js');
+  const { ROAD_FILTERS_KEY } = await load('js/race-filters.js');
   const isEn = lang === 'en';
   const clave = `calendario-${lang}/temporada`;
 
@@ -26,7 +27,7 @@ export async function crearFamiliaCalendario({ lang, t, headerHtml, pie, huella 
     for (const dia of dias) (porCarrera.get(dia.raceId) || porCarrera.set(dia.raceId, []).get(dia.raceId)).push(dia);
     const filas = races.filter(race => race.year === anio).map(race => ({ ...race, _days: porCarrera.get(race.id) || [] }));
     S.activeYear = anio;
-    S.activeCat = 'all';
+    S.filters = null;
     S.activeCountry = '';
     S.expandedChallenges = new Set();
     S.allRaces = filas.filter(race => race._days.length > 0 || race.startDate || race.isPlaceholder === true);
@@ -40,7 +41,7 @@ export async function crearFamiliaCalendario({ lang, t, headerHtml, pie, huella 
     const opcionesPais = `<option value="">${attr(t('season.countryPlaceholder'))}</option>${paises.map(code => `<option value="${code}">${attr(tCountryName(code))}</option>`).join('')}`;
 
     const shell = activos.calendario.paginas[lang];
-    const filtros = shell.filtros
+    const filtros = filtrosBase(activos.base, lang, shell.filtros)
       .replace('id="temporadaFilters" hidden', 'id="temporadaFilters"')
       .replace(/(<select[^>]*id="filterYear"[^>]*>)<\/select>/, `$1${opcionesAnio}`.concat('</select>'))
       .replace(/(<select[^>]*id="filterCountry"[^>]*>)[\s\S]*?<\/select>/, `$1${opcionesPais}</select>`)
@@ -59,10 +60,25 @@ export async function crearFamiliaCalendario({ lang, t, headerHtml, pie, huella 
       .replace('</head>', `<style>#temporadaContent[data-pendiente]{visibility:hidden}</style><meta name="cc:clave" content="${clave}"><meta name="cc:v" content="${version}"></head>`);
     const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'calendar' })}</header>`;
     const pagina = `${head}<body>\n${RESERVA_ANDROID}\n${shell.antes}${cabecera}\n${filtros}\n<main class="temporada-main" id="calMain">${shell.h1}`
-      + `<div id="temporadaContent" data-anio="${anio}" data-pin-clave="${attr(PIN_STORAGE_KEY)}">${listaHtml}</div><div id="mesContent" hidden></div>`
+      + `<div id="temporadaContent" data-anio="${anio}" data-filtros-clave="${attr(ROAD_FILTERS_KEY)}">${listaHtml}</div><div id="mesContent" hidden></div>`
       + `<script>${activos.calendario.prePintado}</script></main>\n${pie()}\n<script defer src="${activos.clasicos}"></script>\n<script type="module" src="${activos.calendario.isla}"></script>\n</body>\n</html>\n`;
     return { slug: 'temporada', clave, version, pagina, raceId: null, dayId: 'temporada', fragmento: null, datos: null, ruta: isEn ? 'en/calendar' : 'calendario', anio, filas: S.allRaces.length };
   };
+}
+
+/**
+ * Barras de Temporada y Mes del sitio base, que se rehace con cada código nuevo (vps/base.sh). La
+ * página publicada solo sirve de reserva: en el VPS se descarga una vez y conservaría las barras
+ * de entonces.
+ */
+function filtrosBase(base, lang, reserva) {
+  const file = base && join(base, lang === 'en' ? 'en/calendar/index.html' : 'calendario/index.html');
+  if (!file || !existsSync(file)) return reserva;
+  const html = readFileSync(file, 'utf8');
+  const cierraCabecera = html.indexOf('</header>');
+  const abreMain = html.indexOf('<main', cierraCabecera);
+  if (cierraCabecera < 0 || abreMain < 0) return reserva;
+  return quitarScripts(html.slice(cierraCabecera + '</header>'.length, abreMain)).trim();
 }
 
 /** Lo que el calendario conserva de su página publicada. */

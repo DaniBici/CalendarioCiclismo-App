@@ -36,7 +36,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { firstTechnicalGuide } from '../../js/services/races.js';
 import { readDump, summarize } from './prerender-jornadas.mjs';
@@ -112,7 +112,10 @@ const INSCRITOS_QUERIES = {
   stages: filter => `race_uci_stages?select=id,raceId,stageNumber,rowCount&classKind=eq.stage&${filter}&order=id.asc`,
 };
 const RESULTS_QUERY = filter => `race_uci_results?select=globalRiderId,irm,stageRef&globalRiderId=not.is.null&irm=not.is.null&${filter}&order=id.asc`;
-const DAYS_QUERY = filter => `race_days?select=raceId,dateKey,isRestDay&editorialStatus=eq.published&${filter}&order=dateKey.asc,id.asc`;
+// Columnas de race_days que lee la página (js/startlist/data.js): fechas de la
+// cabecera y la lista lateral de etapas.
+const STAGE_LIST_DAY_COLUMNS = ['id', 'slug', 'slugEn', 'stageNumber', 'dateKey', 'isRestDay', 'startLocation', 'finishLocation', 'startLocationEn', 'finishLocationEn'];
+const DAYS_QUERY = filter => `race_days?select=raceId,id,slug,slugEn,stageNumber,dateKey,isRestDay,startLocation,finishLocation,startLocationEn,finishLocationEn&editorialStatus=eq.published&${filter}&order=dateKey.asc,id.asc`;
 const ONE_DAY_QUERY = filter => `race_days?select=*,assets(*)&editorialStatus=eq.published&assets.order=id.asc&${filter}&order=dateKey.asc,id.asc`;
 const GUIDES_QUERY = filter => `assets?select=*,race_days!inner(raceId,dateKey)&type=eq.technicalGuide&${filter}&order=id.asc`;
 
@@ -260,7 +263,7 @@ export function readSharedData(dir, since) {
     races,
     teams: read('inscritos_teams'),
     riders: read('inscritos_riders'),
-    days: raceDays.map(({ raceId, dateKey, isRestDay }) => ({ raceId, dateKey, isRestDay })),
+    days: raceDays.map(day => Object.fromEntries(['raceId', ...STAGE_LIST_DAY_COLUMNS].map(column => [column, day[column] ?? null]))),
     stages: read('inscritos_stages'),
     results: read('inscritos_results'),
     oneDays: raceDays.filter(day => oneDayIds.has(day.raceId)).map(day => ({ ...day, assets: assetsByDay.get(day.id) || [] })),
@@ -361,7 +364,7 @@ function composePage(source, { headerInner, html, fingerprint }) {
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, main.index)
     + `<main id="${main[1]}"${main[2].replace(OWN_ATTRS, '')} data-prerendered="${attr(fingerprint)}">\n${html}\n`
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
 }
 
 /** Atributos de la cabecera vacía: data-back y, si los hay, data-lang y data-active. */

@@ -17,6 +17,8 @@ import { cardReviveBroadcast } from './services/stage-videos.js';
 import { cxRowHead, dayHeaderText, roadRowHead, roadRowSubHtml } from './resultados-feed-html.js';
 import { cxVideoKind } from './services/video-feed-entries.js';
 import { roadPinButtonHtml } from './components/discipline-switch.js';
+import { filterMenuHtml, newFilters } from './components/filter-menu.js';
+import { ROAD_FILTER_GROUPS, cxFilterGroups, filterLabels } from './race-filters.js';
 import { videoRowsHtml } from './stage/videos-html.js';
 
 const CHEVRON_DOWN = '<svg class="video-card__chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -114,10 +116,19 @@ export function videosSwitchHtml({ view, pinned, isEn }) {
   }).join('')}</div>`;
 }
 
-export const videosHeroHtml = (switchHtml = '') => `
+/** Ranura del menú «Filtros» de la vista (carretera o ciclocross). Sin `filters`, todo marcado:
+ *  es lo que escribe el build; el navegador pasa la selección recordada. */
+export function videosFilterSlotHtml(view, filters = null) {
+  const groups = view === 'cx' ? cxFilterGroups() : ROAD_FILTER_GROUPS;
+  const idPrefix = view === 'cx' ? 'videosCxFilter' : 'videosRoadFilter';
+  const state = filters || newFilters(groups);
+  return `<div class="agenda-filter-slot feed-filter-slot">${filterMenuHtml(groups, state, { idPrefix, activeClass: 'agenda-filter-btn--active', ...filterLabels(), buttonClass: 'agenda-filter-btn' })}</div>`;
+}
+
+export const videosHeroHtml = (switchHtml = '', filterHtml = '') => `
       <div class="feed-hero">
         <h1 class="sr-only">${t('videos.pageTitle')}</h1>
-        ${switchHtml}
+        ${switchHtml}${filterHtml}
       </div>`;
 
 export const videosEmptyHtml = (isEn, cx = false) => `<div class="startlist-empty">${cx

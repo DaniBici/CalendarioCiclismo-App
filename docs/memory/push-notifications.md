@@ -178,4 +178,4 @@ En `push_subscriptions`: `platform='web'`, `deviceToken = JSON.stringify(PushSub
 - El botón se oculta automáticamente si el navegador no soporta Web Push.
 - iOS Safari sin PWA: no tiene soporte — se redirige al modal de apps.
 
-Texto del modal: idéntico al onboarding de las apps nativas, con "web" en lugar de "app".
+Texto del modal: el de la antigua pantalla de notificaciones de las apps (anterior a la bienvenida única de la 5.2.2), con "web" en lugar de "app".

@@ -47,7 +47,6 @@ struct RaceDetailView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         raceHeader(race)
-                        raceDocumentationSection(race: race)
 
                         if viewModel.days.isEmpty {
                             if !viewModel.isLoading {
@@ -112,7 +111,6 @@ struct RaceDetailView: View {
 
     // MARK: - Stages list
 
-    @ViewBuilder
     /// Jornadas en una columna o, en ancho regular, en dos, como Hoy y la
     /// lista de Competición de la web desde 761 px. Una jornada suelta ocupa
     /// media fila a la izquierda.
@@ -193,35 +191,17 @@ struct RaceDetailView: View {
 
     // MARK: - Header
 
+    /// Cabecera en tarjeta, como la del torneo de ciclocross y la de la jornada:
+    /// identidad con categoría, etapas y fechas bajo el nombre, y la tira de
+    /// documentos enmarcada dentro de la misma tarjeta.
     @ViewBuilder
     private func raceHeader(_ race: Race) -> some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             RaceCompetitionIdentity(name: race.localizedName, logoUrl: race.logoUrl, countryCode: race.countryCode,
                 hideFlag: race.hideFlag == true, originalName: race.originalName.flatMap { $0 != race.name ? $0 : nil },
+                detail: raceDetail(race),
                 showFemale: RaceLogic.shouldShowFemaleIndicator(race),
                 logoPlaceholder: race.uciCategory != "CN")
-
-            HStack(spacing: 8) {
-                RaceCategoryLabel(category: race.uciCategory)
-
-                if race.isStageRace {
-                    Text(LocaleService.t("\(viewModel.stageCount) etapas", "\(viewModel.stageCount) stages"))
-                        .ccFont(.s12)
-                        .foregroundStyle(.secondary)
-                    if !viewModel.dateRange.isEmpty {
-                        Text("·")
-                            .ccFont(.s12)
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                    }
-                }
-
-                Text(viewModel.dateRange)
-                    .ccFont(.s12)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
 
             if race.isCancelled {
                 Label(LocaleService.t("Carrera cancelada", "Race cancelled"), systemImage: "xmark.circle.fill")
@@ -229,9 +209,43 @@ struct RaceDetailView: View {
                 .foregroundStyle(AppTheme.red)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            raceDocumentationSection(race: race)
         }
         .padding()
-        .background(AppTheme.cardBackground)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
+    /// Categoría y, en texto continuo con el punto pegado, «N etapas · fechas»,
+    /// con el recuento de etapas en negrita. Si no cabe en una línea, la categoría
+    /// pasa encima.
+    private func raceDetail(_ race: Race) -> AnyView? {
+        var parts: [Text] = []
+        if race.isStageRace {
+            parts.append(Text("\(viewModel.stageCount) " + LocaleService.t("etapas", "stages")).fontWeight(.bold))
+        }
+        if !viewModel.dateRange.isEmpty { parts.append(Text(viewModel.dateRange)) }
+        let summary: Text? = parts.first.map { first in
+            parts.dropFirst().reduce(first) { $0 + Text(" · ") + $1 }
+        }
+        let hasCategory = !RaceLogic.uciCategoryName(race.uciCategory).isEmpty
+        guard hasCategory || summary != nil else { return nil }
+        return AnyView(
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    RaceCategoryLabel(category: race.uciCategory)
+                    if let summary { summary.ccFont(.s13) }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    RaceCategoryLabel(category: race.uciCategory)
+                    if let summary { summary.ccFont(.s13) }
+                }
+            }
+            .padding(.top, hasCategory ? 2 : 0)
+        )
     }
 
     // MARK: - Documentation chips
@@ -247,38 +261,34 @@ struct RaceDetailView: View {
         let showNotifications = true
         if hasWebsite || technicalGuide != nil || hasStartlist || showNotifications {
             Divider()
-            ScrollView(.horizontal, showsIndicators: true) {
-                HStack(spacing: 0) {
-                    if let urlStr = race.websiteUrl, let url = URL(string: urlStr) {
-                        raceDocChip(icon: "globe", label: LocaleService.t("Sitio web", "Website")) {
-                            safariURL = url
-                        }
-                    }
-                    if let guide = technicalGuide, let urlStr = guide.url, let url = URL(string: urlStr) {
-                        raceDocChip(icon: "doc.text", label: guide.typeLabel) { safariURL = url }
-                    }
-                    if hasStartlist {
-                        let startlistLabel: String = {
-                            if race.startlistProvisional == true {
-                                return LocaleService.t("Lista provisional", "Provisional Startlist")
-                            }
-                            return LocaleService.t("Dorsales", "Startlist")
-                        }()
-                        raceDocChip(
-                            icon: LogoCyclistIcon.name,
-                            label: startlistLabel
-                        ) {
-                            showStartlist = true
-                        }
-                    }
-                    if showNotifications {
-                        RaceNotificationChip(raceId: race.id)
+            ResultsFittingRail(height: 60) {
+                if let urlStr = race.websiteUrl, let url = URL(string: urlStr) {
+                    raceDocChip(icon: "globe", label: LocaleService.t("Sitio web", "Website")) {
+                        safariURL = url
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 10)
+                if let guide = technicalGuide, let urlStr = guide.url, let url = URL(string: urlStr) {
+                    raceDocChip(icon: "doc.text", label: guide.typeLabel) { safariURL = url }
+                }
+                if hasStartlist {
+                    let startlistLabel: String = {
+                        if race.startlistProvisional == true {
+                            return LocaleService.t("Lista provisional", "Provisional Startlist")
+                        }
+                        return LocaleService.t("Dorsales", "Startlist")
+                    }()
+                    raceDocChip(
+                        icon: LogoCyclistIcon.name,
+                        label: startlistLabel
+                    ) {
+                        showStartlist = true
+                    }
+                }
+                if showNotifications {
+                    RaceNotificationChip(raceId: race.id)
+                }
             }
-            .background(AppTheme.cardBackground)
+            .padding(.top, 4)
         }
     }
 

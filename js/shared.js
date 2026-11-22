@@ -11,6 +11,7 @@ import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { firstTechnicalGuide } from './services/races.js';
 import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
+import { fixedDecimal } from './fixed-number.js';
 export { extractYouTubeId };
 export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
 
@@ -377,10 +378,12 @@ export function stageLabel(n, suffix, isFinal = false) {
 // ── Bandera desde código ISO ─────────────────────────────────────
 // Las banderas de las comunidades autónomas españolas no existen en
 // flag-icons; se sirven autoalojadas desde /flags/ (ver js/flag-url.js).
-export function countryFlag(code, { lazy = false } = {}) {
+// `outline`: filete tenue (css/app.css, `.flag-img--outlined`) para las banderas de Hoy y de
+// Últimos resultados; sin él, la bandera no cambia.
+export function countryFlag(code, { lazy = false, outline = false } = {}) {
   if (!code) return '';
   const c = code.toLowerCase();
-  return `<img src="${flagIconUrl(c)}" alt="${c}"${lazy ? ' loading="lazy"' : ''} style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;vertical-align:-0.05em;display:inline-block">`;
+  return `<img src="${flagIconUrl(c)}" alt="${c}"${outline ? ' class="flag-img--outlined"' : ''}${lazy ? ' loading="lazy"' : ''} style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;vertical-align:-0.05em;display:inline-block">`;
 }
 
 // ── País efectivo (override de jornada > carrera) ────────────────
@@ -778,131 +781,10 @@ if (typeof window !== 'undefined') {
 // ── Modal móvil para data-ph-tooltip ────────────────────────────
 export { initPhTooltip, openPhBanner, wirePhDescriptions } from './ph-tooltip.js';
 
-// ── Filtro fijado (chincheta) ──────────────────────────────────────
-// Pin global compartido entre Hoy, Mes y Temporada. Persistido en
-// localStorage. `null` cuando el usuario no ha fijado ninguno.
-/** @public tools/publicacion/familia-calendario.mjs lo usa como miembro del módulo cargado con import(). */
-export const PIN_STORAGE_KEY = 'cc_default_filter';
-const VALID_PIN_CATS  = ['pro', 'uwt', 'wwt', 'male', 'female'];
-
-export function getPinnedFilter(storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
-  try {
-    const v = localStorage.getItem(storageKey);
-    return valid.includes(v) ? v : null;
-  } catch { return null; }
-}
-
-function setPinnedFilter(cat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
-  try {
-    if (valid.includes(cat)) localStorage.setItem(storageKey, cat);
-    else localStorage.removeItem(storageKey);
-  } catch { /* storage no disponible */ }
-}
-
+// Chincheta de la disciplina predeterminada (js/components/discipline-switch.js).
 export const PIN_SVG_FILLED  = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>';
 export const PIN_SVG_OUTLINE = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>';
 
-/** Re-renderiza las chinchetas en los `.tcat-btn` del contenedor según el
- *  filtro activo y el fijado. No toca la clase `.tcat-btn--active`. */
-export function renderFilterPins(container, activeCat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
-  if (!container) return;
-  const pinned = getPinnedFilter(storageKey, valid);
-  container.querySelectorAll('.tcat-btn').forEach(btn => {
-    const existing = btn.querySelector('.tcat-pin');
-    if (existing) existing.remove();
-    const cat = btn.dataset.cat;
-    if (cat === 'all' || activeCat === 'all') return;
-    let kind = null;
-    if (pinned && cat === pinned) kind = 'filled';
-    else if (cat === activeCat)   kind = 'outline';
-    if (!kind) return;
-    const span = document.createElement('span');
-    span.className = `tcat-pin tcat-pin--${kind}`;
-    span.setAttribute('role', 'button');
-    span.setAttribute('tabindex', '0');
-    const label = kind === 'filled' ? 'Desfijar filtro' : 'Fijar como filtro predeterminado';
-    span.setAttribute('aria-label', label);
-    span.setAttribute('title', label);
-    span.innerHTML = kind === 'filled' ? PIN_SVG_FILLED : PIN_SVG_OUTLINE;
-    btn.appendChild(span);
-  });
-}
-
-/** Gestiona un click/keydown en el contenedor de filtros. Devuelve:
- *    { type: 'pin', cat }    → pin togglado (el estado ya está persistido)
- *    { type: 'filter', cat } → el caller debe cambiar el filtro activo
- *    null                    → evento irrelevante */
-export function handleFilterEvent(event, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
-  if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return null;
-  const btn = event.target.closest('.tcat-btn');
-  if (!btn) return null;
-  const cat = btn.dataset.cat;
-  const pinEl = event.target.closest('.tcat-pin');
-  if (pinEl) {
-    event.stopPropagation();
-    event.preventDefault();
-    const current = getPinnedFilter(storageKey, valid);
-    setPinnedFilter(current === cat ? null : cat, storageKey, valid);
-    return { type: 'pin', cat };
-  }
-  return { type: 'filter', cat };
-}
-
-// ── Categoría en desplegable (Hoy, móvil) ─────────────────────────
-// Hasta 600 px, la franja de Hoy (carretera y Ciclocross) sustituye los chips
-// de categoría por un desplegable con el aspecto de «Ordenar»: muestra
-// «Categoría» con Todas y, si no, la categoría activa, con la chincheta cuando
-// es la predeterminada. La última opción fija o quita la activa como
-// predeterminada. Desde 601 px siguen los chips. La etiqueta visible
-// (`.agenda-cat-wrap__label`) ajusta el ancho al texto activo; el `select`
-// nativo, transparente encima, abre el selector del sistema.
-const PIN_OPTION = '__pin';
-
-/** Sincroniza el desplegable con la categoría activa. `allowed` limita las
- *  opciones visibles (semana de Campeonatos); `canPin` ofrece fijar. */
-export function syncCategorySelect(select, activeCat, { storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS, canPin = true, allowed = null } = {}) {
-  if (!select) return;
-  const pinned = getPinnedFilter(storageKey, valid);
-  select.querySelector(`option[value="${PIN_OPTION}"]`)?.remove();
-  for (const option of select.options) {
-    if (!option.value) continue;
-    const off = !!allowed && !allowed.includes(option.value);
-    option.hidden = off;
-    option.disabled = off;
-  }
-  const canPinActive = canPin && valid.includes(activeCat);
-  if (canPinActive) {
-    const label = select.querySelector(`option[value="${activeCat}"]`)?.textContent || activeCat;
-    const option = document.createElement('option');
-    option.value = PIN_OPTION;
-    option.textContent = t(pinned === activeCat ? 'filter.unpinDefault' : 'filter.pinDefault', { cat: label });
-    select.append(option);
-  }
-  select.value = activeCat === 'all' ? '' : activeCat;
-  select.dataset.active = activeCat;
-  const wrap = select.closest('.agenda-cat-wrap');
-  if (!wrap) return;
-  if (!wrap.querySelector('.agenda-cat-wrap__label')) {
-    wrap.insertAdjacentHTML('afterbegin', '<span class="agenda-cat-wrap__label" aria-hidden="true"></span>');
-  }
-  if (!wrap.querySelector('.agenda-cat-wrap__pin')) {
-    select.insertAdjacentHTML('beforebegin', `<span class="agenda-cat-wrap__pin" aria-hidden="true">${PIN_SVG_FILLED}</span>`);
-  }
-  wrap.querySelector('.agenda-cat-wrap__label').textContent = select.options[select.selectedIndex]?.textContent || '';
-  wrap.classList.toggle('agenda-cat-wrap--pinned', canPinActive && pinned === activeCat);
-}
-
-/** Cambio del desplegable de categoría: { type: 'pin', cat } con la
- *  chincheta ya alternada, { type: 'filter', cat } o null. */
-export function handleCategorySelect(select, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
-  const cat = select.value;
-  if (cat === PIN_OPTION) {
-    const active = select.dataset.active;
-    setPinnedFilter(getPinnedFilter(storageKey, valid) === active ? null : active, storageKey, valid);
-    return { type: 'pin', cat: active };
-  }
-  return cat ? { type: 'filter', cat } : null;
-}
 
 // ── Equipos (colores + matching) ───────────────────────────────────
 const TEAM_STOPWORDS = new Set([
@@ -1013,6 +895,231 @@ export function buildStageNav(navSiblings, currentRdId, urlBuilder, raceHref) {
   </div>`;
 }
 
+// ── Lista de etapas de la columna lateral (escritorio) ───────────
+// Mismas etiquetas que las opciones del selector; el CSS la oculta por debajo
+// de 1360px, donde manda el selector.
+// URL de la página de resultados PROPIA (in-house, tablas race_uci_*).
+// Espejo del enrutado de js/resultados.js (ES /resultados/<slug>/etapa-N/ · EN /en/results/…).
+export function inhouseResultsUrl(race, stageNumber, suffix = '') {
+  const isEn = getLang() === 'en';
+  const slug = isEn ? (race.slugEn || race.slug) : race.slug;
+  if (!slug) return null;
+  const base = isEn ? `${enBase()}/results/` : '/resultados/';
+  const sfx = (suffix || '').toLowerCase();   // doble sector: 3A → etapa-3a
+  let seg = '';
+  if (stageNumber === 0) seg = isEn ? 'prologue/' : 'prologo/';
+  else if (stageNumber != null) seg = isEn ? `stage-${stageNumber}${sfx}/` : `etapa-${stageNumber}${sfx}/`;
+  return `${base}${encodeURIComponent(slug)}/${seg}`;
+}
+
+/**
+ * Lista lateral de etapas, la misma en todas las páginas de una vuelta por
+ * etapas (jornada, resultados, perfil, mapa, inscritos, orden de salida y
+ * competición): las etapas (sin descansos), «Clasificación general» y «Ver
+ * todas las etapas». Cada etapa enlaza dentro de la sección en curso
+ * (`href(day)`, por defecto su jornada); la general, a la pestaña General de
+ * /resultados/<carrera>/ (la última publicada; la final al acabar). Solo
+ * depende de las jornadas: el build y el navegador pintan lo mismo.
+ *   currentId  la etapa de la página (aria-current)
+ *   gcCurrent  la página es la clasificación final
+ *   allCurrent la página es la de la carrera (Competición)
+ *   gcFinal    ¿existe ya la clasificación general final? true: enlace; false:
+ *              fila desactivada; null (desconocido): desactivada y marcada con
+ *              data-gc-final-check para que race-gc-final.js la active en el
+ *              navegador si existe (mismo marcado en build y navegador).
+ * Una jornada con `_disabled` (aún sin resultados) se pinta sin enlace.
+ */
+export function raceSideStageList(race, days, { currentId = null, href = jornadaUrl, gcCurrent = false, allCurrent = false, gcFinal = null } = {}) {
+  if (!race || race.raceFormat === 'one_day') return '';
+  // Por número de etapa y, sin él, por fecha; orden estable (el de llegada en
+  // el empate, que es el mismo en el build y en el navegador).
+  const stages = (days || []).filter(d => !d.isRestDay).sort((a, b) =>
+    (a.stageNumber != null && b.stageNumber != null && a.stageNumber !== b.stageNumber)
+      ? a.stageNumber - b.stageNumber
+      : (a.dateKey || '').localeCompare(b.dateKey || ''));
+  const gcUrl = inhouseResultsUrl(race, null);
+  // La general final solo existe al acabar la carrera: antes, la fila va
+  // desactivada (la página de la carrera abre en la última etapa disputada).
+  const gc = gcUrl ? { href: gcUrl, label: t('stage.gcRow'), note: '', current: gcCurrent && gcFinal === true,
+    disabled: gcFinal !== true, check: gcFinal == null ? String(race.id ?? '') : null } : null;
+  return buildStageList(stages, currentId, href, raceUrl(race), gc, { allCurrent });
+}
+
+// Clasificación general de una vuelta por etapas: la de la última etapa con
+// resultados propios (la final si ya se corrió la última). `stages`, las
+// jornadas disputables en orden (sin descanso ni canceladas); `hasResults(rd)`
+// dice si una tiene clasificaciones. Sin ninguna, o en una prueba de un día,
+// null. → { href, label, note } con la nota «Final» o «Tras la etapa N».
+export function raceGcLink(race, stages, hasResults) {
+  if (!race || race.raceFormat === 'one_day' || !stages || stages.length < 2) return null;
+  let idx = -1;
+  stages.forEach((s, i) => { if (hasResults(s)) idx = i; });
+  if (idx < 0) return null;
+  const s = stages[idx];
+  const isFinal = idx === stages.length - 1;
+  // Con la última etapa corrida, la página de la clasificación final de la
+  // carrera (/resultados/<carrera>/); antes, la general de la última etapa.
+  const url = isFinal ? inhouseResultsUrl(race, null) : inhouseResultsUrl(race, s.stageNumber, s._stageSuffix);
+  if (!url) return null;
+  return {
+    href: isFinal ? url : `${url}#gc`,
+    label: isFinal ? t('stage.gcRow') : t('stage.gcRowCurrent'),
+    note: idx === stages.length - 1 ? t('stage.gcFinal') : t('stage.gcAfter').replace('{n}', s.stageNumber === 0 ? t('stage.prologue') : `${s.stageNumber}${s._stageSuffix || ''}`),
+  };
+}
+
+// Fila «Clasificación general final»: enlace, o span desactivado. Con `check`
+// (id de carrera) queda a la espera de race-gc-final.js, que la activa.
+function buildGcRow(gc) {
+  const inner = `<span class="stage-list__n">${esc(gc.label)}</span>${gc.note ? `<span class="stage-list__route">${esc(gc.note)}</span>` : ''}`;
+  if (gc.disabled) {
+    const chk = gc.check ? ` data-gc-final-check data-race-id="${esc(gc.check)}" data-gc-href="${esc(gc.href)}"` : '';
+    return `<span class="stage-list__item stage-list__gc stage-list__item--disabled" aria-disabled="true"${chk}>${inner}</span>`;
+  }
+  return `<a class="stage-list__item stage-list__gc" href="${esc(gc.href)}"${gc.current ? ' aria-current="page"' : ''}>${inner}</a>`;
+}
+
+export function buildStageList(navSiblings, currentRdId, urlBuilder, raceHref, gc = null, { allCurrent = false } = {}) {
+  if (navSiblings.length <= 1) return '';
+  const items = navSiblings.map(s => {
+    const label = (s.stageNumber != null) ? stageLabel(s.stageNumber, s._stageSuffix) : (s.dateKey || s.id);
+    const route = s.startLocation
+      ? (!s.finishLocation || s.startLocation === s.finishLocation
+          ? rdLocation(s, 'startLocation')
+          : `${rdLocation(s, 'startLocation')} › ${rdLocation(s, 'finishLocation')}`)
+      : '';
+    const current = s.id === currentRdId;
+    const inner = `<span class="stage-list__n">${esc(label)}</span>${route ? `<span class="stage-list__route">${esc(route)}</span>` : ''}`;
+    // Evento que aún no ha ocurrido: fila sin enlace (mismo alto que las demás).
+    if (s._disabled && !current) return `<li><span class="stage-list__item stage-list__item--disabled" aria-disabled="true">${inner}</span></li>`;
+    return `<li><a class="stage-list__item" href="${esc(urlBuilder(s))}"${current ? ' aria-current="page"' : ''}>${inner}</a></li>`;
+  }).join('');
+  // Solo en escritorio (CSS): en móvil la navegación es el selector de etapas.
+  return `<nav class="stage-list" aria-label="${esc(t('stage.pickStage'))}">
+    <ol>${items}</ol>
+    ${gc ? buildGcRow(gc) : ''}
+    <a class="stage-list__all" href="${esc(raceHref)}"${allCurrent ? ' aria-current="page"' : ''}>${t('stage.viewAll')}</a>
+  </nav>`;
+}
+
+// ── Lista de rondas de un torneo de ciclocross (columna lateral) ──
+// Mismo marcado y clases que buildStageList, para heredar su CSS: «3/4» y el
+// nombre de la ronda. items = [{ id, n, total, name, href }]; sin href (ronda
+// oculta en este idioma) la fila es texto. La ronda actual lleva aria-current.
+export function buildCxRoundList(items, currentId, label) {
+  if (!items || items.length <= 1) return '';
+  const rows = items.map(item => {
+    const inner = `<span class="stage-list__n">${esc(`${item.n}/${item.total}`)}</span><span class="stage-list__route">${esc(item.name)}</span>`;
+    const current = item.id === currentId;
+    return `<li>${item.href
+      ? `<a class="stage-list__item" href="${esc(item.href)}"${current ? ' aria-current="page"' : ''}>${inner}</a>`
+      : `<span class="stage-list__item"${current ? ' aria-current="page"' : ''}>${inner}</span>`}</li>`;
+  }).join('');
+  return `<nav class="stage-list" aria-label="${esc(label)}"><ol>${rows}</ol></nav>`;
+}
+
+// ── Rango de fechas de una carrera: «13 - 18 octubre 2026» ───────
+// Misma tabla fija de meses que las fechas SEO (sin ICU). Un solo día: «20
+// octubre 2026»; meses distintos: «29 septiembre - 4 octubre 2026».
+export function raceDateRangeText(startKey, endKey, lang = _seoLang()) {
+  if (!startKey) return '';
+  const months = _SEO_MONTHS[lang] || _SEO_MONTHS.es;
+  const s = _seoParts(String(startKey).slice(0, 10));
+  if (!endKey || String(endKey).slice(0, 10) === String(startKey).slice(0, 10)) return `${s.d} ${months[s.mIdx]} ${s.y}`;
+  const e = _seoParts(String(endKey).slice(0, 10));
+  if (s.y === e.y && s.mIdx === e.mIdx) return `${s.d} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+  if (s.y === e.y) return `${s.d} ${months[s.mIdx]} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+  return `${s.d} ${months[s.mIdx]} ${s.y} - ${e.d} ${months[e.mIdx]} ${e.y}`;
+}
+
+// Primer y último día de la carrera con los datos que cada página ya tiene:
+// las fechas de la propia carrera y, en su defecto, las de sus jornadas (sin
+// descansos). Devuelve claves YYYY-MM-DD o '' si no hay ninguna.
+export function raceDateKeys(race, days = []) {
+  const keys = (days || []).filter(d => d && !d.isRestDay && d.dateKey).map(d => d.dateKey).sort();
+  const start = race?.startDate || keys[0] || '';
+  const end = race?.endDate || keys[keys.length - 1] || start;
+  return { start, end };
+}
+
+// Nombre del país en el idioma de la página; sin soporte del navegador, vacío.
+let _regionNames = null, _regionLang = '';
+export function regionName(code) {
+  if (!code) return '';
+  try {
+    if (!_regionNames || _regionLang !== getLang()) { _regionLang = getLang(); _regionNames = new Intl.DisplayNames([_regionLang], { type: 'region' }); }
+    return _regionNames.of(String(code).toUpperCase()) || '';
+  } catch { return ''; }
+}
+
+/**
+ * Datos de la carrera para el cuadro lateral de la clasificación general final
+ * de una carrera por etapas: distancia total, desnivel positivo total, número
+ * de etapas y, si llega el tiempo del ganador de la general (`winnerSecs`),
+ * velocidad media. Solo cuentan las jornadas corridas (ni de descanso ni
+ * canceladas); cada fila solo sale si su dato existe. Filas `<div><dt><dd>` como
+ * stageMetricsHtml; sin jornadas corridas devuelve ''.
+ */
+export function buildRaceTotalMetrics(days, { winnerSecs = null } = {}) {
+  const lang = getLang() === 'en' ? 'en' : 'es';
+  const row = (label, value) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+  const raced = (days || []).filter(d => !d.isRestDay && !d.isCancelledDay);
+  if (!raced.length) return '';
+  const kmList = raced.map(d => Number(d.distanceKm)).filter(km => km > 0);
+  const kmTotal = kmList.reduce((sum, km) => sum + km, 0);
+  const gainList = raced.filter(d => d.elevationGain != null).map(d => Number(d.elevationGain)).filter(Number.isFinite);
+  const gainTotal = gainList.reduce((sum, g) => sum + g, 0);
+  const speed = kmTotal > 0 && winnerSecs > 0 ? kmTotal * 3600 / winnerSecs : 0;
+  return [
+    kmList.length ? row(t('stage.tileTotalDistance'), `${fixedDecimal(kmTotal, { lang })} km`) : '',
+    gainList.length ? row(t('stage.tileTotalElevation'), `+${fixedDecimal(Math.round(gainTotal / 10) * 10, { lang, useGrouping: 'always' })} m`) : '',
+    row(t('stage.tileStages'), String(raced.length)),
+    speed > 0 ? row(t('stage.tileAvgSpeed'), `${fixedDecimal(speed, { lang, maximumFractionDigits: 2 })} km/h`) : '',
+  ].join('');
+}
+
+// Datos de carrera de la columna lateral (categoría UCI y fechas; la bandera
+// va bajo el logo de la cabecera). `stage` («Etapa 10»), si se pasa, abre la
+// lista: en escritorio es la única señal de la etapa en la cabecera.
+// Última línea: el día concreto, con día de la semana (como la fecha de la
+// cabecera), cuando la página describe una sola jornada: `dayKey` (YYYY-MM-DD,
+// la etapa seleccionada) o, en una carrera de un día, su fecha de inicio. En
+// el resto (ficha de la competición, clasificación final) es el rango de
+// fechas de la carrera.
+// Solo se ven en escritorio; el CSS los oculta por debajo de 1360px, donde la
+// cabecera sigue con su detalle de etapa.
+export function buildRaceFacts(race, { startKey = '', endKey = '', stage = '', dayKey = '' } = {}) {
+  const cat = uciCategoryName(race?.uciCategory || '');
+  const day = String(dayKey || (race?.raceFormat === 'one_day' ? startKey : '') || '').slice(0, 10);
+  const range = day ? formatDateKeyLong(day) : raceDateRangeText(startKey, endKey);
+  const lines = [
+    stage ? `<span class="race-header__fact race-header__fact--stage">${esc(stage)}</span>` : '',
+    cat ? `<span class="race-header__fact">${esc(cat)}</span>` : '',
+    range ? `<span class="race-header__fact">${esc(range)}</span>` : '',
+  ].filter(Boolean).join('');
+  return lines ? `<div class="race-header__facts">${lines}</div>` : '';
+}
+
+// ── Columna lateral de la ficha de carrera (escritorio) ──────────
+// El marco es HTML puro (sin DOM): lo generan los constructores de página
+// (jornada, resultados, inscritos, orden de salida) y por eso es idéntico en el
+// build y en el navegador. Por debajo de 1360px el CSS lo deja en una columna.
+//   side  → selector de etapas, cabecera con los datos de la carrera, fila de
+//           enlaces laterales y, si hay, la lista de etapas (`sideExtraHtml`).
+//   main  → migas de pan (si la vista las lleva) y el resto de la página, en su orden.
+// `facts`: la cabecera lleva buildRaceFacts; en escritorio el CSS oculta
+// entonces el detalle de etapa (la columna describe la carrera).
+export function raceLayoutHtml({ navHtml = '', headerHtml = '', sideLinksHtml = '', sideExtraHtml = '', crumbsHtml = '', mainHtml = '', facts = true } = {}) {
+  return `<div class="race-layout${facts ? ' race-layout--facts' : ''}"><aside class="race-layout__side">${navHtml}${headerHtml}${sideLinksHtml}${sideExtraHtml}</aside><div class="race-layout__main">${crumbsHtml}${mainHtml}</div></div>`;
+}
+
+// Fila de enlaces laterales (web oficial, libro de ruta, dorsales). Copia de
+// las celdas marcadas con `data-side-link` de la barra de pestañas: el CSS
+// muestra una u otra según el ancho (≥1360px, esta fila). Sin enlaces, ''.
+export function sideLinksNavHtml(cellsHtml) {
+  return cellsHtml ? `<nav class="race-side-links" aria-label="${esc(t('stage.raceLinks'))}">${cellsHtml}</nav>` : '';
+}
+
 // ── Panel de botones de acción (web oficial + inscritos + recorrido) ──
 // Fuente ÚNICA de verdad del panel `.asset-links`. Lo usan jornada, inscritos,
 // orden de salida y resultados, para que las cuatro vistas muestren la misma
@@ -1084,7 +1191,18 @@ function _startlistHref(race) {
  *                  usar el destacado azul; la general arrastrada de la jornada
  *                  anterior se muestra como acción secundaria.
  */
-export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '', standalone = false, resultsUrl = null, resultsHighlighted = true } = {}) {
+export function buildActionButtons(options = {}) {
+  return buildActionLinks(options).bar;
+}
+
+/**
+ * Como buildActionButtons, pero devuelve además la fila lateral de la ficha de
+ * carrera: `bar` (barra de pestañas, con las celdas marcadas `data-side-link`)
+ * y `side` (<nav class="race-side-links"> con copias de esas celdas, o '').
+ * `bar` lleva la clase `asset-links-wrap--side-only` si todas sus celdas son
+ * enlaces laterales: en escritorio el CSS oculta entonces la barra entera.
+ */
+export function buildActionLinks({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '', standalone = false, resultsUrl = null, resultsHighlighted = true } = {}) {
   const isEn = getLang() === 'en';
   const isOneDay = race?.raceFormat === 'one_day';
   const isJornada = view === 'jornada';
@@ -1094,16 +1212,21 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
 
   // ── Clasificaciones propias (in-house) — primer botón de la jornada ──
   // El fondo azul de marca lo aplica `.asset-btn--results` (claro y oscuro).
+  // La pestaña se llama «Clasificaciones» (stage.classificationsTab); stage.results
+  // sigue siendo «Resultados» en el resto de vistas. En la vista de resultados es la activa.
   let resultsBtn = '';
   if (resultsUrl && isJornada) {
     const resultsClass = resultsHighlighted ? ' asset-btn--results' : '';
-    resultsBtn = `<a class="asset-btn${resultsClass}" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('assets.classifications')}</span></a>`;
+    resultsBtn = `<a class="asset-btn${resultsClass}" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('stage.classificationsTab')}</span></a>`;
+  } else if (view === 'resultados' && !navOnly && resultsUrl) {
+    // `resultsUrl` es la dirección de la propia página (el HTML no puede leer location).
+    resultsBtn = `<a class="asset-btn asset-btn--results" aria-current="page" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('stage.classificationsTab')}</span></a>`;
   }
 
   // ── Web oficial — siempre primero si existe ──
   let websiteBtn = '';
   if (race?.websiteUrl) {
-    websiteBtn = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}<span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
+    websiteBtn = `<a class="asset-btn" data-side-link="website" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}<span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
   }
 
   // ── "Ir a la carrera" / "Ir a la etapa" (solo fuera de la jornada) ──
@@ -1112,21 +1235,23 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // - Inscritos: su lista es de la carrera entera → "Ir a la carrera" →
   //   competición (lista de etapas).
   // - Prueba de un día (cualquier vista): "Ir a la carrera" → su jornada única.
+  // La primera celda de la barra es «Ficha de la carrera» (stage.raceSheet): la
+  // ficha de la etapa o de la carrera. Reemplaza al antiguo «Ir a la carrera /
+  // etapa» (mismo destino). La propia jornada es esa ficha y no la lleva.
   let raceBtn = '';
+  const infoBtn = href =>
+    `<a class="asset-btn" href="${href}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${t('stage.raceSheet')}</span></a>`;
   if (!isJornada) {
     const isStageView = view === 'startOrder' || view === 'perfil' || view === 'resultados' || view === 'mapa';
     if (isOneDay) {
-      const label = isEn ? 'Go to the race' : 'Ir a la carrera';
       const href = jornadaUrl(rd?.id ? rd : { id: race?.id, slug: race?.slug, slugEn: race?.slugEn, dateKey: rd?.dateKey });
-      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(href);
     } else if (isStageView && rd?.id) {
       // Vuelta por etapas, vista de etapa → jornada de esta etapa.
-      const label = isEn ? 'Go to the stage' : 'Ir a la etapa';
-      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(jornadaUrl(rd));
     } else if (race?.id) {
       // Vuelta por etapas, vista de carrera (inscritos) → competición.
-      const label = isEn ? 'Go to the race' : 'Ir a la carrera';
-      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = infoBtn(raceUrl(race));
     }
   }
 
@@ -1136,7 +1261,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const startlistLabel = race.startlistProvisional
       ? t('startlist.provisional')
       : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
-    startlistBtn = `<a class="asset-btn" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}<span class="asset-btn__label">${startlistLabel}</span></a>`;
+    startlistBtn = `<a class="asset-btn" data-side-link="startlist" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}<span class="asset-btn__label">${startlistLabel}</span></a>`;
   }
 
   // ── Botones de recorrido (assets de la jornada) ──
@@ -1167,17 +1292,19 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     // Documentos: el mismo enlace en todos los dispositivos (las jornadas se
     // generan en el build). Los propios llevan data-asset-viewer y en
     // escritorio los abre en el visor el manejador delegado de openAssetModal.
-    const docLink = (url, labelHtml) => {
+    const docLink = (url, labelHtml, extraAttrs = '') => {
       const own = url.startsWith('https://assets.calendariociclismo.app');
-      return `<a class="asset-btn" href="${esc(url)}" target="_blank" rel="noopener"${own ? ' data-asset-viewer' : ''}>${labelHtml}</a>`;
+      return `<a class="asset-btn"${extraAttrs} href="${esc(url)}" target="_blank" rel="noopener"${own ? ' data-asset-viewer' : ''}>${labelHtml}</a>`;
     };
 
     function assetBtnHtml(a, labelKey = a.type) {
       const label = _actLabel(labelKey);
+      // La guía técnica («Libro de ruta») pasa a la columna lateral en escritorio.
+      const side = a.type === 'technicalGuide' ? ' data-side-link="guide"' : '';
       if (a.type === 'startOrder') {
         return `<a class="asset-btn" href="${startOrderUrl(rd)}">${label}</a>`;
       }
-      return docLink(a.url || a.filePath, label);
+      return docLink(a.url || a.filePath, label, side);
     }
 
     // Perfil dinámico (GPX) sustituye al asset estático.
@@ -1290,11 +1417,18 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // navegación y a los demás assets: inmediatamente después de la web oficial.
   const hasTechnicalGuide = (assets || []).some(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
   const technicalGuideBtn = hasTechnicalGuide ? (routeBtns.shift() || '') : '';
-  const all = `${resultsBtn}${websiteBtn}${technicalGuideBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
-  if (!all) return '';
+  const parts = [raceBtn, resultsBtn, websiteBtn, technicalGuideBtn, startlistBtn, ...routeBtns].filter(Boolean);
+  const all = parts.join('');
+  if (!all) return { bar: '', side: '' };
+  const sideAttr = / data-side-link="[a-z]+"/;
+  const sideCells = parts.filter(part => sideAttr.test(part)).map(part => part.replace(sideAttr, ''));
+  // Sin celdas visibles en escritorio (todas pasan a la columna lateral), la
+  // barra se oculta allí.
+  const sideOnly = parts.every(part => sideAttr.test(part));
   const styleAttr = style ? ` style="${style}"` : '';
   const nextLabel = isEn ? 'More actions' : 'Más acciones';
-  return `<div class="asset-links-wrap${standalone ? ' cc-assets-standalone' : ''}"${styleAttr}><div class="asset-links" data-scroll-rail>${all}</div>${arrowHtml('prev', isEn ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', nextLabel, 'hidden')}</div>`;
+  const bar = `<div class="asset-links-wrap${standalone ? ' cc-assets-standalone' : ''}${sideOnly ? ' asset-links-wrap--side-only' : ''}"${styleAttr}><div class="asset-links" data-scroll-rail>${all}</div>${arrowHtml('prev', isEn ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', nextLabel, 'hidden')}</div>`;
+  return { bar, side: sideLinksNavHtml(sideCells.join('')) };
 }
 
 if (typeof document !== 'undefined') {
@@ -1341,7 +1475,7 @@ export function cleanFeminineName(name, activeCat) {
 // categoría, más la fecha larga y, si procede, el banner de jornada anulada.
 // `stage` sustituye al texto de etapa calculado desde la jornada (resultados,
 // donde la etapa activa puede ser la clasificación final).
-export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: stageText } = {}) {
+export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: stageText, facts = '' } = {}) {
   const showFlag = !(race?.hideFlag && !rd.countryCode);
   const stage = stageText !== undefined ? stageText : stageLabel(rd.stageNumber, rd._stageSuffix);
   const uci = race?.uciCategory || '';
@@ -1360,6 +1494,7 @@ export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: st
     detail: [stage, uciCategoryName(uci)].filter(Boolean).join(' · '),
     date: rd.dateKey ? formatDateKeyLong(rd.dateKey) : '',
     extraHtml: cancelledHtml,
+    facts,
   });
 }
 
@@ -1384,6 +1519,7 @@ export function buildRaceHero(rd, race, { showCancelledBanner = false, stage: st
  *  - stats         línea de stats (p.ej. "23 equipos · 189 corredores")
  *  - action        HTML del botón/acción a la derecha (PDF, ver jornada…)
  *  - extraHtml     HTML extra al final (p.ej. banner de carrera anulada)
+ *  - facts         datos de carrera de la columna lateral (buildRaceFacts)
  */
 export function buildRaceHeader({
   race,
@@ -1397,6 +1533,7 @@ export function buildRaceHeader({
   action = '',
   extraHtml = '',
   logoHtml: logoOverride = null,
+  facts = '',
 } = {}) {
   const r = race || {};
   const name = raceName(r) || '';
@@ -1426,10 +1563,11 @@ export function buildRaceHeader({
     : '';
 
   // Subtítulo: label destacado + detalle, unidos por " · "
-  const subParts = [
-    label ? `<span class="race-header__label">${label}</span>` : '',
-    detail ? esc(detail) : '',
-  ].filter(Boolean).join(' · ');
+  // El detalle va en su propio span: en la columna lateral de escritorio se
+  // oculta (la carrera ya aparece descrita por categoría y fechas) y
+  // solo queda la etiqueta («Inscritos», «Orden de salida»).
+  const subParts = (label ? `<span class="race-header__label">${label}</span>` : '')
+    + (detail ? `<span class="race-header__detail">${label ? ' · ' : ''}${esc(detail)}</span>` : '');
 
   const colorVar = r.colorHex ? ` style="--card-color:${r.colorHex}"` : '';
 
@@ -1448,6 +1586,7 @@ export function buildRaceHeader({
           ${subParts ? `<div class="race-header__subtitle">${subParts}</div>` : ''}
           ${date ? `<div class="race-header__date">${date}</div>` : ''}
           ${stats ? `<div class="race-header__stats">${stats}</div>` : ''}
+          ${facts || ''}
         </div>
       </div>
       ${action || ''}

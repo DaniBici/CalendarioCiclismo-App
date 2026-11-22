@@ -22,10 +22,10 @@
 
 import {startlistCyclistHtml,resultsTrophyHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
-import {buildRaceHeader,findMatchingTeam,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDate,seoLongDateWeekday} from './shared.js';
+import {buildRaceHeader,buildCxRoundList,raceLayoutHtml,sideLinksNavHtml,raceDateRangeText,findMatchingTeam,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDate,seoLongDateWeekday} from './shared.js';
 import {t,getLang,getLocale} from './i18n.js';
 import {cxIsHidden} from './services/cx-data.js';
-import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxTvStatus,CX_TV_STATUS_CHIPS,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank,cxCompetesBySelection,cxCategoryOrder,cxBonusRows,cxBonusSort,cxBonusText} from './cx/presentation.js';
+import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxHeaderClassName,cxRankSort,cxRaceMedia,cxTvStatus,CX_TV_STATUS_CHIPS,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank,cxCompetesBySelection,cxCategoryOrder,cxBonusRows,cxBonusSort,cxBonusText} from './cx/presentation.js';
 import {nationalSelectionName} from './services/national-team-name.js';
 import {cxStandingsTableHtml} from './cx/standings-table.js';
 import {teamStripes} from './team-appearance.js';
@@ -55,18 +55,22 @@ const CX_DOC_SVGS={
 };
 // El mismo enlace en todos los anchos: los documentos propios llevan
 // data-asset-viewer y en escritorio los abre en el visor el manejador
-// delegado de js/shared.js.
-function cxDocBtn(url,label,iconKey) {
+// delegado de js/shared.js. La celda de la tira lleva data-side-link: desde
+// 1360 px el CSS la oculta y quedan las copias de la columna lateral.
+function cxDocBtn(url,label,iconKey,sideLink=true) {
   if(!url)return '';
   const own=url.startsWith(R2_ASSET_BASE);
-  return `<a class="asset-btn" href="${esc(url)}" target="_blank" rel="noopener"${own?' data-asset-viewer':''}>${CX_DOC_SVGS[iconKey]}<span class="asset-btn__label">${esc(label)}</span></a>`;
+  return `<a class="asset-btn"${sideLink?` data-side-link="${iconKey}"`:''} href="${esc(url)}" target="_blank" rel="noopener"${own?' data-asset-viewer':''}>${CX_DOC_SVGS[iconKey]}<span class="asset-btn__label">${esc(label)}</span></a>`;
 }
+// Tira de documentos (`bar`, bajo la cabecera) y su copia en la columna
+// lateral (`side`, solo desde 1360 px), como en carretera.
 function docsStrip(race,assets=[]) {
   const pick=type=>assets.find(a=>a.type===type&&a.url)?.url;
-  const buttons=[cxDocBtn(safeLink(race.websiteUrl),t('stage.websiteLabel'),'website'),
-    cxDocBtn(pick('technicalGuide'),t('assets.technicalGuide'),'technicalGuide'),
-    cxDocBtn(pick('map'),t('assets.map'),'map')].filter(Boolean).join('');
-  return buttons?`<section class="jornada-section cx-race-docs"><div class="asset-links-wrap"><div class="asset-links">${buttons}</div></div></section>`:'';
+  const docs=sideLink=>[cxDocBtn(safeLink(race.websiteUrl),t('stage.websiteLabel'),'website',sideLink),
+    cxDocBtn(pick('technicalGuide'),t('assets.technicalGuide'),'technicalGuide',sideLink),
+    cxDocBtn(pick('map'),t('assets.map'),'map',sideLink)].filter(Boolean).join('');
+  const buttons=docs(true);
+  return buttons?{bar:`<section class="jornada-section cx-race-docs"><div class="asset-links-wrap asset-links-wrap--side-only"><div class="asset-links">${buttons}</div></div></section>`,side:sideLinksNavHtml(docs(false))}:{bar:'',side:''};
 }
 // Equipo de la fila: la selección del país en Mundiales y Continentales, sin franjas;
 // en el resto, el equipo con sus franjas.
@@ -120,7 +124,7 @@ function videoMedia(rows,lang) {
   if(!rows.length)return '';
   return `<section class="jornada-section cx-video-section" aria-label="${esc(t('cx.videos'))}"><div class="cx-video-grid">${rows.map(row=>{
     const id=cxYouTubeVideoId(row.url),title=esc(lang==='en'&&row.titleEn||row.title);
-    return `<article class="cx-video-card"><h3>${title}</h3>${row.channel?`<p class="cx-video-card__channel">${esc(row.channel)}</p>`:''}<iframe src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>${external(row.url,'YouTube ↗')}</article>`;
+    return `<article class="cx-video-card"><h3>${title}</h3>${row.channel?`<p class="cx-video-card__channel">${esc(row.channel)}</p>`:''}<iframe data-cx-video-src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>${external(row.url,'YouTube ↗')}</article>`;
   }).join('')}</div></section>`;
 }
 // TV de la jornada CX en el cajón de carretera, dividida por
@@ -158,15 +162,22 @@ function scheduledCategories(race,categories) {
   return cxProgrammeOrder(race,categories).filter(c=>c.startTimeUtc);
 }
 
+// Badges de Lista (dorsales) y Resultados de una categoría, con la misma
+// presencia en el programa y en la columna lateral de resultados.
+function categoryBadges(model,c) {
+  const {race,results,lang}=model;
+  const hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
+  return `${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistCyclistHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
+}
+
 // En escritorio, la TV y el streaming acompañan a los horarios en la columna
 // derecha; en móvil, el orden es horarios, mapa y TV.
 function programme(model) {
-  const {race,categories,results,multiDate,docAssets:assets,lang,locale,media}=model;
+  const {race,categories,multiDate,docAssets:assets,lang,locale,media}=model;
   const extra=tvGroups(media.tv,media.liveCategories,locale,{status:cxTvStatus(race,lang),active:media.active})+reviveMedia(media.revive,cxCategoryOrder(categories),locale);
   const scheduled=scheduledCategories(race,categories);
   const rows=scheduled.map(c=>{
-    const cancelled=race.isCancelled||c.isCancelled,hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
-    const badges=`${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistCyclistHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
+    const cancelled=race.isCancelled||c.isCancelled,badges=categoryBadges(model,c);
     return `<section class="cx-programme-row" id="${c.category}"><div class="cx-programme-top"><div class="cx-programme-heading"><time title="${esc(t('stage.yourTimezone'))}: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}">${esc(cancelled?t('stage.cancelled'):cxTime(c.startTimeUtc,locale))}</time><h3>${esc(t(`cx.category.${c.category}`))}</h3></div>${badges?`<div class="cx-programme-actions">${badges}</div>`:''}</div>${multiDate?`<p>${esc(seoLongDate(cxCategoryDate(race,c),lang))}</p>`:''}</section>`;
   }).join('');
   const map=mapPreview(assets),schedule=rows?`<section class="stage-profile-panel cx-programme-schedule"><header class="stage-profile-heading"><h2>${t('stage.schedule')}</h2></header><div class="cx-programme-grid">${rows}</div></section>`:extra?'':`<p class="cx-empty">${t('cx.noCategories')}</p>`;
@@ -250,13 +261,15 @@ export function cxRaceContextHtml(model,{selected}) {
   const dayLabel=date=>new Intl.DateTimeFormat(locale,{weekday:'short',day:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
   const rows=scheduledCategories(race,categories).map(c=>{
     const value=race.isCancelled||c.isCancelled?t('stage.cancelled'):`${multiDate?`${dayLabel(cxCategoryDate(race,c))} · `:''}${cxTime(c.startTimeUtc,locale)}`;
-    return `<div data-cx-context-category="${esc(c.category)}"${c.category===selected.category?' class="res-stage-data__active"':''}><dt>${esc(t(`cx.category.${c.category}`))}</dt><dd>${esc(value)}</dd></div>`;
+    const badges=categoryBadges(model,c);
+    return `<div class="cx-schedule__row${c.category===selected.category?' cx-schedule__row--active':''}" data-cx-context-category="${esc(c.category)}"><dt>${esc(t(`cx.category.${c.category}`))}</dt><dd>${badges?`<span class="cx-schedule__icons">${badges}</span>`:''}${esc(value)}</dd></div>`;
   }).join('');
   const data=rows?`<section class="res-stage-data"><h2>${t('stage.schedule')}</h2><dl>${rows}</dl></section>`:'';
   return map+data;
 }
 // Columna lateral de resultados, como en carretera: mapa reducido y datos
-// esenciales de la jornada (en CX, el horario de cada categoría). Existe con
+// esenciales de la jornada (en CX, el horario de cada categoría con sus badges
+// de Lista y Resultados). Existe con
 // mapa o con alguna categoría con horario, en cualquier zona.
 const hasContext=({race,categories,docAssets})=>!!mapImageUrl(docAssets)||scheduledCategories(race,categories).length>0;
 
@@ -320,22 +333,23 @@ function publicationHtml(status,lang) {
 const SECTIONS=[['results',''],['general',''],['startlist',''],['programme',' class="cx-race-sections"'],['videos',' class="cx-race-sections"']];
 
 /**
- * Esqueleto de la ficha: cabecera con el logo, documentos, barra fija de
- * secciones y categorías y los contenedores de sección; `section(key)`
+ * Esqueleto de la ficha, en el marco de columnas de carretera: cabecera con el
+ * logo y enlaces en la columna lateral; documentos, barra fija de secciones y
+ * categorías y contenedores de sección en la principal; `section(key)`
  * devuelve el contenido de cada uno ({ inner, prerendered }), vacío por
  * defecto.
  */
 export function cxRaceSkeletonHtml(model,sel,section=()=>({inner:''})) {
-  const {race,lang,tournament,categories,generalCategories,publishedCategories,hasProgramme,hasMedia,hasStartlist,videoRows,rounds,docAssets}=model;
+  const {race,lang,tournament,tournamentRaces,categories,generalCategories,publishedCategories,hasProgramme,hasMedia,hasStartlist,videoRows,rounds,docAssets}=model;
   const {page,tabsPage,selected}=sel;
   const sectionTabs=[
-    hasProgramme||hasMedia||tabsPage==='programme'?['programme',t('cx.programme')]:null,
+    hasProgramme||hasMedia||tabsPage==='programme'?['programme',t('stage.info')]:null,
     hasStartlist||tabsPage==='startlist'?['startlist',t('cx.startlist')]:null,
     publishedCategories.length||tabsPage==='results'?['results',t('stage.results')]:null,
     generalCategories.length?['general',t('cx.general')]:null,
     videoRows.length?['videos',t('cx.videos')]:null,
   ].filter(Boolean);
-  if(!sectionTabs.length)sectionTabs.push(['programme',t('cx.programme')]);
+  if(!sectionTabs.length)sectionTabs.push(['programme',t('stage.info')]);
   const codes=categories.map(c=>c.category);
   const categoryNavigation=`<nav class="res-stages cx-classification-nav cx-category-nav" data-cx-category-nav aria-label="${esc(t('cx.categories'))}"${['results','startlist'].includes(page)&&codes.length?'':' hidden'}><div class="res-stages__inner">${categories.map(c=>`<a ${activeClass('res-stage-btn',c.category===selected.category,'res-stage-btn--active')} data-cx-classification="${c.category}" href="#${c.category}" aria-label="${esc(t(`cx.category.${c.category}`))}">${c.category}</a>`).join('')}</div></nav>`;
   // Categorías de la general: pueden incluir una general derivada sin manga
@@ -348,10 +362,20 @@ export function cxRaceSkeletonHtml(model,sel,section=()=>({inner:''})) {
   const capitalizeDate=value=>value?value.charAt(0).toLocaleUpperCase(lang)+value.slice(1):value;
   const headerDate=race.dateKey?capitalizeDate(seoLongDateWeekday(race.dateKey,lang))+(race.endDateKey&&race.endDateKey!==race.dateKey?` – ${capitalizeDate(seoLongDateWeekday(race.endDateKey,lang))}`:''):'';
   const roundLabel=cxRoundLabel(rounds?.get(race.id));
-  const headerDetail=[cxClassName(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
-  const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},logoHtml:cxLogoHtml(race,tournament,{className:'race-header__logo',onUnavailable:race.class==='CN'?'':"var s=document.createElement('span');s.className='race-header__logo logo-ph';s.setAttribute('aria-hidden','true');this.replaceWith(s)"})||(race.class==='CN'?'':logoPlaceholderHtml('race-header__logo')),nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
+  const className=cxHeaderClassName(race,tournament,lang),tournamentName=tournament&&cxRaceName(tournament,lang),venue=race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:'';
+  const headerDetail=[className,tournamentName,roundLabel?.text,venue].filter(Boolean).join(' · ');
+  // Datos de la columna lateral (desde 1360 px sustituyen al detalle y a la
+  // fecha de la cabecera): categoría, torneo con su número de prueba, sede y fechas.
+  const facts=[className,[tournamentName,roundLabel?.text].filter(Boolean).join(' · '),venue,raceDateRangeText(race.dateKey,race.endDateKey,lang)].filter(Boolean);
+  const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},logoHtml:cxLogoHtml(race,tournament,{className:'race-header__logo',onUnavailable:race.class==='CN'?'':"var s=document.createElement('span');s.className='race-header__logo logo-ph';s.setAttribute('aria-hidden','true');this.replaceWith(s)"})||(race.class==='CN'?'':logoPlaceholderHtml('race-header__logo')),nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',facts:facts.length?`<div class="race-header__facts">${facts.map(line=>`<span class="race-header__fact">${esc(line)}</span>`).join('')}</div>`:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
   const containers=SECTIONS.map(([key,cls])=>filled(`<div${cls} data-cx-section="${key}"${key===page?'':' hidden'}>`,'</div>',section(key))).join('');
-  return `${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div>${containers}`;
+  const docs=docsStrip(race,docAssets);
+  // Como en carretera (raceLayoutHtml): desde 1360 px la cabecera y los
+  // enlaces van en la columna lateral y las barras y secciones en la
+  // principal; por debajo se apilan en este orden.
+  // Rondas del torneo: la lista de la columna lateral, como la de etapas en carretera.
+  const roundItems=tournament&&rounds?[...tournamentRaces.values()].filter(row=>rounds.has(row.id)).map(row=>({id:row.id,...rounds.get(row.id),name:cxRaceName(row,lang),href:cxIsHidden(row,lang)?'':cxRaceUrl(row,lang)})).sort((a,b)=>a.n-b.n):[];
+  return raceLayoutHtml({headerHtml,sideLinksHtml:docs.side,sideExtraHtml:buildCxRoundList(roundItems,race.id,cxRaceName(tournament||race,lang)),mainHtml:`${docs.bar}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div>${containers}`});
 }
 
 /** Ficha completa (sin página generada): todos los huecos llenos, sin huellas. */

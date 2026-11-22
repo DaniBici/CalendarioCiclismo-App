@@ -17,7 +17,7 @@ final class CyclocrossTests: XCTestCase {
         {"id":2,"raceId":"rochester","category":"ME","rank":2,"riderDisplay":"Second","timeText":"57:53:00","gapText":"+12","timeSeconds":3473,"sortOrder":1},
         {"id":3,"raceId":"rochester","category":"ME","rank":3,"riderDisplay":"Third","timeText":"58:15:00","gapText":"+34","timeSeconds":3495,"sortOrder":2}]
         """
-        let vm = CyclocrossPresentation.resultRows(try JSONDecoder().decode([CxResult].self, from: Data(input.utf8)))
+        let vm = CyclocrossPresentation.resultRows(try JSONDecoder().decode([CxResult].self, from: Data(input.utf8)), matcher: UciResultsLogic.TeamMatcher(teams: []))
         XCTAssertEqual(vm[0].valueText, "57:41")
         XCTAssertEqual(vm[1].valueText, "+12\"")
         XCTAssertEqual(vm[2].valueText, "+34\"")
@@ -33,7 +33,7 @@ final class CyclocrossTests: XCTestCase {
         {"id":5,"raceId":"canmore","category":"MJ","rank":5,"riderDisplay":"Out","irm":"DNF","timeText":"7:16.9","sortOrder":4}]
         """
         let rows = try JSONDecoder().decode([CxResult].self, from: Data(input.utf8))
-        let vm = CyclocrossPresentation.resultRows(rows)
+        let vm = CyclocrossPresentation.resultRows(rows, matcher: UciResultsLogic.TeamMatcher(teams: []))
         XCTAssertEqual(vm[0].valueText, "42:09")
         XCTAssertEqual(vm[1].valueKind, .sameTime)
         XCTAssertEqual(vm[2].rowGap, "+30\"")

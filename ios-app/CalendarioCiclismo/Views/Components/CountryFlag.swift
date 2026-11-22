@@ -12,6 +12,10 @@ struct CountryFlag: View {
     /// Ancho de la bandera; el alto se deriva con la proporción 4:3 (20×15).
     /// Por defecto 20 pt, que es el tamaño usado en listas y cabeceras.
     var width: CGFloat = 20
+    /// Filete tenue, como el de los círculos de maillot de Últimos resultados:
+    /// una bandera con blanco o negro no desaparece sobre la tarjeta clara u
+    /// oscura. Solo en las tarjetas de Hoy y en Últimos resultados.
+    var outlined = false
 
     private var height: CGFloat { width * 15 / 20 }
 
@@ -24,6 +28,9 @@ struct CountryFlag: View {
                 .scaledToFill()
                 .frame(width: width, height: height)
                 .clipped()
+                .overlay {
+                    if outlined { Rectangle().strokeBorder(Color.primary.opacity(0.3), lineWidth: 0.5) }
+                }
                 .accessibilityLabel(AccessibilityCountryNames.name(for: countryCode) ?? "")
         }
     }

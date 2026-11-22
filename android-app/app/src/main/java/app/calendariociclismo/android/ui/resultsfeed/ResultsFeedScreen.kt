@@ -1,5 +1,12 @@
 package app.calendariociclismo.android.ui.resultsfeed
 
+import app.calendariociclismo.android.ui.components.CxFiltersMenu
+import app.calendariociclismo.android.ui.components.FiltersMenuStyle
+import app.calendariociclismo.android.ui.components.ResultsFiltersTipAnchor
+import app.calendariociclismo.android.ui.components.RoadFiltersMenu
+import app.calendariociclismo.android.ui.components.rememberResultsFiltersTip
+import app.calendariociclismo.android.util.CxRaceFilter
+import app.calendariociclismo.android.util.RoadRaceFilter
 import app.calendariociclismo.android.ui.cyclocross.cxTitle
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -41,6 +48,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -189,12 +197,22 @@ fun ResultsFeedScreen(navController: NavController) {
     val pullRefreshState = rememberPullToRefreshState()
     val scope = rememberCoroutineScope()
     val rankingPullRefreshState = rememberPullToRefreshState()
+    // Filtros de Hoy y Calendario, compartidos por disciplina. El Ránking no los lleva.
+    // Sin leer aún, null: el feed de carretera espera a saber qué filtra.
+    val storedRoadFilter by app.preferences.roadRaceFilter.collectAsState(initial = null)
+    val roadFilter = storedRoadFilter ?: RoadRaceFilter()
+    val cxFilter by app.preferences.cxRaceFilter.collectAsState(initial = CxRaceFilter())
 
     LaunchedEffect(Unit) { app.analytics.logScreenView("results_feed") }
 
     // Refetch del rango actual [fromKey, hoy]. Compartido por la carga inicial,
     // el "Cargar más" (al ampliar fromKey) y el pull-to-refresh. Igual que la
     // web: las filas existentes se mantienen visibles mientras llega la recarga.
+    fun needsMoreDays(entries: List<ResultsFeedLogic.FeedEntry>): Boolean =
+        fromKey > SEASON_START &&
+            entries.filter { roadFilter.matches(it.race) }.map { it.date }.toSet().size < ResultsFeedLogic.MIN_DAYS
+    fun olderFromKey(): String = maxOf(DateFormatting.dayOffset(fromKey, -WINDOW_DAYS) ?: SEASON_START, SEASON_START)
+
     suspend fun reload() {
         if (state !is FeedState.Ready) state = FeedState.Loading
         try {
@@ -219,6 +237,12 @@ fun ResultsFeedScreen(navController: NavController) {
             }
             val entries = app.repository.loadResultsFeedWindow(fromKey, today)
             currentCoroutineContext().ensureActive()
+            // Menos de MIN_DAYS días que pasen los filtros: se amplía la ventana
+            // y la nueva lectura (LaunchedEffect(fromKey)) llega antes de pintar.
+            if (needsMoreDays(entries)) {
+                fromKey = olderFromKey()
+                return
+            }
             // Commit único: el repositorio ya entrega ganadores y líderes resueltos.
             state = FeedState.Ready(entries)
         } catch (cancelled: CancellationException) {
@@ -247,8 +271,16 @@ fun ResultsFeedScreen(navController: NavController) {
         rankingRefreshing = false
     }
 
-    // Carga inicial y recarga al ampliar la ventana ("Cargar más").
-    LaunchedEffect(fromKey) { reload() }
+    // Carga inicial y recarga al ampliar la ventana ("Cargar más"), con los filtros ya leídos.
+    LaunchedEffect(fromKey, storedRoadFilter != null) { if (storedRoadFilter != null) reload() }
+    // Un filtro más estrecho puede dejar menos de MIN_DAYS días: la lista espera a la ventana ampliada.
+    LaunchedEffect(roadFilter) {
+        val current = state
+        if (current is FeedState.Ready && needsMoreDays(current.entries)) {
+            state = FeedState.Loading
+            fromKey = olderFromKey()
+        }
+    }
 
     // Pull-to-refresh: refetch del rango visible sin colapsar a Loading.
     LaunchedEffect(isRefreshing) {
@@ -328,6 +360,38 @@ fun ResultsFeedScreen(navController: NavController) {
                         )
                     }
                 },
+                actions = {
+                    // «Filtros» de la vista, con la burbuja de la primera visita.
+                    val listReady = when (activeSection) {
+                        ResultsSection.ROAD -> state is FeedState.Ready
+                        ResultsSection.CYCLOCROSS -> cxState.loaded
+                        ResultsSection.RANKING -> false
+                    }
+                    val filtersTip = rememberResultsFiltersTip(ready = listReady)
+                    when (activeSection) {
+                        ResultsSection.ROAD -> ResultsFiltersTipAnchor(filtersTip) {
+                            RoadFiltersMenu(
+                                filter = roadFilter,
+                                onChange = {
+                                    haptic(Haptics.Event.Selection)
+                                    scope.launch { app.preferences.setRoadRaceFilter(it) }
+                                },
+                                style = FiltersMenuStyle.TopBar,
+                            )
+                        }
+                        ResultsSection.CYCLOCROSS -> ResultsFiltersTipAnchor(filtersTip) {
+                            CxFiltersMenu(
+                                filter = cxFilter,
+                                onChange = {
+                                    haptic(Haptics.Event.Selection)
+                                    scope.launch { app.preferences.setCxRaceFilter(it) }
+                                },
+                                style = FiltersMenuStyle.TopBar,
+                            )
+                        }
+                        ResultsSection.RANKING -> Unit
+                    }
+                },
             )
         },
     ) { padding ->
@@ -352,6 +416,7 @@ fun ResultsFeedScreen(navController: NavController) {
                             state = cxState,
                             adaptiveInfo = adaptiveInfo,
                             onRetry = { scope.launch { cxState.retry() } },
+                            filter = cxFilter,
                             onEntryTap = { entry ->
                                 haptic(Haptics.Event.Navigation)
                                 val first = entry.categories.firstOrNull()?.category
@@ -379,8 +444,10 @@ fun ResultsFeedScreen(navController: NavController) {
                                 if (current.entries.isEmpty()) {
                                     FeedEmptyState()
                                 } else {
+                                    val filtered = remember(current.entries, roadFilter) { current.entries.filter { roadFilter.matches(it.race) } }
                                     FeedList(
-                                        entries = current.entries,
+                                        entries = filtered,
+                                        emptyMessage = if (filtered.isEmpty()) stringResource(R.string.results_feed_filter_empty) else null,
                                         adaptiveInfo = adaptiveInfo,
                                         showLoadMore = fromKey > SEASON_START,
                                         loadingMore = loadingMore,
@@ -778,6 +845,7 @@ private fun FeedList(
     loadingMore: Boolean,
     onLoadMore: () -> Unit,
     onEntryTap: (ResultsFeedLogic.FeedEntry) -> Unit,
+    emptyMessage: String? = null,
 ) {
     // Agrupación por fecha conservando el orden (las entradas ya vienen en
     // cronología inversa desde ResultsFeedLogic).
@@ -793,6 +861,9 @@ private fun FeedList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (emptyMessage != null) {
+                item(key = "filter-empty") { FeedFilterEmpty(emptyMessage) }
+            }
             grouped.forEach { (date, dayEntries) ->
                 item(key = "hdr-$date") {
                     FeedDayHeader(date = date, isFirst = date == grouped.keys.first())
@@ -965,10 +1036,11 @@ private fun FeedEntryRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp),
                 )
+                // Equipo entre paréntesis y en peso normal tras el nombre
+                // (`.feed-row__team` web).
                 Text(
-                    text = entry.winner,
+                    text = feedTeamLine(entry.winner, entry.winnerTeam, MaterialTheme.colorScheme.onSurfaceVariant),
                     style = CCText.S13,
-                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -980,10 +1052,20 @@ private fun FeedEntryRow(
                 modifier = Modifier.padding(vertical = 2.dp),
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
+            val dim = MaterialTheme.colorScheme.onSurfaceVariant
             entry.complementary.forEach { item ->
                 FeedComplementaryLine(
                     label = if (LocaleHolder.shouldShowEnglishContent) item.labelEn else item.labelEs,
-                    value = item.winner,
+                    value = if (item.leaders.isNotEmpty()) {
+                        buildAnnotatedString {
+                            item.leaders.forEachIndexed { index, leader ->
+                                if (index > 0) append(" / ")
+                                append(feedTeamLine(leader.name, leader.team, dim, bold = false))
+                            }
+                        }
+                    } else {
+                        AnnotatedString(item.winner)
+                    },
                     colorHex = item.colorHex,
                 )
             }
@@ -1047,7 +1129,7 @@ internal fun FeedRowFrame(
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 RaceLogo(url = logoUrl, size = 36.dp, placeholder = logoPlaceholder)
-                if (flagCountryCode != null) CountryFlag(countryCode = flagCountryCode)
+                if (flagCountryCode != null) CountryFlag(countryCode = flagCountryCode, outlined = true)
             }
 
             Column(
@@ -1063,7 +1145,7 @@ internal fun FeedRowFrame(
 
 /** Línea de clasificación complementaria: etiqueta y ganador. */
 @Composable
-internal fun FeedComplementaryLine(label: String, value: String, colorHex: String? = null) {
+internal fun FeedComplementaryLine(label: String, value: AnnotatedString, colorHex: String? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1088,6 +1170,18 @@ internal fun FeedComplementaryLine(label: String, value: String, colorHex: Strin
         }
     }
 }
+
+/**
+ * Ganador o líder con su equipo entre paréntesis, en peso normal y color
+ * atenuado: espejo de `.feed-row__winner` y `.feed-row__team` web.
+ */
+internal fun feedTeamLine(name: String, team: String?, dim: Color, bold: Boolean = true): AnnotatedString =
+    buildAnnotatedString {
+        if (bold) withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(name) } else append(name)
+        if (!team.isNullOrBlank()) {
+            withStyle(SpanStyle(color = dim, fontWeight = FontWeight.Normal)) { append(" ($team)") }
+        }
+    }
 
 /**
  * Línea "Etapa N · NNN km · +N m" — "Etapa N" y los km en SemiBold,
@@ -1124,6 +1218,18 @@ private fun feedSubtitle(entry: ResultsFeedLogic.FeedEntry): AnnotatedString {
             append(it)
         }
     }
+}
+
+/** Aviso de la lista vacía por los filtros, encima de «Cargar más». */
+@Composable
+internal fun FeedFilterEmpty(message: String) {
+    Text(
+        text = message,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

@@ -164,8 +164,8 @@ class CalendarioCiclismoApp : Application(), Configuration.Provider, SingletonIm
         appScope.launch {
             combine(
                 preferences.appLocale,
-                preferences.defaultFilter,
-                preferences.cxDefaultFilter,
+                preferences.roadRaceFilter,
+                preferences.cxRaceFilter,
                 preferences.followedRaceIds,
                 preferences.followedStageIds,
                 preferences.followedCxRaceIds,

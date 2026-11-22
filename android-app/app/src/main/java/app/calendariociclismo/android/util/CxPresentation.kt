@@ -56,19 +56,6 @@ data class CxAgendaTV(
     val statusChip: Boolean get() = tvStatus in CxPresentation.TV_STATUS_CHIPS
 }
 
-/**
- * Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera:
- * Todas · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
- * X2O y HG Cross) · Pro (todo salvo las nacionales) · España (pruebas en España,
- * UCI o no).
- */
-enum class CxAgendaFilter(@param:StringRes val labelRes: Int) {
-    ALL(R.string.cx_filter_all),
-    BIG(R.string.cx_filter_big),
-    PRO(R.string.cx_filter_pro),
-    SPAIN(R.string.cx_filter_spain),
-}
-
 enum class CxDetailSection { PROGRAMME, STARTLIST, RESULTS, GENERAL, VIDEOS }
 
 /** Orden de Hoy de Ciclocross, con las opciones de Hoy de carretera. */
@@ -130,7 +117,6 @@ object CxPresentation {
             .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
         return "superprestige" in identity || "x2o" in identity || "worldcup" in identity || "copadelmundo" in identity
     }
-    /** Filtro de la agenda CX (Todas/Big/Pro/España). */
     /**
      * Clases de carrera ocultas con la app en inglés: la categoría nacional
      * española (y los futuros calendarios nacionales) está dirigida al público
@@ -153,19 +139,6 @@ object CxPresentation {
     const val SPANISH_AUDIENCE_TITLE = "Available in Spanish"
     const val SPANISH_AUDIENCE_NOTICE = "This content is intended for Spanish-speaking audiences, mainly in Spain. Switch the app to Spanish to view it."
 
-    fun matchesAgendaFilter(race: CxRace, filter: CxAgendaFilter): Boolean = when (filter) {
-        CxAgendaFilter.ALL -> true
-        CxAgendaFilter.SPAIN -> (race.countryCode ?: "").lowercase(Locale.ROOT).startsWith("es")
-        CxAgendaFilter.PRO -> race.raceClass !in listOf("CN", "NAC")
-        CxAgendaFilter.BIG -> {
-            if (race.raceClass in listOf("CM", "CDM", "CC")) true
-            else race.tournament?.let { tournament ->
-                val identity = java.text.Normalizer.normalize(tournament.slug + " " + tournament.name, java.text.Normalizer.Form.NFD)
-                    .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
-                listOf("superprestige", "x2o", "worldcup", "copadelmundo", "exactcross", "hgcross").any { it in identity }
-            } ?: false
-        }
-    }
     /** Una prueba sin ningún horario asociado usa badges en vez de cuadros. */
     fun usesCategoryBadges(race: CxRace, categories: List<CxCategory>, at: Instant): Boolean =
         categories.isNotEmpty() && categories.all {
@@ -271,6 +244,11 @@ object CxPresentation {
         names[code]?.let { return it }
         return if (Regex("^C\\d$").matches(code)) "UCI $code" else code
     }
+    /** Clase de la cabecera de la ficha. En la Copa del Mundo el torneo ya nombra
+     *  la competición: repetirla bajo el nombre de la carrera duplicaba «Copa del
+     *  Mundo UCI». Espejo de `cxHeaderClassName` (`js/cx/presentation.js`). */
+    fun headerClassName(race: CxRace, english: Boolean): String =
+        if (race.raceClass == "CDM" && race.tournament != null) "" else className(race.raceClass, english)
     private fun configured(race: CxRace): JsonObject? = race.tournament?.pointsScheme?.get("categories") as? JsonObject
     fun actualCategories(detail: CxDetail): List<String> = CyclocrossLogic.categories.filter { code ->
         detail.race.categories.any { it.category == code && (it.dateKey ?: detail.race.dateKey) in CyclocrossLogic.dates(detail.race) }

@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Detalle de equipo del mercado (apps 4.0) — espejo de la vista de equipo de
-/// /fichajes/ web y de `TransfersTeamScreen` (Android): continúan (plantilla
-/// actual con fin de contrato) / llegan / se marchan, con badge Rumor donde
-/// proceda. Regla Dani: una salida rumoreada saca al corredor de "continúan"
+/// /fichajes/ web y de `TransfersTeamScreen` (Android), en dos columnas:
+/// plantilla de la temporada del mercado (continúan y llegadas confirmadas,
+/// tintadas por años de contrato) y estados (en duda, terminan contrato,
+/// llegan, se marchan), con badge Rumor donde proceda. Regla Dani: una salida rumoreada saca al corredor de "continúan"
 /// y lo pinta como baja·Rumor.
 struct TransfersTeamView: View {
     let teamId: String
@@ -11,6 +12,8 @@ struct TransfersTeamView: View {
     @State private var season: TeamSeason?
     @State private var data: TransfersLogic.MarketData?
     @State private var detail: TransfersLogic.TeamDetail?
+    /// País del equipo, para la cabecera (nil si no consta).
+    @State private var countryCode: String?
     @State private var isLoading = true
     @State private var error: String?
     @State private var localeService = LocaleService.shared
@@ -20,6 +23,8 @@ struct TransfersTeamView: View {
     @State private var linkedTeamRoute: TransfersTeamRoute?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var contentWidth: CGFloat = 0
+    /// Orden de la plantilla: por año de contrato (por defecto) o alfabético.
+    @State private var squadAlphabetical = false
 
     private var title: String {
         localeService.t(
@@ -29,7 +34,8 @@ struct TransfersTeamView: View {
     }
 
     var body: some View {
-        LoadingGate(isLoading: isLoading && detail == nil, title: season?.name ?? title) {
+        // Rótulo de la carga: el nombre del equipo si el mercado ya se cargó.
+        LoadingGate(isLoading: isLoading && detail == nil, title: season?.name ?? SupabaseService.shared.transfersTeamNames[teamId] ?? title) {
             if let error {
                 ErrorView(message: error) {
                     Task { await load() }
@@ -59,8 +65,10 @@ struct TransfersTeamView: View {
                 throw URLError(.resourceUnavailable)
             }
             let gender = teamSeason.gender ?? TransfersLogic.divisionGender(teamSeason.category)
+            async let countryReq = SupabaseService.shared.teamCountryCode(teamId: teamId)
             let roster = try await SupabaseService.shared.ridersByAffiliation(
                 teamId: teamId, season: TransfersLogic.marketSeason, gender: gender)
+            countryCode = await countryReq
             season = teamSeason
             data = market
             // Categoría del equipo de destino (para ordenar "se marchan").
@@ -91,28 +99,12 @@ struct TransfersTeamView: View {
         let unknownTeam = localeService.t("Por confirmar", "To be confirmed")
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                // Cabecera sobre superficie neutra con el cuadrado de colores
-                // de Resultados delante del nombre (`.tr-team-header` web).
-                HStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        if let team = TransfersLogic.stripesTeam(for: season, prev: data.prevSeasonsByTeamId) {
-                            TeamColorBands(team: team, width: 14, height: 15)
-                        }
-                        Text(season.name ?? "")
-                            .ccFont(.s20, weight: .bold)
-                            .accessibilityAddTraits(.isHeader)
-                    }
-                    Spacer(minLength: 8)
-                    Text([season.category, String(TransfersLogic.marketSeason)]
-                        .compactMap { $0?.isEmpty == false ? $0 : nil }
-                        .joined(separator: " · "))
-                        .ccFont(.s13, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .ccCardSurface()
+                TeamHeader(
+                    season: season,
+                    stripes: TransfersLogic.stripesTeam(for: season, prev: data.prevSeasonsByTeamId),
+                    countryCode: countryCode,
+                    confirmedCount: detail.squad.isEmpty ? nil : detail.confirmedCount
+                )
 
                 // Aviso: la continuidad del equipo en la temporada del mercado
                 // no está confirmada (mig. 123). El equipo se lista igual.
@@ -127,8 +119,15 @@ struct TransfersTeamView: View {
 
                 marketSections(detail: detail, data: data, unknownTeam: unknownTeam)
 
+                // Leyenda de los tintes bajo todas las listas, si alguna fila
+                // de la plantilla lleva tinte.
+                if detail.squad.contains(where: { TransfersLogic.contractTint($0.contractUntil) != nil }) {
+                    ContractLegend()
+                        .padding(.top, 20)
+                }
+
                 // Equipo sin ningún movimiento anunciado: aviso único.
-                if detail.staying.isEmpty && detail.doubtful.isEmpty && detail.contractEnds.isEmpty
+                if detail.squad.isEmpty && detail.doubtful.isEmpty && detail.contractEnds.isEmpty
                     && detail.arrivals.isEmpty && detail.departures.isEmpty {
                     emptyText(localeService.t("Sin movimientos anunciados por ahora.", "No moves announced yet."))
                 }
@@ -146,93 +145,57 @@ struct TransfersTeamView: View {
     }
 
     private enum MarketBlock: Identifiable {
-        case staying([TransfersLogic.StayingRow], continuation: Bool)
-        case doubtful([TransfersLogic.DoubtRow], continuation: Bool)
-        case contractEnds([RiderTransfer], continuation: Bool)
-        case arrivals([RiderTransfer], continuation: Bool)
-        case departures([RiderTransfer], continuation: Bool)
-
-        var count: Int {
-            switch self {
-            case .staying(let rows, _): rows.count
-            case .doubtful(let rows, _): rows.count
-            case .contractEnds(let rows, _), .arrivals(let rows, _), .departures(let rows, _): rows.count
-            }
-        }
+        case squad([TransfersLogic.SquadRow])
+        case doubtful([TransfersLogic.DoubtRow])
+        case contractEnds([RiderTransfer])
+        case arrivals([RiderTransfer])
+        case departures([RiderTransfer])
 
         var id: String {
-            let suffix: String
             switch self {
-            case .staying(let rows, let continuation): suffix = "staying:\(rows.first?.id ?? "empty"):\(continuation)"
-            case .doubtful(let rows, let continuation): suffix = "doubtful:\(rows.first?.id ?? "empty"):\(continuation)"
-            case .contractEnds(let rows, let continuation): suffix = "contracts:\(rows.first?.id ?? "empty"):\(continuation)"
-            case .arrivals(let rows, let continuation): suffix = "arrivals:\(rows.first?.id ?? "empty"):\(continuation)"
-            case .departures(let rows, let continuation): suffix = "departures:\(rows.first?.id ?? "empty"):\(continuation)"
-            }
-            return suffix
-        }
-
-        func split(at index: Int) -> (MarketBlock, MarketBlock)? {
-            guard index > 0, index < count else { return nil }
-            switch self {
-            case .staying(let rows, let continuation):
-                return (.staying(Array(rows.prefix(index)), continuation: continuation), .staying(Array(rows.dropFirst(index)), continuation: true))
-            case .doubtful(let rows, let continuation):
-                return (.doubtful(Array(rows.prefix(index)), continuation: continuation), .doubtful(Array(rows.dropFirst(index)), continuation: true))
-            case .contractEnds(let rows, let continuation):
-                return (.contractEnds(Array(rows.prefix(index)), continuation: continuation), .contractEnds(Array(rows.dropFirst(index)), continuation: true))
-            case .arrivals(let rows, let continuation):
-                return (.arrivals(Array(rows.prefix(index)), continuation: continuation), .arrivals(Array(rows.dropFirst(index)), continuation: true))
-            case .departures(let rows, let continuation):
-                return (.departures(Array(rows.prefix(index)), continuation: continuation), .departures(Array(rows.dropFirst(index)), continuation: true))
+            case .squad: "squad"
+            case .doubtful: "doubtful"
+            case .contractEnds: "contracts"
+            case .arrivals: "arrivals"
+            case .departures: "departures"
             }
         }
     }
 
-    private func marketBlocks(_ detail: TransfersLogic.TeamDetail) -> [MarketBlock] {
+    /// Bloques de los estados: en duda, terminan contrato, llegan y se
+    /// marchan. Una sección vacía no se pinta.
+    private func stateBlocks(_ detail: TransfersLogic.TeamDetail) -> [MarketBlock] {
         var blocks: [MarketBlock] = []
-        if !detail.staying.isEmpty { blocks.append(.staying(detail.staying, continuation: false)) }
-        if !detail.doubtful.isEmpty { blocks.append(.doubtful(detail.doubtful, continuation: false)) }
-        if !detail.contractEnds.isEmpty { blocks.append(.contractEnds(detail.contractEnds, continuation: false)) }
-        if !detail.arrivals.isEmpty { blocks.append(.arrivals(detail.arrivals, continuation: false)) }
-        if !detail.departures.isEmpty { blocks.append(.departures(detail.departures, continuation: false)) }
+        if !detail.doubtful.isEmpty { blocks.append(.doubtful(detail.doubtful)) }
+        if !detail.contractEnds.isEmpty { blocks.append(.contractEnds(detail.contractEnds)) }
+        if !detail.arrivals.isEmpty { blocks.append(.arrivals(detail.arrivals)) }
+        if !detail.departures.isEmpty { blocks.append(.departures(detail.departures)) }
         return blocks
     }
 
-    private func marketColumns(_ blocks: [MarketBlock]) -> [[MarketBlock]] {
-        let division = AdaptiveLayoutPolicy.balancedBreak(counts: blocks.map(\.count))
-        var left = Array(blocks.prefix(division.blockIndex))
-        var right = Array(blocks.dropFirst(division.blockIndex))
-        if division.offset > 0,
-           let crossing = right.first,
-           let parts = crossing.split(at: division.offset) {
-            left.append(parts.0)
-            right[0] = parts.1
-        }
-        return [left, right]
-    }
-
+    /// Dos columnas, como la web: la plantilla y, juntos, todos los estados.
+    /// En ancho estrecho, una columna con la plantilla primero.
     @ViewBuilder
     private func marketSections(
         detail: TransfersLogic.TeamDetail,
         data: TransfersLogic.MarketData,
         unknownTeam: String
     ) -> some View {
-        let blocks = marketBlocks(detail)
+        let squad: [MarketBlock] = detail.squad.isEmpty ? [] : [.squad(detail.squad)]
+        let states = stateBlocks(detail)
         let wide = AdaptiveLayoutPolicy.feedColumns(
             width: max(0, contentWidth - 32),
             isRegular: horizontalSizeClass == .regular
         ) == 2
-        if wide, !blocks.isEmpty {
-            let columns = marketColumns(blocks)
+        if wide, !squad.isEmpty, !states.isEmpty {
             HStack(alignment: .top, spacing: 24) {
-                marketColumn(columns[0], data: data, unknownTeam: unknownTeam)
+                marketColumn(squad, data: data, unknownTeam: unknownTeam)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                marketColumn(columns[1], data: data, unknownTeam: unknownTeam)
+                marketColumn(states, data: data, unknownTeam: unknownTeam)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         } else {
-            marketColumn(blocks, data: data, unknownTeam: unknownTeam)
+            marketColumn(squad + states, data: data, unknownTeam: unknownTeam)
         }
     }
 
@@ -255,23 +218,34 @@ struct TransfersTeamView: View {
         unknownTeam: String
     ) -> some View {
         switch block {
-        case .staying(let rows, _):
-            sectionTitle(localeService.t("Continúan", "Staying"))
+        case .squad(let rows):
+            HStack(alignment: .center, spacing: 8) {
+                sectionTitle(localeService.t(
+                    "Plantilla \(String(TransfersLogic.marketSeason))",
+                    "\(String(TransfersLogic.marketSeason)) Squad"
+                ))
+                Spacer(minLength: 8)
+                if rows.count > 1 { squadOrderButton.padding(.top, 20).padding(.bottom, 2) }
+            }
             CCCard {
                 VStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    ForEach(Array(TransfersLogic.sortedSquad(rows, alphabetical: squadAlphabetical).enumerated()), id: \.element.id) { index, row in
                         if index > 0 { Divider() }
+                        let riderName = row.rider?.fullName ?? ""
                         personRow(
-                            nationality: row.rider.nationality,
-                            name: row.rider.fullName.isEmpty ? row.rider.id : row.rider.fullName,
+                            nationality: row.rider?.nationality,
+                            name: riderName.isEmpty ? row.riderId : riderName,
                             detail: nil,
                             contractUntil: row.contractUntil,
-                            isRumor: row.isRumor
+                            isRumor: row.isRumor,
+                            tint: ContractTintColor.color(TransfersLogic.contractTint(row.contractUntil), strong: row.isArrival),
+                            // El color no es la única señal de una llegada.
+                            accessibilityNote: row.isArrival ? localeService.t("Llega", "Arrival") : nil
                         )
                     }
                 }
             }
-        case .doubtful(let rows, _):
+        case .doubtful(let rows):
             sectionTitle(localeService.t("En duda", "Undecided"))
             CCCard {
                 VStack(spacing: 0) {
@@ -288,7 +262,7 @@ struct TransfersTeamView: View {
                     }
                 }
             }
-        case .contractEnds(let rows, _):
+        case .contractEnds(let rows):
             sectionTitle(localeService.t("Terminan contrato", "Contract ending"))
             CCCard {
                 VStack(spacing: 0) {
@@ -305,13 +279,35 @@ struct TransfersTeamView: View {
                     }
                 }
             }
-        case .arrivals(let rows, _):
+        case .arrivals(let rows):
             sectionTitle(localeService.t("Llegan", "Arrivals"))
             movementCard(moves: rows, data: data, showOrigin: true, unknownTeam: unknownTeam)
-        case .departures(let rows, _):
+        case .departures(let rows):
             sectionTitle(localeService.t("Se marchan", "Departures"))
             movementCard(moves: rows, data: data, showOrigin: false, unknownTeam: unknownTeam)
         }
+    }
+
+    /// Conmutador del orden de la plantilla, como en la web: muestra el orden
+    /// al que cambia (A-Z con el de contrato activo; un lápiz sobre una hoja,
+    /// el contrato, con el alfabético). No añade altura a la cabecera.
+    private var squadOrderButton: some View {
+        Button {
+            Haptics.play(.selection)
+            withAnimation(.easeInOut(duration: 0.25)) { squadAlphabetical.toggle() }
+        } label: {
+            Image(squadAlphabetical ? "SquadOrderContract" : "SquadOrderAlphabetical")
+                .resizable()
+                .frame(width: 18, height: 18)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .padding(.vertical, -7)
+        .accessibilityLabel(squadAlphabetical
+            ? localeService.t("Ordenar por año de contrato", "Sort by contract year")
+            : localeService.t("Ordenar alfabéticamente", "Sort alphabetically"))
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -412,7 +408,9 @@ struct TransfersTeamView: View {
         contractUntil: Int?,
         isRumor: Bool,
         isDoubt: Bool = false,
-        linkTeamId: String? = nil
+        linkTeamId: String? = nil,
+        tint: Color? = nil,
+        accessibilityNote: String? = nil
     ) -> some View {
         // El año de contrato como BADGE al final de la fila, junto al de
         // rumor/duda (solo el año, sin "hasta").
@@ -432,6 +430,10 @@ struct TransfersTeamView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint ?? .clear)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(accessibilityNote ?? "")
 
         return Group {
             if let linkTeamId {
@@ -461,6 +463,190 @@ struct TransfersTeamView: View {
         var tail = AttributedString(" · \(detail)")
         tail.foregroundColor = .secondary
         return line + tail
+    }
+}
+
+/// Cabecera de la vista de equipo, espejo de `.tr-team-header` web: cuadrado de
+/// colores y nombre, país y ciclistas confirmados separados por «·», y la
+/// división con la temporada a la derecha. Si no cabe en una línea, país y
+/// recuento bajan a la siguiente, juntos o por separado.
+private struct TeamHeader: View {
+    let season: TeamSeason
+    let stripes: Team?
+    let countryCode: String?
+    let confirmedCount: Int?
+
+    private var localeService: LocaleService { LocaleService.shared }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            // El separador «·» queda a 6 pt de cada lado, como un espacio de
+            // texto; el resto de elementos, a 12 pt.
+            HStack(spacing: 6) {
+                name.fixedSize()
+                if countryCode != nil { separator; country.fixedSize() }
+                if confirmedCount != nil { separator; count.fixedSize() }
+                Spacer(minLength: 12)
+                category
+            }
+            // El nombre largo pasa a dos líneas sin que país y recuento
+            // dejen de compartir línea si caben.
+            VStack(alignment: .leading, spacing: 6) {
+                nameAndCategory
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        if countryCode != nil { country.fixedSize() }
+                        if countryCode != nil, confirmedCount != nil { separator }
+                        if confirmedCount != nil { count.fixedSize() }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        if countryCode != nil { country }
+                        if confirmedCount != nil { count }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .ccCardSurface()
+    }
+
+    private var name: some View {
+        HStack(spacing: 8) {
+            if let stripes { TeamColorBands(team: stripes, width: 14, height: 15) }
+            Text(season.name ?? "")
+                .ccFont(.s20, weight: .bold)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    /// Nombre con la división y la temporada al final de la línea.
+    private var nameAndCategory: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            name
+            Spacer(minLength: 8)
+            category
+        }
+    }
+
+    private var separator: some View {
+        Text("·").ccFont(.s13).foregroundStyle(.secondary).accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var country: some View {
+        if let code = countryCode {
+            HStack(spacing: 6) {
+                CountryFlag(countryCode: code, width: 16)
+                Text(Locale(identifier: LocaleService.shouldShowEnglishContent ? "en" : "es")
+                    .localizedString(forRegionCode: code.uppercased()) ?? code.uppercased())
+                    .ccFont(.s13)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// «N ciclistas confirmados», con el número en negrita. Sin el año: la cabecera
+    /// ya lo muestra junto a la categoría.
+    @ViewBuilder private var count: some View {
+        if let n = confirmedCount {
+            let tail = localeService.t(
+                n == 1 ? " ciclista confirmado" : " ciclistas confirmados",
+                n == 1 ? " rider confirmed" : " riders confirmed"
+            )
+            (Text("\(n)").fontWeight(.bold) + Text(tail))
+                .ccFont(.s13)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var category: some View {
+        Text([season.category, String(TransfersLogic.marketSeason)]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · "))
+            .ccFont(.s13, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+    }
+}
+
+/// Tintes de la plantilla por años de contrato (`.tr-tint--*` web): pálido
+/// para los que continúan y fuerte para las llegadas. El texto pasa 4,5:1
+/// sobre cada tinte en los dos temas.
+enum ContractTintColor {
+    static func color(_ tint: TransfersLogic.ContractTint?, strong: Bool) -> Color? {
+        switch (tint, strong) {
+        case (.green, false): Color(light: "e3f9e0", dark: "12301c")
+        case (.green, true): Color(light: "8dfe96", dark: "1f5a2c")
+        case (.yellow, false): Color(light: "fcf8db", dark: "3a3512")
+        case (.yellow, true): Color(light: "fef18d", dark: "5c5217")
+        case (.red, false): Color(light: "fcdbdb", dark: "3d1b1b")
+        case (.red, true): Color(light: "f9a8a8", dark: "6b2424")
+        case (nil, _): nil
+        }
+    }
+}
+
+/// Leyenda de los tintes de la plantilla bajo las listas del equipo
+/// (`.tr-legend` web): un cuadrado por color con el año de fin de contrato y,
+/// aparte, el tono fuerte de los fichajes, centrada. En una línea si cabe; si
+/// no, los años en una y los fichajes debajo.
+private struct ContractLegend: View {
+    private var localeService: LocaleService { LocaleService.shared }
+    private var season: Int { TransfersLogic.marketSeason }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) { years; arrival }
+            VStack(alignment: .center, spacing: 6) { years; arrival }
+            VStack(alignment: .center, spacing: 6) {
+                label
+                item(.green, false, localeService.t("\(String(season + 2)) o más", "\(String(season + 2)) or later"))
+                item(.yellow, false, String(season + 1))
+                item(.red, false, String(season))
+                arrival
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var label: some View {
+        Text(localeService.t("Fin de contrato", "Contract until"))
+            .ccFont(.s13, weight: .semibold)
+            .foregroundStyle(.secondary)
+    }
+
+    private var years: some View {
+        HStack(spacing: 14) {
+            label
+            item(.green, false, localeService.t("\(String(season + 2)) o más", "\(String(season + 2)) or later"))
+            item(.yellow, false, String(season + 1))
+            item(.red, false, String(season))
+        }
+        .fixedSize()
+    }
+
+    private var arrival: some View {
+        item(.green, true, localeService.t(
+            "Tono más intenso: fichaje para la nueva temporada",
+            "Stronger shade: signing for the new season"
+        ))
+        .fixedSize()
+    }
+
+    private func item(_ tint: TransfersLogic.ContractTint, _ strong: Bool, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Rectangle()
+                .fill(ContractTintColor.color(tint, strong: strong) ?? .clear)
+                .frame(width: 12, height: 12)
+                .overlay(Rectangle().stroke(Color(.separator), lineWidth: 1))
+                .accessibilityHidden(true)
+            Text(text)
+                .ccFont(.s13)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

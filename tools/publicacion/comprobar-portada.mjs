@@ -80,7 +80,7 @@ async function funcion(nombre, perfil, ruta, zona, cuerpo) {
 
 const clic = selector => `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.click(); return true; })()`;
 const espera = ms => new Promise(done => setTimeout(done, ms));
-const estado = `(() => ({ fecha: document.querySelector('.agenda-date')?.innerText, activa: document.querySelector('.date-pill.active')?.dataset.dk, tarjetas: document.querySelectorAll('#cxAgendaList .race-card').length, chip: document.querySelector('.tcat-btn[aria-pressed="true"]')?.dataset.cat }))()`;
+const estado = `(() => ({ fecha: document.querySelector('.agenda-date')?.innerText, activa: document.querySelector('.date-pill.active')?.dataset.dk, tarjetas: document.querySelectorAll('#cxAgendaList .race-card').length, filtros: [...document.querySelectorAll('#cxAgendaFilterMenu [data-group]')].filter(b => b.getAttribute('aria-checked') === 'true').map(b => b.dataset.value).join() }))()`;
 
 await funcion('Sin lecturas de Supabase', MOVIL, '', 'Europe/Madrid', async tab => {
   const urls = [...tab.peticiones.values()].map(r => r.url).filter(url => url.includes('supabase.co'));
@@ -108,17 +108,23 @@ await funcion('Pastilla de otro día', ESCRITORIO, '', 'Europe/Madrid', async ta
   const despues = await tab.valor(estado);
   return { ok: despues.fecha !== antes.fecha, detalle: { destino, activa: despues.activa, fecha: despues.fecha } };
 });
-await funcion('Filtro de categoría', ESCRITORIO, '', 'Europe/Madrid', async tab => {
+await funcion('Filtros', ESCRITORIO, '', 'Europe/Madrid', async tab => {
   const antes = await tab.valor(estado);
-  await tab.valor(clic('.tcat-btn[data-cat="spain"]'));
+  await tab.valor(clic('#cxAgendaFilterBtn'));
+  await espera(700);
+  await tab.valor(clic('#cxAgendaFilterMenu [data-value="uci"]'));
+  await tab.valor(clic('#cxAgendaFilterMenu [data-value="national"]'));
   await espera(700);
   const despues = await tab.valor(estado);
-  return { ok: despues.chip === 'spain' && antes.chip === 'all', detalle: { chip: despues.chip, tarjetas: [antes.tarjetas, despues.tarjetas], activa: despues.activa } };
+  await tab.valor(clic('#cxAgendaFilterClear'));
+  await tab.valor(`localStorage.removeItem('cc_cx_filters')`);
+  return { ok: despues.filtros === 'big' && antes.filtros === 'big,uci,national', detalle: { filtros: despues.filtros, tarjetas: [antes.tarjetas, despues.tarjetas], activa: despues.activa } };
 });
 await funcion('Ordenar', ESCRITORIO, '', 'Europe/Madrid', async tab => {
   const orden = () => tab.valor(`[...document.querySelectorAll('#cxAgendaList .race-card')].map(c => c.querySelector('a[href]')?.getAttribute('href')).join()`);
   const antes = await orden();
-  await tab.valor(`(() => { const s = document.getElementById('cxAgendaSortSelect'); s.value = 'tvtime'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await tab.valor(clic('#cxAgendaSortBtn'));
+    await tab.valor(clic('#cxAgendaSortMenu [data-sort="tvtime"]'));
   await espera(400);
   const despues = await orden();
   return { ok: despues.split(',').length === antes.split(',').length, detalle: { igual: antes === despues, tarjetas: antes.split(',').length } };

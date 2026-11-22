@@ -8,10 +8,13 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.calendariociclismo.android.BuildConfig
-import app.calendariociclismo.android.util.Constants
+import app.calendariociclismo.android.util.CxRaceFilter
 import app.calendariociclismo.android.util.ReviewPromptPolicy
+import app.calendariociclismo.android.util.RoadRaceFilter
+import app.calendariociclismo.android.util.TransfersLogic
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -38,8 +41,16 @@ class AppPreferences(private val context: Context) {
         val PUSH_ENABLED = booleanPreferencesKey("push_enabled")
         val PUSH_TOKEN = stringPreferencesKey("push_token")
         val CATEGORY = stringPreferencesKey("category_filter")
+        /** Chinchetas hasta la 5.2.3: se convierten al leer y se retiran al guardar. */
         val DEFAULT_FILTER = stringPreferencesKey("default_filter")
         val CX_DEFAULT_FILTER = stringPreferencesKey("cx_default_filter")
+        val ROAD_RACE_FILTERS = stringPreferencesKey("road_race_filters")
+        val CX_RACE_FILTERS = stringPreferencesKey("cx_race_filters")
+        val TRANSFER_FILTERS = stringPreferencesKey("transfer_filters")
+        /** Burbujas de la primera visita a Hoy (5.2.4): disciplinas ya vistas. */
+        val TODAY_TIPS_DONE = stringSetPreferencesKey("today_tips_done")
+        /** Orden recordado de Hoy, por disciplina: «road_sort_mode», «cx_sort_mode». */
+        fun todaySort(discipline: String) = stringPreferencesKey("${discipline}_sort_mode")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val NOTIF_ONBOARDING_DONE = booleanPreferencesKey("notif_onboarding_done")
         val OFFLINE_ONBOARDING_DONE = booleanPreferencesKey("offline_onboarding_done")
@@ -64,7 +75,6 @@ class AppPreferences(private val context: Context) {
         val ADS_INTRO_V4_DONE = booleanPreferencesKey("ads_intro_v4_done")
         val CONTRIBUTION_INTRO_V4_2_3_1_DONE = booleanPreferencesKey("contribution_intro_v4_2_3_1_done")
         val SUPPORT_INTRO_V4_3_DONE = booleanPreferencesKey("support_intro_v4_3_1_done")
-        val SUPPORT_INTRO_V4_3_NEW_INSTALLATION = booleanPreferencesKey("support_intro_v4_3_new_installation")
         val CONTRIBUTION_FIRST_VIEW_AT = longPreferencesKey("contribution_prompt_v4_2_4_first_view_at")
         val CONTRIBUTION_VIEW_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_view_count")
         val CONTRIBUTION_PROMPT_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_prompt_count")
@@ -117,35 +127,58 @@ class AppPreferences(private val context: Context) {
         }
     }
 
-    // ─── Category filter (legacy — usado solo por snapshotCategoryFilter) ───
-    val categoryFilter: Flow<Constants.CategoryFilter> = data.map { prefs ->
-        val stored = prefs[Keys.CATEGORY] ?: Constants.CategoryFilter.ALL.name
-        runCatching { Constants.CategoryFilter.valueOf(stored) }.getOrDefault(Constants.CategoryFilter.ALL)
+    // ─── Filtros de carreras (RaceFilters.kt), recordados por disciplina ───
+    // Carretera: compartidos por Hoy, Mes y Temporada. Sin valor propio, la
+    // chincheta de la 5.2.3 convertida; al guardar se retira.
+    val roadRaceFilter: Flow<RoadRaceFilter> = data.map { prefs ->
+        RoadRaceFilter.decode(prefs[Keys.ROAD_RACE_FILTERS])
+            ?: (if (prefs[Keys.ROAD_RACE_FILTERS] == null) RoadRaceFilter.fromLegacy(prefs[Keys.DEFAULT_FILTER]) else null)
+            ?: RoadRaceFilter()
     }
-    suspend fun setCategoryFilter(value: Constants.CategoryFilter) {
-        context.dataStore.edit { it[Keys.CATEGORY] = value.name }
-    }
-
-    // ─── Filtro por defecto global (compartido entre Hoy, Mes y Temporada) ───
-    val defaultFilter: Flow<Constants.CategoryFilter> = data.map { prefs ->
-        val stored = prefs[Keys.DEFAULT_FILTER] ?: Constants.CategoryFilter.ALL.name
-        runCatching { Constants.CategoryFilter.valueOf(stored) }.getOrDefault(Constants.CategoryFilter.ALL)
-    }
-    suspend fun setDefaultFilter(value: Constants.CategoryFilter) {
-        context.dataStore.edit { it[Keys.DEFAULT_FILTER] = value.name }
-    }
-    suspend fun clearDefaultFilter() {
-        context.dataStore.edit { it.remove(Keys.DEFAULT_FILTER) }
-    }
-
-    // ─── Filtro por defecto de la agenda de ciclocross (solo esa vista) ───
-    val cxDefaultFilter: Flow<String?> = data.map { it[Keys.CX_DEFAULT_FILTER] }
-    suspend fun setCxDefaultFilter(value: String?) {
+    suspend fun setRoadRaceFilter(value: RoadRaceFilter) {
         context.dataStore.edit {
-            if (value == null) it.remove(Keys.CX_DEFAULT_FILTER) else it[Keys.CX_DEFAULT_FILTER] = value
+            it.remove(Keys.DEFAULT_FILTER)
+            it.remove(Keys.CATEGORY)
+            it[Keys.ROAD_RACE_FILTERS] = value.encoded
         }
     }
-    suspend fun snapshotCxDefaultFilter(): String? = cxDefaultFilter.first()
+    suspend fun snapshotRoadRaceFilter(): RoadRaceFilter = roadRaceFilter.first()
+
+    /** Ciclocross: la agenda (Big, UCI y Nacional). */
+    val cxRaceFilter: Flow<CxRaceFilter> = data.map { prefs ->
+        CxRaceFilter.decode(prefs[Keys.CX_RACE_FILTERS])
+            ?: (if (prefs[Keys.CX_RACE_FILTERS] == null) CxRaceFilter.fromLegacy(prefs[Keys.CX_DEFAULT_FILTER]) else null)
+            ?: CxRaceFilter()
+    }
+    suspend fun setCxRaceFilter(value: CxRaceFilter) {
+        context.dataStore.edit {
+            it.remove(Keys.CX_DEFAULT_FILTER)
+            it[Keys.CX_RACE_FILTERS] = value.encoded
+        }
+    }
+    suspend fun snapshotCxRaceFilter(): CxRaceFilter = cxRaceFilter.first()
+
+    /** Fichajes y Renovaciones: género y división, como en la web. */
+    val transferFilters: Flow<TransfersLogic.FeedFilters> = data.map { prefs ->
+        TransfersLogic.FeedFilters.decode(prefs[Keys.TRANSFER_FILTERS])
+    }
+    suspend fun setTransferFilters(value: TransfersLogic.FeedFilters) {
+        context.dataStore.edit { it[Keys.TRANSFER_FILTERS] = value.encoded }
+    }
+
+    // ─── Orden de Hoy, recordado por disciplina («road», «cx»): nombre del enum ───
+    fun todaySort(discipline: String): Flow<String?> = data.map { it[Keys.todaySort(discipline)] }
+    suspend fun snapshotTodaySort(discipline: String): String? = todaySort(discipline).first()
+    suspend fun setTodaySort(discipline: String, value: String) {
+        context.dataStore.edit { it[Keys.todaySort(discipline)] = value }
+    }
+
+    // ─── Burbujas de la primera visita a Hoy («road», «cyclocross») ───
+    fun todayTipsDone(discipline: String): Flow<Boolean> =
+        data.map { discipline in (it[Keys.TODAY_TIPS_DONE] ?: emptySet()) }
+    suspend fun setTodayTipsDone(discipline: String) {
+        context.dataStore.edit { it[Keys.TODAY_TIPS_DONE] = (it[Keys.TODAY_TIPS_DONE] ?: emptySet()) + discipline }
+    }
 
     // ─── Onboarding ───
     val onboardingDone: Flow<Boolean> = data.map { it[Keys.ONBOARDING_DONE] ?: false }
@@ -306,17 +339,6 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { it[Keys.SUPPORT_INTRO_V4_3_DONE] = value }
     }
 
-    suspend fun initializeSupportIntroV43Audience(): Boolean {
-        var isNewInstallation = false
-        context.dataStore.edit { prefs ->
-            isNewInstallation = prefs[Keys.SUPPORT_INTRO_V4_3_NEW_INSTALLATION]
-                ?: (!(prefs[Keys.LANGUAGE_ANNOUNCEMENT_DONE] ?: false)
-                    && !(prefs[Keys.NOTIF_ONBOARDING_DONE] ?: false))
-            prefs[Keys.SUPPORT_INTRO_V4_3_NEW_INSTALLATION] = isNewInstallation
-        }
-        return isNewInstallation
-    }
-
     suspend fun recordContributionContentView(
         isToday: Boolean,
         isSubscribed: Boolean,
@@ -455,7 +477,6 @@ class AppPreferences(private val context: Context) {
 
     suspend fun snapshotOfflineEnabled(): Boolean = offlineEnabled.first()
     suspend fun snapshotPushEnabled(): Boolean = pushEnabled.first()
-    suspend fun snapshotCategoryFilter(): Constants.CategoryFilter = categoryFilter.first()
     suspend fun snapshotThemePreference(): ThemePreference = themePreference.first()
     suspend fun snapshotOfflineCacheSchemaVersion(): Int = offlineCacheSchemaVersion.first()
     suspend fun snapshotLastOfflineSyncAttemptEpoch(): Long = lastOfflineSyncAttemptEpoch.first()

@@ -1,12 +1,15 @@
 
 .cx-race-sections,#cxAgendaError {width:var(--page-width);max-width:var(--content-max);margin:0 auto;padding:1rem 0;box-sizing:border-box}
-#cxRaceContent>.cx-race-sections {padding-top:0}
-#cxRaceContent>.cx-race-docs {width:var(--page-width);max-width:var(--content-max);margin-inline:auto;padding:0;box-sizing:border-box}
-#cxRaceContent>.cx-sticky-nav .res-tabs {padding-top:.25rem}
+/* La ficha va dentro de .race-layout (js/cx-race-html.js): sus bloques ocupan el
+   ancho de la columna en la que están (la página entera por debajo de 1360 px). */
+@media(max-width:1359px){#cxRaceContent .race-layout {padding-top:0}}
+#cxRaceContent .cx-race-sections {width:100%;max-width:none;margin:0;padding-top:0}
+#cxRaceContent .cx-race-docs {width:100%;max-width:none;margin-inline:0;padding:0;box-sizing:border-box}
+#cxRaceContent .cx-sticky-nav .res-tabs {padding-top:.25rem}
 /* Sin pestañas ni selector de categorías visibles (jornada con solo Programa),
    las secciones, con padding-top:0, quedan pegadas a la tira de documentos:
    la barra reserva el hueco. Los selectores ocultos no cuentan. */
-#cxRaceContent>.cx-sticky-nav:not(:has(.res-tabs-bar,.cx-category-nav:not([hidden]))) {padding-top:16px}
+#cxRaceContent .cx-sticky-nav:not(:has(.res-tabs-bar,.cx-category-nav:not([hidden]))) {padding-top:16px}
 .cx-tournament-list {width:var(--page-width);max-width:var(--content-max);margin:0 auto;padding:.5rem 0;box-sizing:border-box}
 .cx-tournament-list,.cx-agenda-day {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--giro-h,0px) + var(--cx-agenda-nav-h,3rem) + .5rem)}
 /* Fecha del día en gris, como en Resultados, Fichajes y Calendario. */
@@ -42,6 +45,7 @@
 .race-card--cx .race-card__sub>.cx-card-meta-text {flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* La sede se recorta antes que el torneo. */
 .race-card--cx .race-card__sub>.cx-card-meta-text--venue {flex:1 1 0}
+.race-card--cx .race-card__sub>.cx-card-meta-text--tournament {font-weight:700;color:var(--text)}
 .race-card--cx {grid-template-columns:32px minmax(0,1fr)}
 .race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
 .race-card--cx .race-card__main {grid-column:2;grid-row:1;padding-right:0}
@@ -67,10 +71,11 @@
 .cx-category-section {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + 1rem);margin-bottom:16px;overflow:hidden}.cx-category-content {padding:10px 12px}.cx-category-header p {font-size: var(--fs-3);color:var(--text-muted);margin:0}.cx-category-section .res-table-wrap {width:100%;max-width:none;padding:.4rem 0}.cx-category-section .res-publication {padding:.3rem 0}.cx-category-content>h3 {font: 600 var(--fs-3) var(--font-body);margin:1rem 0 .5rem}
 .cx-category-section[hidden], [data-cx-general][hidden] {display:none!important}
 .cx-classification-nav.res-stages {width:100%;margin:0 0 12px}
-#cxRaceContent .cx-category-nav,#cxAgendaContent .cx-category-nav {width:var(--page-width);max-width:var(--content-max);margin:0 auto}
+#cxRaceContent .cx-category-nav {width:100%;max-width:none;margin:0 0 .5rem}
+#cxAgendaContent .cx-category-nav {width:var(--page-width);max-width:var(--content-max);margin:0 auto .5rem}
 /* Secciones y categorías fijas bajo la navegación; la fila de columnas de las tablas se fija debajo. */
-#cxRaceContent>.cx-sticky-nav {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h));z-index:21;background:var(--bg)}
-#cxRaceContent>.cx-sticky-nav>.res-tabs-bar {position:static}
+#cxRaceContent .cx-sticky-nav {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h));z-index:21;background:var(--bg)}
+#cxRaceContent .cx-sticky-nav>.res-tabs-bar {position:static}
 [data-cx-section][hidden],[data-cx-classification-content][hidden],[data-cx-startlist-category][hidden],[data-cx-general-section][hidden] {display:none!important}
 .cx-race-sections>.jornada-section {width:100%;max-width:none;padding-inline:0}
 .cx-classification-page .res-td--rider .so-flag {display:inline-flex;flex:0 0 auto;margin-right:.4rem}
@@ -154,6 +159,9 @@
 /* Tira de documentos de la jornada CX, igual que en carretera. */
 .cx-race-docs {margin-bottom:0}
 .cx-race-docs .asset-links-wrap {margin:0}
+/* Desde 1360 px los documentos van en la columna lateral (race-side-links) y la
+   tira de la columna principal sobra. */
+@media(min-width:1360px){.race-layout .cx-race-docs {display:none}}
 
 /* Sin logo (Campeonatos Nacionales): la bandera arriba, junto a la primera
    línea del nombre, como en las apps. */
@@ -161,8 +169,6 @@
 .race-card--cx .race-card__logo--without-logo [data-cx-logo-race] {display:none}
 
 .race-card--cx .race-card__sub a {color:inherit;text-decoration:none}.race-card--cx .race-card__sub a:hover {text-decoration:underline}
-
-.cx-round-badge {font-size: var(--fs-1);font-weight:400;color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* Prueba sin horarios: los indicadores de categoría pasan a badges con la
    estética de la vista Hoy, con el mismo tinte neutro que los cuadros. */
@@ -199,8 +205,16 @@
 .cx-context-map .cx-map-preview img {max-height:420px;object-fit:contain}
 /* Hasta que el mapa recibe sus dimensiones (js/cx-race.js). */
 .cx-results-context--pending {visibility:hidden}
+/* Horarios de la columna lateral: cada fila lleva los badges de Lista y
+   Resultados junto a la hora; la de la categoría seleccionada, en negrita. */
 .cx-results-context .res-stage-data dl>div {padding:2px 0}
-.cx-results-context .res-stage-data__active dt,.cx-results-context .res-stage-data__active dd {color:var(--text);font-weight:700}
+.cx-schedule__row {align-items:center}
+.cx-schedule__row dd {display:flex;align-items:center;gap:.5rem}
+.cx-schedule__icons {display:inline-flex;align-items:center;gap:.25rem}
+.cx-schedule__icons .badge {text-decoration:none}
+.cx-schedule__icons .badge--icon {width:1.75rem;height:1.75rem}
+.cx-schedule__icons .badge--icon svg {width:1.15rem;height:1.15rem}
+.cx-schedule__row--active dt,.cx-schedule__row--active dd {color:var(--text);font-weight:700}
 /* «vuelta perdida» / «-2 vueltas» van en una línea, con la altura de las
    demás filas, dentro de la tabla. La columna de tiempo de ancho fijo (5,75rem
    en escritorio, 4,4rem en móvil) se ensancha solo en las tablas que tienen
@@ -238,6 +252,21 @@ html.light .cx-standings-table--rounds .res-th--rank,html.light .cx-standings-ta
 @media(max-width:600px){.cx-standings-table--rounds .res-th--rank,.cx-standings-table--rounds .res-td--rank {width:2rem;min-width:2rem}.cx-standings-table--rounds .res-th--rider,.cx-standings-table--rounds .res-td--rider {left:2rem;min-width:9rem;max-width:11rem}.cx-th--round,.cx-td--round {width:2.2rem;min-width:2.2rem}}
 /* Secciones de la página de torneo dentro de su cabecera fija. */
 .cx-agenda-sticky .res-tabs-bar {position:static}
+/* Página de torneo en el marco de columnas de carretera (.race-layout, js/cx-agenda-html.js):
+   los bloques ocupan el ancho de su columna (la página entera por debajo de 1360 px). */
+#cxAgendaContent .race-layout :is(#cxAgendaError,.cx-tournament-list,.cx-tournament-standings,.cx-category-nav) {width:100%;max-width:none;margin:0}
+#cxAgendaContent .race-layout .cx-category-nav {margin-bottom:.5rem}
+#cxAgendaContent .race-header__facts:empty {display:none}
+/* Sin pruebas ni general, la tarjeta de la lista lateral no se muestra; sin general, la última prueba no lleva filete. */
+#cxAgendaContent .cx-tournament-nav:not(:has(li,[data-cx-tournament-general]:not([hidden]))) {display:none}
+#cxAgendaContent .cx-tournament-nav:not(:has([data-cx-tournament-general]:not([hidden]))) li:last-child {border-bottom:0}
+/* Por debajo de 1360 px la cabecera sigue fija sobre las secciones, como antes de la columna lateral:
+   js/ciclocross.js mide su alto en --cx-tournament-header-h y baja las secciones bajo ella. */
+@media(max-width:1359px){
+  #cxAgendaContent .race-layout {padding-top:0}
+  #cxAgendaContent .race-layout .race-header {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--giro-h,0px));z-index:90;background:var(--bg)}
+  #cxAgendaContent .race-layout .cx-agenda-sticky {top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--giro-h,0px) + var(--cx-tournament-header-h,0px))}
+}
 .cx-tournament-standings {width:var(--page-width);max-width:var(--content-max);margin:0 auto;box-sizing:border-box}
 .cx-tournament-standings .res-table-wrap {width:100%;max-width:none}
 /* Indicador de desplazamiento de la general con rondas: degradado hacia el

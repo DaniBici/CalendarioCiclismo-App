@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
 import androidx.window.layout.FoldingFeature
-import kotlin.math.abs
 import kotlin.math.max
 
 enum class AdaptiveWidthClass { Compact, Medium, Expanded }
@@ -106,15 +105,6 @@ object AdaptiveLayoutPolicy {
 
     fun usesWideDetail(containerWidthDp: Float, info: AdaptiveLayoutInfo): Boolean =
         info.supportsTwoPanes && containerWidthDp >= DETAIL_MIN_DP
-
-    /** Elige un límite entre bloques completos minimizando la diferencia de carga. */
-    fun balancedBlockBreak(counts: List<Int>): Int {
-        if (counts.size < 2) return counts.size
-        val total = counts.sum()
-        return (1 until counts.size).minBy { boundary ->
-            abs(total - 2 * counts.take(boundary).sum())
-        }
-    }
 
     fun <T> rows(items: List<T>, columns: Int): List<Row<T>> {
         if (columns <= 1) return items.map { Row(listOf(it), true) }

@@ -37,54 +37,53 @@
   padding-inline: 0;
 }
 
-/* Selector de etapa: botones pequeños dentro del flujo. */
+/* Selector de etapa y de categoría de ciclocross: banda enmarcada como la tira de
+   documentos (superficie de tarjeta, filetes de 1px entre celdas, flechas en el
+   mismo fondo). Las celdas conservan el ancho de su texto; en móvil (hasta
+   760px), si caben, se reparten el ancho a partes iguales, como en las apps. Si
+   no caben (21 etapas), la banda es un carril con flechas (js/scroll-rail.js). */
 .res-stages {
   display: flex;
   width: var(--page-width);
-  margin-inline: auto;
-  background: var(--bg);
+  margin: 0 auto 0.5rem;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--rail-bg);
+  box-shadow: var(--rail-shadow);
 }
 .res-stages[hidden] { display: none; }
 .res-stages__inner {
+  position: relative;
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.35rem;
-  width: var(--page-width);
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: 0.4rem 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  scroll-padding-inline: 1.5rem;
-}
-.res-stages .res-stages__inner {
-  width: auto;
   flex: 1;
+  flex-wrap: nowrap;
   min-width: 0;
-  padding: 6px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
 }
 .res-stages__inner::-webkit-scrollbar { display: none; }
 .res-stage-btn {
   flex: 0 0 auto;
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.55rem;
+  min-width: 2.25rem;
+  min-height: 40px;
+  padding: 0 0.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-size: var(--fs-3);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
-  background: var(--bg-card);
-  border-radius: var(--radius-pill);
+  background: transparent;
   text-decoration: none;
   transition: color var(--transition), background var(--transition);
 }
-/* Etapas y categorías: mismo aspecto que los filtros de Hoy. */
-.res-stage-btn:hover { color: var(--text); background: var(--bg-card-hover); }
-.res-stage-btn--active, .res-stage-btn--active:hover { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
+.res-stage-btn:hover { color: var(--text); background: var(--hover-bg); }
+.res-stage-btn--active, .res-stage-btn--active:hover { color: var(--text); font-weight: 700; box-shadow: inset 0 -2px 0 var(--text); }
+@media (max-width: 760px) {
+  .res-stage-btn { flex: 1 0 36px; min-width: max-content; min-height: 48px; padding: 0 8px; }
+}
 
 /* Pestañas de clasificación y filtro por equipo. El carril exterior pinta el
    fondo a sangre (la fila interior está acotada y centrada); queda fijo bajo la
@@ -112,7 +111,12 @@
   flex: 1 1 320px;
   min-width: 0;
   overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--rail-bg);
+  box-shadow: var(--rail-shadow);
 }
+/* Sin superficie (oscuro) las pestañas llevan una base; en claro basta la tarjeta. */
+html:not(.light) .res-tabs__scroll { border-radius: 0; border-bottom: 1px solid var(--border); }
 .res-tabs__inner {
   display: flex;
   flex: 1;
@@ -124,7 +128,7 @@
 .res-tabs__inner::-webkit-scrollbar { display: none; }
 /* El desplegable llega con la tabla: su alto (.res-teamfilter__select) queda
    reservado desde el primer pintado y la barra no crece. */
-.res-tabs__filter { flex: 0 0 auto; max-width: 100%; min-height: 36px; margin-left: auto; }
+.res-tabs__filter { flex: 0 0 auto; max-width: 100%; min-height: 32px; margin-left: auto; }
 /* Carreras de un día: sin pestañas, el estado ocupa el lado izquierdo de la
    fila del filtro. */
 .res-tabs__scroll:not(:has(.res-tab)) { display: none; }
@@ -160,28 +164,107 @@
 /* Activa como el menú principal: texto y subrayado de acento, sin fondo. */
 .res-tab--active {
   color: var(--text);
-  border-bottom: 2px solid var(--accent-text);
+  border-bottom: 2px solid var(--text);
   font-weight: 700;
 }
-/* Filtro por equipo: mismo desplegable que .agenda-sort-select. */
+/* Clasificaciones de la carrera (#resTabs; las secciones de ciclocross conservan
+   el estilo de arriba): la banda de pestañas ocupa su propia línea, con la
+   superficie y los filetes de la tira de documentos, y debajo va la línea de
+   estado con el filtro de equipos en el extremo derecho. Las pestañas
+   conservan el ancho de su texto; en móvil (hasta 760px), si caben, cada una
+   ocupa el 1/n; si no, la banda es un carril con flechas. */
+#resTabs { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0; }
+/* Espacio común entre los bloques de la página de resultados: 8px (0,5rem), también entre la barra fija y la tabla. */
+#resTableWrap { padding-top: 0.5rem; }
+/* Sin selector de etapas (carreras de un día), el relleno de la barra fija ya deja
+   los 8px bajo los documentos. !important porque el margen de la tira es inline. */
+.asset-links-wrap:has(+ .res-stages[hidden]) { margin-bottom: 0 !important; }
+/* Entre la banda de etapas y la de clasificaciones solo queda el relleno de la barra fija (8px). */
+.res-stages:has(+ .res-layout #resTabs) { margin-bottom: 0; }
+#resTabs .res-tabs__scroll {
+  flex: 1 0 100%;
+  min-height: 40px;
+}
+#resTabs .res-tabs__inner { gap: 0; overscroll-behavior-inline: contain; }
+#resTabs .res-tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 14px 0;
+}
+/* El color del maillot va pegado al borde superior de la celda. */
+#resTabs .res-tab[style*="--class-color"]::before { top: 0; left: 0; right: 0; box-shadow: none; }
+#resTabs .res-tabs__status { flex: 1 1 0; min-width: 0; }
+#resTabs .res-tabs__filter { flex: 0 1 auto; min-width: 0; max-width: 60%; min-height: 32px; margin-left: auto; }
+#resTabs .res-publication-line { align-items: baseline; gap: 2px 8px; }
+#resTabs .res-publication-line strong { font-size: var(--fs-3); }
+@media (max-width: 760px) {
+  #resTabs .res-tabs__scroll { min-height: 48px; }
+  #resTabs .res-tab { flex: 1 1 0; min-width: max-content; padding: 3px 8px 0; }
+}
+
+/* Filtro por equipo, como el de las apps: píldora de 32px con «Equipo ▾» en
+   reposo; con un equipo elegido, su nombre sobre acento al 15 %. El
+   desplegable sigue siendo el nativo: en reposo su texto se oculta y el CSS
+   pinta el rótulo corto (data-label). */
+.res-teamfilter { position: relative; display: inline-flex; max-width: 100%; vertical-align: middle; }
 .res-teamfilter__select {
-  min-height: 36px;
+  height: 32px;
+  min-height: 32px;
   max-width: 100%;
-  padding: 7px 30px 7px 10px;
-  border: 0;
+  padding: 0 28px 0 12px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
   font: 600 var(--fs-3) var(--font-body);
   color: var(--text);
   text-overflow: ellipsis;
   background-color: var(--bg-card);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.65rem center;
+  background-position: right 0.55rem center;
   cursor: pointer;
   appearance: none;
 }
-.res-teamfilter__select:hover { color: var(--accent-text); }
+.res-teamfilter__select option { color: var(--text); background: var(--bg-card); }
+@supports (field-sizing: content) { .res-teamfilter__select { field-sizing: content; } }
+.res-teamfilter:not(:has(option:checked:not([value=""]))) .res-teamfilter__select { width: 6rem; color: transparent; }
+.res-teamfilter:not(:has(option:checked:not([value=""])))::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  transform: translateY(-50%);
+  font: 600 var(--fs-3) var(--font-body);
+  color: var(--text);
+  pointer-events: none;
+}
+.res-teamfilter:has(option:checked:not([value=""])) .res-teamfilter__select {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--accent) 15%, var(--bg-card));
+}
+.res-teamfilter:hover .res-teamfilter__select { background-color: var(--bg-card-hover); }
+/* Con un equipo elegido, la ✕ ocupa el sitio de la flecha y lo quita. */
+.res-teamfilter__clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+.res-teamfilter__clear:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.res-teamfilter__clear:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+.res-teamfilter:has(option:checked:not([value=""])) .res-teamfilter__clear { display: inline-flex; }
+.res-teamfilter:has(option:checked:not([value=""])) .res-teamfilter__select { padding-right: 34px; background-image: none; }
 
 /* Avisos de la clasificación. Etapa cancelada: la pestaña «Etapa» no tiene
    tabla; mismo lenguaje que el aviso de la jornada. */
@@ -414,10 +497,10 @@ html.light .res-table thead .so-th { background: #fff; }
   display: block;
   padding: 10px 12px;
   font: 600 var(--fs-2) var(--font-body);
-  color: var(--accent-text);
+  color: var(--text);
   text-decoration: none;
 }
-.video-card__go:hover { background: var(--hover-bg); }
+.video-card__go:hover { background: var(--hover-bg); text-decoration: underline; text-underline-offset: 3px; }
 /* Una sola columna de hasta 760px, centrada, a cualquier ancho, como la lista
    de Vídeos de las apps en iPad y tabletas: sin la rejilla de dos columnas de
    .feed-day desde 761px. El conmutador se alinea con la columna. */
@@ -447,6 +530,12 @@ html.light .res-table thead .so-th { background: #fff; }
 /* Con Ciclocross, Carretera y Ránking UCI, las vistas forman el conmutador de
    Hoy (`.discipline-switch`, css/app.css). */
 .feed-hero > .feed-view-switch { margin-bottom: 0.4rem; }
+/* «Filtros» (los de Hoy y Calendario) a la derecha de las vistas; el Ránking
+   UCI no lo lleva. La página publicada oculta las filas que no pasan. */
+.feed-hero:has(.feed-filter-slot) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.feed-hero > .feed-filter-slot { margin-left: auto; margin-bottom: 0.4rem; }
+.feed-hero > .feed-view-tabs + .feed-filter-slot { margin-bottom: 0; }
+.feed-filter-slot[hidden], .feed-row[hidden], .feed-day[hidden] { display: none; }
 /* Mientras carga, el panel conserva la altura de la pantalla: el pie no sube. */
 #resultsFeedPanel:has(> .loading) { min-height: calc(100svh - 200px); }
 .feed-hero > .feed-view-tabs .feed-view-tab,
@@ -542,6 +631,11 @@ button.feed-row {
   white-space: nowrap;
 }
 .feed-row__winner strong { font-weight: 650; }
+/* Código de categoría de ciclocross junto al ganador: sin relleno vertical,
+   para que la línea mida lo mismo que la del ganador de carretera. */
+.feed-row__winner .badge { padding-block: 0; }
+/* Equipo del ganador o del líder, entre paréntesis y en peso normal. */
+.feed-row__team { font-weight: 400; color: var(--text-muted); }
 .feed-row__flag { display: inline-flex; flex-shrink: 0; width: 1.4em; }
 .feed-row__flag img {
   width: 1.25em;
@@ -595,6 +689,11 @@ button.feed-row {
 }
 /* «Etapa X» en negrita dentro de la línea de recorrido. */
 .feed-row__sub strong { font-weight: 650; color: var(--text); }
+/* Ronda de ciclocross («2/8») en la línea secundaria del feed; también la usa la agenda de ciclocross. */
+.cx-round-badge { font-size: var(--fs-1); font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Hoy y Últimos resultados: número de manga en negrita y gris, torneo en negrita y color de texto. */
+.cx-round-badge--strong { font-weight: 700; }
+.feed-row__tournament { font-weight: 700; color: var(--text); }
 .feed-row__chevron { color: var(--text-dim); font-size: var(--fs-4); flex-shrink: 0; }
 /* Destacada de una vuelta por etapas (FeedRowView en las apps): divisor y
    clasificaciones complementarias debajo. */
@@ -646,7 +745,8 @@ button.feed-row {
   background: var(--accent-dim);
   border: none;
   border-radius: var(--radius-pill);
-  padding: 0.55rem 1.4rem;
+  min-height: var(--control-h-lg);
+  padding: 0 1.4rem;
   cursor: pointer;
   transition: background var(--transition);
 }
@@ -991,20 +1091,9 @@ html.light .uci-ranking-table { background: #fff; }
 }
 
 @media (min-width: 1100px) {
-  /* La ficha de carrera permanece visible; documentos y selector de etapa
-     siguen el flujo, y las pestañas y el thead se fijan debajo de la ficha
-     (--results-race-header-h, medido en resultados.js). La columna lateral
-     también baja bajo la ficha. */
-  #resultsContent > .race-header {
-    position: sticky;
-    top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
-    z-index: 60;
-    background: var(--bg);
-    /* Fondo a sangre: sin él, la sombra de la tabla asoma en los márgenes junto
-       al logo y la bandera. */
-    box-shadow: 0 0 0 100vmax var(--bg);
-    clip-path: inset(0 -100vmax);
-  }
+  /* La ficha de carrera vive en la columna lateral de la ficha (race-layout) y
+     no se fija sobre las pestañas: estas y el thead se fijan bajo la
+     navegación (--results-race-header-h, a 0 en resultados.js). */
   .res-tabs-bar {
     top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px));
   }

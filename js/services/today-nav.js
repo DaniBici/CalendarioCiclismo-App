@@ -1,8 +1,7 @@
 // Qué carreras hay un día y a qué día saltar, sin DOM: lo usan Hoy (js/app.js) y la
 // publicación por página.
 import { toDateKey } from '../shared.js';
-import { isTourDelPorvenir, isGenderNeutral } from '../category-filter.js';
-import { championshipMatchesCategoryFilter } from '../campeonatos-config.js';
+import { roadRaceMatches } from '../race-filters.js';
 import { annotateDoubleSectors, buildInhouseResultsMatcher } from './races.js';
 
 export const ACTIVE_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,colorHex,logoUrl,hideFlag,isCancelled,isNoClickable';
@@ -64,68 +63,31 @@ export function theoreticalStageNumber(race, dateKey) {
   return stage;
 }
 
-const EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RS','RU','SE','SI','SK','SM','TR','UA','VA','XK']);
-
-function isMixedRelayChampionship(race) {
-  return ['WC', 'CC'].includes(race?.uciCategory || '')
-    && /relevo mixto|mixed relay/i.test(race?.name || '');
-}
-
-/** Comprueba si una carrera coincide con un filtro de categoría. La usan la
- *  lista del día (applyAgendaFilters) y la navegación entre días. */
-export function matchesCategoryFilter(race, cat) {
-  if (cat === 'all') return true;
-  const uci = race.uciCategory || '';
-  const gender = race.gender || '';
-  const cc = (race.countryCode || '').toUpperCase();
-
-  // Campeonatos Nacionales: élite cuenta como pro / por género; sub23 fuera.
-  if (uci === 'CN') return championshipMatchesCategoryFilter(race, cat);
-
-  let base = false;
-  if (cat === 'pro')    base = ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(uci)
-    || (['1.2U','2.2U'].includes(uci) && isTourDelPorvenir(race.name));
-  if (cat === 'uwt')    base = uci === '1.UWT' || uci === '2.UWT';
-  if (cat === 'wwt')    base = uci === '1.WWT' || uci === '2.WWT';
-  if (cat === 'male')   base = (gender === 'male' || isGenderNeutral(race) || isMixedRelayChampionship(race))
-    && !['1.2','2.2'].includes(uci)
-    && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name));
-  if (cat === 'female') base = (gender === 'female' || isGenderNeutral(race) || isMixedRelayChampionship(race))
-    && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name))
-    && (uci !== '1.2' && uci !== '2.2' || EUROPE.has(cc));
-  if (!base) return false;
-
-  // Ocultar CC que no sean Campeonato de Europa (igual que applyAgendaFilters)
-  if (uci === 'CC') {
-    return /europa|europe/i.test(race.name || '');
-  }
-  return true;
-}
-
-/** Busca el siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
-export function findNextDayWithRaces(afterDateKey, cat, yearRaces) {
+/** Busca el siguiente día con carreras que pasen los filtros (roadRaceMatches;
+ *  sin `filters`, cualquiera). Escanea hasta 180 días. */
+export function findNextDayWithRaces(afterDateKey, filters, yearRaces) {
   if (!yearRaces.length) return null;
   let [y, m, d] = afterDateKey.split('-').map(Number);
   for (let i = 0; i < 180; i++) {
     const dt = new Date(y, m - 1, d + 1 + i);
     const dk = toDateKey(dt);
     const hasMatch = yearRaces.some(race =>
-      !race.isCancelled && isRaceDay(race, dk) && matchesCategoryFilter(race, cat)
+      !race.isCancelled && isRaceDay(race, dk) && roadRaceMatches(race, filters)
     );
     if (hasMatch) return dk;
   }
   return null;
 }
 
-/** Busca el día anterior con carreras que coincidan con el filtro (escanea hasta 180 días). */
-export function findPrevDayWithRaces(beforeDateKey, cat, yearRaces) {
+/** Busca el día anterior con carreras que pasen los filtros (escanea hasta 180 días). */
+export function findPrevDayWithRaces(beforeDateKey, filters, yearRaces) {
   if (!yearRaces.length) return null;
   let [y, m, d] = beforeDateKey.split('-').map(Number);
   for (let i = 0; i < 180; i++) {
     const dt = new Date(y, m - 1, d - 1 - i);
     const dk = toDateKey(dt);
     const hasMatch = yearRaces.some(race =>
-      !race.isCancelled && isRaceDay(race, dk) && matchesCategoryFilter(race, cat)
+      !race.isCancelled && isRaceDay(race, dk) && roadRaceMatches(race, filters)
     );
     if (hasMatch) return dk;
   }

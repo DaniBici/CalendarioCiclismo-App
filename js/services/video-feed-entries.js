@@ -28,7 +28,7 @@ function compareRoad(a, b) {
   const cn = compareChampionships(a.race, a.rd, b.race, b.rd);
   if (cn != null && cn !== 0) return cn;
   return (grandTourRank(a.race) - grandTourRank(b.race))
-    || (categoryRank(a.race.uciCategory, a.race.name, a.race.countryCode) - categoryRank(b.race.uciCategory, b.race.name, b.race.countryCode))
+    || (categoryRank(a.race.uciCategory, a.race.name) - categoryRank(b.race.uciCategory, b.race.name))
     || (genderRank(a.race.gender) - genderRank(b.race.gender))
     || ((tsSeconds(a.rd.neutralStartTimeUtc) ?? Infinity) - (tsSeconds(b.rd.neutralStartTimeUtc) ?? Infinity))
     || String(a.race.name || '').localeCompare(String(b.race.name || ''));

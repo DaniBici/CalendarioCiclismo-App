@@ -37,71 +37,107 @@ struct ResultsPlainHeader: View {
     }
 }
 
-/// Selector de etapa: P · 1 · 2 · … · F, con el aspecto de los filtros de Hoy
-/// (`.res-stage-btn`). Compartido con Ciclocross (categorías y meses).
+/// Separador entre celdas de una banda: filete de 1 pt a altura completa, el de
+/// la tira de documentos (`ActionStripTile`).
+private struct ResultsBandSeparator: View {
+    var body: some View {
+        Rectangle().fill(AppTheme.border).frame(width: 1)
+    }
+}
+
+/// Celda de la banda de etapas y de categorías: el fondo de banda de las demás
+/// celdas y de las zonas de flecha; la activa lleva el acento al 15 % y el
+/// texto de acento.
+private struct ResultsBandCell: View {
+    let label: String
+    let selected: Bool
+    var accessibilityLabel: String? = nil
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(label)
+                .ccFont(.s14, weight: selected ? .bold : .semibold)
+                .foregroundStyle(selected ? Color.accentColor : Color(.secondaryLabel))
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .frame(minWidth: 44, maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    ZStack {
+                        AppTheme.railBackground
+                        if selected { Color.accentColor.opacity(0.15) }
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel ?? label)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+/// Selector de etapa (P · 1 · 2 · … · F) y de categoría de Ciclocross: banda
+/// enmarcada como la tira de documentos. Si las celdas caben, la banda ocupa
+/// el 100 % del ancho y cada una el 1/n (con cuatro categorías, el 25 %); si no
+/// caben (21 etapas), es un carril con flechas que centra la celda activa.
 struct ResultsStageSelector: View {
     let stageKeys: [String]
     let activeKey: String?
     let onSelect: (String) -> Void
     var labelForKey: ((String) -> String)? = nil
-    var subtitleForKey: ((String) -> String)? = nil
     var accessibilityLabelForKey: ((String) -> String)? = nil
-    var dateNavigationStyle = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Con letra grande la banda crece con ella, como la tira de documentos.
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
+
+    private static let height: CGFloat = 48
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(stageKeys, id: \.self) { key in
-                        // "final"→F · "0"→P · "3"/"3A" → el número con su sufijo de sector.
-                        let label: String = {
-                            if let labelForKey { return labelForKey(key) }
-                            if key == "final" { return LocaleService.t("F", "F") }
-                            let p = UciResultsLogic.parseResultStageKey(key)
-                            if p.stageNumber == 0 { return "P" }
-                            return "\(p.stageNumber.map(String.init) ?? "")\(p.suffix)"
-                        }()
-                        let accessibilityLabel: String = {
-                            if let accessibilityLabelForKey { return accessibilityLabelForKey(key) }
-                            if key == "final" {
-                                return LocaleService.t("Clasificación final", "Final classification")
-                            }
-                            let p = UciResultsLogic.parseResultStageKey(key)
-                            if p.stageNumber == 0 {
-                                return LocaleService.t("Prólogo", "Prologue")
-                            }
-                            return LocaleService.t(
-                                "Etapa \(p.stageNumber.map(String.init) ?? "")\(p.suffix)",
-                                "Stage \(p.stageNumber.map(String.init) ?? "")\(p.suffix)"
-                            )
-                        }()
-                        ResultsPill(
-                            label: label,
-                            selected: key == activeKey,
-                            subtitle: subtitleForKey?(key),
-                            accessibilityLabel: accessibilityLabel,
-                            dateNavigationStyle: dateNavigationStyle
-                        ) { onSelect(key) }
-                            .id(key)
-                    }
-                }
-            }
-            // Autoscroll: en etapas avanzadas (p. ej. la 18 de un GT) la píldora
-            // seleccionada queda fuera de pantalla; la traemos al centro al
-            // aparecer y cada vez que cambia la etapa activa.
-            .onAppear { scrollToActive(proxy, animated: false) }
-            .onChange(of: activeKey) { _, _ in scrollToActive(proxy, animated: true) }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) { cells }
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.height * textScale)
+                .ccCardSurface()
+            ResultsScrollRail(
+                height: Self.height, spacing: 0, framed: true,
+                scrollTarget: activeKey.map { AnyHashable($0) }
+            ) { cells }
         }
     }
 
-    private func scrollToActive(_ proxy: ScrollViewProxy, animated: Bool) {
-        guard let key = activeKey else { return }
-        if animated && !reduceMotion {
-            withAnimation { proxy.scrollTo(key, anchor: .center) }
-        } else {
-            proxy.scrollTo(key, anchor: .center)
+    @ViewBuilder private var cells: some View {
+        ForEach(Array(stageKeys.enumerated()), id: \.element) { index, key in
+            ResultsBandCell(
+                label: label(for: key),
+                selected: key == activeKey,
+                accessibilityLabel: accessibilityLabel(for: key)
+            ) { onSelect(key) }
+                .id(key)
+            if index < stageKeys.count - 1 { ResultsBandSeparator() }
         }
+    }
+
+    /// "final"→F · "0"→P · "3"/"3A" → el número con su sufijo de sector.
+    private func label(for key: String) -> String {
+        if let labelForKey { return labelForKey(key) }
+        if key == "final" { return LocaleService.t("F", "F") }
+        let p = UciResultsLogic.parseResultStageKey(key)
+        if p.stageNumber == 0 { return "P" }
+        return "\(p.stageNumber.map(String.init) ?? "")\(p.suffix)"
+    }
+
+    private func accessibilityLabel(for key: String) -> String {
+        if let accessibilityLabelForKey { return accessibilityLabelForKey(key) }
+        if key == "final" {
+            return LocaleService.t("Clasificación final", "Final classification")
+        }
+        let p = UciResultsLogic.parseResultStageKey(key)
+        if p.stageNumber == 0 {
+            return LocaleService.t("Prólogo", "Prologue")
+        }
+        return LocaleService.t(
+            "Etapa \(p.stageNumber.map(String.init) ?? "")\(p.suffix)",
+            "Stage \(p.stageNumber.map(String.init) ?? "")\(p.suffix)"
+        )
     }
 }
 
@@ -203,78 +239,180 @@ extension View {
     }
 }
 
-/// Barra de pestañas de clasificación + menú de filtro por equipo.
+/// Pestaña de la banda de clasificaciones: el color del maillot, si la
+/// clasificación lo declara, va pegado al borde superior de la celda (Etapa y
+/// Equipos no lo llevan); la activa, con texto principal en negrita y
+/// subrayado de acento de 2 pt; las inactivas, en gris.
+private struct ResultsBandTab: View {
+    let label: String
+    let selected: Bool
+    let tint: Color?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                (tint ?? Color.clear).frame(height: 3)
+                Text(label)
+                    .ccFont(.s13, weight: selected ? .bold : .semibold)
+                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, minHeight: 39, maxHeight: .infinity)
+                Rectangle()
+                    .fill(selected ? Color.accentColor : Color.clear)
+                    .frame(height: 2)
+            }
+            .background(AppTheme.railBackground)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+/// Banda de pestañas de clasificación: mismo fondo y mismos separadores que la
+/// de etapas. Si caben, cada pestaña ocupa el 1/n del ancho; si no, carril con
+/// flechas que centra la activa.
 struct ResultsClassTabsBar: View {
     let stages: [RaceUciStage]
     let classificationConfig: [RaceClassificationConfig]
     let activeClassKind: String
-    let teamsAvailable: [String]
-    let selectedTeam: String?
     let onSelectClass: (String) -> Void
-    let onSelectTeam: (String?) -> Void
-    /// Clasificación activa: sin pestañas (carreras de un día), su estado
-    /// (Oficial/Provisional) ocupa la izquierda de la fila del filtro.
-    var publicationStage: RaceUciStage? = nil
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
+
+    private static let height: CGFloat = 44
 
     var body: some View {
-        HStack(spacing: 6) {
-            if stages.count > 1 {
-                ResultsScrollRail(height: 44, spacing: 6, scrollTarget: AnyHashable(activeClassKind)) {
-                    ForEach(stages) { st in
-                        let config = classificationConfig.first { $0.classKind == st.classKind }
-                        let tint = UciResultsLogic.classificationColor(config).map { Color(hex: $0) }
-                        ResultsClassificationTab(
-                            label: config.map { UciResultsLogic.classificationLabel($0, isEn: LocaleService.shouldShowEnglishContent) }
-                                ?? resultsClassLabel(st.classKind),
-                            selected: st.classKind == activeClassKind,
-                            tint: tint
-                        ) { onSelectClass(st.classKind) }
-                        .id(st.classKind)
-                    }
-                }
-            } else if let publicationStage {
-                ResultsPublicationStatus(
-                    stage: publicationStage,
-                    classificationLabel: "",
-                    showClassificationLabel: false
-                )
-            } else {
-                Spacer()
-            }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) { tabs }
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.height * textScale)
+                .ccCardSurface()
+            ResultsScrollRail(
+                height: Self.height, spacing: 0, framed: true,
+                scrollTarget: AnyHashable(activeClassKind)
+            ) { tabs }
+        }
+    }
 
-            // Filtro por equipo (solo si hay ≥2 equipos en la clasificación),
-            // separado de las pestañas por un divisor vertical.
-            if teamsAvailable.count >= 2 {
-                if stages.count > 1 {
-                    Divider().frame(height: 22)
-                }
-                let allLabel = LocaleService.t("Todos los equipos", "All teams")
-                Menu {
-                    Button(allLabel) { onSelectTeam(nil) }
-                    ForEach(teamsAvailable, id: \.self) { tn in
-                        Button(tn) { onSelectTeam(tn) }
-                    }
-                } label: {
-                    // Desplegable como `.res-teamfilter__select`: superficie de
-                    // tarjeta, texto principal y flecha gris.
-                    HStack(spacing: 6) {
-                        Text(selectedTeam ?? allLabel)
-                            .ccFont(.s14, weight: .semibold)
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .frame(maxWidth: 140)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 44)
-                    .ccCardSurface()
-                }
-                .accessibilityLabel(LocaleService.t("Filtrar por equipo", "Filter by team"))
-                .accessibilityValue(selectedTeam ?? allLabel)
+    @ViewBuilder private var tabs: some View {
+        ForEach(Array(stages.enumerated()), id: \.element.id) { index, st in
+            let config = classificationConfig.first { $0.classKind == st.classKind }
+            ResultsBandTab(
+                label: config.map { UciResultsLogic.classificationLabel($0, isEn: LocaleService.shouldShowEnglishContent) }
+                    ?? resultsClassLabel(st.classKind),
+                selected: st.classKind == activeClassKind,
+                tint: UciResultsLogic.classificationColor(config).map { Color(hex: $0) }
+            ) { onSelectClass(st.classKind) }
+                .id(st.classKind)
+            if index < stages.count - 1 { ResultsBandSeparator() }
+        }
+    }
+}
+
+/// Línea de estado de la clasificación («General · Oficial») con el filtro de
+/// equipos en el extremo derecho. En las carreras de un día no hay pestañas y
+/// la línea solo lleva el estado. Reserva el alto del filtro desde el primer
+/// pintado: la lista de equipos llega con la tabla.
+struct ResultsStatusFilterRow: View {
+    let stage: RaceUciStage
+    let classificationLabel: String
+    let showClassificationLabel: Bool
+    let teamsAvailable: [String]
+    let selectedTeam: String?
+    let onSelectTeam: (String?) -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { status; filter }
+            VStack(alignment: .leading, spacing: 0) {
+                status
+                HStack { Spacer(minLength: 0); filter }
             }
         }
+        .frame(minHeight: 44)
+    }
+
+    private var status: some View {
+        ResultsPublicationStatus(
+            stage: stage,
+            classificationLabel: classificationLabel,
+            showClassificationLabel: showClassificationLabel
+        )
+    }
+
+    @ViewBuilder private var filter: some View {
+        if teamsAvailable.count >= 2 {
+            ResultsTeamFilter(teams: teamsAvailable, selected: selectedTeam, onSelect: onSelectTeam)
+        }
+    }
+}
+
+/// Filtro por equipo: «Equipo ▾» en reposo; con un equipo elegido, su nombre en
+/// una etiqueta de acento con una x que lo quita. La lista conserva «Todos los
+/// equipos» como primer elemento y marca el equipo elegido.
+private struct ResultsTeamFilter: View {
+    let teams: [String]
+    let selected: String?
+    let onSelect: (String?) -> Void
+
+    var body: some View {
+        let allLabel = LocaleService.t("Todos los equipos", "All teams")
+        let title = LocaleService.t("Equipo", "Team")
+        HStack(spacing: 0) {
+            Menu {
+                Picker(title, selection: Binding(get: { selected }, set: { onSelect($0) })) {
+                    Text(allLabel).tag(String?.none)
+                    ForEach(teams, id: \.self) { team in
+                        Text(team).tag(String?.some(team))
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selected ?? title)
+                        .ccFont(.s14, weight: .semibold)
+                        .lineLimit(1)
+                        // Mide lo que ocupa su texto, con tope de 140 pt.
+                        .frame(maxWidth: 140, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                    if selected == nil {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, selected == nil ? 12 : 4)
+                .frame(minHeight: 32)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel(LocaleService.t("Filtrar por equipo", "Filter by team"))
+            .accessibilityValue(selected ?? allLabel)
+
+            if selected != nil {
+                Button { onSelect(nil) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel(LocaleService.t("Quitar el filtro de equipo", "Clear team filter"))
+            }
+        }
+        .background(selected == nil ? AppTheme.cardBackground : Color.accentColor.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface, style: .continuous))
+        .overlay {
+            if selected == nil {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.surface, style: .continuous)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
+        }
+        // Objetivo táctil de 44 pt sin ensanchar la etiqueta.
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
     }
 }
 
@@ -305,21 +443,27 @@ extension EnvironmentValues {
     }
 }
 
-/// Tira de acciones enmarcada para pocas celdas (la ficha de ciclocross tiene
-/// como máximo Web oficial, Libro de ruta, Mapa y Notificaciones). Si cada
-/// celda conserva su ancho mínimo (`ActionStripTile.minimumWidth`), las celdas
-/// se reparten a partes iguales todo el ancho, sea cual sea el de la pantalla;
-/// si no caben, la tira es el carril con desplazamiento y flechas de siempre.
+/// Tira de acciones enmarcada de los documentos (jornada, clasificaciones,
+/// competición y ficha de ciclocross). Si cada celda conserva su ancho mínimo
+/// (`ActionStripTile.minimumWidth`), las celdas se reparten a partes iguales
+/// todo el ancho, sea cual sea el de la pantalla (tercios, mitades; una sola
+/// celda la ocupa entera), sin hueco a la derecha; si no caben, la tira es el
+/// carril con desplazamiento y flechas de siempre.
 struct ResultsFittingRail<Content: View>: View {
     let height: CGFloat
     @ViewBuilder let content: () -> Content
+    /// Con letra grande la tira crece con ella (las celdas, `ActionStripTile`, también).
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 0) { content() }
                 .environment(\.actionStripStretches, true)
+                // El filete final de la última celda queda 1 pt fuera de la
+                // banda, que lo recorta: sin él al repartir el ancho.
+                .padding(.trailing, -1)
                 .frame(maxWidth: .infinity)
-                .frame(height: height)
+                .frame(height: height * textScale)
                 .ccCardSurface()
             ResultsScrollRail(height: height, spacing: 0, framed: true) { content() }
         }
@@ -333,6 +477,9 @@ struct ResultsScrollRail<Content: View>: View {
     let height: CGFloat
     let spacing: CGFloat
     var framed = false
+    /// En la variante enmarcada (tira de acciones) el alto crece con la letra, como sus celdas.
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
+    private var railHeight: CGFloat { framed ? height * textScale : height }
     /// Elemento que debe quedar a la vista (p. ej. la pestaña activa tras
     /// cambiarla con un deslizamiento).
     var scrollTarget: AnyHashable? = nil
@@ -377,9 +524,9 @@ struct ResultsScrollRail<Content: View>: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: spacing) {
-                        Color.clear.frame(width: 1, height: height).id(Edge.leading)
+                        Color.clear.frame(width: 1, height: railHeight).id(Edge.leading)
                         content
-                        Color.clear.frame(width: 1, height: height).id(Edge.trailing)
+                        Color.clear.frame(width: 1, height: railHeight).id(Edge.trailing)
                     }
                 }
                 .onScrollGeometryChange(for: Metrics.self) { geometry in
@@ -391,6 +538,9 @@ struct ResultsScrollRail<Content: View>: View {
                     )
                 } action: { _, value in
                     metrics = value
+                }
+                .onAppear {
+                    if let target = scrollTarget { proxy.scrollTo(target, anchor: .center) }
                 }
                 .onChange(of: scrollTarget) { _, target in
                     guard let target else { return }
@@ -412,7 +562,7 @@ struct ResultsScrollRail<Content: View>: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: railHeight)
             .modifier(ResultsRailSurface(framed: framed))
         }
     }
@@ -423,7 +573,7 @@ struct ResultsScrollRail<Content: View>: View {
                 .font(.system(size: 14, weight: .semibold))
                 .frame(width: 44)
                 .frame(maxHeight: .infinity)
-                .background(Color.secondary.opacity(enabled ? 0.10 : 0.045))
+                .background(AppTheme.railBackground)
                 .contentShape(Rectangle())
                 .overlay(alignment: forward ? .leading : .trailing) {
                     Rectangle().fill(AppTheme.border).frame(width: 1)
@@ -476,51 +626,6 @@ struct ResultsClassificationTab: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-}
-
-/// Botón del selector de etapas (`.res-stage-btn`), con el aspecto de los
-/// filtros de Hoy: inactivo en gris sobre la superficie de tarjeta; activo con
-/// el acento al 15 % y texto de acento en negrita. Radio de control.
-private struct ResultsPill: View {
-    let label: String
-    let selected: Bool
-    var subtitle: String? = nil
-    var tint: Color? = nil
-    var accessibilityLabel: String? = nil
-    var dateNavigationStyle = false
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            // Con subtítulo (selector de meses CX) el mando es el mes: línea
-            // grande en color de texto; el año queda pequeño y atenuado.
-            VStack(spacing: 1) {
-                Text(label)
-                    .ccFont(.s14, weight: selected ? .bold : subtitle == nil ? .semibold : .medium)
-                    .foregroundStyle(selected ? (tint ?? Color.accentColor)
-                                     : subtitle == nil ? Color(.secondaryLabel) : Color.primary)
-                if let subtitle {
-                    Text(subtitle)
-                        .ccFont(.s12)
-                        .foregroundStyle(selected ? (tint ?? Color.accentColor) : Color(.secondaryLabel))
-                }
-            }
-                .padding(.horizontal, 9)
-                .frame(minWidth: 32, minHeight: 32)
-                .padding(.vertical, subtitle == nil ? 0 : 3)
-                .background(
-                    selected
-                        ? (tint ?? Color.accentColor).opacity(0.15)
-                        : dateNavigationStyle ? Color.clear : AppTheme.cardBackground,
-                    in: RoundedRectangle(cornerRadius: AppTheme.Radius.control)
-                )
-        }
-        .buttonStyle(.plain)
-        .frame(minWidth: 44, minHeight: 44)
-        .contentShape(Rectangle())
-        .accessibilityLabel(accessibilityLabel ?? label)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }

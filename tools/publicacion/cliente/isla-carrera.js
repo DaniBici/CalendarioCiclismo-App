@@ -1,9 +1,9 @@
 // Isla de las páginas de resultados por carrera: el HTML ya está completo. Cambia de
 // clasificación con un archivo publicado, filtra por equipo sobre el DOM, monta el perfil al
 // verlo y comprueba la versión mientras la carrera está en curso. Sin lecturas de Supabase.
-import { applyTeamFilter, bindTttGroups } from '../../../js/results/team-filter.js';
+import { applyTeamFilter, bindTeamFilterClear, bindTttGroups } from '../../../js/results/team-filter.js';
 import { limitScrollToStickyStart } from '../../../js/results/dom.js';
-import { installScrollRail } from '../../../js/scroll-rail.js';
+import { installScrollRail, centerRailItem } from '../../../js/scroll-rail.js';
 import { patchHtml } from '../../../js/dom-patch.js';
 import { cabeceraFija, seguirVersion, visorDocumentos, volver, vistaDePagina } from './comun.js';
 import { bindStageVideos } from '../../../js/stage/videos-panel.js';
@@ -18,8 +18,16 @@ visorDocumentos();
 // Vuelta: a la página de procedencia de otro apartado o al índice de resultados.
 volver(isEn ? '/en/results/' : '/resultados/', isEn ? 'All results' : 'Todos los resultados');
 
+function centrarActivas() {
+  const etapas = document.getElementById('resStagesInner'), pestanas = document.getElementById('resTabsInner');
+  centerRailItem(etapas, etapas?.querySelector('[data-active="true"]'));
+  centerRailItem(pestanas, pestanas?.querySelector('.res-tab--active'));
+}
+
 function montarInterfaz() {
   main.querySelectorAll('.res-tabs__scroll, #resStages').forEach(shell => installScrollRail(shell));
+  requestAnimationFrame(centrarActivas);
+  window.addEventListener('resize', centrarActivas);
   const tabla = document.getElementById('resTableWrap');
   if (tabla) bindTttGroups(tabla);
 }
@@ -41,6 +49,7 @@ document.getElementById('resTeamFilterSlot')?.addEventListener('change', evento 
   filtroEquipo = selector.value;
   aplicarFiltro();
 });
+bindTeamFilterClear(document.getElementById('resTeamFilterSlot'));
 
 // Clasificaciones de la página.
 let clases = null;
@@ -88,7 +97,7 @@ async function mostrarClase(tipo) {
     const activa = boton.dataset.class === tipo;
     boton.classList.toggle('res-tab--active', activa);
     boton.setAttribute('aria-pressed', String(activa));
-    if (activa) boton.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (activa) centerRailItem(boton.parentElement, boton, 'smooth');
   });
   pintarHuecos(partes);
   limitScrollToStickyStart(barra);

@@ -16,6 +16,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
+import app.calendariociclismo.android.ui.components.AppOverlays
 import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.ThemePreference
 import app.calendariociclismo.android.data.prefs.applyAsApplicationNightMode
@@ -37,9 +42,7 @@ import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.widget.today.TodayWidgetScheduler
 import app.calendariociclismo.android.ui.navigation.AppNavHost
 import app.calendariociclismo.android.ui.navigation.Routes
-import app.calendariociclismo.android.ui.onboarding.LanguageAnnouncementOnboardingScreen
-import app.calendariociclismo.android.ui.onboarding.NotificationOnboardingScreen
-import app.calendariociclismo.android.ui.onboarding.SupportIntroOnboardingScreen
+import app.calendariociclismo.android.ui.onboarding.WelcomeOnboardingScreen
 import app.calendariociclismo.android.ui.support.SupportSheet
 import app.calendariociclismo.android.ui.splash.SplashOverlay
 import app.calendariociclismo.android.ui.theme.CalendarioCiclismoTheme
@@ -162,7 +165,9 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
 
                 // ── Splash state (replica el patrón iOS de SplashView) ──
-                var showSplash by remember { mutableStateOf(true) }
+                // Se conserva al recrearse la actividad: elegir inglés en la
+                // bienvenida la recrea y el arranque no debe repetirse.
+                var showSplash by rememberSaveable { mutableStateOf(true) }
                 var splashDismissing by remember { mutableStateOf(false) }
 
                 // Mínimo 0.6 s de splash (igual que iOS), luego lanza el cierre.
@@ -197,12 +202,17 @@ class MainActivity : ComponentActivity() {
                     pendingDeepLink.value = null
                 }
 
-                // Onboarding: misma secuencia que iOS
-                // (idioma 2.1 → notificaciones → showcase; el paso de modo
-                // offline se retiró en 4.0 — la función vive solo en Ajustes)
-                var onboardingStep by remember { mutableStateOf<OnboardingStep?>(null) }
-                var supportIntroIsNewInstallation by remember { mutableStateOf(false) }
+                // Bienvenida única (idioma, notificaciones y apoyo): se
+                // muestra mientras quede algún paso sin responder. Se conserva
+                // al recrearse la actividad para que el cambio de idioma no
+                // deje ver la pestaña inicial un instante.
+                var welcomeVisible by rememberSaveable { mutableStateOf(false) }
+                var welcomeChecked by rememberSaveable { mutableStateOf(false) }
                 val supportVisible by app.premium.supportVisible.collectAsState()
+                // Burbujas de Hoy: solo sin arranque, bienvenida ni apoyo encima.
+                LaunchedEffect(welcomeChecked, welcomeVisible, showSplash, supportVisible) {
+                    AppOverlays.visible.value = !welcomeChecked || welcomeVisible || showSplash || supportVisible
+                }
 
                 LaunchedEffect(Unit) {
                     // Migración: si el usuario ya tiene push activado, marcar su
@@ -220,8 +230,8 @@ class MainActivity : ComponentActivity() {
                         app.preferences.setLanguageAnnouncementDone(true)
                     }
 
-                    supportIntroIsNewInstallation = app.preferences.initializeSupportIntroV43Audience()
-                    onboardingStep = nextOnboardingStep(app)
+                    welcomeVisible = welcomePending(app)
+                    welcomeChecked = true
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -235,30 +245,15 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                             AppNavHost(navController = navController)
 
-                            when (onboardingStep) {
-                                OnboardingStep.Language -> LanguageAnnouncementOnboardingScreen(
-                                    onDismiss = {
-                                        scope.launch {
-                                            onboardingStep = nextOnboardingStep(app)
-                                        }
-                                    },
+                            AnimatedVisibility(
+                                visible = welcomeVisible,
+                                enter = EnterTransition.None,
+                                exit = fadeOut(tween(600)),
+                            ) {
+                                WelcomeOnboardingScreen(
+                                    active = !showSplash,
+                                    onFinish = { welcomeVisible = false },
                                 )
-                                OnboardingStep.Notifications -> NotificationOnboardingScreen(
-                                    onDismiss = {
-                                        scope.launch {
-                                            onboardingStep = nextOnboardingStep(app)
-                                        }
-                                    },
-                                )
-                                OnboardingStep.SupportIntro -> SupportIntroOnboardingScreen(
-                                    isNewInstallation = supportIntroIsNewInstallation,
-                                    onDismiss = {
-                                        scope.launch {
-                                            onboardingStep = nextOnboardingStep(app)
-                                        }
-                                    },
-                                )
-                                else -> {} // null (loading) o Done
                             }
                         }
                     }
@@ -452,34 +447,11 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Paso del flujo de onboarding inicial.
- * El orden refleja la prioridad: el step más temprano que no esté completo
- * es el que se muestra. `Done` indica que toda la secuencia se ha cumplido.
- *
- * Flujo completo (instalación nueva 4.0): Language → Notifications → SupportIntro → Done.
- * Flujo para actualizaciones (notif ya completado): Language → SupportIntro → Done.
- * El paso de modo OFFLINE se retiró del onboarding en 4.0 (decisión Dani:
- * apenas aportaba; la función sigue disponible en Ajustes).
- *
- * `Language` es el anuncio one-shot introducido en 2.1 (inglés ya no es Premium).
- * `SupportIntro` presenta el apoyo voluntario Amigo. A quien actualiza desde
- * una versión anterior a 4.3.1 le anuncia la retirada de publicidad y el icono
- * Fundador. Su clave versionada permite mostrarlo una sola vez.
+ * `true` si queda algún paso de la bienvenida sin responder: idioma,
+ * notificaciones o apoyo. El paso de modo sin conexión se retiró en 4.0; la
+ * función sigue en Ajustes.
  */
-private enum class OnboardingStep { Language, Notifications, SupportIntro, Done }
-
-/**
- * Calcula el siguiente onboarding pendiente leyendo persistencia local.
- * Llamado tras cerrar cada pantalla de onboarding.
- */
-private suspend fun nextOnboardingStep(app: CalendarioCiclismoApp): OnboardingStep {
-    val languageDone = app.preferences.languageAnnouncementDone.first()
-    val notifDone = app.preferences.notifOnboardingDone.first()
-    val supportIntroDone = app.preferences.supportIntroV43Done.first()
-    return when {
-        !languageDone -> OnboardingStep.Language
-        !notifDone -> OnboardingStep.Notifications
-        !supportIntroDone -> OnboardingStep.SupportIntro
-        else -> OnboardingStep.Done
-    }
-}
+private suspend fun welcomePending(app: CalendarioCiclismoApp): Boolean =
+    !app.preferences.languageAnnouncementDone.first() ||
+        !app.preferences.notifOnboardingDone.first() ||
+        !app.preferences.supportIntroV43Done.first()

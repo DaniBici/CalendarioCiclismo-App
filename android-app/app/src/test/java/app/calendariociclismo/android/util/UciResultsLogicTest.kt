@@ -485,7 +485,7 @@ class UciResultsLogicTest {
             team("groupama", "Groupama-FDJ United", aliases = "Groupama FDJ\nGroupama"),
             team("jayco", "Jayco Alula", aliases = "Jayco"),
             team("lidl", "Lidl-Trek", aliases = "Lidl Trek\nLidl"),
-            team("lotto", "Lotto Intermarché", aliases = "Lotto-Intermarché\\nLotto - Intermarché\\nLotto Dstny"),
+            team("lotto", "Lotto Intermarché", aliases = "Lotto-Intermarché\nLotto - Intermarché\nLotto Dstny"),
             team("movistar", "Movistar", aliases = "Movistar Team"),
             team("netcompany", "Netcompany INEOS", aliases = "Net Company\nNetcompany-INEOS"),
             team("nsn", "NSN", aliases = "NSN Cycling Team"),

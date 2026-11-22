@@ -20,6 +20,35 @@ const finDeMes = mes => { const [a, m] = mes.split('-').map(Number); return new 
 const firma = valor => createHash('sha1').update(JSON.stringify(valor)).digest('hex');
 const attr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
+// Cada combinación de filtros: en cada grupo, cualquier subconjunto no vacío de sus opciones.
+function combinaciones(grupos) {
+  let salida = [{}];
+  for (const grupo of grupos) {
+    const valores = grupo.options.map(opcion => opcion.value);
+    const subconjuntos = Array.from({ length: (1 << valores.length) - 1 }, (_, mascara) => new Set(valores.filter((__, i) => (mascara + 1) & (1 << i))));
+    salida = salida.flatMap(combinacion => subconjuntos.map(subconjunto => ({ ...combinacion, [grupo.key]: subconjunto })));
+  }
+  return salida;
+}
+
+// Lo que el panel publica: con cualquier combinación de filtros se ven al menos 15 días
+// (resultsStartKey). `visibles`, lo que se ve sin filtros; `filas`, también las de reserva para
+// las demás combinaciones, que llegan ocultas y muestra el script previo al primer pintado
+// (cliente/filtros-resultados.js).
+function conReserva(entradas, desde, grupos, pasa, resultsStartKey) {
+  const incluidas = new Set();
+  let visibles = null;
+  for (const filtros of combinaciones(grupos)) {
+    const coinciden = entradas.filter(entrada => pasa(entrada, filtros));
+    const inicio = resultsStartKey(coinciden.map(entrada => entrada.date), desde);
+    const corte = coinciden.filter(entrada => entrada.date >= inicio);
+    corte.forEach(entrada => incluidas.add(entrada));
+    if (grupos.every(grupo => filtros[grupo.key].size === grupo.options.length)) visibles = new Set(corte);
+  }
+  const filas = entradas.filter(entrada => incluidas.has(entrada));
+  return { filas, visibles, ocultas: new Set(filas.filter(entrada => !visibles.has(entrada))) };
+}
+
 function meses(desde, hasta) {
   const salida = [];
   let [a, m] = desde.split('-').map(Number);
@@ -44,10 +73,13 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
   const { fetchResultEntries } = await load('js/services/result-feed-entries.js');
   const H = await load('js/resultados-feed-html.js');
   const { cyclocrossHome } = await load('js/services/today-season.js');
-  const { RESULTS_SEASON_START, initialResultsFromKey } = await load('js/services/result-feed-pagination.js');
+  const { RESULTS_SEASON_START, initialResultsFromKey, resultsStartKey } = await load('js/services/result-feed-pagination.js');
   const { cxResultEntries } = await load('js/cx/results-feed.js');
   const { cxSeason } = await load('js/cx/presentation.js');
   const { cxListedInAgenda, cxTournamentRounds } = await load('js/services/cx-data.js');
+  const { resolveCxWinnerTeams } = await load('js/services/result-feed-context.js');
+  const { filterMenuHtml, newFilters } = await load('js/components/filter-menu.js');
+  const { ROAD_FILTER_GROUPS, cxFilterGroups, filterLabels, roadRaceMatches, cxRaceMatches } = await load('js/race-filters.js');
 
   const isEn = lang === 'en';
   const locale = isEn ? 'en-GB' : 'es-ES';
@@ -93,9 +125,10 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
     // hoy): un periodo sin carreras no deja la portada vacía.
     const todas = mesesFeed.toReversed().flatMap(mes => entradasPorMes.get(mes));
     const desde = initialResultsFromKey(ultimoDia(todas, hoy));
-    const recientes = todas.filter(entrada => entrada.date >= desde);
+    const reservaRuta = conReserva(todas, desde, ROAD_FILTER_GROUPS, (entrada, filtros) => roadRaceMatches(entrada.race, filtros), resultsStartKey);
+    const recientes = [...reservaRuta.visibles];
     const hayMas = desde > RESULTS_SEASON_START;
-    const panelLatest = (recientes.length ? H.feedDaysHtml(recientes, isEn, locale) : H.feedEmptyHtml(isEn))
+    const panelLatest = (reservaRuta.filas.length ? H.feedDaysHtml(reservaRuta.filas, isEn, locale, reservaRuta.ocultas) : H.feedEmptyHtml(isEn))
       + (hayMas ? H.feedMoreHtml('feedMoreBtn', isEn) : '');
 
     // Ciclocross: la temporada en curso, leída como la agenda.
@@ -104,10 +137,14 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
     const filasCx = portada.agenda.filter(race => race.seasonKey === temporada && cxListedInAgenda(race, lang)).map(race => ({ ...race, featured: destacadas.has(race.id) }));
     const rondas = cxTournamentRounds(portada.rondas.filter(race => race.seasonKey === temporada), temporada);
     const entradasCx = cxResultEntries(filasCx);
+    // Equipo del ganador de cada categoría, como `cxTeams` de js/resultados-feed.js: cx_results rank 1.
+    const equiposCx = await resolveCxWinnerTeams(cliente, entradasCx);
     const cxTab = cyclocrossHome(hoy);
     const cxDesde = sumarDias(ultimoDia(entradasCx, hoy), -(CX_VENTANA - 1));
-    const visiblesCx = entradasCx.filter(entrada => entrada.date >= cxDesde);
-    const panelCx = (visiblesCx.length ? H.cxDaysHtml(visiblesCx, rondas, isEn, locale) : H.cxEmptyHtml(entradasCx.length > 0, isEn))
+    const gruposCx = cxFilterGroups(lang);
+    const reservaCx = conReserva(entradasCx, cxDesde, gruposCx, (entrada, filtros) => cxRaceMatches(entrada.race, filtros, gruposCx), resultsStartKey);
+    const visiblesCx = [...reservaCx.visibles];
+    const panelCx = (reservaCx.filas.length ? H.cxDaysHtml(reservaCx.filas, rondas, isEn, locale, equiposCx, reservaCx.ocultas) : H.cxEmptyHtml(entradasCx.length > 0, isEn))
       + (entradasCx.some(entrada => entrada.date < cxDesde) ? H.feedMoreHtml('cxMoreBtn', isEn) : '');
 
     const vistas = H.feedViews(cxTab);
@@ -122,7 +159,12 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
     // El ránking pesa más que el resto de la página: va aparte y se trae sin esperar a usarlo.
     const ranking = ['male', 'female'].map(genero => `<template data-panel="ranking-${genero}">${H.rankingBodyHtml(feed.uci_team_rankings, genero, isEn)}</template>`).join('');
 
-    const contenido = `${H.feedHeroHtml(pestañas(inicial), isEn)}\n      <div id="resultsFeedPanel" data-view="${inicial}">${panelInicial}</div>`;
+    // «Filtros» de cada vista con todo marcado; el script previo al primer pintado muestra el de
+    // la vista y aplica la selección guardada (cliente/filtros-resultados.js).
+    const menuFiltros = (vista, idPrefix, grupos) => `<div class="agenda-filter-slot feed-filter-slot" data-filtros="${vista}"${vista === inicial ? '' : ' hidden'}>`
+      + `${filterMenuHtml(grupos, newFilters(grupos), { idPrefix, activeClass: 'agenda-filter-btn--active', ...filterLabels(), buttonClass: 'agenda-filter-btn' })}</div>`;
+    const filtros = menuFiltros('latest', 'resultsRoadFilter', ROAD_FILTER_GROUPS) + (cxTab ? menuFiltros('cx', 'resultsCxFilter', cxFilterGroups(lang)) : '');
+    const contenido = `${H.feedHeroHtml(pestañas(inicial) + filtros, isEn)}\n      <div id="resultsFeedPanel" data-view="${inicial}">${panelInicial}</div>`;
     const version = huella(contenido + plantillas + ranking);
 
     const archivos = { [`f/resultados-${lang}/ranking.html`]: ranking };
@@ -137,7 +179,7 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
       const porMesCx = new Map();
       for (const [dia, filas] of dias) {
         const mes = mesDe(dia);
-        porMesCx.set(mes, `${porMesCx.get(mes) || ''}<template data-dk="${dia}">${H.cxDaysHtml(filas, rondas, isEn, locale)}</template>`);
+        porMesCx.set(mes, `${porMesCx.get(mes) || ''}<template data-dk="${dia}">${H.cxDaysHtml(filas, rondas, isEn, locale, equiposCx)}</template>`);
       }
       for (const [mes, html] of porMesCx) archivos[`f/resultados-${lang}/cx/${mes}.html`] = html;
     }
@@ -147,6 +189,7 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
     const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'results' })}</header>`;
     const atributos = `id="resultsContent" data-publicada="${version}" data-hoy="${hoy}" data-lang="${lang}"`
       + ` data-desde="${desde}" data-cx-desde="${cxDesde}" data-cx-primera="${attr(entradasCx.at(-1)?.date || '')}"`
+      + ` data-filtro-vacio="${attr(isEn ? 'No results with these filters in this period.' : 'No hay resultados con estos filtros en este periodo.')}"`
       + ` data-mas="${attr(isEn ? 'Load more results' : 'Cargar más resultados')}" data-cargando="${attr(isEn ? 'Loading…' : 'Cargando…')}"`
       + ` data-error="${attr(isEn ? 'Unable to load more results. Try again.' : 'No se pudieron cargar más resultados. Inténtalo de nuevo.')}"`;
     const pagina = `${head}<body>\n${RESERVA_ANDROID}\n${cabecera}\n<main ${atributos}>${contenido}<script>${activos.resultados.prePintado}</script></main>\n`

@@ -54,16 +54,17 @@ final class CyclocrossAgendaModel {
     private(set) var rounds: [String: CxRound] = [:]
     /// Página de torneo: fecha a la que desplazar la lista tras abrirla.
     var jumpDate: String?
-    /// Filtro de la agenda (Todas/Big/Pro/España). Se aplica sobre los datos
-    /// en memoria, sin recargar.
-    private(set) var filter: CxAgendaFilter = .all
-    /// Filtro fijado como predeterminado de la agenda CX (chincheta). Clave
-    /// propia de esta vista, independiente del predeterminado de Hoy.
-    private(set) var pinnedFilter: CxAgendaFilter = .all
-    private static let defaultFilterKey = "cx_default_filter"
-    /// Orden del día mostrado (Categoría, Hora TV, Hora de meta), en memoria
+    /// Filtros de la agenda (Big, UCI y Nacional, combinables y recordados en
+    /// `RaceFilterStore`). Se aplican sobre los datos en memoria, sin recargar;
+    /// en un torneo no se filtra.
+    var filter: CxRaceFilter { tournamentId == nil ? RaceFilterStore.shared.cx : CxRaceFilter() }
+    /// Orden del día mostrado (Categoría, Hora TV, Hora de meta), recordado
     /// como en Hoy de carretera.
-    var sort: CxAgendaSort = .category
+    var sort: CxAgendaSort = .category {
+        didSet { if tournamentId == nil { UserDefaults.standard.set(sort.rawValue, forKey: Self.sortKey) } }
+    }
+    /// Orden recordado de la agenda general (no de las páginas de torneo).
+    private static let sortKey = "cx_sort_mode"
 
     /// Carreras de la temporada sin duplicados (una prueba que cruza de mes
     /// llega en las consultas de ambos meses), limitadas al torneo si lo hay.
@@ -94,6 +95,9 @@ final class CyclocrossAgendaModel {
     init(repo: CyclocrossRepository = .shared, today: String? = nil, tournamentId: String? = nil) {
         self.tournamentId = tournamentId
         self.repo = repo
+        if tournamentId == nil, let raw = UserDefaults.standard.string(forKey: Self.sortKey), let saved = CxAgendaSort(rawValue: raw) {
+            sort = saved
+        }
         let civil = today ?? Self.todayKey()
         self.todayOverride = today
         let month = CxMonth(year: Int(civil.prefix(4))!, month: Int(civil.dropFirst(5).prefix(2))!)
@@ -101,28 +105,10 @@ final class CyclocrossAgendaModel {
         let opening = CyclocrossLogic.clamp(civil, season: month.season)
         dateKey = opening
         lastTodayKey = opening
-        if tournamentId == nil, let stored = UserDefaults.standard.string(forKey: Self.defaultFilterKey),
-           let value = CxAgendaFilter(rawValue: stored) {
-            pinnedFilter = value
-            filter = value
-        }
     }
-    /// Fija el filtro predeterminado de la agenda CX y lo aplica.
-    func setDefaultFilter(_ value: CxAgendaFilter) {
-        pinnedFilter = value
-        UserDefaults.standard.set(value.rawValue, forKey: Self.defaultFilterKey)
-        selectFilter(value)
-    }
-    /// Quita el filtro predeterminado de la agenda CX.
-    func clearDefaultFilter() {
-        pinnedFilter = .all
-        UserDefaults.standard.removeObject(forKey: Self.defaultFilterKey)
-        selectFilter(.all)
-    }
-    /// Cambia el filtro conservando el día; con Todas, un día vacío avanza al
-    /// siguiente con carreras.
-    func selectFilter(_ value: CxAgendaFilter) {
-        filter = value
+    /// Tras cambiar los filtros: conserva el día; si queda sin carreras,
+    /// avanza al siguiente que las tenga.
+    func filtersChanged() {
         rebuild()
         let previous = dateKey
         settle(on: dateKey)
@@ -151,7 +137,8 @@ final class CyclocrossAgendaModel {
     var agendaToday: String { CyclocrossLogic.clamp(today, season: season) }
     var isShowingCurrentDay: Bool { dateKey == agendaToday }
     private var filteredRaces: [CxRace] {
-        tournamentId == nil ? seasonRaces.filter { CyclocrossPresentation.matchesFilter($0, filter: filter) } : seasonRaces
+        let filter = self.filter
+        return filter.isActive ? seasonRaces.filter(filter.matches) : seasonRaces
     }
     /// Carreras del día mostrado con el filtro y el orden activos.
     var dayRaces: [CxRace] {
@@ -178,13 +165,13 @@ final class CyclocrossAgendaModel {
         guard let target = CyclocrossLogic.stepDay(from: dateKey, forward: forward, raceDays: raceDays, season: season) else { return }
         navigate(to: target)
     }
-    /// Muestra `date` dentro de la temporada; con Todas, un día vacío avanza
-    /// al siguiente con carreras (auto-navegación de Hoy).
+    /// Muestra `date` dentro de la temporada; un día sin carreras que pasen el
+    /// filtro avanza al siguiente que las tenga (auto-navegación de Hoy).
     private func settle(on date: String) {
         guard tournamentId == nil else { return }
         let previous = dateKey
         dateKey = CyclocrossLogic.clamp(date, season: season)
-        if filter == .all, dayRaces.isEmpty, let next = nextDayWithRaces { dateKey = next }
+        if dayRaces.isEmpty, let next = nextDayWithRaces { dateKey = next }
         if dateKey == agendaToday { lastTodayKey = dateKey }
         if dateKey != previous { awaitDetailIfNeeded() }
     }
@@ -669,12 +656,23 @@ final class CxResultsFeedModel {
     static let windowDays = 14
     /// Ampliaciones de «Cargar más» sobre la ventana inicial.
     private var extraWindows = 0
+    /// Inicio fijado por «Cargar más» desde lo que se ve (que, con filtros,
+    /// puede ser anterior a la ventana: al menos 15 días con resultados).
+    private var floorStart: String?
     var windowStart: String {
-        Self.windowStart(days: days, today: today, extraWindows: extraWindows)
+        let base = Self.windowStart(days: days, today: today, extraWindows: extraWindows)
+        if let floorStart, floorStart < base { return floorStart }
+        return base
     }
     var visibleDays: [CxResultsFeedDay] { days.filter { $0.date >= windowStart } }
     var canLoadMore: Bool { days.contains { $0.date < windowStart } }
     func loadMore() { extraWindows += 1 }
+    /// «Cargar más» desde `start`, el inicio de lo que se ve: 14 días antes.
+    func loadMore(below start: String) {
+        let next = Self.shift(start, by: -Self.windowDays)
+        if next < windowStart { floorStart = next } else { extraWindows += 1 }
+    }
+
     static func windowStart(days: [CxResultsFeedDay], today: String, extraWindows: Int = 0) -> String {
         let anchor = days.map(\.date).filter { $0 <= today }.max() ?? today
         return shift(anchor, by: -(windowDays - 1) - extraWindows * windowDays)

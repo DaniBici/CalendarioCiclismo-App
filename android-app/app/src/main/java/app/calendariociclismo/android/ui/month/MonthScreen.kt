@@ -1,5 +1,8 @@
 package app.calendariociclismo.android.ui.month
 
+import app.calendariociclismo.android.ui.components.FiltersMenuStyle
+import app.calendariociclismo.android.ui.components.RoadFiltersMenu
+import app.calendariociclismo.android.util.RoadRaceFilter
 import app.calendariociclismo.android.util.LocaleHolder
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,7 +39,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -85,7 +87,6 @@ import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.ChampionshipsConfig
-import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.RaceLogic
@@ -113,9 +114,7 @@ fun MonthScreen(
     val haptic = rememberHaptics()
     val scope = rememberCoroutineScope()
     var year by remember { mutableStateOf(CalendarStart.initial().year) }
-    var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var placeholderItem by remember { mutableStateOf<PlaceholderItem?>(null) }
-    var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
     var scrollToTodayTrigger by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
@@ -123,12 +122,10 @@ fun MonthScreen(
     // ya vibró allí.
     var linkedPage by remember { mutableStateOf<Int?>(null) }
 
-    // Default filter (synced across tabs)
-    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
-    LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
+    // Filtros de carretera, recordados y compartidos con Hoy y Temporada.
+    val category by app.preferences.roadRaceFilter.collectAsState(initial = RoadRaceFilter())
     if (link != null) {
         LaunchedEffect(link.year) { year = link.year }
-        LaunchedEffect(link.category) { category = link.category }
     }
 
     // Analytics con parámetros
@@ -137,7 +134,7 @@ fun MonthScreen(
             "month",
             android.os.Bundle().apply {
                 putString("year", year.toString())
-                putString("category_filter", category.id)
+                putString("category_filter", category.encoded)
             },
         )
     }
@@ -286,6 +283,17 @@ fun MonthScreen(
                         }) {
                             Text(stringResource(R.string.month_button_today))
                         }
+                        // Filtros, con el símbolo de Fichajes (en la maqueta ancha los lleva Temporada).
+                        if (link == null) {
+                            RoadFiltersMenu(
+                                filter = category,
+                                onChange = {
+                                    haptic(Haptics.Event.Selection)
+                                    scope.launch { app.preferences.setRoadRaceFilter(it) }
+                                },
+                                style = FiltersMenuStyle.TopBar,
+                            )
+                        }
                         // Toggle a la subvista Temporada (pestaña Calendario).
                         if (onSwitchView != null) {
                             IconButton(onClick = {
@@ -307,39 +315,8 @@ fun MonthScreen(
                     .fillMaxSize()
                     .padding(padding),
             ) {
-                // Filtros y meses: en la maqueta ancha los lleva Temporada.
+                // Meses: en la maqueta ancha los lleva Temporada.
                 if (link == null) {
-                    // Category filter chips
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(Constants.CategoryFilter.entries.toList(), key = { it.id }) { cat ->
-                            val hideAll = cat == Constants.CategoryFilter.ALL || category == Constants.CategoryFilter.ALL
-                            val isPinnedValid = defaultFilterPref != Constants.CategoryFilter.ALL
-                            val pinFilled = !hideAll && isPinnedValid && defaultFilterPref == cat
-                            val pinOutline = !hideAll && !pinFilled && category == cat
-                            // Pulsar el filtro activo abre el diálogo de filtro
-                            // predeterminado (paridad con iOS).
-                            CalendarFilterChip(
-                                label = stringResource(cat.labelRes),
-                                selected = category == cat,
-                                pinFilled = pinFilled,
-                                pinOutline = pinOutline,
-                                onClick = {
-                                    if (cat == category) {
-                                        haptic(Haptics.Event.PrimaryAction)
-                                        pendingDefault = cat
-                                    } else {
-                                        haptic(Haptics.Event.Selection)
-                                        category = cat
-                                    }
-                                },
-                            )
-                        }
-                    }
-
                     // Month pills row with year picker as first item
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -424,49 +401,6 @@ fun MonthScreen(
             item = placeholderItem,
             onDismiss = { placeholderItem = null },
         )
-
-        pendingDefault?.let { filter ->
-            val isPinned = filter == defaultFilterPref && defaultFilterPref != Constants.CategoryFilter.ALL
-            val filterLabel = stringResource(filter.labelRes)
-            AlertDialog(
-                onDismissRequest = { pendingDefault = null },
-                title = {
-                    Text(
-                        stringResource(
-                            if (isPinned) R.string.filter_dialog_remove_title
-                            else R.string.filter_dialog_title
-                        )
-                    )
-                },
-                text = {
-                    Text(
-                        stringResource(
-                            if (isPinned) R.string.filter_dialog_remove_message
-                            else R.string.filter_dialog_set_message,
-                            filterLabel,
-                        )
-                    )
-                },
-                confirmButton = {
-                    if (isPinned) {
-                        TextButton(onClick = {
-                            scope.launch { app.preferences.clearDefaultFilter() }
-                            category = Constants.CategoryFilter.ALL
-                            pendingDefault = null
-                        }) { Text(stringResource(R.string.action_remove)) }
-                    } else {
-                        TextButton(onClick = {
-                            scope.launch { app.preferences.setDefaultFilter(filter) }
-                            category = filter
-                            pendingDefault = null
-                        }) { Text(stringResource(R.string.action_set)) }
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingDefault = null }) { Text(stringResource(R.string.action_cancel)) }
-                },
-            )
-        }
     }
 }
 
@@ -478,7 +412,7 @@ private fun MonthDayPage(
     monthNum: Int,
     allDaysWithPlaceholders: List<RaceDay>,
     raceMap: Map<String, Race>,
-    category: Constants.CategoryFilter,
+    category: RoadRaceFilter,
     scrollToTodayTrigger: Int,
     onStageClick: (String) -> Unit,
     onPlaceholderClick: (Race, RaceDay) -> Unit,
@@ -489,12 +423,12 @@ private fun MonthDayPage(
     // Filter days for this month + active category.
     val isChampYear = year == ChampionshipsConfig.YEAR
     val filtered = remember(allDaysWithPlaceholders, raceMap, category, monthPrefix) {
-        val inMonth = if (category == Constants.CategoryFilter.ALL) {
+        val inMonth = if (!category.isActive) {
             allDaysWithPlaceholders.filter { it.dateKey.startsWith(monthPrefix) }
         } else {
             allDaysWithPlaceholders.filter { rd ->
                 rd.dateKey.startsWith(monthPrefix) &&
-                    rd.raceId?.let { raceMap[it] }?.let { RaceLogic.matchesCategory(it, category) } == true
+                    rd.raceId?.let { raceMap[it] }?.let(category::matches) == true
             }
         }
         // Las CN de la pantalla de Campeonatos no se muestran sueltas: las representa
@@ -561,7 +495,7 @@ private fun MonthDayPage(
                     dateKey = dateKey,
                     raceDays = dayRaces,
                     raceMap = raceMap,
-                    activeFilter = category,
+                    femaleOnly = category.femaleOnly,
                     isChampDay = isChampDay,
                     columns = columns,
                     onStageClick = onStageClick,
@@ -591,7 +525,7 @@ private fun DaySection(
     dateKey: String,
     raceDays: List<RaceDay>,
     raceMap: Map<String, Race>,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     isChampDay: Boolean,
     columns: Int,
     onStageClick: (String) -> Unit,
@@ -683,7 +617,7 @@ private fun DaySection(
                                     MonthScheduleRaceRow(
                                         raceDay = rd,
                                         race = race,
-                                        activeFilter = activeFilter,
+                                        femaleOnly = femaleOnly,
                                         modifier = cell,
                                         onClick = {
                                             when {
@@ -717,7 +651,7 @@ private fun DaySection(
 private fun MonthScheduleRaceRow(
     raceDay: RaceDay,
     race: Race?,
-    activeFilter: Constants.CategoryFilter,
+    femaleOnly: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -728,8 +662,7 @@ private fun MonthScheduleRaceRow(
     // conserva su color. La jornada sin información (placeholder) no se
     // atenúa: misma opacidad que el resto de fichas.
     val decorationAlpha = if (raceDay.isRestDay) 0.65f else 1f
-    val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
-        activeFilter == Constants.CategoryFilter.WWT
+    val isFemaleFilterActive = femaleOnly
     val displayName = race?.localizedName?.let {
         if (isFemaleFilterActive && race.isFemale) RaceLogic.cleanFeminineDisplayName(it) else it
     } ?: stringResource(R.string.today_race_fallback)

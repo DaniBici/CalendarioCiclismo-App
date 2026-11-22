@@ -60,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +79,7 @@ import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.ui.theme.neutralFill
 import androidx.compose.foundation.shape.RoundedCornerShape
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.components.boldCountText
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.MiniElevationProfile
 import app.calendariociclismo.android.ui.components.StageTypeBadge
@@ -275,38 +277,11 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // Categoría, etapas y fechas bajo el nombre, en la columna principal junto al
+        // logo, como el número de rondas de la cabecera de torneo de ciclocross.
         app.calendariociclismo.android.ui.components.RaceCompetitionIdentity(race.localizedName, race.logoUrl, race.countryCode, race.hideFlag,
-            RaceLogic.shouldShowFemaleIndicator(race), logoPlaceholder = race.uciCategory != "CN", onBack = onBack)
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            RaceCategoryLabel(race.uciCategory)
-            val showStageCount = race.isStageRace && stageCount > 0
-            if (showStageCount) {
-                Text(
-                    text = stringResource(R.string.race_label_stages_count, stageCount),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val range = DateFormatting.formatDateRange(race.startDate, race.endDate)
-            if (range.isNotEmpty()) {
-                if (showStageCount) {
-                    Text(
-                        text = "·",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = range,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+            RaceLogic.shouldShowFemaleIndicator(race), logoPlaceholder = race.uciCategory != "CN",
+            subtitle = { RaceSummaryLine(race, stageCount) }, onBack = onBack)
 
         if (race.isCancelled) {
             Row(
@@ -328,6 +303,36 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
         }
 
       }
+    }
+}
+
+/** Categoría y «N etapas · fechas» (recuento de etapas en negrita, con el punto pegado al texto). */
+@Composable
+private fun RaceSummaryLine(race: Race, stageCount: Int) {
+    val range = DateFormatting.formatDateRange(race.startDate, race.endDate)
+    val stages = if (race.isStageRace && stageCount > 0) boldCountText(stringResource(R.string.race_label_stages_count, stageCount)) else null
+    val summary = buildAnnotatedString {
+        stages?.let { append(it) }
+        if (stages != null && range.isNotEmpty()) append(" · ")
+        append(range)
+    }
+    if (RaceLogic.uciCategoryName(race.uciCategory).isEmpty() && summary.isEmpty()) return
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        RaceCategoryLabel(race.uciCategory)
+        if (summary.isNotEmpty()) {
+            Text(
+                text = summary,
+                style = CCText.S13,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
     }
 }
 
@@ -377,6 +382,7 @@ private fun RaceDocumentationChips(
 
     if (!hasWebsite && technicalGuide == null && !hasStartlist && !showNotifications) return
 
+    // Las celdas reparten el ancho de la tira si caben; si no, se desplaza con flechas.
     AssetActionStrip {
         if (hasWebsite) {
             AssetChip(

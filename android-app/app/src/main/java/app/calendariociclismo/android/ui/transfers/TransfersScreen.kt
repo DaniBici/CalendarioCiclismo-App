@@ -34,6 +34,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +58,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -93,6 +102,7 @@ import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.TransfersLogic
 import app.calendariociclismo.android.util.rememberHaptics
+import kotlinx.coroutines.launch
 
 private sealed class MarketState {
     object Loading : MarketState()
@@ -137,6 +147,12 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
     var state by remember { mutableStateOf<MarketState>(MarketState.Loading) }
     var activeDivision by rememberSaveable { mutableStateOf(TransfersLogic.DIVISIONS.first()) }
     var activeFeed by rememberSaveable { mutableStateOf(TransfersFeed.Signings) }
+    // Filtros de Fichajes y Renovaciones (categoría y división), recordados.
+    val filters by app.preferences.transferFilters.collectAsState(initial = TransfersLogic.FeedFilters())
+    val filtersScope = rememberCoroutineScope()
+    fun saveFilters(value: TransfersLogic.FeedFilters) {
+        filtersScope.launch { app.preferences.setTransferFilters(value) }
+    }
     // Elemento de la columna lateral en lista y detalle: null es «Movimientos»;
     // un id, la página de ese equipo.
     var selectedTeamId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -152,6 +168,20 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
             .onFailure { error ->
                 if (state !is MarketState.Ready) {
                     state = MarketState.Error(error.message ?: unknownError)
+                }
+            }
+    }
+
+    // Tirón arriba de un panel (pantallas anchas): solo se pone al día ese
+    // listado; el otro conserva lo que muestra.
+    suspend fun reloadFeed(feed: TransfersFeed) {
+        if (state !is MarketState.Ready) return reload()
+        runCatching { app.repository.loadTransfersMarket(TransfersLogic.MARKET_SEASON) }
+            .onSuccess { fresh ->
+                (state as? MarketState.Ready)?.let { current ->
+                    state = MarketState.Ready(
+                        current.data.replacingFeed(renewals = feed == TransfersFeed.Renewals, fresh = fresh)
+                    )
                 }
             }
     }
@@ -193,6 +223,15 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                         }
                     }
                 },
+                // Filtros de Fichajes y Renovaciones: menú de la barra superior.
+                actions = {
+                    if (state is MarketState.Ready) {
+                        TransfersFiltersMenu(filters) {
+                            haptic(Haptics.Event.Selection)
+                            saveFilters(it)
+                        }
+                    }
+                },
             )
         },
     ) { padding ->
@@ -215,7 +254,12 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                     data = current.data,
                     activeDivision = activeDivision,
                     activeFeed = activeFeed,
+                    filters = filters,
                     selectedTeamId = selectedTeamId,
+                    onFiltersChange = {
+                        haptic(Haptics.Event.Selection)
+                        saveFilters(it)
+                    },
                     onDivisionSelect = {
                         haptic(Haptics.Event.Selection)
                         activeDivision = it
@@ -236,6 +280,7 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                         haptic(Haptics.Event.Navigation)
                         selectedTeamId = teamId
                     },
+                    onRefreshFeed = ::reloadFeed,
                     onDeepLinkedTeam = { teamId, listDetail ->
                         if (listDetail) {
                             selectedTeamId = teamId
@@ -260,12 +305,15 @@ private fun MarketLayout(
     data: TransfersLogic.MarketData,
     activeDivision: String,
     activeFeed: TransfersFeed,
+    filters: TransfersLogic.FeedFilters,
     selectedTeamId: String?,
+    onFiltersChange: (TransfersLogic.FeedFilters) -> Unit,
     onDivisionSelect: (String) -> Unit,
     onFeedSelect: (TransfersFeed) -> Unit,
     onTeamTap: (String) -> Unit,
     onSidebarSelect: (String?) -> Unit,
     onOpenTeamInDetail: (String) -> Unit,
+    onRefreshFeed: suspend (TransfersFeed) -> Unit,
     onDeepLinkedTeam: (teamId: String, listDetail: Boolean) -> Unit,
 ) {
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
@@ -282,20 +330,26 @@ private fun MarketLayout(
             MarketListDetail(
                 data = data,
                 activeFeed = activeFeed,
+                filters = filters,
+                onFiltersChange = onFiltersChange,
                 selectedTeamId = selectedTeamId,
                 sidebarWidth = AdaptiveLayoutPolicy.listDetailSidebarDp(maxWidth.value).dp,
                 onFeedSelect = onFeedSelect,
                 onSidebarSelect = onSidebarSelect,
                 onOpenTeam = onOpenTeamInDetail,
+                onRefreshFeed = onRefreshFeed,
             )
         } else {
             MarketContent(
                 data = data,
                 activeDivision = activeDivision,
                 activeFeed = activeFeed,
+                filters = filters,
+                onFiltersChange = onFiltersChange,
                 onDivisionSelect = onDivisionSelect,
                 onFeedSelect = onFeedSelect,
                 onTeamTap = onTeamTap,
+                onRefreshFeed = onRefreshFeed,
             )
         }
     }
@@ -303,8 +357,11 @@ private fun MarketLayout(
 
 /** Feeds de Fichajes y de Renovaciones con el corte largo de las listas desplazables. */
 @Composable
-private fun rememberFeeds(data: TransfersLogic.MarketData): Map<TransfersFeed, List<RiderTransfer>> =
-    remember(data) {
+private fun rememberFeeds(
+    data: TransfersLogic.MarketData,
+    filters: TransfersLogic.FeedFilters,
+): Map<TransfersFeed, List<RiderTransfer>> =
+    remember(data, filters) {
         val categoryByTeamId = data.seasons.mapNotNull { season ->
             season.category?.let { season.teamId to it }
         }.toMap()
@@ -317,10 +374,10 @@ private fun rememberFeeds(data: TransfersLogic.MarketData): Map<TransfersFeed, L
         )
         mapOf(
             TransfersFeed.Signings to cut(TransfersLogic.confirmedFeed(
-                data.transfers, categoryByTeamId, data.teamNameById
+                data.transfers, categoryByTeamId, data.teamNameById, filters
             )),
             TransfersFeed.Renewals to cut(TransfersLogic.renewalFeed(
-                data.transfers, categoryByTeamId, data.teamNameById
+                data.transfers, categoryByTeamId, data.teamNameById, filters
             )),
         )
     }
@@ -330,14 +387,17 @@ private fun MarketContent(
     data: TransfersLogic.MarketData,
     activeDivision: String,
     activeFeed: TransfersFeed,
+    filters: TransfersLogic.FeedFilters,
+    onFiltersChange: (TransfersLogic.FeedFilters) -> Unit,
     onDivisionSelect: (String) -> Unit,
     onFeedSelect: (TransfersFeed) -> Unit,
     onTeamTap: (String) -> Unit,
+    onRefreshFeed: suspend (TransfersFeed) -> Unit,
 ) {
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = AdaptiveLayoutPolicy.feedColumns(maxWidth.value - 32f, adaptiveInfo) == 2
-        val feeds = rememberFeeds(data)
+        val feeds = rememberFeeds(data, filters)
         val teams = remember(data, activeDivision) {
             TransfersLogic.divisionTeams(data.seasons, activeDivision)
         }
@@ -351,10 +411,19 @@ private fun MarketContent(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 160.dp),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+            // 2 dp arriba: con los 10 dp de separación tras el elemento de
+            // filtros (vacío sin filtros), el primer panel queda a 12 dp.
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // ── Filtros activos (se eligen en el menú de la barra) ──
+            // El elemento existe siempre, vacío sin filtros: si apareciera al
+            // filtrar, la rejilla conservaría arriba el elemento que ya lo
+            // estaba y la línea quedaría fuera de la pantalla.
+            item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
+                if (filters.isActive) TransfersActiveFilters(filters, onFiltersChange)
+            }
             // ── Fichajes y Renovaciones ────────────────────────────
             if (wide) {
                 item(key = "feeds", span = { GridItemSpan(maxLineSpan) }) {
@@ -366,6 +435,7 @@ private fun MarketContent(
                                 data = data,
                                 onTeamTap = onTeamTap,
                                 wide = true,
+                                onRefresh = { onRefreshFeed(kind) },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -438,11 +508,14 @@ private fun MarketContent(
 private fun MarketListDetail(
     data: TransfersLogic.MarketData,
     activeFeed: TransfersFeed,
+    filters: TransfersLogic.FeedFilters,
+    onFiltersChange: (TransfersLogic.FeedFilters) -> Unit,
     selectedTeamId: String?,
     sidebarWidth: Dp,
     onFeedSelect: (TransfersFeed) -> Unit,
     onSidebarSelect: (String?) -> Unit,
     onOpenTeam: (String) -> Unit,
+    onRefreshFeed: suspend (TransfersFeed) -> Unit,
 ) {
     Row(Modifier.fillMaxSize()) {
         MarketSidebar(
@@ -458,8 +531,11 @@ private fun MarketListDetail(
                     MovesDetail(
                         data = data,
                         activeFeed = activeFeed,
+                        filters = filters,
+                        onFiltersChange = onFiltersChange,
                         onFeedSelect = onFeedSelect,
                         onTeamTap = onOpenTeam,
+                        onRefreshFeed = onRefreshFeed,
                     )
                 } else {
                     TransfersTeamPane(
@@ -574,52 +650,194 @@ private fun SidebarRow(
 private fun MovesDetail(
     data: TransfersLogic.MarketData,
     activeFeed: TransfersFeed,
+    filters: TransfersLogic.FeedFilters,
+    onFiltersChange: (TransfersLogic.FeedFilters) -> Unit,
     onFeedSelect: (TransfersFeed) -> Unit,
     onTeamTap: (String) -> Unit,
+    onRefreshFeed: suspend (TransfersFeed) -> Unit,
 ) {
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
-    val feeds = rememberFeeds(data)
+    val feeds = rememberFeeds(data, filters)
     val feedLabels = mapOf(
         TransfersFeed.Signings to stringResource(R.string.transfers_feed_signings),
         TransfersFeed.Renewals to stringResource(R.string.transfers_feed_renewals),
     )
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = AdaptiveLayoutPolicy.feedColumns(maxWidth.value - 32f, adaptiveInfo) == 2
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            if (wide) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                ) {
-                    TransfersFeed.entries.forEach { kind ->
-                        FeedPanel(
-                            title = feedLabels.getValue(kind),
-                            feed = feeds[kind].orEmpty(),
-                            data = data,
-                            onTeamTap = onTeamTap,
-                            wide = true,
-                            fillHeight = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+        // Desplazable aunque el contenido tenga justo el alto de la columna:
+        // un tirón fuera de las listas llega al refresco general de la pantalla.
+        val columnHeight = maxHeight
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxWidth().height(columnHeight).padding(16.dp)) {
+                if (filters.isActive) {
+                    TransfersActiveFilters(filters, onFiltersChange)
+                    Spacer(Modifier.height(8.dp))
                 }
-            } else {
-                MarketSegments(
-                    options = TransfersFeed.entries,
-                    selected = activeFeed,
-                    label = { feedLabels.getValue(it) },
-                    onSelect = onFeedSelect,
-                )
-                Spacer(Modifier.height(12.dp))
-                FeedPanel(
-                    title = null,
-                    feed = feeds[activeFeed].orEmpty(),
-                    data = data,
-                    onTeamTap = onTeamTap,
-                    fillHeight = true,
-                    modifier = Modifier.weight(1f),
-                )
+                if (wide) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    ) {
+                        TransfersFeed.entries.forEach { kind ->
+                            FeedPanel(
+                                title = feedLabels.getValue(kind),
+                                feed = feeds[kind].orEmpty(),
+                                data = data,
+                                onTeamTap = onTeamTap,
+                                wide = true,
+                                fillHeight = true,
+                                onRefresh = { onRefreshFeed(kind) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                } else {
+                    MarketSegments(
+                        options = TransfersFeed.entries,
+                        selected = activeFeed,
+                        label = { feedLabels.getValue(it) },
+                        onSelect = onFeedSelect,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    FeedPanel(
+                        title = null,
+                        feed = feeds[activeFeed].orEmpty(),
+                        data = data,
+                        onTeamTap = onTeamTap,
+                        fillHeight = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
+        }
+    }
+}
+
+/** Opciones de los filtros con los textos de la web (`FILTER_GROUPS` de `js/fichajes-html.js`). */
+@Composable
+private fun genderOptions() = listOf(
+    "male" to stringResource(R.string.transfers_gender_male),
+    "female" to stringResource(R.string.transfers_gender_female),
+)
+
+@Composable
+private fun divisionOptions() = listOf(
+    "world" to stringResource(R.string.transfers_div_world),
+    "pro" to stringResource(R.string.transfers_div_pro),
+)
+
+/**
+ * Menú de filtros de la barra superior: Categoría y División como secciones
+ * con casillas, y «Limpiar filtros». El menú sigue abierto al marcar, para
+ * combinar opciones; un grupo nunca queda vacío ([TransfersLogic.FeedFilters]).
+ * Con algún filtro activo, el icono lleva un punto de aviso.
+ */
+@Composable
+private fun TransfersFiltersMenu(
+    filters: TransfersLogic.FeedFilters,
+    onChange: (TransfersLogic.FeedFilters) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val genders = genderOptions()
+    val divisions = divisionOptions()
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            BadgedBox(badge = { if (filters.isActive) Badge() }) {
+                Icon(Icons.Filled.FilterList, contentDescription = stringResource(R.string.transfers_filters_title))
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(CCRadius.Control),
+        ) {
+            FilterMenuHeader(stringResource(R.string.transfers_filter_gender))
+            genders.forEach { (value, label) ->
+                FilterMenuItem(label, value in filters.genders) { onChange(filters.toggleGender(value)) }
+            }
+            HorizontalDivider()
+            FilterMenuHeader(stringResource(R.string.transfers_filter_division))
+            divisions.forEach { (value, label) ->
+                FilterMenuItem(label, value in filters.divisions) { onChange(filters.toggleDivision(value)) }
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.transfers_clear_filters)) },
+                leadingIcon = { Icon(Icons.Filled.Close, contentDescription = null) },
+                enabled = filters.isActive,
+                onClick = {
+                    onChange(TransfersLogic.FeedFilters())
+                    expanded = false
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterMenuHeader(text: String) {
+    Text(
+        text = text,
+        style = CCText.S12,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp).semantics { heading() },
+    )
+}
+
+/** Opción con casilla; marcarla no cierra el menú. */
+@Composable
+private fun FilterMenuItem(label: String, checked: Boolean, onToggle: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+        onClick = onToggle,
+    )
+}
+
+/**
+ * Línea de los filtros activos sobre los paneles, para que el feed recortado
+ * no pase inadvertido: qué se muestra («Femenino · WorldTeam») y «Limpiar filtros».
+ */
+@Composable
+private fun TransfersActiveFilters(
+    filters: TransfersLogic.FeedFilters,
+    onChange: (TransfersLogic.FeedFilters) -> Unit,
+) {
+    val genders = genderOptions()
+    val divisions = divisionOptions()
+    val summary = buildList {
+        if (filters.genders.size < TransfersLogic.FeedFilters.ALL_GENDERS.size) {
+            addAll(genders.filter { it.first in filters.genders }.map { it.second })
+        }
+        if (filters.divisions.size < TransfersLogic.FeedFilters.ALL_DIVISIONS.size) {
+            addAll(divisions.filter { it.first in filters.divisions }.map { it.second })
+        }
+    }.joinToString(" · ")
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Filled.FilterList,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = summary,
+            style = CCText.S14,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = { onChange(TransfersLogic.FeedFilters()) },
+            shape = RoundedCornerShape(CCRadius.Control),
+        ) {
+            Text(stringResource(R.string.transfers_clear_filters), style = CCText.S14, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -656,8 +874,10 @@ private fun <T> MarketSegments(
  * por filete. En pantallas anchas lleva título y una lista de altura fija con
  * desplazamiento propio. Con `fillHeight` (columna de detalle de la lista con
  * detalle) el panel ocupa el alto disponible y la lista llega hasta el borde
- * inferior.
+ * inferior. Con `onRefresh` (pantallas anchas) un tirón arriba de la lista
+ * actualiza solo este panel; sin él, el tirón llega al refresco general.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FeedPanel(
     title: String?,
@@ -667,6 +887,7 @@ private fun FeedPanel(
     modifier: Modifier = Modifier,
     wide: Boolean = false,
     fillHeight: Boolean = false,
+    onRefresh: (suspend () -> Unit)? = null,
 ) {
     CCCard(modifier = if (fillHeight) modifier.fillMaxSize() else modifier.fillMaxWidth()) {
         Column(if (fillHeight) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
@@ -690,8 +911,30 @@ private fun FeedPanel(
             } else {
                 Modifier.fillMaxWidth().height(FEED_HEIGHT)
             }
-            Column(listModifier.verticalScroll(rememberScrollState())) {
-                rows()
+            val list: @Composable (Modifier) -> Unit = { modifier ->
+                Column(modifier.verticalScroll(rememberScrollState())) { rows() }
+            }
+            if (onRefresh == null) {
+                list(listModifier)
+            } else {
+                val scope = rememberCoroutineScope()
+                var refreshing by remember { mutableStateOf(false) }
+                PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = {
+                        scope.launch {
+                            refreshing = true
+                            try {
+                                onRefresh()
+                            } finally {
+                                refreshing = false
+                            }
+                        }
+                    },
+                    modifier = listModifier,
+                ) {
+                    list(Modifier.fillMaxSize())
+                }
             }
         }
     }

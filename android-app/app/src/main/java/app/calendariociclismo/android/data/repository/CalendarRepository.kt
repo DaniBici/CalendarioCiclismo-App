@@ -398,12 +398,29 @@ class CalendarRepository(
                     namesPrev.putIfAbsent(it.id, it.name)
                 }
         }
+        transfersTeamNames = names.toMap()
         TransfersLogic.MarketData(transfers, seasons, ridersById, names, namesPrev, prevByTeamId)
     }
+
+    /** Nombre de cada equipo en el último mercado de fichajes cargado: rotula
+     *  la pantalla de carga de la ficha de un equipo antes de tener sus datos. */
+    @Volatile
+    var transfersTeamNames: Map<String, String> = emptyMap()
+        private set
 
     /** Plantilla 2027 materializada de un equipo (detalle de Fichajes). */
     suspend fun transfersRoster(teamId: String, gender: String?): List<RiderProfile> =
         api.ridersByAffiliation(teamId, TransfersLogic.MARKET_SEASON, gender)
+
+    /** País del equipo (cabecera de la vista de equipo del mercado), o null. */
+    suspend fun teamCountryCode(teamId: String): String? =
+        try {
+            api.teamsByIds(listOf(teamId)).firstOrNull()?.countryCode?.takeIf { it.isNotBlank() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
 
     /**
      * Carga la rejilla del Modo Campeonatos: carreras CN del rango → primera
@@ -1150,32 +1167,74 @@ class CalendarRepository(
                 ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
         }
         val rowsByRef = rank1Rows.groupBy { it.stageRef }
+        // Corredor → nombre, por clasificación (sin repetir nombre), ordenado.
+        val riderLeaders: (String) -> List<Pair<String, String?>> = { ref ->
+            rowsByRef[ref].orEmpty()
+                .mapNotNull { row -> resolvedRiderName(row)?.let { it to resolvedRiderId(row) } }
+                .distinctBy { it.first }
+                .sortedBy { it.first }
+        }
+        // Corredores cuyo equipo en la carrera se pide: el ganador de cada
+        // entrada y los líderes de clasificaciones de corredor de las
+        // destacadas (las únicas que los pintan). Espejo de `teamPairs` (web).
+        val teamPairs = mutableListOf<Pair<String, String>>()
 
         // 1) Nombre canónico cuando hay UN único rank 1 con ficha.
         val resolved = entries.map { e ->
             if (e.kind != ResultsFeedLogic.Kind.INHOUSE || e.stageRefId == null) return@map e
-            val names = rowsByRef[e.stageRefId].orEmpty().mapNotNull(resolvedRiderName).distinct()
-            var updated = if (e.stageRefId in nonWinnerRefs && names.isEmpty()) {
+            val leaders = riderLeaders(e.stageRefId)
+            var updated = if (e.stageRefId in nonWinnerRefs && leaders.isEmpty()) {
                 e.copy(winner = "")
-            } else if (names.size == 1 && e.rd?.primaryType != "ttt") {
-                e.copy(winner = names.first())
+            } else if (leaders.size == 1 && e.rd?.primaryType != "ttt") {
+                leaders.first().second?.let { teamPairs += e.race.id to it }
+                e.copy(winner = leaders.first().first)
             } else {
                 e
             }
             updated = updated.copy(complementary = updated.complementary.map { item ->
                 val rows = rowsByRef[item.stageRef].orEmpty()
-                val namesForClass = if (item.classKind == "teams") {
-                    rows.mapNotNull { row ->
+                if (item.classKind == "teams") {
+                    val teamNames = rows.mapNotNull { row ->
                         row.teamId?.let { canonicalTeamNames[it] }
                             ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
                     }.distinct()
+                    item.copy(winner = teamNames.sorted().joinToString(" / ").ifBlank { item.winner })
                 } else {
-                    rows.mapNotNull(resolvedRiderName).distinct()
+                    val classLeaders = riderLeaders(item.stageRef)
+                    if (e.isFeatured) classLeaders.forEach { (_, gid) -> gid?.let { teamPairs += e.race.id to it } }
+                    item.copy(
+                        winner = classLeaders.joinToString(" / ") { it.first }.ifBlank { item.winner },
+                        leaders = classLeaders.map { ResultsFeedLogic.FeedWinnerName(it.first) },
+                    )
                 }
-                item.copy(winner = namesForClass.sorted().joinToString(" / ").ifBlank { item.winner })
             })
             updated
         }.toMutableList()
+
+        // Equipo de cada corredor en su carrera, por lotes. Es decoración: si
+        // falla, el feed se queda sin equipos.
+        val teamByRider = feedRiderTeams(teamPairs)
+        if (teamByRider.isNotEmpty()) {
+            for (i in resolved.indices) {
+                val e = resolved[i]
+                if (e.kind != ResultsFeedLogic.Kind.INHOUSE) continue
+                val raceId = e.race.id
+                val winnerTeam = e.stageRefId?.takeIf { e.rd?.primaryType != "ttt" }?.let { ref ->
+                    riderLeaders(ref).singleOrNull()
+                        ?.takeIf { it.first == e.winner }
+                        ?.second?.let { teamByRider["$raceId:$it"] }
+                }
+                resolved[i] = e.copy(
+                    winnerTeam = winnerTeam,
+                    complementary = e.complementary.map { item ->
+                        if (item.classKind == "teams") item
+                        else item.copy(leaders = riderLeaders(item.stageRef).map { (name, gid) ->
+                            ResultsFeedLogic.FeedWinnerName(name, gid?.let { teamByRider["$raceId:$it"] })
+                        })
+                    },
+                )
+            }
+        }
 
         // 2) CRE: el ganador es el EQUIPO, no un corredor. Tres consultas por
         // lotes para todas las entradas: inscritos → startlist_teams → teams.
@@ -1232,6 +1291,48 @@ class CalendarRepository(
         }
         currentCoroutineContext().ensureActive()
         return resolved
+    }
+
+    /**
+     * Equipo de cada corredor en cada carrera: clave `raceId:globalRiderId` →
+     * nombre del equipo. Los rank 1 de race_uci_results no traen teamId, así
+     * que se resuelve por la startlist (startlist_riders_resolved →
+     * startlist_teams → teams), con el nombre canónico si el equipo está
+     * enlazado. Un corredor con más de un equipo en la carrera (fichaje a mitad
+     * de vuelta) queda sin equipo. Cualquier fallo devuelve el mapa vacío.
+     * Espejo de `resolveRiderTeams` en `js/services/result-feed-context.js`.
+     */
+    private suspend fun feedRiderTeams(pairs: List<Pair<String, String>>): Map<String, String> {
+        val wanted = pairs.map { (raceId, gid) -> "$raceId:$gid" }.toSet()
+        if (wanted.isEmpty()) return emptyMap()
+        return try {
+            val rows = api.startlistRiderTeamRows(pairs.map { it.first }.distinct(), pairs.map { it.second }.distinct())
+            val pksByKey = rows
+                .filter { it.globalRiderId != null && it.teamId != null && "${it.raceId}:${it.globalRiderId}" in wanted }
+                .groupBy({ "${it.raceId}:${it.globalRiderId}" }, { it.teamId!! })
+                .mapValues { (_, pks) -> pks.distinct() }
+            val slTeamByPk = api.startlistTeamsByPks(
+                pksByKey.values.filter { it.size == 1 }.map { it.first() }.distinct(),
+            ).associateBy { it.id }
+            val canonTeams = try {
+                api.teamsByIds(slTeamByPk.values.mapNotNull { it.teamId }.distinct()).associateBy { it.id }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            pksByKey.mapNotNull { (key, pks) ->
+                val slTeam = pks.singleOrNull()?.let { slTeamByPk[it] } ?: return@mapNotNull null
+                val canon = slTeam.teamId?.let { canonTeams[it] }
+                val name = canon?.name?.takeIf { it.isNotEmpty() } ?: slTeam.teamName
+                if (name.isEmpty()) null
+                else key to TeamNames.localizedName(name, canon, LocaleHolder.shouldShowEnglishContent)
+            }.toMap()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
     // ─────────── Today Highlights ───────────

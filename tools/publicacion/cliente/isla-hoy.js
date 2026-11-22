@@ -18,6 +18,6 @@ lista.addEventListener('click', evento => {
   else if (evento.target.closest('.badge--results, .race-card[data-modal]')) cargar();
 });
 
-// Con un filtro fijado, la lista espera a este JS (cliente/pre-pintado-hoy.js).
+// Con filtros recordados, la lista espera a este JS (cliente/pre-pintado-hoy.js).
 if (lista.style.visibility === 'hidden') cargar();
 else alReposar(cargar);

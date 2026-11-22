@@ -55,7 +55,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { firstTechnicalGuide } from '../../js/services/races.js';
 import { isNearToday } from '../../js/services/refresh-window.js';
@@ -79,8 +79,10 @@ const MIN_RATIO = 0.99;
 // Filas de la tabla escritas en el HTML: más que el alto de la pantalla del
 // móvil; el navegador añade el resto.
 export const ROW_LIMIT = 20;
-// Con 20 filas, la página más grande ronda 39 KB.
-const MAX_PAGE_BYTES = 48 * 1024;
+// Con 20 filas, la página más grande ronda 39 KB. La columna lateral de etapas
+// (carretera) añade la lista completa de la vuelta: las páginas de etapa de Giro
+// y Tour pasan de 48 KB (49 KB), por eso el tope sube a 64 KB.
+const MAX_PAGE_BYTES = 64 * 1024;
 // Formato de la caché (ficheros y manifiesto). Cambiarlo la descarta.
 const CACHE_FORMAT = 1;
 // Versión de los datos de la firma: RESULTADOS_CACHE_CONTRACT de site_data.py.
@@ -272,7 +274,10 @@ const nullsLast = (a, b) => (a == null) - (b == null);
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 // race_days: dateKey asc, neutralStartTimeUtc asc con NULL primero (como el
 // navegador) y, a igualdad, el orden por id.
-const DAY_COLUMNS = ['id', 'stageNumber', 'dateKey', 'isCancelledDay', 'isRestDay', 'neutralStartTimeUtc'];
+// Salida, meta y slugs: la lista de etapas de la columna lateral (resultsPageHtml).
+const DAY_COLUMNS = ['id', 'stageNumber', 'dateKey', 'isCancelledDay', 'isRestDay', 'neutralStartTimeUtc', 'startLocation', 'startLocationEn', 'finishLocation', 'finishLocationEn', 'slug', 'slugEn', 'distanceKm'];
+// Desnivel positivo de la jornada (como elevationProfile->elevationGain en el navegador): totales de la general final.
+const dayElevationGain = day => day.elevationProfile?.elevationGain ?? null;
 function raceDaysOrder(a, b) {
   return nullsLast(a.dateKey, b.dateKey) || compare(a.dateKey, b.dateKey)
     || (b.neutralStartTimeUtc == null) - (a.neutralStartTimeUtc == null)
@@ -287,7 +292,7 @@ export function buildIndex(tables) {
   for (const stages of stagesByRace.values()) stages.sort((a, b) => nullsLast(a.stageNumber, b.stageNumber) || (a.stageNumber ?? 0) - (b.stageNumber ?? 0));
   const daysByRace = new Map();
   for (const [raceId, days] of groupBy(rows('race_days'), 'raceId')) {
-    daysByRace.set(raceId, days.map(day => Object.fromEntries(DAY_COLUMNS.map(column => [column, day[column] ?? null]))).sort(raceDaysOrder));
+    daysByRace.set(raceId, days.map(day => ({ ...Object.fromEntries(DAY_COLUMNS.map(column => [column, day[column] ?? null])), elevationGain: dayElevationGain(day) })).sort(raceDaysOrder));
   }
   const guideByRace = new Map();
   for (const [raceId, guides] of groupBy(rows('guides'), row => row.race_days?.raceId)) guideByRace.set(raceId, firstTechnicalGuide(guides));
@@ -509,7 +514,7 @@ function composePage(source, { headerInner, html, fingerprint }) {
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, main.index)
     + `<main id="resultsContent"${main[1].replace(OWN_ATTRS, '')} data-prerendered="${attr(fingerprint)}">\n${html}\n`
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
 }
 
 const BAD_URL = /(?:^|[/?=&#])(?:undefined|null)(?:[/?#&]|$)/;
@@ -620,20 +625,24 @@ async function renderPage(html, env, { race, stages, active, inputs }, data) {
       filter = html.teamFilterHtml(classification, '', isEn);
     }
   }
+  // Tiempo del ganador de la general: las mismas filas GC que lee el navegador (solo en la general final).
+  const gcRows = stages.activeKey === 'final' && !isOneDay
+    ? inputs.stagesAll.filter(s => s.classKind === 'gc' && s.stageNumber == null).flatMap(s => data.results[s.id] || []) : [];
   const skeleton = html.resultsPageHtml({
     race, stages, active, raceDay, contextDay, contextAssets, actionAssets,
-    canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn,
+    canonBase: LANGS[lang].canonBase, canonSlug: LANGS[lang].slug(race), isEn, gcWinnerSecs: html.gcWinnerSeconds(gcRows),
     contextBroadcasts: inputs.broadcasts || [], contextVideos: inputs.videos || [],
   });
   const hasTabs = activeStages.length > 1;
   const bar = hasTabs || !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
-  const publication = html.publicationHtml(activeClass, { configByKind: active.configByKind, isOneDay, inBar: bar && !hasTabs, isEn, timeZone: LANGS[lang].timeZone, now: env.now.getTime() });
+  const publication = html.publicationHtml(activeClass, { configByKind: active.configByKind, isOneDay, inBar: bar, isEn, timeZone: LANGS[lang].timeZone, now: env.now.getTime() });
   const slots = {
     status: bar ? { html: publication.status } : null,
     filter: bar && filter != null ? { html: filter } : null,
     publication: { html: publication.publication },
     table,
-    metrics: contextDay ? { html: env.stageMetricsHtml(contextDay, { timeZoneLabel: LANGS[lang].timeZoneLabel }) } : null,
+    // La general final de una carrera por etapas lleva los datos de la carrera (sin hueco de jornada).
+    metrics: contextDay && !html.isRaceFinalView(race, stages.activeKey) ? { html: env.stageMetricsHtml(contextDay, { timeZoneLabel: LANGS[lang].timeZoneLabel }) } : null,
   };
   return { html: fillSlots(skeleton, slots, htmlFingerprint), fingerprint: htmlFingerprint(skeleton), rows };
 }

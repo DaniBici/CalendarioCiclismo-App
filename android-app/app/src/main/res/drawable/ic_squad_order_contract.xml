@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- file-pen-line (Lucide), conmutador del orden de la plantilla de Fichajes. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M14.364,13.634 a2,2 0 0,0 -0.506,0.854 l-0.837,2.87 a0.5,0.5 0 0,0 0.62,0.62 l2.87,-0.837 a2,2 0 0,0 0.854,-0.506 l4.013,-4.009 a1,1 0 0,0 -3.004,-3.004 z"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M14.487,7.858 A1,1 0 0,1 14,7 V2"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,19.645 V20 a2,2 0 0,1 -2,2 H6 a2,2 0 0,1 -2,-2 V4 a2,2 0 0,1 2,-2 h8 a2.4,2.4 0 0,1 1.704,0.706 l2.516,2.516"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,18 h1"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

@@ -8,6 +8,13 @@ const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.35em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
 
+// Marca del pie: el logotipo de la cabecera y el nombre, con la descripción del
+// perfil de X debajo.
+export function footerBrandHtml(s) {
+  return `<div class="site-footer__about"><a class="site-footer__brand" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span>Calendario Ciclismo</span></a>` +
+    `<p class="site-footer__desc">${s.footerDescription}</p></div>`;
+}
+
 // Flecha de volver con el mismo trazo que los iconos del menú.
 export const BACK_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
 // El hueco de la flecha existe siempre (invisible en Hoy): en tableta y
@@ -28,10 +35,14 @@ export const PRIMARY_ICONS = {
   // (Android) y CyclocrossEmblem (iOS).
   cyclocross: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M 9.5 8 C 6.5 5.8 2 7.4 2 12 C 2 16.6 6.5 18.2 9.5 16"/><path d="M 13.5 7.5 L 21.5 16.5 M 21.5 7.5 L 13.5 16.5"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  // Calendario iCal: calendario con «+» (Lucide calendar-plus), distinto del de la sección.
+  ical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4M16 2v4M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8M3 10h18M16 19h6M19 16v6"/></svg>',
   about: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg>',
   support: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>',
   apps: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  terms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
+  privacy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>',
 };
 
 export const STRINGS = {
@@ -42,6 +53,11 @@ export const STRINGS = {
     aboutHref: '/about/', aboutText: 'Acerca de mí',
     openHref: '/abierto/', openText: 'Datos abiertos',
     icalHref: '/suscripcion/', icalText: 'Calendario iCal',
+    privacyHref: '/privacidad.html', privacyText: 'Privacidad',
+    termsHref: '/terminos.html', termsText: 'Términos',
+    footerSections: 'Secciones', footerMore: 'Más',
+    // La descripción del perfil de X (@CalCiclismo).
+    footerDescription: 'Toda la info de las carreras ciclistas profesionales: horarios, recorridos, resultados, dorsales y cómo ver por TV y online. Disponible en iOS, Android y web.',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
     appsText: 'Apps', appsLabel: 'Abrir opciones de apps',
     viewsAria: 'Vistas',
@@ -60,6 +76,10 @@ export const STRINGS = {
     aboutHref: '/en/about/', aboutText: 'About me',
     openHref: '/en/open/', openText: 'Open Data',
     icalHref: '/en/subscription/', icalText: 'iCal calendar',
+    privacyHref: '/en/privacy/', privacyText: 'Privacy',
+    termsHref: '/en/terms/', termsText: 'Terms',
+    footerSections: 'Sections', footerMore: 'More',
+    footerDescription: 'All the info on professional cycling races: schedules, routes, results, startlists and how to watch on TV and online. Available on iOS, Android and the web.',
     supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
     appsText: 'Apps', appsLabel: 'Open app options',
     viewsAria: 'Views',
@@ -117,4 +137,41 @@ export function headerHtml({ lang = 'es', hasBack = false, active = null } = {})
         langSwitcherHtml(lang === 'en' ? 'en' : 'es') +
       '</div>' +
     '</div>';
+}
+
+// Línea de autoría del pie (sin Privacidad ni Términos, que viven en «Más»).
+function creditosPie(lang) {
+  return lang === 'en'
+    ? '<p class="site-footer__legal">&copy; 2026 Calendario Ciclismo - Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>'
+    : '<p class="site-footer__legal">&copy; 2026 Calendario Ciclismo - Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>';
+}
+
+// Pie común de todas las páginas: la misma estructura que monta buildFooterNav
+// (js/header.js) y que el navegador conserva. Lo generan el publicador y los prerender.
+export function footerHtml(lang = 'es') {
+  const s = STRINGS[lang] || STRINGS.es;
+  const enlace = (clase, href, icono, texto, extra = '') => `<a class="footer-link footer-link--icon${clase}" href="${href}"${extra}>${PRIMARY_ICONS[icono]}<span>${texto}</span></a>`;
+  const acciones = '<p class="site-footer__actions">'
+    + enlace(' footer-link--about', s.aboutHref, 'about', s.aboutText)
+    + enlace('', s.openHref, 'open', s.openText)
+    + enlace('', s.icalHref, 'ical', s.icalText)
+    + enlace('', s.supportHref, 'support', s.supportText, ' target="_blank" rel="noopener"')
+    + `<button class="footer-link footer-link--icon footer-link--apps" type="button">${PRIMARY_ICONS.apps}<span>${s.appsText}</span></button>`
+    + enlace('', s.privacyHref, 'privacy', s.privacyText)
+    + enlace('', s.termsHref, 'terms', s.termsText)
+    + '</p>';
+  const secciones = PRIMARY_NAV_ITEMS.map(clave => `<li>${enlace('', s[clave].href, clave, s[clave].text)}</li>`).join('');
+  return `<footer class="site-footer"><div class="site-footer__top">${footerBrandHtml(s)}`
+    + `<nav class="site-footer__col" aria-label="${s.footerSections}"><p class="site-footer__heading" aria-hidden="true">${s.footerSections}</p><ul class="site-footer__list">${secciones}</ul></nav>`
+    + `<div class="site-footer__col"><p class="site-footer__heading">${s.footerMore}</p>${acciones}</div></div>${creditosPie(lang)}</footer>`;
+}
+
+// Sustituye por el pie común el pie del final de una página ya publicada (la parte
+// que los compositores reutilizan tras </main>). El idioma sale de <html lang> de esa página.
+export function renovarPie(tail, source) {
+  const lang = /<html[^>]*\blang="en"/i.test(source) ? 'en' : 'es';
+  const ini = tail.indexOf('<footer');
+  const fin = tail.indexOf('</footer>');
+  if (ini < 0 || fin < ini) return tail;
+  return tail.slice(0, ini) + footerHtml(lang) + tail.slice(fin + '</footer>'.length);
 }

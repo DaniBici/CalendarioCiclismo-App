@@ -6,6 +6,7 @@ import SwiftUI
 /// No bloquea funciones.
 struct SupportView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var premium = PremiumService.shared
     @State private var selectedPlan: PremiumService.PremiumPlan = .yearly
     @State private var alertMessage: String?
@@ -215,6 +216,7 @@ struct SupportView: View {
             .padding(.vertical, 14)
         }
         .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
         .disabled(premium.isPurchasing)
     }
 
@@ -238,14 +240,24 @@ struct SupportView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func contributionButton(id: String, fallback: String) -> some View {
-        Button(product(id: id)?.displayPrice ?? fallback) {
+        // Los tres importes se reparten el ancho de la fila.
+        let button = Button {
             premium.contribute(productID: id)
+        } label: {
+            Text(product(id: id)?.displayPrice ?? fallback)
+                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .tint(.primary)
-        .frame(maxWidth: .infinity)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
+        .tint(Color.accentColor)
         .disabled(premium.isPurchasing)
+        // Acento atenuado en claro; en oscuro, relleno, como en la bienvenida.
+        if colorScheme == .dark {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
     }
 
     private var restoreButton: some View {

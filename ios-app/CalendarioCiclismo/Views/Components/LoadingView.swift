@@ -188,6 +188,9 @@ struct AnimatedRouteProfile: View {
     var lineColor: Color = .accentColor
     var fillColor: Color? = nil
     var riderColor: Color? = nil
+    /// Opacidad del relleno en la base. Con 0 el perfil se funde con el fondo
+    /// cuando no llega al borde de la pantalla.
+    var baseOpacity: Double = 0.08
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
@@ -335,7 +338,7 @@ struct AnimatedRouteProfile: View {
                     ? AppTheme.cardBackground
                     : fillColor ?? lineColor.opacity(0.16)
                 graphics.fill(area(under: profile, size: size), with: .linearGradient(
-                    Gradient(colors: [tint, tint.opacity(0.08)]),
+                    Gradient(colors: [tint, tint.opacity(baseOpacity)]),
                     startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)
                 ))
                 graphics.stroke(profile, with: .color(lineColor.opacity(0.28)),

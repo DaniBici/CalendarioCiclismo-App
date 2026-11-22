@@ -88,7 +88,7 @@ Documentación técnica de la barra de estado Android.
 - `MainActivity` llama a `WindowCompat.enableEdgeToEdge(window)` (AndroidX Core
   1.17.0). El fondo se dibuja mediante una `Surface` del color `background` que
   ocupa toda la ventana; no se colorean las barras con `Window`.
-- El contenido de navegación y onboarding comparte un `safeDrawingPadding()`:
+- El contenido de navegación y la bienvenida comparten un `safeDrawingPadding()`:
   aplica y consume los insets de barras, cámara y teclado una sola vez. El
   `Scaffold` principal solo añade el espacio de las pestañas y la barra inferior
   ya no añade otro `navigationBarsPadding()`.
@@ -96,8 +96,8 @@ Documentación técnica de la barra de estado Android.
   `WindowInsets.safeDrawing`, sin desactivar esos márgenes, y aplica el contraste
   mediante `SystemBarsAppearance` sobre su `DialogWindowProvider`. Esto evita que
   el tema del sistema imponga iconos negros sobre una hoja oscura.
-- El contenido del onboarding de sostenimiento admite desplazamiento cuando no
-  cabe en horizontal; los botones de continuar permanecen fuera del desplazamiento.
+- La bienvenida se desplaza entera cuando no cabe (horizontal, texto grande);
+  el botón de entrada queda al pie del contenido.
 - Se conservan `windowLightStatusBar` y `windowLightNavigationBar` en los temas
   XML claro/oscuro. El arranque aplica la apariencia sobre `decorView`; el cambio
   dinámico de tema la reaplica con `WindowInsetsControllerCompat` y, desde API 30,
@@ -239,7 +239,7 @@ Archivo: `ios-app/CalendarioCiclismo.xcodeproj/project.pbxproj`. Actualizar los 
 - **Tamaños:** la decisión depende del ancho del contenedor y de la size class (`AdaptiveLayoutPolicy`; los vídeos CX, también de la proporción del contenedor), nunca del modelo. iPadOS 26 y posteriores redimensionan las ventanas libremente: por debajo de ~680 pt la ventana es compacta y la app usa el diseño del iPhone. Los diseños anchos del iPhone Duo (`feedColumns`, `usesWideDetail`, `startlistColumns`) cubren también el iPad; las dos columnas a 1376 pt (13" horizontal) coinciden con la web, cuyo contenido llega a 1440 px.
 - **Barra de pestañas abajo:** en ancho regular iPadOS sube la barra de `TabView` a la cabecera. `ContentView` pasa `.compact` al `TabView` para dibujarla abajo, como en el iPhone, y devuelve la size class real a cada pestaña (`windowSizeClass`). Una pestaña nueva debe llevar `.windowSizeClass(horizontalSizeClass)`; sin él, sus vistas se ven como en el iPhone.
 - **Cabecera:** en ancho regular, la firma completa («Calendario Ciclismo») acompaña al conmutador «CX | Ruta». En iPad la barra coloca el elemento sin cápsula a 10 pt del borde; `CCHeaderMarkView` añade 6 pt para alinearlo con el contenido (16 pt).
-- **Anchos máximos:** `headerStripMaxWidth` (640 pt, cintillo y selector de días de Hoy y de Ciclocross, centrados; Android `HEADER_STRIP_MAX_DP` en el cintillo), `readingWidth` (680 pt, Ajustes) y `onboardingWidth` (520 pt, contenido y botones del onboarding).
+- **Anchos máximos:** `headerStripMaxWidth` (640 pt, cintillo y selector de días de Hoy y de Ciclocross, centrados; Android `HEADER_STRIP_MAX_DP` en el cintillo), `readingWidth` (680 pt, Ajustes) y `onboardingWidth` (520 pt, pasos y botón de la bienvenida; el perfil de la cabecera va a todo el ancho).
 - **Pantallas:** Competición reparte las jornadas en dos columnas (`feedColumns`), como la web desde 761 px. La página de torneo de Ciclocross reparte los días (fecha y pruebas, en una columna) de dos en dos con el mismo umbral, como `.cx-tournament-list` de la web; Android aplica la misma regla. La pestaña Vídeos de la ficha CX (`videoColumns`) coloca los vídeos de dos en dos con `feedColumns` y de tres en tres en un contenedor apaisado (más ancho que alto) con al menos 804 pt de contenido, tres tarjetas de 260 pt (Android: 900 dp de ventana): iPad, tablets y pantalla interior del iPhone Duo, dos en vertical y tres en horizontal. En el Duo, 669 pt en vertical y 951 pt en horizontal; el umbral deja unos 115 pt para márgenes de seguridad laterales. Fichajes usa tarjetas de equipo de al menos 200 pt en ancho regular, con el nombre completo sin truncar; las filas de Fichajes y Renovaciones siguen en una línea con puntos suspensivos. En el mapa del recorrido, Puntos clave pasa de la hoja con alturas (que en iPad sería un formulario modal sobre el mapa) a un inspector lateral (`inspector`). QuickLook, Safari, el mapa CX ampliado y los inscritos de Competición se presentan con `.presentationSizing(.page)`.
 - **Lista y detalle (`NavigationSplitView`):** en ancho regular, Resultados y Fichajes usan columna lateral y detalle; en compacto, la pila del iPhone (`ContentView` elige según la size class, y cruzar el umbral recrea la pestaña). Resultados (`ResultsSplitView`): el feed en la columna lateral (`ResultsFeedView(store:placement:onSelect:)`) y la clasificación o la ficha CX en el detalle, con una pila nueva por selección. El Ránking UCI no abre detalle: con esa sección elegida, `ResultsSplitView` sustituye la lista y detalle por una pila a todo el ancho (`placement: .fullWidth`). El estado de la pestaña (sección, feed, ciclocross y ránking) vive en `ResultsFeedStore`, que conserva `ResultsSplitView`, porque el cambio de contenedor recrea `ResultsFeedView`. El selector de sección no se mueve: la columna lateral mide su marco en coordenadas globales y la vista a todo el ancho lo reproduce (mismo ancho, mismo origen) a partir del origen de su contenido. En iPadOS 27.2, barra de la columna lateral y barra a todo el ancho acaban a la misma altura (86 pt en el iPad Pro de 13"). Con esa sección, el título de la barra pasa a «Ránking», también en el iPhone y en Android; la barra del sistema lo centra. Fichajes (`TransfersSplitView`): lista nativa con «Movimientos» y los equipos por división, con 16 pt de margen superior (`contentMargins(.top)`) para separar la primera fila de la barra; el detalle muestra los paneles de Fichajes y Renovaciones (`TransfersView(inSplitDetail:)`, sin rejilla y hasta el borde inferior, bajo la barra de pestañas) o la página del equipo. La lista lateral lleva el fondo de la app (`scrollContentBackground(.hidden)`), no el agrupado del sistema, más oscuro. Android aplica la misma división solo en Fichajes (`TransfersScreen`: `MarketLayout`, `MarketSidebar`, `MovesDetail` y `TransfersTeamPane`), con `AdaptiveLayoutPolicy.usesListDetail` (contenedor de 640 dp o más, dos paneles posibles y altura no compacta; columna lateral de 280 dp, o 320 dp desde 760 dp); Resultados no tiene lista y detalle en Android. El enlace profundo a un equipo (`DeepLink.Team`) lleva en Android a la pestaña Fichajes y deja el id en `TransfersDeepLink`; `TransfersScreen` lo consume según su disposición (selección en el detalle en tablets; ruta `transfers_team/<id>` empujada en teléfonos), como `transfersTeamId` en iOS. Las vistas de detalle deciden su diseño ancho por el ancho real (`twoColumnThreshold`), no solo por la size class: en la columna de detalle del iPad vertical quedan unos 470 pt.
 - **Widget:** `systemExtraLarge` (solo pantalla de inicio del iPad) muestra la lista del grande en dos columnas, hasta 14 filas.
@@ -247,6 +247,18 @@ Archivo: `ios-app/CalendarioCiclismo.xcodeproj/project.pbxproj`. Actualizar los 
 ### Fix bug layout tras canjeo de código promocional
 
 `AppStore.presentOfferCodeRedeemSheet(in: scene)` se monta UIKit fuera del árbol SwiftUI; al cerrarse deja la safe-area corrupta. Workaround en `PremiumService.swift`: flag `isRedeemingCode` evita que la paywall se auto-cierre durante el canjeo; tras el `await` un `invalidateRootLayout()` fuerza `setNeedsLayout`/`layoutIfNeeded` en todas las windows.
+
+## Bienvenida (iOS + Android)
+
+Pantalla única del primer arranque, desde la 5.2.2: `WelcomeOnboardingView` (iOS) y `WelcomeOnboardingScreen` (Android). Sustituye a las tres pantallas de idioma, notificaciones y apoyo.
+
+- **Cabecera:** símbolos, «Calendario Ciclismo», lema y el perfil animado del arranque (`AnimatedRouteProfile`), a todo el ancho.
+- **Pasos:** aparecen de uno en uno, cada uno al responder el anterior. Idioma («Idioma / Language», botones «Español» y «English» con el mismo peso; detalle en `docs/memory/i18n-region.md`), Notificaciones («Activar» pide el permiso del sistema; «Ahora no») y «Apoya el proyecto» («Ver formas de apoyar» abre la hoja de apoyo sin cerrar la bienvenida; reglas en `docs/memory/premium.md`). Un paso respondido se pliega a una fila con su control. El botón «Abrir Calendario Ciclismo» solo aparece con el tercero y cierra la bienvenida con un fundido de 0,6 s. En iOS el fundido vive en la propia vista (`isClosing`): un cambio de estado de `App` con `withAnimation` no anima la retirada de una vista de la escena.
+- **Persistencia:** no hay marca propia de la bienvenida. El paso pendiente es el primero sin su marca: `language_announcement_done`; `push_onboarding_completed` (iOS) o `notif_onboarding_done` (Android); `support_intro_v4_3_1_done`. La bienvenida se muestra mientras falte alguna, de modo que quien la dejó a medias la retoma en su paso. Quien ya tiene las notificaciones activas (Android) o usaba la app en inglés tiene su paso respondido por las migraciones del arranque.
+- **iOS, continuidad con el arranque:** con la bienvenida pendiente no se muestra `SplashView`; la bienvenida empieza con los símbolos, el nombre y el perfil en su posición de arranque y los sube a la cabecera (0,85 s) antes de mostrar el paso pendiente. Las posiciones finales se miden con `onGeometryChange`; con «Reducir movimiento» no hay desplazamiento.
+- **iOS, geometría del arranque (`LaunchBrandLayout`):** la imagen `LaunchLogo` mide 100 × 212 pt con los símbolos centrados en sus 100 pt superiores. `UILaunchScreen` centra la imagen, así que los símbolos quedan 56 pt por encima del centro de la pantalla y el bloque de símbolos, nombre y lema queda centrado. `SplashView` y la bienvenida dibujan la misma imagen con el mismo marco. Volver a un lienzo de 100 × 100 descentra el bloque; cambiar el lienzo exige cambiar `markLift` (mitad de la diferencia de alturas).
+- **Android:** el arranque de Compose (`SplashOverlay`) se cierra con su fundido y los pasos aparecen después (`active`). `showSplash` usa `rememberSaveable`: elegir inglés recrea la actividad y la bienvenida abre en el paso siguiente sin repetir el arranque.
+- **Analítica:** `onboarding_view` y `onboarding_action` con los valores de paso anteriores (`docs/memory/analytics.md`).
 
 ## Hápticos: mapeo iOS / Android
 
@@ -426,10 +438,15 @@ widget_day(p_date date, p_days int = 2, p_locale text = 'es',
 - **Selección y orden:** jornadas publicadas; carreras canceladas fuera. Orden
   espejo del orden de Hoy (Grandes Vueltas, `categoryRank` de
   `js/services/race-order.js`, género, salida; sin miniperfil). Ciclocross después, por clase
-  (CM, CDM, CC, C1, C2, CN, NAC) y hora. Descanso y anuladas al final.
-- **Filtros:** `p_filter` replica `matchesCategory` (`public.widget_road_matches`).
-  `p_cx_filter` replica el filtro de la agenda CX (`all|big|pro|spain`). En
-  inglés se excluye `NAC`. Si llega cualquier lista de seguidas, el alcance es
+  (CM, CDM, Europeo, C1, C2, otros Continentales, CN, NAC; desde la migración
+  `widget_filtros_combinables`) y hora. Descanso y anuladas al final.
+- **Filtros:** desde la 5.2.4, `p_filter` lleva los grupos que filtran
+  (`level:wt,pro,dev;gender:male,female`, o `all`) y `p_cx_filter`
+  (`level:big,uci,national`), con las reglas de «Reglas de filtros» de
+  `docs/memory/today-navigation.md` (`public.widget_road_matches` y
+  `widget_day`). La 5.2.3 sigue enviando un valor (`all|pro|uwt|wwt|male|female`
+  y `all|big|pro|spain`) con las reglas antiguas. La RPC acepta ambos desde la
+  migración `widget_filtros_combinables` (2026-11-19). En inglés se excluye `NAC`. Si llega cualquier lista de seguidas, el alcance es
   «Seguidas» y los filtros no se aplican.
 - **TV:** emisiones filtradas por `p_broadcast_groups` (grupos de
   `RegionService.allowedBroadcastGroups`). `tv.status`: `time` (hora de la
@@ -471,8 +488,8 @@ la altura disponible.
 
 ### Configuración por instancia
 
-- **Alcance:** `appFilter` (filtro fijado en Hoy y en la agenda CX, por
-  defecto), `all`, `followed` (carreras, etapas y pruebas CX seguidas).
+- **Alcance:** `appFilter` (filtros recordados de carretera y de la agenda CX,
+  por defecto), `all`, `followed` (carreras, etapas y pruebas CX seguidas).
 - **Disciplina:** `both` (defecto), `road`, `cyclocross`.
 - iOS: `AppIntentConfiguration` (`TodayWidgetIntent`). Android:
   `TodayWidgetConfigureActivity` (`widgetFeatures =

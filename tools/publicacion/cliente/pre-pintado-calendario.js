@@ -1,5 +1,5 @@
 // Antes del primer pintado: alto de los filtros, vuelta desde una carrera, desplazamiento
-// al día de hoy y lo que no coincide con la versión publicada (otra vista, filtro o año):
+// al día de hoy y lo que no coincide con la versión publicada (otra vista, filtros o año):
 // entonces la lista se oculta hasta que el JS completo la pinta. Va en línea, tras la lista.
 import { readCalendarMonth, readCalendarView } from '../../../js/calendario-query.js';
 
@@ -9,8 +9,14 @@ const parametros = new URLSearchParams(location.search);
 const leer = (almacen, clave) => { try { return almacen.getItem(clave); } catch { return null; } };
 
 const vista = readCalendarView(parametros) || (readCalendarMonth(parametros) ? 'mes' : null) || leer(localStorage, 'cc-cal-subview');
-const fijado = leer(localStorage, lista.dataset.pinClave);
-const pendiente = vista === 'mes' || parametros.has('year') || parametros.has('cat') || readCalendarMonth(parametros) || (fijado && fijado !== 'all');
+// Filtros recordados (js/race-filters.js; con todo marcado no hay clave) o la
+// chincheta de la 5.2.3, que el JS convierte.
+const filtrado = leer(localStorage, lista.dataset.filtrosClave) || leer(localStorage, 'cc_default_filter');
+const pendiente = vista === 'mes' || parametros.has('year') || readCalendarMonth(parametros) || filtrado;
+// El botón «Filtros» marcado desde el primer pintado (la clave solo existe con algún filtro).
+if (leer(localStorage, lista.dataset.filtrosClave)) {
+  for (const id of ['temporadaFilterBtn', 'mesFilterBtn']) document.getElementById(id)?.classList.add('tcat-btn--active');
+}
 document.documentElement.style.setProperty('--temporada-filters-h', `${filtros.offsetHeight}px`);
 
 if (pendiente) {

@@ -41,24 +41,6 @@ object ChampionshipsConfig {
     fun isTodayFilterActive(today: String = DateFormatting.todayKey()): Boolean =
         today >= TODAY_FILTER_START && today <= RANGE_END
 
-    /** `true` si hoy (fecha real del dispositivo) cae en la semana de Campeonatos
-     *  (22-28 jun, ventana completa). Durante esta ventana la vista "Hoy" impone el
-     *  filtro Masculino por defecto y solo ofrece cuatro filtros (Todas/Pro/Masc/Fem),
-     *  sin posibilidad de fijar otro predeterminado. Espejo de `js/campeonatos-config.js`. */
-    fun isChampWeekFilterLock(today: String = DateFormatting.todayKey()): Boolean =
-        today >= RANGE_START && today <= RANGE_END
-
-    /** Filtros visibles en la vista "Hoy" durante la semana de Campeonatos (sin WT/WWT). */
-    val CHAMP_WEEK_HOY_FILTERS: List<Constants.CategoryFilter> = listOf(
-        Constants.CategoryFilter.ALL,
-        Constants.CategoryFilter.PRO,
-        Constants.CategoryFilter.MALE,
-        Constants.CategoryFilter.FEMALE,
-    )
-
-    /** Filtro forzado por defecto en la vista "Hoy" durante la semana de Campeonatos. */
-    val CHAMP_WEEK_HOY_DEFAULT: Constants.CategoryFilter = Constants.CategoryFilter.MALE
-
     /** Filtros visibles en la rejilla: `TODAY` solo se ofrece en su rango. */
     fun visibleFilters(): List<Filter> =
         if (isTodayFilterActive()) Filter.values().toList()
@@ -145,23 +127,6 @@ object ChampionshipsConfig {
             if (fem) (if (itt) Slot.CRI_FEM else Slot.LINEA_FEM)
             else (if (itt) Slot.CRI_MASC else Slot.LINEA_MASC)
         }
-    }
-
-    // ── Clasificación de una CN para los filtros de categoría (Pro/Masc/Fem) ──
-    // Misma señal que slot() (nombre con respaldo en gender). Una CN élite cuenta
-    // como "pro"; las sub23 quedan fuera de Pro/Masc/Fem (igual que 1.2U/2.2U).
-    // Masc/Fem además respetan el género de la prueba.
-
-    /** ¿Es una CN de categoría sub23? (línea o CRI; masc o fem) */
-    fun isU23Championship(race: Race?): Boolean =
-        isChampionship(race) && SUB23_REGEX.containsMatchIn(race?.name.orEmpty())
-
-    /** Género de una CN: femenino si el nombre lo dice o gender=='female'
-     *  (sin que el nombre diga masculino); masculino en otro caso. */
-    fun isFemaleChampionship(race: Race?): Boolean {
-        val n = race?.name.orEmpty()
-        return FEMENIN_REGEX.containsMatchIn(n) ||
-            (race?.gender == "female" && !MASCULIN_REGEX.containsMatchIn(n))
     }
 
     // ── Orden interno de la categoría CN en Hoy/Mes ───────────────────

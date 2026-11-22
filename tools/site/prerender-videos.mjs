@@ -33,7 +33,7 @@ import { fork } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml } from '../../js/header-html.js';
+import { PRIMARY_NAV_ITEMS, STRINGS, headerHtml, renovarPie } from '../../js/header-html.js';
 import { htmlFingerprint } from '../../js/html-fingerprint.js';
 import { CX_AGENDA_SELECT } from '../../js/services/cx-data.js';
 import { headerOptions, installBrowserEnv, pageErrors, readDump, summarize } from './prerender-jornadas.mjs';
@@ -130,7 +130,7 @@ export function composePage(source, { headerInner, html, fingerprint, ld }) {
     + `<header class="site-header" id="siteHeader"${header[1]}>${headerInner}</header>`
     + source.slice(header.index + header[0].length, main.index)
     + `<main${mainAttrs} data-prerendered="${attr(fingerprint)}">${html}\n  `
-    + source.slice(close);
+    + renovarPie(source.slice(close), source);
   return page.replace(LD, '').replace('</head>', `  <script type="application/ld+json" data-videos>${jsonLd(ld)}</script>\n</head>`);
 }
 
@@ -190,7 +190,7 @@ async function runLanguage(lang, site, data) {
   const render = header => {
     let body = days.length ? H.videoDaysHtml(days, { isEn, locale, rounds }) : H.videosEmptyHtml(isEn, view === 'cx');
     if (from[view] > RESULTS_SEASON_START) body += H.videosMoreHtml(isEn);
-    const html = `${H.videosHeroHtml(H.videosSwitchHtml({ view, pinned: false, isEn }))}<div id="videosFeedPanel" data-view="${view}">${body}</div>`;
+    const html = `${H.videosHeroHtml(H.videosSwitchHtml({ view, pinned: false, isEn }), H.videosFilterSlotHtml(view))}<div id="videosFeedPanel" data-view="${view}">${body}</div>`;
     // Carreras de las dos disciplinas, de la más reciente a la más antigua; una
     // prueba CX de varios días, una vez. En carretera, con la etapa.
     const stageLabel = rd => (rd.stageNumber == null || rd.stageNumber === '' ? ''

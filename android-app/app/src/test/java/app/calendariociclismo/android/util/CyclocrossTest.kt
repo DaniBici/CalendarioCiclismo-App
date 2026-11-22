@@ -69,12 +69,11 @@ class CyclocrossTest {
         assertFalse("WU" in CxPresentation.actualCategories(before))
     }
 
-    @Test fun `resultados admiten dorsal textual bigint y bono desconocido frente a cero`() {
+    @Test fun `resultados admiten dorsal textual bigint y bono desconocido`() {
         val row = json.decodeFromString<CxResult>("""{"id":9007199254740993,"raceId":"cx-1","category":"ME","bib":"A12","riderDisplay":"Corredor local","timeSeconds":90061,"bonusSeconds":null,"irm":"DF"}""")
         assertEquals(9007199254740993L, row.id)
         assertEquals("A12", row.bib)
         assertNull(row.bonusSeconds)
-        assertEquals(0, row.copy(bonusSeconds = 0).bonusSeconds)
         assertEquals("25:01:01", CyclocrossLogic.duration(row.timeSeconds))
         assertEquals("-", CyclocrossLogic.duration(null))
         assertEquals(row, json.decodeFromString<CxResult>(json.encodeToString(row)))

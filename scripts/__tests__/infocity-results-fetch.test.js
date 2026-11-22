@@ -92,7 +92,8 @@ describe('InfoCity — respuesta JavaScript', () => {
 
   it('consulta las generales en el checkpoint de su propia etapa', () => {
     const url = endpoint({ race: 21, test: 21, ced: 143 }, { typ: 'GENE', kl: 'I' });
-    expect(url).toContain('ced=143');
-    expect(url).toContain('ed=143');
+    const params = new URL(url).searchParams;
+    expect(params.get('ced')).toBe('143');
+    expect(params.get('ed')).toBe('143');
   });
 });

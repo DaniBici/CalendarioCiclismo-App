@@ -5,7 +5,7 @@ import {
   RTVE_LIVES_URL,
   decodeHtml, desiredBroadcasts, hboSharedEventVariants, matchObservation, parseHboCatalog, parseHboEventStart,
   isMontoneraEligible, normalizedObservation, placeBroadcasts,
-  parseRtveGuide, parseRtvePlayLives, parseRtveStructuredGuide,
+  parseRtvePlayLives, parseRtveStructuredGuide,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveRaceHintMatch, rtveVueltaExternalEventId, zonedTimeToUtc,
 } from '../../scripts/broadcasts-sync/broadcasts-sync-core.mjs';
 import {
@@ -80,18 +80,6 @@ describe('sincronización oficial de emisiones', () => {
     }).startTimeUtc).toBe('2026-08-26T12:45:00.000Z');
   });
 
-  it('extrae RTVE, convierte a UTC y conserva la primera emisión frente a la repetición', () => {
-    const events = parseRtveGuide(fixture('rtve-guide.html'), {
-      channel: 'Teledeporte', referenceDate: '2026-08-26',
-    });
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      dateKey: '2026-08-26', sourceChannel: 'Teledeporte', channel: 'RTVE',
-      stageNumber: 5, startTimeUtc: '2026-08-26T12:35:00.000Z',
-    });
-    expect(zonedTimeToUtc('2026-12-15', '14:30')).toBe('2026-12-15T13:30:00.000Z');
-  });
-
   it('falla de forma explícita si la guía de RTVE no es reconocible o no responde', async () => {
     await expect(collectRtve(async () => '<html></html>')).rejects.toThrow(/RTVE no devolvió una guía reconocible/);
     await expect(collectRtve(async () => { throw new Error('500 al consultar'); })).rejects.toThrow(/500 al consultar/);
@@ -119,6 +107,7 @@ describe('sincronización oficial de emisiones', () => {
         startTimeUtc: '2026-09-20T16:35:00.000Z', disciplineKey: 'cri|elite|masculino',
       }),
     ]);
+    expect(zonedTimeToUtc('2026-12-15', '14:30')).toBe('2026-12-15T13:30:00.000Z');
   });
 
   it('no cruza la hora de RTVE Play entre pruebas distintas del mismo día', () => {

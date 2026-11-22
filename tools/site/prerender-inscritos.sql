@@ -28,7 +28,10 @@ select
   (select coalesce(jsonb_agg(to_jsonb(s) order by s.dorsal, s.id), '[]'::jsonb)
      from startlist_riders_resolved s
     where s."raceId" in (select id from scope) and s."teamId" is not null) as riders,
-  (select coalesce(jsonb_agg(jsonb_build_object('raceId', d."raceId", 'dateKey', d."dateKey", 'isRestDay', d."isRestDay")
+  (select coalesce(jsonb_agg(jsonb_build_object('raceId', d."raceId", 'id', d.id, 'slug', d.slug, 'slugEn', d."slugEn",
+          'stageNumber', d."stageNumber", 'dateKey', d."dateKey", 'isRestDay', d."isRestDay",
+          'startLocation', d."startLocation", 'finishLocation', d."finishLocation",
+          'startLocationEn', d."startLocationEn", 'finishLocationEn', d."finishLocationEn")
           order by d."dateKey", d.id), '[]'::jsonb)
      from race_days d
     where d."raceId" in (select id from scope) and d."editorialStatus" = 'published') as days,

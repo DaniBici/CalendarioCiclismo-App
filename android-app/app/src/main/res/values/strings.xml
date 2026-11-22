@@ -14,22 +14,39 @@
 
     <!-- Common -->
     <string name="action_back">Atrás</string>
-    <string name="action_cancel">Cancelar</string>
     <string name="action_close">Cerrar</string>
     <string name="action_subscribe">Suscribirse</string>
     <string name="action_activate">Activar</string>
     <string name="action_deactivate">Desactivar</string>
     <string name="action_retry">Reintentar</string>
-    <string name="action_set">Establecer</string>
-    <string name="action_remove">Quitar</string>
     <string name="loading">Cargando…</string>
 
     <!-- Filtros de categoría -->
+    <!-- Filtros de carreras (RaceFilters.kt): Hoy, Mes, Temporada y Ciclocross -->
+    <string name="race_filters_title">Filtros</string>
+    <string name="race_filters_clear">Limpiar filtros</string>
+    <string name="race_filters_active_a11y">Filtros activos: %1$s</string>
+    <string name="race_filter_wt" translatable="false">WorldTour</string>
+    <string name="race_filter_pro">Profesional</string>
+    <string name="race_filter_dev" translatable="false">.2</string>
+    <string name="race_filter_male">Masculino</string>
+    <string name="race_filter_female">Femenino</string>
+    <string name="race_filter_big" translatable="false">Big</string>
+    <string name="race_filter_uci" translatable="false">UCI</string>
+    <string name="race_filter_national">Nacional</string>
+    <!-- Burbujas de la primera visita a Hoy (TodayTips.kt) -->
+    <string name="today_tip_filters_title">Filtros</string>
+    <string name="today_tip_filters_road">Elige si quieres ver las pruebas masculinas o femeninas del WorldTour, el resto de pruebas profesionales (ProSeries, .1, Nacionales) o las carreras .2. Puedes mezclarlas y lo que elijas se guarda.</string>
+    <string name="today_tip_filters_cx">Elige si quieres ver los grandes torneos (Big), el resto de pruebas UCI o las pruebas Nacionales españolas. Puedes mezclarlas y lo que elijas se guarda.</string>
+    <string name="results_tip_filters">Los filtros que apliques en las secciones Hoy o Calendario se trasladan a Resultados. Así solo ves las clasificaciones que te interesan.</string>
+    <string name="results_feed_filter_empty">No hay resultados con estos filtros en este periodo.</string>
+    <string name="today_tip_sort_title">Ordenar</string>
+    <string name="today_tip_sort">Organiza las carreras que has elegido por categoría, por hora de final o por hora de TV (las que la tengan). También se queda guardado.</string>
+    <string name="today_tip_next">Siguiente</string>
+    <string name="today_tip_done">Entendido</string>
     <string name="filter_today">Hoy</string>
     <string name="filter_all">Todas</string>
     <string name="filter_pro">Pro</string>
-    <string name="filter_uwt">WT</string>
-    <string name="filter_wwt">WWT</string>
     <string name="filter_male">Masc</string>
     <string name="filter_female">Fem</string>
 
@@ -48,10 +65,6 @@
     <string name="champ_slot_cri_sub23_f">CRI sub23 fem</string>
 
     <!-- Filtros: diálogo de filtro por defecto -->
-    <string name="filter_dialog_title">Filtro por defecto</string>
-    <string name="filter_dialog_remove_title">Quitar filtro por defecto</string>
-    <string name="filter_dialog_set_message">El filtro «%1$s» se aplicará como predeterminado en Hoy, Mes y Temporada.</string>
-    <string name="filter_dialog_remove_message">Se eliminará «%1$s» como filtro predeterminado y se mostrarán todas las categorías.</string>
 
     <!-- Today screen -->
     <string name="today_button_today">Hoy</string>
@@ -67,11 +80,6 @@
     <string name="today_prev_day_cd">Día anterior</string>
     <string name="today_next_day_cd">Día siguiente</string>
     <string name="today_refresh_cd">Actualizar</string>
-    <string name="today_category">Categoría</string>
-    <string name="today_category_pin">Fijar «%1$s» como predeterminada</string>
-    <string name="today_category_unpin">Quitar «%1$s» como predeterminada</string>
-    <string name="today_category_a11y">Categoría: %1$s</string>
-    <string name="today_category_pinned_a11y">Categoría: %1$s, predeterminada</string>
     <string name="today_sort_action">Ordenar</string>
     <string name="today_sort_category">Cat. UCI</string>
     <string name="today_sort_tv_time">Hora TV</string>
@@ -220,9 +228,7 @@
     <string name="settings_language_description">Elige el idioma de la aplicación.</string>
 
     <!-- Onboarding: selección de idioma (primer paso del flujo) -->
-    <string name="onboarding_language_title">Elige tu idioma</string>
-    <string name="onboarding_language_cta_spanish">Continuar en español</string>
-    <string name="onboarding_language_cta_english">Switch to English</string>
+    <string name="onboarding_language_title">Idioma / Language</string>
 
     <!-- Settings: claves históricas reutilizadas por sostenimiento -->
     <string name="settings_premium_cta_title">Hazte Amigo</string>
@@ -292,27 +298,22 @@
     <string name="settings_privacy_delete_body">Los datos de uso son completamente anónimos. Puedes borrar permanentemente tu registro de notificaciones y la caché local.</string>
 
     <!-- Onboarding: notificaciones -->
-    <string name="onboarding_notif_title">Mantente informado</string>
-    <string name="onboarding_notif_body">La app no tiene anuncios y utilizaremos estos avisos solo para notificarte en caso de grandes actualizaciones de contenido o jornadas señaladas del calendario, para que tengas la mejor información a tu disposición. Nada invasivo.</string>
-    <string name="onboarding_notif_bullet_events">Grandes citas del ciclismo</string>
-    <string name="onboarding_notif_bullet_updates">Actualizaciones de contenido</string>
-    <string name="onboarding_notif_bullet_no_spam">Sin spam, solo lo importante</string>
-    <string name="onboarding_notif_cta">Activar notificaciones</string>
+    <string name="onboarding_notif_title">Notificaciones</string>
+    <string name="onboarding_notif_body">Solo grandes citas y novedades</string>
+    <string name="onboarding_notif_cta">Activar</string>
     <string name="onboarding_notif_skip">Ahora no</string>
 
     <!-- Onboarding: modo sin conexión -->
 
     <!-- Anuncio 4.3: retirada de publicidad y apoyo voluntario -->
-    <string name="onboarding_support_title">Gratis y sin anuncios para todos</string>
-    <string name="onboarding_support_body">La publicidad desaparece de forma definitiva. Todas las funciones siguen siendo gratuitas y quien quiera podrá sostener voluntariamente el proyecto.</string>
-    <string name="onboarding_support_body_new_installation">Apoya los costes de mantenimiento de este proyecto, hecho por puro amor al ciclismo. Todas las funciones son gratuitas.</string>
-    <string name="onboarding_support_benefit_open">Código abierto y cuentas públicas</string>
-    <string name="onboarding_support_benefit_founder">Quien tuvo Premium recibe el icono Fundador</string>
-    <string name="onboarding_support_benefit_experience">Hecho por un profesional con dos décadas de experiencia en ciclismo</string>
-    <string name="onboarding_support_explain">Conoce el cambio</string>
-    <string name="onboarding_support_manage">Gestionar suscripción</string>
+    <string name="onboarding_support_title">Apoya el proyecto</string>
+    <string name="onboarding_support_body">Gratis, sin anuncios y de código abierto. Si te resulta útil, puedes ayudar a cubrir sus costes. Es voluntario.</string>
+    <string name="onboarding_support_title_friend">Gracias por apoyar el proyecto</string>
+    <string name="onboarding_support_body_friend">Tu apoyo como Amigo ayuda a cubrir servidores, herramientas y mantenimiento.</string>
     <string name="onboarding_support_cta_try">Ver formas de apoyar</string>
-    <string name="onboarding_support_cta_free">Continuar</string>
+    <string name="onboarding_support_cta_contributions">Ver aportaciones puntuales</string>
+    <string name="onboarding_open">Abrir Calendario Ciclismo</string>
+    <string name="onboarding_settings_note">Todo se puede cambiar después en Ajustes.</string>
 
     <!-- Aviso de apoyo tras el uso -->
     <string name="contribution_prompt_title">¿Te está sirviendo Calendario Ciclismo?</string>
@@ -479,6 +480,11 @@
     <string name="results_col_points">Pts</string>
     <string name="results_same_time">m.t.</string>
     <string name="results_filter_all_teams">Todos los equipos</string>
+    <string name="results_rail_more">Más elementos</string>
+    <string name="results_rail_previous">Elementos anteriores</string>
+    <string name="results_filter_team">Equipo</string>
+    <string name="results_filter_team_a11y">Filtrar por equipo</string>
+    <string name="results_filter_team_clear">Quitar el filtro de equipo</string>
     <string name="results_more_classifications">Ver más clasificaciones</string>
     <string name="results_stage_final_short">F</string>
     <string name="results_stage_final_accessibility">Clasificación final</string>
@@ -545,7 +551,25 @@
     <string name="transfers_team_empty">Sin movimientos anunciados por ahora.</string>
     <string name="transfers_team_doubt">En duda</string>
     <string name="transfers_team_doubt_notice">La continuidad del equipo en %1$d no está confirmada.</string>
-    <string name="transfers_staying">Continúan</string>
+    <string name="transfers_filters_title">Filtros</string>
+    <string name="transfers_filter_gender">Categoría</string>
+    <string name="transfers_gender_male">Masculino</string>
+    <string name="transfers_gender_female">Femenino</string>
+    <string name="transfers_filter_division">División</string>
+    <string name="transfers_div_world">WorldTeam</string>
+    <string name="transfers_div_pro">ProTeam</string>
+    <string name="transfers_clear_filters">Limpiar filtros</string>
+    <string name="transfers_squad">Plantilla %1$d</string>
+    <string name="transfers_arrival_cue">Llega</string>
+    <string name="transfers_squad_order_alpha">Ordenar alfabéticamente</string>
+    <string name="transfers_squad_order_contract">Ordenar por año de contrato</string>
+    <string name="transfers_legend_contract">Fin de contrato</string>
+    <string name="transfers_legend_or_later">%1$d o más</string>
+    <string name="transfers_legend_arrival">Tono más intenso: fichaje para la nueva temporada</string>
+    <plurals name="transfers_squad_count">
+        <item quantity="one">%1$d ciclista confirmado</item>
+        <item quantity="other">%1$d ciclistas confirmados</item>
+    </plurals>
     <string name="transfers_arrivals">Llegan</string>
     <string name="transfers_departures">Se marchan</string>
     <string name="transfers_staying_empty">Sin corredores en la plantilla actual.</string>
@@ -572,12 +596,6 @@
     <string name="cx_empty_body">No hay carreras programadas para este día</string>
     <string name="cx_empty_filter_body">No hay carreras con este filtro para este día</string>
     <string name="cx_empty_next_race">Siguiente día con carreras</string>
-    <string name="cx_filter_all">Todas</string>
-    <string name="cx_filter_big">Big</string>
-    <string name="cx_filter_pro">Pro</string>
-    <string name="cx_filter_spain">España</string>
-    <string name="cx_filter_dialog_set_message">El filtro «%1$s» se aplicará como predeterminado solo en la agenda de Ciclocross.</string>
-    <string name="cx_filter_dialog_remove_message">Se eliminará «%1$s» como filtro predeterminado de la agenda de Ciclocross.</string>
     <string name="cx_today">Hoy</string>
     <string name="cx_programme">Programa</string>
     <string name="cx_startlist">Dorsales</string>

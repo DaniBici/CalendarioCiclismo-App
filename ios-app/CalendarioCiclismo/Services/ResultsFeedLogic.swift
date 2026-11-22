@@ -20,6 +20,13 @@ enum FeedEntryKind: String {
     case inhouse
 }
 
+/// Nombre de un ganador o líder del feed con el equipo con el que corre la
+/// carrera (solo corredores; nil si no se conoce o es ambiguo).
+struct FeedWinnerName: Hashable {
+    let name: String
+    var team: String?
+}
+
 struct FeedComplementaryClassification: Hashable, Identifiable {
     let stageRef: String
     let classKind: String
@@ -27,6 +34,10 @@ struct FeedComplementaryClassification: Hashable, Identifiable {
     let labelEn: String
     let colorHex: String?
     let winner: String
+    /// Líderes con su equipo en la carrera, cuando la capa de datos los
+    /// resuelve (espejo de `c.winners` en `js/resultados-feed-html.js`). Vacío:
+    /// se pinta `winner`.
+    var leaders: [FeedWinnerName] = []
 
     var id: String { stageRef }
     var localizedLabel: String { LocaleService.shouldShowEnglishContent ? labelEn : labelEs }
@@ -58,6 +69,9 @@ struct FeedEntry: Identifiable, Hashable {
     var stageRefId: String?
     /// Ganador (crudo de la fuente; la capa de datos lo refina a nombre canónico).
     var winner: String = ""
+    /// Equipo del ganador en la carrera (solo corredores; en CRE el ganador ya
+    /// es el equipo). Espejo de `winnerTeam` en `js/services/result-feed-context.js`.
+    var winnerTeam: String?
     /// Hora de salida POR CARRERA-DÍA, precomputada (espejo de `_sortTime`).
     /// ⚠️ Sin ella el comparador no es transitivo: una general (sin rd)
     /// compararía 999999 contra la hora real de otras carreras y rompería la
@@ -78,6 +92,19 @@ enum ResultsFeedLogic {
 
     /// Tamaño de la ventana del feed (días) — espejo de `WINDOW_DAYS`.
     static let windowDays = 14
+    /// Días con resultados que siempre se ven, con o sin filtros: si la ventana
+    /// deja menos, se amplía hacia atrás (tope: seasonStart). Espejo de
+    /// `RESULTS_MIN_DAYS` (web) y de `ResultsFeedLogic.MIN_DAYS` (Android).
+    static let minDays = 15
+    /// Inicio de lo que se muestra: `fromKey` o, si hasta él hay menos de
+    /// `minDays` días en `dates` (las entradas que pasan los filtros), el día
+    /// número `minDays` más reciente.
+    static func startKey(dates: [String], fromKey: String) -> String {
+        let days = Array(Set(dates)).sorted(by: >)
+        guard !days.isEmpty else { return fromKey }
+        let nth = days[min(minDays, days.count) - 1]
+        return nth < fromKey ? nth : fromKey
+    }
     /// Tope de "Cargar más" — espejo de `SEASON_START`.
     static let seasonStart = "2026-01-01"
 
@@ -374,6 +401,8 @@ enum ResultsFeedTabs {
 struct CxResultsFeedWinner: Equatable {
     let category: String
     let winner: String
+    /// Equipo del ganador (fila rank 1 de cx_results), si consta.
+    var team: String? = nil
 }
 
 /// Prueba CX en un día del feed, con las categorías de ese día que ya
@@ -411,7 +440,7 @@ enum CxResultsFeedLogic {
                     guard !category.isCancelled,
                           CyclocrossLogic.publishedResultsStatuses.contains(category.resultsStatus) else { return nil }
                     let name = (category.winnerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    return name.isEmpty ? nil : CxResultsFeedWinner(category: category.category, winner: name)
+                    return name.isEmpty ? nil : CxResultsFeedWinner(category: category.category, winner: name, team: category.winnerTeam)
                 }
                 guard !winners.isEmpty else { continue }
                 racesByDate[date, default: []].append(race)

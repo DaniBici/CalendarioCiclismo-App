@@ -126,23 +126,6 @@ struct CxStandingsBreakdown {
     }
 }
 
-/// Filtros de la agenda de ciclocross, con la presentación de Hoy en Carretera:
-/// Todas · Big (Mundial, Copa del Mundo, Continental y los torneos Superprestige,
-/// X2O y HG Cross) · Pro (todo salvo las nacionales) · España (pruebas en
-/// España, UCI o no).
-enum CxAgendaFilter: String, CaseIterable, Identifiable {
-    case all, big, pro, spain
-    var id: String { rawValue }
-    @MainActor var label: String {
-        switch self {
-        case .all: return CyclocrossPresentation.t("Todas", "All")
-        case .big: return "Big"
-        case .pro: return "Pro"
-        case .spain: return CyclocrossPresentation.t("España", "Spain")
-        }
-    }
-}
-
 /// Orden de Hoy de Ciclocross, con las opciones de Hoy de carretera.
 enum CxAgendaSort: String, CaseIterable {
     case category, tvTime, finishTime
@@ -205,20 +188,6 @@ enum CyclocrossPresentation {
     nonisolated static func listedInAgenda(_ race: CxRace) -> Bool { !race.isCancelled && !isHidden(race) }
     /// Aviso al abrir en inglés una carrera o un torneo solo nacional.
     static let spanishAudienceNotice = "This content is intended for Spanish-speaking audiences, mainly in Spain. Switch the app to Spanish to view it."
-    /// Filtro de la agenda CX (Todos/Big/Pro/España).
-    static func matchesFilter(_ race: CxRace, filter: CxAgendaFilter) -> Bool {
-        switch filter {
-        case .all: return true
-        case .spain: return (race.countryCode ?? "").lowercased().hasPrefix("es")
-        case .pro: return !["CN", "NAC"].contains(race.raceClass)
-        case .big:
-            if ["CM", "CDM", "CC"].contains(race.raceClass) { return true }
-            guard let tournament = race.tournament else { return false }
-            let identity = (tournament.slug + " " + tournament.name).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-                .lowercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
-            return ["superprestige", "x2o", "worldcup", "copadelmundo", "exactcross", "hgcross"].contains { identity.contains($0) }
-        }
-    }
     /// Una prueba sin ningún horario asociado usa badges en vez de cuadros.
     static func usesCategoryBadges(race: CxRace, categories: [CxCategory], at: Date) -> Bool {
         !categories.isEmpty && categories.allSatisfy {
@@ -262,6 +231,12 @@ enum CyclocrossPresentation {
     }
     static func className(_ code: String?) -> String {
         className(code, english: LocaleService.shared.current.rawValue == "en")
+    }
+    /// Clase de la cabecera de la ficha. En la Copa del Mundo el torneo ya
+    /// nombra la competición: repetirla bajo el nombre de la carrera duplicaba
+    /// «Copa del Mundo UCI». Espejo de `cxHeaderClassName` (`js/cx/presentation.js`).
+    static func headerClassName(_ race: CxRace) -> String {
+        race.raceClass == "CDM" && race.tournament != nil ? "" : className(race.raceClass)
     }
     static func date(_ key: String, format: String = "d MMMM yyyy") -> String {
         guard let value = CyclocrossLogic.instant(key + "T12:00:00Z") else { return key }
@@ -324,9 +299,6 @@ enum CyclocrossPresentation {
     private static func finishSeconds(_ row: CxResult?) -> Double? {
         let seconds = row?.timeSeconds.map(Double.init) ?? dataRideSubhourSeconds(row?.timeText) ?? UciResultsLogic.tttToSeconds(row?.timeText)
         return seconds.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
-    }
-    static func resultRows(_ rows: [CxResult], teams: [Team] = []) -> [UciResultsLogic.ResultRowVM] {
-        resultRows(rows, matcher: UciResultsLogic.TeamMatcher(teams: teams))
     }
     static func resultRows(_ rows: [CxResult], matcher: UciResultsLogic.TeamMatcher) -> [UciResultsLogic.ResultRowVM] {
         let winnerSeconds = finishSeconds(rows.first { $0.rank == 1 && ($0.irm ?? "").isEmpty })

@@ -63,6 +63,9 @@ struct SettingsView: View {
             .frame(maxWidth: AdaptiveLayoutPolicy.readingWidth)
             .frame(maxWidth: .infinity)
         }
+        // Margen sobre la primera sección: sin él, el logo y el título de
+        // «Apoyar Calendario Ciclismo» quedan bajo el borde de la barra.
+        .contentMargins(.top, 16, for: .scrollContent)
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t("Ajustes", "Settings"))
         .navigationBarTitleDisplayMode(.inline)
@@ -803,10 +806,8 @@ struct SettingsView: View {
                     .padding(.horizontal)
             }
 
-            if premium.isFounder || premium.isSubscribed {
-                supporterIconChooser
-                    .padding(.horizontal)
-            }
+            supporterIconChooser
+                .padding(.horizontal)
 
             Text(localeService.t(
                 "Todas las funciones son gratuitas. Las aportaciones ayudan a cubrir servidores, herramientas y mantenimiento.",
@@ -1015,18 +1016,31 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(localeService.t("Icono de la aplicación", "App icon"))
                 .ccFont(.s14, weight: .semibold)
-            HStack(spacing: 8) {
-                iconChoice(.standard, label: localeService.t("Original", "Original"), imageName: "OriginalAppIcon")
-                if premium.isFounder {
-                    iconChoice(.founder, label: localeService.t("Fundador", "Founder"), imageName: "SupportIconFounder")
-                }
-                if premium.isSubscribed {
-                    iconChoice(.friend, label: localeService.t("Amigo", "Friend"), imageName: "SupportIconFriend")
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(supporterIconOptions, id: \.icon) { option in
+                    iconChoice(option.icon, label: option.label, imageName: option.imageName)
                 }
             }
         }
         .padding(16)
         .ccCardSurface()
+    }
+
+    /// Opciones del selector: Original y Ciclocross para todos; Fundador con
+    /// el reconocimiento de Fundador y Amigo con la membresía activa. Un
+    /// Fundador con Amigo activo ve cuatro.
+    private var supporterIconOptions: [(icon: PremiumService.SupporterIcon, label: String, imageName: String)] {
+        var options: [(icon: PremiumService.SupporterIcon, label: String, imageName: String)] = [
+            (.standard, localeService.t("Original", "Original"), "OriginalAppIcon"),
+            (.cyclocross, localeService.t("Ciclocross", "Cyclocross"), "CyclocrossAppIcon"),
+        ]
+        if premium.isFounder {
+            options.append((.founder, localeService.t("Fundador", "Founder"), "SupportIconFounder"))
+        }
+        if premium.isSubscribed {
+            options.append((.friend, localeService.t("Amigo", "Friend"), "SupportIconFriend"))
+        }
+        return options
     }
 
     private func iconChoice(
@@ -1049,15 +1063,21 @@ struct SettingsView: View {
                     }
                 Text(label)
                     .ccFont(.s12)
-                if premium.supporterIcon == icon {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                // La marca reserva su alto en todas las opciones para que
+                // los iconos queden a la misma altura con cualquier número
+                // de opciones; solo se ve en la elegida.
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .opacity(premium.supporterIcon == icon ? 1 : 0)
+                    .accessibilityHidden(true)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(premium.supporterIcon == icon ? .isSelected : [])
     }
 
     #if DEBUG

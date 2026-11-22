@@ -2,12 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ── Factores de forma: solo teléfonos/tablets ───────────── -->
-    <!-- Touchscreen requerido → excluye Android TV, Wear OS, Automotive, XR.
-         android.software.leanback=false refuerza la exclusión de TV.
-         Los android.hardware.type.* NO se declaran con required=false
-         (Play Store lo rechaza); su ausencia ya indica que no se targeting. -->
-    <uses-feature android:name="android.hardware.touchscreen" android:required="true" />
+    <!-- ── Factores de forma: teléfonos/tablets ────────────────── -->
+    <!-- Pantalla táctil no obligatoria: Play Console no deja enviar a revisión
+         con android.hardware.touchscreen obligatorio. La app sigue sin
+         ofrecerse en TV (android.software.leanback=false y sin actividad de
+         lanzador leanback), Wear OS, Automotive ni XR, que exigen declarar su
+         propio android.hardware.type.*; estos NO se declaran con
+         required=false (Play Store lo rechaza). -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback"    android:required="false" />
 
     <!-- ── Permisos ─────────────────────────────────────────────── -->
@@ -99,6 +101,19 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherCyclocross"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_cyclocross"
+            android:roundIcon="@mipmap/ic_launcher_cyclocross"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>

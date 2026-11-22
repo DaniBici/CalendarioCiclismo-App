@@ -147,6 +147,23 @@ struct CxCategory: Codable, Sendable, Identifiable {
     let durationMinutes: Int?
     let durationRuleSourceUrl: String?
     let startlistImportedAt: String?
+    /// Filas rank 1 de cx_results de la categoría, solo en la consulta por
+    /// meses (Últimos resultados). Nil en el resto y en cachés anteriores.
+    var cx_results: [CxWinnerResult]? = nil
+
+    /// Equipo del ganador: el de la fila rank 1 del ganador publicado o, sin
+    /// ella, el de la primera con equipo. Espejo de `resolveCxWinnerTeams` web.
+    var winnerTeam: String? {
+        let rows = (cx_results ?? []).filter { !($0.teamName ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        let row = rows.first { $0.riderDisplay == winnerName } ?? rows.first
+        return row?.teamName?.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+/// Fila rank 1 de cx_results embebida en su categoría: ganador y equipo.
+struct CxWinnerResult: Codable, Sendable {
+    let riderDisplay: String?
+    let teamName: String?
 }
 
 /// Documento de carrera CX (Libro de Ruta / Mapa); espejo de la tabla `assets`

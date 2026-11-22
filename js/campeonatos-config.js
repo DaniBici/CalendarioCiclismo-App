@@ -113,23 +113,11 @@ export function isChampTodayFilterActive(todayKey = campTodayKey()) {
   return todayKey >= CAMP.TODAY_FILTER_START && todayKey <= CAMP.RANGE_END;
 }
 
-// ¿Estamos en la semana de Campeonatos (22-28 jun, ventana completa)? Durante
-// esta ventana la vista "Hoy" impone el filtro Masculino por defecto y solo
-// ofrece cuatro filtros (Todas/Pro/Masc/Fem), sin posibilidad de fijar otro
-// predeterminado. Se evalúa contra la fecha real, no la jornada navegada.
+// ¿Estamos en la semana de Campeonatos (22-28 jun, ventana completa)? La
+// publicación de Hoy (tools/publicacion/familia-hoy.mjs) no pinta esos días.
+/** @public tools/publicacion/familia-hoy.mjs lo usa como miembro del módulo cargado con import(). */
 export function isChampWeekFilterLock(todayKey = campTodayKey()) {
   return todayKey >= CAMP.RANGE_START && todayKey <= CAMP.RANGE_END;
-}
-
-// Filtros visibles en la vista "Hoy" durante la semana de Campeonatos
-// (se ocultan WT/WWT) y filtro forzado por defecto en esa ventana.
-export const CHAMP_WEEK_HOY_FILTERS = ['all', 'pro', 'male', 'female'];
-
-// Filtro forzado por defecto en la vista "Hoy" durante la semana de
-// Campeonatos. Es Masculino salvo el 27 y 28 de junio, en los que arranca en
-// "Todas". Se evalúa contra la jornada mostrada (mismo dateKey que el lock).
-export function champWeekHoyDefault(dateKey = campTodayKey()) {
-  return (dateKey >= '2026-06-27' && dateKey <= '2026-06-28') ? 'all' : 'male';
 }
 
 // URL de la página según idioma de la vista que enlaza.
@@ -155,31 +143,6 @@ export function championshipSlot(race, rd) {
                       : (itt ? 'cri_sub23_m' : 'linea_sub23_m');
   return fem ? (itt ? 'cri_fem' : 'linea_fem')
              : (itt ? 'cri_masc' : 'linea_masc');
-}
-
-// ── Clasificación de una CN para los filtros de categoría (Pro/Masc/Fem) ──
-// Misma señal que championshipSlot (nombre con respaldo en gender), pero sin
-// depender del rd. Una CN elite cuenta como "pro"; las sub23 quedan fuera de
-// Pro/Masc/Fem (igual que las 1.2U/2.2U). Masc/Fem además respetan el género.
-
-// ¿Es una CN de categoría sub23? (línea o CRI; masc o fem)
-const isU23Championship = (race) =>
-  isChampionshipRace(race) && /\bsub-?23\b|\bu-?23\b/i.test(race?.name || '');
-
-// Género de una CN: 'female' si el nombre dice femenino o gender==='female'
-// (sin que el nombre diga masculino); 'male' en otro caso.
-const isFemaleChampionship = (race) =>
-  /\bfemenin/i.test(race?.name || '') ||
-  (race?.gender === 'female' && !/\bmasculin/i.test(race?.name || ''));
-
-// ¿Pasa una CN el filtro de categoría de Hoy/Mes? Élite cuenta como Pro y como
-// Masc/Fem según su género; sub23 queda fuera; WT/WWT no aceptan CN.
-export function championshipMatchesCategoryFilter(race, cat) {
-  if (isU23Championship(race)) return false;
-  if (cat === 'pro')    return true;
-  if (cat === 'male')   return !isFemaleChampionship(race);
-  if (cat === 'female') return isFemaleChampionship(race);
-  return false;
 }
 
 // ¿Entra una CN en la página de Campeonatos? Se compara la ventana de carga sin

@@ -38,10 +38,12 @@ import app.calendariociclismo.android.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,11 +51,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.launch
 
-/** Ancho fijo de una celda en la tira con desplazamiento y mínimo en la que reparte el ancho. */
+/** Ancho de una celda en la tira con desplazamiento y mínimo en la que reparte el ancho. */
 private val AssetTileMinWidth = 100.dp
-
-/** Ancho de las celdas cuando la tira reparte el ancho (`AssetActionStrip(tileCount)`). */
-private val LocalAssetTileWidth = compositionLocalOf<Dp?> { null }
 
 /**
  * Chip de acción usado en la lista de "documentación" de una jornada y en el
@@ -77,17 +76,13 @@ fun AssetChip(
     highlighted: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
-    val tileColor = colors.surfaceVariant
+    val tileColor = colors.railBackground
     val iconColor = if (highlighted) colors.primary else colors.onSurfaceVariant
     val labelColor = if (highlighted) colors.primary else colors.onSurface
     // La celda destacada ("Clasificaciones") se ensancha con su etiqueta; el
-    // resto conserva el ancho fijo de la tira.
-    val stretchedWidth = LocalAssetTileWidth.current
-    val widthModifier = when {
-        stretchedWidth != null -> Modifier.width(stretchedWidth)
-        highlighted -> Modifier.widthIn(min = AssetTileMinWidth)
-        else -> Modifier.width(AssetTileMinWidth)
-    }
+    // resto conserva el ancho fijo de la tira. Cuando la tira reparte el ancho,
+    // el que impone la tira prevalece sobre estos.
+    val widthModifier = if (highlighted) Modifier.widthIn(min = AssetTileMinWidth) else Modifier.width(AssetTileMinWidth)
     Column(
         modifier = widthModifier
             .height(60.dp)
@@ -136,20 +131,19 @@ fun AssetChip(
 /**
  * Tira única de acciones, con flechas sincronizadas con el desplazamiento real.
  *
- * Con `tileCount` (pocas celdas, como la ficha de ciclocross: Web oficial,
- * Libro de ruta, Mapa y Notificaciones), si cada celda conserva su ancho mínimo
- * las celdas se reparten a partes iguales todo el ancho de la tira, sea cual sea
- * el de la pantalla; si no caben, la tira conserva el desplazamiento con flechas.
- * Paridad: iOS `ResultsFittingRail`.
+ * Si las celdas caben a su ancho mínimo (100 dp) se reparten a partes iguales
+ * todo el ancho de la tira (tercios, mitades; una sola celda la ocupa entera),
+ * sin hueco a la derecha y sin flechas; si no caben, conservan su ancho y la
+ * tira se desplaza con flechas. La tira cuenta sus propias celdas: las
+ * pantallas no las cuentan. Paridad: iOS `ResultsFittingRail`.
  */
 @Composable
 fun AssetActionStrip(
     modifier: Modifier = Modifier,
-    tileCount: Int? = null,
-    content: @Composable RowScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val cardColor = colors.surfaceVariant
+    val cardColor = colors.railBackground
 
     BoxWithConstraints(
         modifier = modifier
@@ -158,23 +152,45 @@ fun AssetActionStrip(
             .clip(RoundedCornerShape(CCRadius.Surface))
             .background(cardColor),
     ) {
-        val tileWidth = tileCount?.takeIf { it > 0 && maxWidth >= AssetTileMinWidth * it }?.let { maxWidth / it }
-        if (tileWidth != null) {
-            CompositionLocalProvider(LocalAssetTileWidth provides tileWidth) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = content,
-                )
-            }
+        ScrollingAssetStrip(stripWidthPx = with(LocalDensity.current) { maxWidth.roundToPx() }, content)
+    }
+}
+
+/**
+ * Celdas de la tira: reparten `stripWidthPx` a partes iguales si caben a
+ * `AssetTileMinWidth`; si no, cada una mide su ancho natural (mínimo
+ * `AssetTileMinWidth`). Al repartir, se desborda 1 px por la derecha para que
+ * el filete final de la última celda quede fuera de la tira.
+ */
+@Composable
+private fun AssetTiles(stripWidthPx: Int, content: @Composable () -> Unit) {
+    Layout(content = content) { measurables, constraints ->
+        val count = measurables.size
+        val height = constraints.maxHeight
+        if (count == 0) return@Layout layout(0, 0) {}
+        val minWidth = AssetTileMinWidth.roundToPx()
+        val distribute = count * minWidth <= stripWidthPx
+        val placeables = if (distribute) {
+            val width = (stripWidthPx + 1) / count
+            measurables.map { it.measure(Constraints.fixed(width, height)) }
         } else {
-            ScrollingAssetStrip(content)
+            measurables.map {
+                it.measure(Constraints(minWidth = minWidth, maxWidth = Constraints.Infinity, minHeight = height, maxHeight = height))
+            }
+        }
+        val total = if (distribute) stripWidthPx else placeables.sumOf { it.width }
+        layout(total, height) {
+            var x = 0
+            placeables.forEach { placeable ->
+                placeable.placeRelative(x, 0)
+                x += placeable.width
+            }
         }
     }
 }
 
 @Composable
-private fun ScrollingAssetStrip(content: @Composable RowScope.() -> Unit) {
+private fun ScrollingAssetStrip(stripWidthPx: Int, content: @Composable () -> Unit) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
@@ -183,11 +199,15 @@ private fun ScrollingAssetStrip(content: @Composable RowScope.() -> Unit) {
         modifier = Modifier.fillMaxWidth().fillMaxHeight(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val hasOverflow = scrollState.maxValue > 0
+        // `maxValue` vale Int.MAX_VALUE hasta la primera medición: sin ignorarlo, las
+        // flechas salen un fotograma, estrechan la zona visible y, al repartir
+        // el ancho, la tira se queda en desborde.
+        val hasOverflow = scrollState.maxValue in 1 until Int.MAX_VALUE
         if (hasOverflow) {
-            AssetRailArrow(
+            RailArrow(
                 forward = false,
                 enabled = scrollState.value > 0,
+                label = stringResource(R.string.asset_actions_previous),
                 onClick = {
                     scope.launch {
                         val step = maxOf(80, scrollState.viewportSize * 3 / 4)
@@ -198,18 +218,19 @@ private fun ScrollingAssetStrip(content: @Composable RowScope.() -> Unit) {
                 },
             )
         }
-        Row(
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .horizontalScroll(scrollState)
                 .height(60.dp),
-            horizontalArrangement = Arrangement.spacedBy(0.dp),
-            content = content,
-        )
+        ) {
+            AssetTiles(stripWidthPx, content)
+        }
         if (hasOverflow) {
-            AssetRailArrow(
+            RailArrow(
                 forward = true,
                 enabled = scrollState.value < scrollState.maxValue,
+                label = stringResource(R.string.asset_actions_more),
                 onClick = {
                     scope.launch {
                         val step = maxOf(80, scrollState.viewportSize * 3 / 4)
@@ -220,48 +241,5 @@ private fun ScrollingAssetStrip(content: @Composable RowScope.() -> Unit) {
                 },
             )
         }
-    }
-}
-
-@Composable
-private fun AssetRailArrow(
-    forward: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val label = stringResource(
-        if (forward) R.string.asset_actions_more else R.string.asset_actions_previous,
-    )
-    Box(
-        modifier = Modifier
-            .width(48.dp)
-            .fillMaxHeight()
-            .background(colors.onSurfaceVariant.copy(alpha = if (enabled) 0.10f else 0.045f))
-            .drawBehind {
-                val x = if (forward) 0f else size.width
-                drawLine(
-                    color = colors.outlineVariant,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClickLabel = label,
-                onClick = onClick,
-            )
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = if (forward) Icons.AutoMirrored.Filled.KeyboardArrowRight
-            else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.48f),
-            modifier = Modifier.size(22.dp),
-        )
     }
 }

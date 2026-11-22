@@ -8,9 +8,8 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.prefs.AppPreferences
 import app.calendariociclismo.android.data.repository.CalendarRepository
-import app.calendariociclismo.android.util.ChampionshipsConfig
-import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
+import app.calendariociclismo.android.util.RoadRaceFilter
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.TodayRefreshPolicy
 import java.time.Instant
@@ -83,25 +82,13 @@ class TodayViewModel(
         val refreshToken: Int = 0,
         val error: String? = null,
         val data: DayData? = null,
-        val category: Constants.CategoryFilter = Constants.CategoryFilter.ALL,
+        /** Filtros de carretera, recordados y compartidos con Mes y Temporada. */
+        val filter: RoadRaceFilter = RoadRaceFilter(),
         val sortMode: SortMode = SortMode.CATEGORY,
         val nextRaceDate: String? = null,
     )
 
-    // Pin del usuario (DataStore), independiente del filtro mostrado. Dentro de la
-    // ventana de Campeonatos no se aplica; fuera, gobierna `category`.
-    private var pinnedCategory: Constants.CategoryFilter = Constants.CategoryFilter.ALL
-    // Filtro elegido manualmente DENTRO de la ventana (o null). Se descarta al
-    // salir → "fuera funciona normal" (se restaura el pin del usuario).
-    private var champManualCategory: Constants.CategoryFilter? = null
-
-    private val _state = MutableStateFlow(
-        // El bloqueo se evalúa contra la JORNADA MOSTRADA (al arrancar = hoy), no
-        // contra una fecha fija. Dentro de la ventana → Masculino forzado.
-        if (ChampionshipsConfig.isChampWeekFilterLock(DateFormatting.todayKey()))
-            State(category = ChampionshipsConfig.CHAMP_WEEK_HOY_DEFAULT)
-        else State()
-    )
+    private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
     /** La carga más reciente gana: evita que una respuesta lenta de otro día
      * sobrescriba la jornada que el usuario ya ha seleccionado. */
@@ -113,46 +100,27 @@ class TodayViewModel(
         dateKey in completeDayDates || cachedTodayDayHasElevation(data)
 
     init {
-        // Observar el pin del usuario. Se guarda aparte; solo se refleja en
-        // `category` cuando la jornada mostrada NO está en la ventana.
-        prefs.defaultFilter
-            .onEach { cat ->
-                pinnedCategory = cat
-                if (!ChampionshipsConfig.isChampWeekFilterLock(_state.value.dateKey)) {
-                    _state.value = _state.value.copy(category = cat)
-                }
+        // Orden recordado.
+        viewModelScope.launch {
+            val saved = prefs.snapshotTodaySort("road")
+            SortMode.entries.firstOrNull { it.name == saved }?.let { _state.value = _state.value.copy(sortMode = it) }
+        }
+        // Filtros recordados (AppPreferences), también los marcados en Mes y Temporada.
+        prefs.roadRaceFilter
+            .onEach { filter ->
+                if (filter == _state.value.filter) return@onEach
+                _state.value = _state.value.copy(filter = filter, nextRaceDate = nextDayMatchingFilter(_state.value.dateKey, filter))
+                skipDayEmptiedByFilter()
             }
             .launchIn(viewModelScope)
         load()
     }
 
-    /** `true` si la jornada mostrada cae en la ventana de Campeonatos (22-28 jun). */
-    val isChampWeekLock: Boolean
-        get() = ChampionshipsConfig.isChampWeekFilterLock(_state.value.dateKey)
-
     fun setDate(dateKey: String) {
         _state.value = _state.value.copy(
-            dateKey = dateKey, data = null, nextRaceDate = null, category = resolvedCategory(dateKey),
+            dateKey = dateKey, data = null, nextRaceDate = null,
         )
         load()
-    }
-
-    /** Categoría efectiva al cambiar de fecha: la entrada/salida de la ventana
-     *  de Campeonatos fuerza Masculino o restaura el pin del usuario. */
-    private fun resolvedCategory(target: String): Constants.CategoryFilter {
-        val wasLock = ChampionshipsConfig.isChampWeekFilterLock(_state.value.dateKey)
-        val nowLock = ChampionshipsConfig.isChampWeekFilterLock(target)
-        if (nowLock && !wasLock) {
-            // Entramos en la ventana → forzar Masculino (o el manual previo de esta
-            // sesión de ventana, si lo hubiera).
-            return champManualCategory ?: ChampionshipsConfig.CHAMP_WEEK_HOY_DEFAULT
-        }
-        if (!nowLock && wasLock) {
-            // Salimos → restaurar el pin del usuario y olvidar el manual de ventana.
-            champManualCategory = null
-            return pinnedCategory
-        }
-        return _state.value.category
     }
 
     /**
@@ -163,7 +131,6 @@ class TodayViewModel(
      * `setDate` (pantalla de carga durante la entrada).
      */
     suspend fun navigateTo(target: String) {
-        val category = resolvedCategory(target)
         val prepared = withTimeoutOrNull(NAVIGATION_CACHE_TIMEOUT) {
             runCatching { repo.cachedDayData(target) }.getOrNull()
         }
@@ -171,7 +138,7 @@ class TodayViewModel(
         // No enseñar primero la tarjeta corta y añadir el perfil a posteriori.
         val presentable = prepared?.takeIf { canPresentCachedDay(target, it) }
         _state.value = _state.value.copy(
-            dateKey = target, data = presentable, nextRaceDate = null, category = category,
+            dateKey = target, data = presentable, nextRaceDate = null,
             isLoading = presentable == null, error = null,
         )
         load(fallbackData = prepared)
@@ -179,7 +146,7 @@ class TodayViewModel(
 
     suspend fun navigateToNextDay() {
         val current = _state.value.dateKey
-        val filter = _state.value.category
+        val filter = _state.value.filter
         val next = nextDayMatchingFilter(current, filter)
             ?: DateFormatting.nextDay(current)
         next?.let { navigateTo(it) }
@@ -190,7 +157,7 @@ class TodayViewModel(
 
     suspend fun navigateToPreviousDay() {
         val current = _state.value.dateKey
-        val filter = _state.value.category
+        val filter = _state.value.filter
         val prev = previousDayMatchingFilter(current, filter) ?: DateFormatting.previousDay(current)
         prev?.let { navigateTo(it) }
     }
@@ -216,32 +183,25 @@ class TodayViewModel(
         setDate(nowKey)
     }
 
-    fun setCategory(cat: Constants.CategoryFilter) {
-        // Solo actualiza el estado de sesión (no persiste). Dentro de la ventana de
-        // Campeonatos el cambio es contextual: se recuerda para los días de la
-        // ventana pero NO altera el pin del usuario.
-        if (ChampionshipsConfig.isChampWeekFilterLock(_state.value.dateKey)) {
-            champManualCategory = cat
-        }
-        val nextDate = nextDayMatchingFilter(_state.value.dateKey, cat)
-        _state.value = _state.value.copy(category = cat, nextRaceDate = nextDate)
+    /** Cambio de filtros desde el menú: se guardan y se aplican ya. */
+    fun setFilter(filter: RoadRaceFilter) {
+        _state.value = _state.value.copy(filter = filter, nextRaceDate = nextDayMatchingFilter(_state.value.dateKey, filter))
+        viewModelScope.launch { prefs.setRoadRaceFilter(filter) }
+        skipDayEmptiedByFilter()
+    }
+
+    /** Con el filtro nuevo el día mostrado queda sin carreras: salta al siguiente
+     *  día que las tenga. Sin datos aún o con carga en curso lo decide [load]. */
+    private fun skipDayEmptiedByFilter() {
+        val current = _state.value
+        val next = current.nextRaceDate ?: return
+        if (current.isLoading || current.data == null) return
+        if (visibleData()?.raceDays.isNullOrEmpty()) setDate(next)
     }
 
     fun setSortMode(mode: SortMode) {
         _state.value = _state.value.copy(sortMode = mode)
-    }
-
-    fun setDefaultFilter(cat: Constants.CategoryFilter) {
-        viewModelScope.launch { prefs.setDefaultFilter(cat) }
-        val nextDate = nextDayMatchingFilter(_state.value.dateKey, cat)
-        _state.value = _state.value.copy(category = cat, nextRaceDate = nextDate)
-    }
-
-    fun clearDefaultFilter() {
-        viewModelScope.launch { prefs.clearDefaultFilter() }
-        val cat = Constants.CategoryFilter.ALL
-        val nextDate = nextDayMatchingFilter(_state.value.dateKey, cat)
-        _state.value = _state.value.copy(category = cat, nextRaceDate = nextDate)
+        viewModelScope.launch { prefs.setTodaySort("road", mode.name) }
     }
 
     fun refresh() {
@@ -330,7 +290,7 @@ class TodayViewModel(
             val presented = withPlaceholders?.copy(featuredRaceIds = featuredRaceIds)
 
             // Siguiente día con carreras (respetando filtro activo)
-            val filter = _state.value.category
+            val filter = _state.value.filter
             val nextDate = nextDayMatchingFilter(key, filter)
             _state.value = _state.value.copy(
                 isLoading = false,
@@ -341,15 +301,10 @@ class TodayViewModel(
                 nextRaceDate = nextDate,
             )
 
-            // Auto-navegar si no hay items visibles. Solo con el filtro "Todas"
-            // (evita saltos sorpresa cuando el usuario filtra a propósito), CON UNA
-            // EXCEPCIÓN: dentro de la ventana de Campeonatos el filtro Masculino
-            // está FORZADO (no lo eligió el usuario) y los días 22-23 no tienen
-            // carreras → se auto-avanza igual al siguiente día con carreras
-            // masculinas (el escaneo respeta el filtro activo, sin bucle).
+            // Sin carreras visibles (con o sin filtros), salta siempre al
+            // siguiente día que las tenga.
             val visible = visibleData()
-            val champLock = ChampionshipsConfig.isChampWeekFilterLock(key)
-            if (!silent && (filter == Constants.CategoryFilter.ALL || champLock) &&
+            if (!silent &&
                 (visible == null || visible.raceDays.isEmpty()) &&
                 nextDate != null
             ) {
@@ -391,9 +346,8 @@ class TodayViewModel(
     /** DayData filtrada por categoría y ordenada como en web e iOS. */
     fun visibleData(): DayData? {
         val d = _state.value.data ?: return null
-        val cat = _state.value.category
         val filtered = sortTodayAgenda(
-            RaceLogic.filterByCategory(d.raceDays, cat),
+            _state.value.filter.apply(d.raceDays),
             _state.value.sortMode,
             d.featuredRaceIds,
         )
@@ -405,7 +359,7 @@ class TodayViewModel(
     /** Siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
     private fun nextDayMatchingFilter(
         afterDateKey: String,
-        filter: Constants.CategoryFilter,
+        filter: RoadRaceFilter,
     ): String? {
         if (_allRaces.isEmpty()) return null
         var candidate = afterDateKey
@@ -420,7 +374,7 @@ class TodayViewModel(
     /** Día anterior con carreras que coincidan con el filtro (escanea hasta 180 días). */
     private fun previousDayMatchingFilter(
         beforeDateKey: String,
-        filter: Constants.CategoryFilter,
+        filter: RoadRaceFilter,
     ): String? {
         if (_allRaces.isEmpty()) return null
         var candidate = beforeDateKey
@@ -433,17 +387,17 @@ class TodayViewModel(
     }
 
     /** True si hay al menos una carrera que coincida con el filtro en el día dado. */
-    private fun hasMatchingRaces(dateKey: String, filter: Constants.CategoryFilter): Boolean =
+    private fun hasMatchingRaces(dateKey: String, filter: RoadRaceFilter): Boolean =
         _allRaces.any { race ->
             !race.isCancelled &&
                 RaceLogic.isRaceDay(race, dateKey) &&
-                RaceLogic.matchesCategory(race, filter)
+                filter.matches(race)
         }
 
     /** Precacheo en background de día−1 y día+1 (respetando el filtro activo,
      *  con los días ±1 como referencia si no hay carreras que cumplan el
      *  filtro): la navegación animada de Hoy resuelve primero de caché. */
-    private fun prefetchNearbyDays(anchor: String, filter: Constants.CategoryFilter) {
+    private fun prefetchNearbyDays(anchor: String, filter: RoadRaceFilter) {
         val neighbors = listOfNotNull(
             previousDayMatchingFilter(anchor, filter) ?: DateFormatting.previousDay(anchor),
             nextDayMatchingFilter(anchor, filter) ?: DateFormatting.nextDay(anchor),

@@ -107,6 +107,24 @@ data class CxCategory(
     val durationMinutes: Int? = null,
     val durationRuleSourceUrl: String? = null,
     val startlistImportedAt: String? = null,
+    /** Filas rank 1 de cx_results de la categoría, solo en la consulta por
+     *  meses (Últimos resultados). Null en el resto y en cachés anteriores. */
+    @SerialName("cx_results") val winnerResults: List<CxWinnerResult>? = null,
+) {
+    /** Equipo del ganador: el de la fila rank 1 del ganador publicado o, sin
+     *  ella, el de la primera con equipo. Espejo de `resolveCxWinnerTeams` web. */
+    val winnerTeam: String?
+        get() {
+            val rows = winnerResults.orEmpty().filter { !it.teamName.isNullOrBlank() }
+            return (rows.firstOrNull { it.riderDisplay == winnerName } ?: rows.firstOrNull())?.teamName?.trim()
+        }
+}
+
+/** Fila rank 1 de cx_results embebida en su categoría: ganador y equipo. */
+@Serializable
+data class CxWinnerResult(
+    val riderDisplay: String? = null,
+    val teamName: String? = null,
 )
 
 /** Documento de carrera CX (Libro de Ruta / Mapa); espejo de `assets` con cxRaceId. */

@@ -20,3 +20,32 @@ export function previousResultsWindow(currentFromKey, seasonStart = RESULTS_SEAS
     toKey: shiftDateKey(currentFromKey, -1),
   };
 }
+
+// Últimos resultados nunca se queda corto: con o sin filtros se ven al menos
+// RESULTS_MIN_DAYS días con resultados, aunque la ventana sea más corta (un
+// parón del calendario o un filtro estrecho). Espejo de ResultsFeedLogic en
+// iOS y Android.
+export const RESULTS_MIN_DAYS = 15;
+// Tramo con el que se amplía lo cargado hasta reunir esos días.
+const RESULTS_FILL_DAYS = 14;
+
+/**
+ * Inicio de lo que se muestra: `fromKey` o, si hasta él hay menos de
+ * RESULTS_MIN_DAYS días con resultados, el día número RESULTS_MIN_DAYS más
+ * reciente de `dates` (fechas de las entradas que pasan los filtros).
+ */
+export function resultsStartKey(dates, fromKey, minDays = RESULTS_MIN_DAYS) {
+  const days = [...new Set(dates)].sort().reverse();
+  const nth = days[Math.min(minDays, days.length) - 1];
+  return nth && nth < fromKey ? nth : fromKey;
+}
+
+/** Días distintos de `dates`. */
+export const resultDayCount = dates => new Set(dates).size;
+
+/** Tramo anterior a `fromKey` para completar los días mínimos; null en el arranque de temporada. */
+export function fillResultsWindow(fromKey, seasonStart = RESULTS_SEASON_START) {
+  if (fromKey <= seasonStart) return null;
+  const candidate = shiftDateKey(fromKey, -RESULTS_FILL_DAYS);
+  return { fromKey: candidate < seasonStart ? seasonStart : candidate, toKey: shiftDateKey(fromKey, -1) };
+}

@@ -20,7 +20,16 @@ data class CxTiming(
 
 object CyclocrossLogic {
     val categories = listOf("ME", "WE", "MU", "WU", "MJ", "WJ")
-    private val classes = listOf("CM", "CDM", "CC", "C1", "C2", "CN", "NAC")
+    /**
+     * Orden de clases de la agenda, como el de carretera: Mundial, Copa del
+     * Mundo, Europeo, C1, C2, otros Continentales, Nacionales y NAC. Espejo de
+     * `cxClassRank` (web) y `CyclocrossLogic.classRank` (iOS).
+     */
+    private val classOrder = listOf("CM", "CDM", "CC_EU", "C1", "C2", "CC", "CN", "NAC")
+    fun classRank(race: CxRace): Int {
+        val european = race.raceClass == "CC" && "${race.name} ${race.nameEn.orEmpty()}".contains("europ", ignoreCase = true)
+        return classOrder.indexOf(if (european) "CC_EU" else race.raceClass).takeIf { it >= 0 } ?: classOrder.size
+    }
     const val durationVersion = "2026-07-01"
 
     fun season(date: LocalDate): String {
@@ -141,7 +150,7 @@ object CyclocrossLogic {
      */
     fun racesOn(races: List<CxRace>, date: String, featured: Set<String> = emptySet()): List<CxRace> = races.filter { date in dates(it) }
         .sortedWith(compareBy<CxRace> { if (it.id in featured) 0 else 1 }
-            .thenBy { classes.indexOf(it.raceClass).takeIf { index -> index >= 0 } ?: classes.size }
+            .thenBy { classRank(it) }
             .thenBy { race -> agendaTime(race, date) }
             .thenBy { it.name.lowercase(Locale.ROOT) })
 
