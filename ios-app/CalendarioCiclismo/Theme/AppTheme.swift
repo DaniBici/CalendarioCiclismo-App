@@ -8,9 +8,14 @@ enum AppTheme {
     /// Color de acento principal.
     static let accent = Color("AccentColor")
 
-    /// Azul de marca fijo (#1A73E8) para fondos destacados, idéntico en claro y
-    /// oscuro — espejo del `--accent` de la web y del `primary` de Android.
-    static let brandAccent = Color(hex: "1a73e8")
+    /// Texto e iconos sobre un relleno de acento: blanco sobre el azul de claro,
+    /// oscuro sobre el lima de oscuro (`--btn-primary-text` de la web).
+    static let onAccent = Color(light: "ffffff", dark: "0b0c0f")
+
+    /// Color de marca para el arranque y la bienvenida: azul (#1A73E8) en claro
+    /// y lima (#B7F34A) en oscuro — espejo del `--brand` de la web y del
+    /// `primary` de Android.
+    static let brandAccent = Color(light: "1a73e8", dark: "b7f34a")
 
     /// Colores semánticos que se adaptan al modo claro/oscuro. En oscuro, la
     /// paleta Grafito de la web (`css/tokens.css`): superficies casi sin croma.

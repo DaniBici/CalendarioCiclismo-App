@@ -452,7 +452,23 @@ struct StartlistTeamHeaderView: View {
         guard let team = team.team,
               let background = Color.fromHex(team.headerBg.trimmingCharacters(in: .whitespaces)),
               let text = Color.fromHex(team.headerText.trimmingCharacters(in: .whitespaces)) else { return nil }
-        return (background, text)
+        // Contraste mínimo 4,5:1 (WCAG AA): si la pareja editorial no llega,
+        // blanco o negro, el que más contraste dé (como `teamHeaderColors` de la web).
+        func luminance(_ color: Color) -> Double {
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            func linear(_ value: CGFloat) -> Double {
+                let v = Double(value)
+                return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+        }
+        func contrast(_ a: Color, _ b: Color) -> Double {
+            let (hi, lo) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
+            return (hi + 0.05) / (lo + 0.05)
+        }
+        if contrast(background, text) >= 4.5 { return (background, text) }
+        return (background, contrast(background, .black) > contrast(background, .white) ? .black : .white)
     }
 
     var body: some View {
@@ -470,7 +486,7 @@ struct StartlistTeamHeaderView: View {
                         .fill(team.isConfirmed ? Color.accentColor : (Color.fromHex("#6B7280") ?? .gray))
                     Image(systemName: team.isConfirmed ? "checkmark" : "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(team.isConfirmed ? AppTheme.onAccent : Color.white)
                 }
                 .frame(width: 18, height: 18)
             }

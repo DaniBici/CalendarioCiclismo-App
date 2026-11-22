@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -44,6 +45,9 @@ fun CCHeaderMark(
     Image(
         painter = painterResource(R.drawable.ic_cc_header),
         contentDescription = null,
+        // El trazo del vector es el azul de marca; se tiñe con el acento del
+        // tema (lima en oscuro, azul en claro), como el logotipo de la web.
+        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
         modifier = modifier
             .width(width)
             .height(width * 32f / 74f),

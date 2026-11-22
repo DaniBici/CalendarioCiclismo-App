@@ -65,17 +65,18 @@ private val LightScheme = lightColorScheme(
 
 private val DarkScheme = darkColorScheme(
     primary = CCColors.DarkAccent,
-    onPrimary = CCColors.LightBg,
+    // Texto oscuro sobre el lima (`--btn-primary-text` de la web).
+    onPrimary = CCColors.DarkBg,
     primaryContainer = CCColors.DarkCardHover,
     onPrimaryContainer = CCColors.DarkText,
     secondary = CCColors.DarkBlue,
     onSecondary = CCColors.DarkBg,
     // Igual que en Light: el segmento activo del SegmentedButton de M3 (que usa
     // secondaryContainer) salía con el morado por defecto de M3. Lo mapeamos a
-    // un azul apagado que asienta sobre la superficie oscura, con texto/icono en
-    // el azul claro (DarkBlue) para contraste.
+    // un lima apagado que asienta sobre la superficie oscura, con texto/icono en
+    // el lima de marca (DarkAccent) para contraste.
     secondaryContainer = CCColors.DarkSegmentedActive,
-    onSecondaryContainer = CCColors.DarkBlue,
+    onSecondaryContainer = CCColors.DarkAccent,
     tertiary = CCColors.DarkOrange,
     background = CCColors.DarkBg,
     onBackground = CCColors.DarkText,

@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.splash
 
+import app.calendariociclismo.android.ui.theme.CCColors
 import android.provider.Settings
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
@@ -71,6 +72,8 @@ fun SplashOverlay(
     }
 
     val dark = isSystemInDarkTheme()
+    // Azul de marca en claro, lima en oscuro (como el logotipo de la cabecera).
+    val brand = if (dark) CCColors.DarkAccent else BrandBlue
 
     // ── Texto: fade-in al aparecer ──
     var textVisible by remember { mutableStateOf(reduceMotion) }
@@ -130,9 +133,9 @@ fun SplashOverlay(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(230.dp),
-            lineColor = BrandBlue,
-            fillColor = BrandBlue.copy(alpha = 0.18f),
-            riderColor = BrandBlue,
+            lineColor = brand,
+            fillColor = brand.copy(alpha = 0.18f),
+            riderColor = brand,
         )
 
         // Icono centrado: misma geometría que el adaptive icon y el mismo

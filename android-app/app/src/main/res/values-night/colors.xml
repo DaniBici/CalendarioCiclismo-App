@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Arranque en oscuro: fondo grafito y logo blanco, como iOS. -->
+    <!-- Arranque en oscuro: fondo grafito y logo lima, como iOS y la web. -->
     <color name="splash_background">#0B0C0F</color>
-    <color name="splash_logo">#FFFFFF</color>
+    <color name="splash_logo">#B7F34A</color>
 </resources>

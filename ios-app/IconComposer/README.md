@@ -20,7 +20,7 @@ geometría y los colores viven en ese script.
 
 | Icono | Fondo | Capas |
 | --- | --- | --- |
-| Original | `#1A73E8`, opaco | calendario y ciclista en `#FFFFFF` |
+| Original | `#1A73E8`, opaco; en la apariencia `dark`, `#0B0C0F` | calendario y ciclista en `#FFFFFF`; en `dark`, `#B7F34A` (lima de la web) |
 | Ciclocross | `#805234`, opaco, y `00-fondo-barro.png` (barro) | calendario y ciclista en `#FFFFFF` |
 | Fundador | `#101828`, opaco | calendario, ciclista y estrella en `#F6A623` |
 | Amigo | `#FFFFFF`, opaco | calendario, ciclista y corazón en `#1A73E8` |

@@ -482,7 +482,8 @@ private fun StartlistTeamCard(
                                 else R.string.startlist_team_pending_cd
                             ),
                             modifier = Modifier.size(12.dp),
-                            tint = Color.White,
+                            // Sobre el acento (confirmado), texto oscuro en oscuro.
+                            tint = if (team.isConfirmed) MaterialTheme.colorScheme.onPrimary else Color.White,
                         )
                     }
                 }

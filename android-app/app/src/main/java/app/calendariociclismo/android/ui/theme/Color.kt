@@ -45,16 +45,17 @@ object CCColors {
     val DarkOutline = Color(0xFF8F949D)  // para Switch thumb, OutlinedTextField, etc.
     val DarkText = Color(0xFFF2F3F5)
     val DarkTextMuted = Color(0xFFA9ADB5)
-    val DarkAccent = Color(0xFF1A73E8)
+    // Lima de marca en oscuro (`--brand` de `css/tokens.css`); en claro sigue el azul.
+    val DarkAccent = Color(0xFFB7F34A)
     val DarkRed = Color(0xFFFFB4AB)
     val DarkGreen = Color(0xFF6DD58C)
     val DarkBlue = Color(0xFF7FCFFF)
     val DarkOrange = Color(0xFFFFB77C)
-    // Fondo del segmento activo del SegmentedButton (secondaryContainer) — azul
-    // de marca al 20 % horneado sobre la superficie oscura DarkCard (el
+    // Fondo del segmento activo del SegmentedButton (secondaryContainer) — lima
+    // de marca al 15 % horneado sobre la superficie oscura DarkCard (el
     // `--accent-dim` de la web), para sustituir el morado por defecto de M3.
-    // Texto/icono = DarkBlue (7,24:1).
-    val DarkSegmentedActive = Color(0xFF223551)
+    // Texto/icono = DarkAccent.
+    val DarkSegmentedActive = Color(0xFF3A4530)
 
     // ─── Light ───
     val LightBg = Color(0xFFF3F5F8)

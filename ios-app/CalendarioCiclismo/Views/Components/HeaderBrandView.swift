@@ -11,9 +11,13 @@ struct CCHeaderMarkView: View {
         UIDevice.current.userInterfaceIdiom == .pad ? 6 : 0
 
     var body: some View {
+        // El SVG lleva el azul de marca; se tiñe con el acento (lima en oscuro,
+        // azul en claro), como el logotipo de la web.
         Image("HeaderLogo")
+            .renderingMode(.template)
             .resizable()
             .scaledToFit()
+            .foregroundStyle(AppTheme.accent)
             .frame(width: width, height: width * 32 / 74)
             .padding(.leading, Self.padLeadingInset)
             .accessibilityHidden(true)

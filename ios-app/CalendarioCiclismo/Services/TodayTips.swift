@@ -178,6 +178,7 @@ struct TodayTipStyle: TipViewStyle {
                 Button(action: action.handler) {
                     action.label()
                         .ccFont(.s16, weight: .semibold)
+                        .foregroundStyle(AppTheme.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }

@@ -26,7 +26,7 @@
 // - Datos: por la API pública con SUPABASE_ANON_KEY: video_feed_days de los
 //   últimos DAYS_BACK días y la temporada CX en curso con las columnas de la
 //   agenda (CX_AGENDA_SELECT). En local, --data con un volcado
-//   { roadDays, agenda, today, season }.
+//   { roadDays, agenda, featured, today, season }.
 // - Vuelta atrás por página: sin plantilla reconocible o con un error al
 //   pintar, la página queda como la fuente y se cuenta.
 import { fork } from 'node:child_process';
@@ -98,12 +98,13 @@ async function feedDays(key, fromKey, toKey, fetchImpl) {
 
 async function loadApiData(key, { today, season }, fetchImpl = fetch) {
   if (!key) throw new Error('Falta SUPABASE_ANON_KEY para leer los vídeos');
-  const [roadDays, [agenda]] = await Promise.all([
+  const [roadDays, [agenda, featured]] = await Promise.all([
     feedDays(key, shiftKey(today, -DAYS_BACK), today, fetchImpl),
-    apiFetch([{ path: `cx_races?select=${CX_AGENDA_SELECT}&seasonKey=eq.${encodeURIComponent(season)}&editorialStatus=eq.published&order=dateKey.asc,id.asc` }],
-      key, { fetchImpl }),
+    // Destacadas (corona del panel): encabezan su día, como en el navegador (cxMarkFeatured).
+    apiFetch([{ path: `cx_races?select=${CX_AGENDA_SELECT}&seasonKey=eq.${encodeURIComponent(season)}&editorialStatus=eq.published&order=dateKey.asc,id.asc` },
+      { path: 'cx_race_featured?select=cxRaceId&order=cxRaceId.asc' }], key, { fetchImpl }),
   ]);
-  return { roadDays, agenda, today, season };
+  return { roadDays, agenda, featured, today, season };
 }
 
 // ── Página ─────────────────────────────────────────────────────────────────
@@ -173,7 +174,8 @@ async function runLanguage(lang, site, data) {
   const locale = isEn ? 'en-GB' : 'es-ES';
   const { today, season } = data;
   const filter = rows => (rows || []).filter(row => !row.country || STATIC_GROUPS.has(row.country));
-  const cxRaces = data.agenda.filter(race => cxListedInAgenda(race, lang));
+  const featuredIds = new Set((data.featured || []).map(row => row.cxRaceId));
+  const cxRaces = data.agenda.filter(race => cxListedInAgenda(race, lang)).map(race => ({ ...race, featured: featuredIds.has(race.id) }));
   const rounds = cxTournamentRounds(data.agenda, season);
   const road = roadVideoEntries(data.roadDays, filter);
   const cx = cxVideoEntries(cxRaces, filter);

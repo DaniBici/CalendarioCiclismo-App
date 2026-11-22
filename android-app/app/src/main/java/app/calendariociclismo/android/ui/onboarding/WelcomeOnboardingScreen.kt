@@ -291,7 +291,8 @@ fun WelcomeOnboardingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(if (viewportHeight < 700.dp) 104.dp else 146.dp),
-                        lineColor = BrandBlue,
+                        // Azul de marca en claro, lima en oscuro (acento del tema).
+                        lineColor = MaterialTheme.colorScheme.primary,
                         bottomAlpha = 0f,
                     )
 
@@ -578,4 +579,3 @@ private fun ChoiceButton(
     }
 }
 
-private val BrandBlue = Color(0xFF1A73E8)

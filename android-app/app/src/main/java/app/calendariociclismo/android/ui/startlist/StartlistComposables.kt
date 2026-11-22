@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.data.model.Team
 
@@ -60,5 +61,14 @@ internal fun teamHeaderColors(team: Team?): Pair<Color, Color>? {
     team ?: return null
     val background = parseColor(team.headerBg.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
     val text = parseColor(team.headerText.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
-    return background to text
+    // Contraste mínimo 4,5:1 (WCAG AA): si la pareja editorial no llega, blanco o
+    // negro, el que más contraste dé (como `teamHeaderColors` de la web).
+    fun contrast(a: Color, b: Color): Float {
+        val hi = maxOf(a.luminance(), b.luminance())
+        val lo = minOf(a.luminance(), b.luminance())
+        return (hi + 0.05f) / (lo + 0.05f)
+    }
+    if (contrast(background, text) >= 4.5f) return background to text
+    val readable = if (contrast(background, Color.Black) > contrast(background, Color.White)) Color.Black else Color.White
+    return background to readable
 }

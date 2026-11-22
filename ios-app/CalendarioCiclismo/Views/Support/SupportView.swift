@@ -208,10 +208,11 @@ struct SupportView: View {
             premium.subscribe(plan: selectedPlan)
         } label: {
             HStack {
-                if premium.isPurchasing { ProgressView().tint(.white) }
+                if premium.isPurchasing { ProgressView().tint(AppTheme.onAccent) }
                 Text(LocaleService.t("Hacerme amigo", "Become a Friend"))
                     .ccFont(.s16, weight: .semibold)
             }
+            .foregroundStyle(AppTheme.onAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
         }
@@ -247,6 +248,7 @@ struct SupportView: View {
             premium.contribute(productID: id)
         } label: {
             Text(product(id: id)?.displayPrice ?? fallback)
+                .foregroundStyle(colorScheme == .dark ? AppTheme.onAccent : Color.accentColor)
                 .frame(maxWidth: .infinity)
         }
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))

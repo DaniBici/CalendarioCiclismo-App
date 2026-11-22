@@ -729,6 +729,11 @@ async function run(site, { lang, source, cache, key, now, limit }) {
     result.scope++;
     if (!used.has(raceId)) used.set(raceId, new Set());
     used.get(raceId).add(scoped.active.activeClass.id);
+    // La general final lee el tiempo del ganador de la general (velocidad media de los datos de la
+    // carrera): sus filas deben quedar en la caché aunque la clasificación activa sea otra.
+    if (scoped.stages.activeKey === 'final' && scoped.race.raceFormat !== 'one_day') {
+      for (const stage of scoped.inputs.stagesAll) if (stage.classKind === 'gc' && stage.stageNumber == null) used.get(raceId).add(stage.id);
+    }
     const pageKeyValue = pageKey(sigs[raceId], scoped.inputs);
     const entry = cache.pages[name];
     const fragment = entry?.key === pageKeyValue && entry.race === raceId ? cache.fragment(raceId, name) : null;

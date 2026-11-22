@@ -324,6 +324,7 @@ struct WelcomeOnboardingView: View {
             } label: {
                 Text(tr("Abrir Calendario Ciclismo", "Open Calendario Ciclismo"))
                     .ccFont(.s16, weight: .semibold)
+                    .foregroundStyle(AppTheme.onAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
@@ -373,7 +374,7 @@ struct WelcomeOnboardingView: View {
         // allí el acento atenuado pierde contraste. «Ahora no» queda siempre
         // un nivel por debajo de «Activar».
         if prominent || (filledInDark && colorScheme == .dark) {
-            Button(action: action) { label }
+            Button(action: action) { label.foregroundStyle(AppTheme.onAccent) }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor)
                 .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))

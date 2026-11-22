@@ -438,7 +438,7 @@ private struct MonthScheduleDaySection: View {
             HStack(alignment: .center, spacing: 8) {
                 Text("\(day)")
                     .ccFont(.s14, weight: isToday ? .bold : .semibold)
-                    .foregroundStyle(isToday ? Color.white : AppTheme.textMuted)
+                    .foregroundStyle(isToday ? AppTheme.onAccent : AppTheme.textMuted)
                     .frame(width: 34, height: 34)
                     .background {
                         if isToday {
