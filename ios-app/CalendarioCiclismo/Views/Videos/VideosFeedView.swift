@@ -188,6 +188,20 @@ final class VideosFeedStore {
         cxRevision &+= 1
     }
 
+    /// Mínimo de días con vídeos que pasan los filtros: si la ventana deja menos, se
+    /// amplía hacia atrás hasta alcanzarlo o llegar al principio de la temporada.
+    static let minDays = 15
+
+    func ensureMinDays() async {
+        var rounds = 0
+        while hasLoaded, filteredDays.count < Self.minDays, canLoadMore, rounds < 60 {
+            let before = fromKey[discipline]
+            await loadMore()
+            rounds += 1
+            if fromKey[discipline] == before { break }
+        }
+    }
+
     /// Semanas anteriores de la vista activa hasta encontrar algún día con
     /// carreras o llegar al principio de la temporada.
     func loadMore() async {
@@ -221,6 +235,12 @@ final class VideosFeedStore {
 /// abierto, sin reproducción automática). Sin vídeos pero con Revive, la
 /// tarjeta lleva el botón «Emisión ↗» y no se despliega. Plegada, la tarjeta
 /// muestra solo la carrera y una flecha hacia abajo.
+private struct VideosFilterKey: Equatable {
+    let road: RoadRaceFilter
+    let cx: CxRaceFilter
+    let discipline: VideosFeedDiscipline
+}
+
 struct VideosFeedView: View {
     @State private var store = VideosFeedStore()
     @State private var openId: String?
@@ -283,7 +303,15 @@ struct VideosFeedView: View {
             CxRaceDetailView(raceId: destination.raceId, anchor: destination.anchor, titleHint: destination.title)
         }
         .safariSheet(url: $safariURL)
-        .task { if !store.hasLoaded { await store.load() } }
+        .task {
+            if !store.hasLoaded { await store.load() }
+            await store.ensureMinDays()
+        }
+        // Con los filtros de Hoy o al cambiar de disciplina, la lista se amplía hasta
+        // tener al menos 15 días con vídeos.
+        .task(id: VideosFilterKey(road: RaceFilterStore.shared.road, cx: RaceFilterStore.shared.cx, discipline: store.discipline)) {
+            await store.ensureMinDays()
+        }
         // GA4: `videos` (Carretera) y `videos_cx` (Ciclocross), al abrir y en
         // cada cambio de disciplina, como `results_feed` / `results_feed_cx`.
         .onAppear { logScreen() }

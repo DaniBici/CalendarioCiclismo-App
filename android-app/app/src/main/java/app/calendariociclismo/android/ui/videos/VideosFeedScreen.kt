@@ -108,6 +108,9 @@ private const val CX = "cx"
  * ventana de 14 días anclada a su último día con vídeos y «Cargar más
  * carreras» hasta el principio de la temporada.
  */
+/** Mínimo de días con vídeos que pasan los filtros antes de dejar de ampliar la ventana. */
+private const val VIDEOS_MIN_DAYS = 15
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideosFeedScreen(navController: NavController) {
@@ -188,34 +191,38 @@ fun VideosFeedScreen(navController: NavController) {
 
     // Semanas anteriores de la vista activa hasta encontrar algún día con
     // carreras o llegar al principio de la temporada.
-    fun loadMore() {
+    suspend fun loadMoreNow() {
         val current = discipline
         var from = (if (current == ROAD) roadFrom else cxFrom) ?: return
         val start = if (current == ROAD) VideosFeedLogic.ROAD_SEASON_START else cxSeasonStart
-        scope.launch {
-            loadingMore = true
-            try {
-                while (from > start) {
-                    val older = maxOf(VideosFeedLogic.shift(from, -VideosFeedLogic.MORE_DAYS), start)
-                    val to = VideosFeedLogic.shift(from, -1)
-                    val found = if (current == ROAD) {
-                        val rows = app.supabaseService.videoFeedDays(older, to)
-                        roadFeatured = roadFeatured + roadFeaturedFor(rows)
-                        roadDays = roadDays + rows
-                        VideosFeedLogic.roadEntries(rows, groups).isNotEmpty()
-                    } else {
-                        cxEntries.any { it.date in older..to }
-                    }
-                    from = older
-                    if (current == ROAD) roadFrom = older else cxFrom = older
-                    if (found) break
+        loadingMore = true
+        try {
+            while (from > start) {
+                val older = maxOf(VideosFeedLogic.shift(from, -VideosFeedLogic.MORE_DAYS), start)
+                val to = VideosFeedLogic.shift(from, -1)
+                val found = if (current == ROAD) {
+                    val rows = app.supabaseService.videoFeedDays(older, to)
+                    roadFeatured = roadFeatured + roadFeaturedFor(rows)
+                    roadDays = roadDays + rows
+                    VideosFeedLogic.roadEntries(rows, groups).isNotEmpty()
+                } else {
+                    cxEntries.any { it.date in older..to }
                 }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-            } finally {
-                loadingMore = false
+                from = older
+                if (current == ROAD) roadFrom = older else cxFrom = older
+                if (found) break
             }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+        } finally {
+            loadingMore = false
         }
+    }
+
+    // Semanas anteriores de la vista activa hasta encontrar algún día con
+    // carreras o llegar al principio de la temporada.
+    fun loadMore() {
+        scope.launch { loadMoreNow() }
     }
 
     val allDays = if (discipline == ROAD) VideosFeedLogic.days(roadEntries, roadFrom, today)
@@ -227,6 +234,14 @@ fun VideosFeedScreen(navController: NavController) {
             else entry.cxRace?.let { cxFilter.matches(it) } ?: true
         }
         if (kept.isEmpty()) null else group.copy(entries = kept)
+    }
+    // Mínimo de 15 días con vídeos que pasan los filtros: si la ventana deja menos, se amplía
+    // hacia atrás hasta alcanzarlo o llegar al principio de la temporada.
+    val currentFrom = if (discipline == ROAD) roadFrom else cxFrom
+    LaunchedEffect(loaded, storedRoadFilter != null, discipline, roadFilter, cxFilter, days.size, currentFrom) {
+        if (loaded && storedRoadFilter != null && !loadingMore && days.size < VIDEOS_MIN_DAYS &&
+            (currentFrom ?: "") > (if (discipline == ROAD) VideosFeedLogic.ROAD_SEASON_START else cxSeasonStart)
+        ) loadMoreNow()
     }
     val canLoadMore = ((if (discipline == ROAD) roadFrom else cxFrom) ?: "") >
         (if (discipline == ROAD) VideosFeedLogic.ROAD_SEASON_START else cxSeasonStart)
