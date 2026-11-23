@@ -69,6 +69,9 @@ import kotlin.math.abs
 /** Días a cada lado del seleccionado en la tira de la barra de fechas. */
 internal const val DATE_BAR_RADIUS = 45
 
+/** Días a cada lado de la tira de fechas de Hoy de carretera (≈10 años). */
+internal const val DATE_BAR_SPAN = 3650
+
 /** Separación entre celdas de la tira de días. */
 private val DATE_CELL_GAP = 4.dp
 
@@ -164,7 +167,7 @@ internal fun DateBarWithControls(
     val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
 
     Row(
-        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onPrevious, enabled = canGoPrevious) {
@@ -255,10 +258,10 @@ private fun DateBarItem(
         }.orEmpty()
     }
 
-    // Selección inversa: relleno claro con texto oscuro en oscuro; azul marino
+    // Selección inversa: relleno claro con texto oscuro en oscuro; gris casi negro
     // con texto blanco en claro. El día actual sin seleccionar, solo contorno.
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val selectedFill = if (isDark) Color(0xFFF2F3F5) else Color(0xFF10233F)
+    val selectedFill = if (isDark) Color(0xFFF2F3F5) else Color(0xFF1F1F1F)
     val onSelected = if (isDark) Color(0xFF0B0C0F) else Color.White
     val isTodayCell = remember(dateKey) { dateKey == DateFormatting.todayKey() }
     val foreground = if (isSelected) onSelected else MaterialTheme.colorScheme.onSurface

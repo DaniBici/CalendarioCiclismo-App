@@ -83,6 +83,9 @@ data class VideoFeedEntry(
     val stageId: String?,
     val raceId: String?,
     val cxRaceId: String?,
+    /** Carrera de origen, para los filtros de Hoy. */
+    val roadRace: VideoFeedDay.RaceInfo? = null,
+    val cxRace: CxRace? = null,
 )
 
 data class VideoFeedDayGroup(val date: String, val entries: List<VideoFeedEntry>)
@@ -113,7 +116,7 @@ object VideosFeedLogic {
 
     // ─── Carretera ───────────────────────────────────────────────
 
-    fun roadEntries(days: List<VideoFeedDay>, allowedGroups: Set<String>): List<VideoFeedEntry> =
+    fun roadEntries(days: List<VideoFeedDay>, allowedGroups: Set<String>, featured: Set<String> = emptySet()): List<VideoFeedEntry> =
         days.mapNotNull { day ->
             val race = day.race ?: return@mapNotNull null
             val broadcasts = day.broadcasts.map { item ->
@@ -145,9 +148,9 @@ object VideosFeedLogic {
                 placeholderLogo = race.uciCategory != "CN", oneDay = race.raceFormat == "one_day",
                 rows = media.entries + revive.map { reviveRow(it.id, it.url.orEmpty(), it.channel, it.embeddable) },
                 expandable = expandable, fullUrl = full?.url, fullLabel = full?.let { broadcastLabel(it.channel) },
-                stageId = day.id, raceId = day.raceId, cxRaceId = null,
+                stageId = day.id, raceId = day.raceId, cxRaceId = null, roadRace = race,
             )
-        }.sortedWith { a, b -> compareRoad(a.first, b.first) }.map { it.second }
+        }.sortedWith { a, b -> compareRoad(a.first, b.first, featured) }.map { it.second }
 
     /** Etapa y distancia: «Etapa 5 · 182 km»; un día, solo la distancia. */
     private fun roadSubtitle(day: VideoFeedDay): String {
@@ -164,8 +167,15 @@ object VideosFeedLogic {
         return parts.joinToString(" · ")
     }
 
-    /** Orden canónico de Hoy: gran vuelta, categoría, género, salida y nombre. */
-    private fun compareRoad(a: VideoFeedDay, b: VideoFeedDay): Int {
+    /** Clave de una carrera destacada de carretera en un día (`featured_races_for_dates`). */
+    fun featuredKey(dateKey: String, raceId: String?): String = "$dateKey|${raceId.orEmpty()}"
+
+    /** Orden canónico de Hoy: destacadas (corona del panel), gran vuelta, categoría, género,
+     *  salida y nombre. */
+    private fun compareRoad(a: VideoFeedDay, b: VideoFeedDay, featured: Set<String>): Int {
+        val fa = if (featuredKey(a.dateKey, a.race?.id) in featured) 0 else 1
+        val fb = if (featuredKey(b.dateKey, b.race?.id) in featured) 0 else 1
+        if (fa != fb) return fa - fb
         val ga = if (a.race?.isGrandTour == true) 0 else 1
         val gb = if (b.race?.isGrandTour == true) 0 else 1
         if (ga != gb) return ga - gb
@@ -271,7 +281,7 @@ object VideosFeedLogic {
                     expandable = expandable,
                     fullUrl = if (expandable) null else urls.firstOrNull(),
                     fullLabel = if (expandable) null else reviveRows.firstOrNull()?.channel.let(::broadcastLabel),
-                    stageId = null, raceId = null, cxRaceId = race.id,
+                    stageId = null, raceId = null, cxRaceId = race.id, cxRace = race,
                 )
             }
         }
@@ -289,12 +299,12 @@ object VideosFeedLogic {
 
     /** Días de [fromKey, toKey] en orden cronológico inverso; ciclocross en el
      *  orden de la agenda. */
-    fun days(entries: List<VideoFeedEntry>, fromKey: String?, toKey: String, cxRaces: List<CxRace> = emptyList()): List<VideoFeedDayGroup> {
+    fun days(entries: List<VideoFeedEntry>, fromKey: String?, toKey: String, cxRaces: List<CxRace> = emptyList(), cxFeatured: Set<String> = emptySet()): List<VideoFeedDayGroup> {
         val inWindow = entries.filter { (fromKey == null || it.date >= fromKey) && it.date <= toKey }
         return inWindow.map { it.date }.distinct().sortedDescending().map { date ->
             var list = inWindow.filter { it.date == date }
             if (cxRaces.isNotEmpty()) {
-                val order = CyclocrossLogic.racesOn(cxRaces, date).map { it.id }
+                val order = CyclocrossLogic.racesOn(cxRaces, date, cxFeatured).map { it.id }
                 list = list.withIndex().sortedWith(compareBy({ order.indexOf(it.value.cxRaceId).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it.index }))
                     .map { it.value }
             }

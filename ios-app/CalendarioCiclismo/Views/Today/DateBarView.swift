@@ -38,6 +38,8 @@ struct DateBarView: View {
     private let itemHeight: CGFloat = 48
     private let horizontalPadding: CGFloat = 8
     private let windowOffset = 45
+    /// Días de margen respecto al extremo del rango a partir de los cuales se recentra.
+    private static let edgeMargin = 20
 
     /// Rango de fechas mostrado. Se genera una vez en init y solo se
     /// regenera si `selectedDate` cae fuera del rango (navegación extrema).
@@ -107,7 +109,17 @@ struct DateBarView: View {
                 recenter(on: selectedDate, rebuildingScrollView: true)
             }
             .onChange(of: selectedDate) { _, newValue in
-                if !dateRange.contains(newValue) {
+                // Sin límites de fecha (carretera), el rango se vuelve a centrar en
+                // el día elegido cuando este se acerca a un extremo: el usuario
+                // puede seguir desplazándose tantos días como quiera. Ocurre en
+                // reposo (la selección solo se propaga al terminar el scroll).
+                let nearEdge: Bool = {
+                    guard lastDate == nil, let index = dateRange.firstIndex(of: newValue) else { return false }
+                    // El extremo recortado por `firstDate` no cuenta: ahí no hay más días.
+                    let leftOpen = dateRange.first != firstDate
+                    return (leftOpen && index < Self.edgeMargin) || index >= dateRange.count - Self.edgeMargin
+                }()
+                if !dateRange.contains(newValue) || nearEdge {
                     // Navegación extrema (> ±45 días): regenerar el rango y
                     // reposicionar con el truco nil → valor.
                     dateRange = Self.range(around: newValue, firstDate: firstDate, lastDate: lastDate, offset: windowOffset)
@@ -128,7 +140,6 @@ struct DateBarView: View {
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(AppTheme.headerBackground)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(LocaleService.t("Selector de fecha", "Date picker"))
         .accessibilityIdentifier(AccessibilityID.dateBar)

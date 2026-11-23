@@ -150,9 +150,12 @@ class TodayViewModel(
     suspend fun navigateToNextDay() {
         val current = _state.value.dateKey
         val filter = _state.value.filter
-        val next = nextDayMatchingFilter(current, filter)
-            ?: DateFormatting.nextDay(current)
-        next?.let { navigateTo(it) }
+        var found = nextDayMatchingFilter(current, filter)
+        if (found == null) {
+            includeFollowingYear()
+            found = nextDayMatchingFilter(current, filter)
+        }
+        (found ?: DateFormatting.nextDay(current))?.let { navigateTo(it) }
     }
 
     /** Día al que lleva «Hoy»: la fecha actual. */
@@ -160,9 +163,15 @@ class TodayViewModel(
 
     suspend fun navigateToPreviousDay() {
         val current = _state.value.dateKey
+        val earliest = DateFormatting.EARLIEST_ROAD_DATE
+        if (current <= earliest) return
         val filter = _state.value.filter
-        val prev = previousDayMatchingFilter(current, filter) ?: DateFormatting.previousDay(current)
-        prev?.let { navigateTo(it) }
+        var found = previousDayMatchingFilter(current, filter)
+        if (found == null && (current.take(4).toIntOrNull() ?: 0) - 1 >= earliest.take(4).toInt()) {
+            includePreviousYear()
+            found = previousDayMatchingFilter(current, filter)
+        }
+        (found ?: DateFormatting.previousDay(current))?.takeIf { it >= earliest }?.let { navigateTo(it) }
     }
 
     suspend fun navigateToNextRaceDay() {
@@ -361,6 +370,18 @@ class TodayViewModel(
     private var _followingYearRaces: List<Race> = emptyList()
     private var _followingYearOf: Int? = null
 
+    /** Carreras del año anterior al mostrado (día anterior más allá del 1 de enero). */
+    private var _previousYearRaces: List<Race> = emptyList()
+    private var _previousYearOf: Int? = null
+
+    private suspend fun includePreviousYear() {
+        val year = _state.value.dateKey.take(4).toIntOrNull() ?: return
+        if (_previousYearOf == year) return
+        runCatching { repo.refreshRacesYear(year - 1) }
+        _previousYearRaces = runCatching { repo.cachedRacesForYear(year - 1) }.getOrDefault(emptyList())
+        _previousYearOf = year
+    }
+
     private suspend fun includeFollowingYear() {
         val year = _state.value.dateKey.take(4).toIntOrNull() ?: return
         if (_followingYearOf == year) return
@@ -428,7 +449,7 @@ class TodayViewModel(
     ): String? {
         if (_allRaces.isEmpty()) return null
         var candidate = beforeDateKey
-        repeat(180) {
+        repeat(400) {
             val prev = DateFormatting.previousDay(candidate) ?: return null
             candidate = prev
             if (hasMatchingRaces(candidate, filter)) return candidate
@@ -438,7 +459,7 @@ class TodayViewModel(
 
     /** True si hay al menos una carrera que coincida con el filtro en el día dado. */
     private fun hasMatchingRaces(dateKey: String, filter: RoadRaceFilter): Boolean =
-        (_allRaces.asSequence() + _followingYearRaces.asSequence()).any { race ->
+        (_allRaces.asSequence() + _followingYearRaces.asSequence() + _previousYearRaces.asSequence()).any { race ->
             !race.isCancelled &&
                 RaceLogic.isRaceDay(race, dateKey) &&
                 filter.matches(race)

@@ -409,11 +409,9 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             val dayBarsVisible = tournamentId == null && state.agendaReady
             if (dayBarsVisible) {
                 val dateKey = state.dateKey
-                val firstDay = state.firstDay
-                val lastDay = state.lastDay
-                val dateKeys = remember(dateKey, firstDay, lastDay) {
-                    CyclocrossLogic.dayStrip(LocalDate.parse(dateKey), LocalDate.parse(firstDay), LocalDate.parse(lastDay), 2 * DATE_BAR_RADIUS + 1)
-                        .map(LocalDate::toString)
+                // Sin límite de fechas: la tira no se acota a la temporada.
+                val dateKeys = remember(dateKey) {
+                    LocalDate.parse(dateKey).let { center -> (-DATE_BAR_RADIUS..DATE_BAR_RADIUS).map { center.plusDays(it.toLong()).toString() }.filter { it >= DateFormatting.EARLIEST_CX_DATE } }
                 }
                 DateBarWithControls(
                     selectedDateKey = dateKey,

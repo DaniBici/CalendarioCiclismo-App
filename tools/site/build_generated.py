@@ -765,8 +765,9 @@ def verify():
                 for key in ("", "-pro", "-wt", "-wwt", "-masc", "-fem"):
                     if not (ROOT / "_site" / base / f"{current}{key}.ics").is_file():
                         raise ValueError("Falta un feed del año actual")
+                # El año anterior se conserva (gen_feeds.eligible_calendar_year).
                 for annual in (ROOT / "_site" / base).glob("*.ics"):
-                    if int(annual.name.split("-")[0].split(".")[0]) < current:
+                    if int(annual.name.split("-")[0].split(".")[0]) < current - 1:
                         raise ValueError("iCal histórico no permitido")
             for name in metadata["files"]:
                 content = (ROOT / "_site" / name).read_bytes()

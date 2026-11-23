@@ -301,14 +301,21 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
             // como cualquier otra carrera del día. La rejilla país×prueba sigue
             // accesible aparte, pero no sustituye ni oculta nada en Hoy.
 
-            val dateKeys = remember(state.dateKey) {
-                DateFormatting.dateRangeAround(state.dateKey, offset = DATE_BAR_RADIUS)
+            // Sin límite de fechas: la tira abarca ±10 años (LazyRow, solo se
+            // componen los días visibles) y se ancla en un centro que solo cambia
+            // si el día elegido sale de ella, de modo que el usuario se desplaza
+            // tantos días como quiera sin que la tira se rehaga a cada selección.
+            var anchor by remember { mutableStateOf(state.dateKey) }
+            if (kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(
+                    java.time.LocalDate.parse(anchor), java.time.LocalDate.parse(state.dateKey))) > DATE_BAR_SPAN - 60) anchor = state.dateKey
+            val dateKeys = remember(anchor) {
+                DateFormatting.dateRangeAround(anchor, offset = DATE_BAR_SPAN).filter { it >= DateFormatting.EARLIEST_ROAD_DATE }
             }
             DateBarWithControls(
                 selectedDateKey = state.dateKey,
                 isToday = state.dateKey == vm.currentDayKey(),
                 dateKeys = dateKeys,
-                canGoPrevious = true,
+                canGoPrevious = state.dateKey > DateFormatting.EARLIEST_ROAD_DATE,
                 canGoNext = true,
                 onSelect = { newDate ->
                     haptic(Haptics.Event.Navigation)

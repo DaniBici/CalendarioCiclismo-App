@@ -37,6 +37,14 @@ object CyclocrossLogic {
         return String.format(Locale.ROOT, "%04d-%02d", year, (year + 1) % 100)
     }
 
+    /** Temporada anterior y siguiente (`2026-27` → `2025-26` / `2027-28`). */
+    fun previousSeason(season: String): String = shiftSeason(season, -1)
+    fun nextSeason(season: String): String = shiftSeason(season, 1)
+    private fun shiftSeason(season: String, by: Int): String {
+        val year = season.substringBefore('-').toInt() + by
+        return String.format(Locale.ROOT, "%04d-%02d", year, (year + 1) % 100)
+    }
+
     fun months(season: String): List<YearMonth> {
         val start = season.substringBefore('-').toInt()
         require(season == String.format(Locale.ROOT, "%04d-%02d", start, (start + 1) % 100))

@@ -29,6 +29,10 @@ final class VideosFeedStore {
     /// principal.
     private(set) var roadRevision = 0
     private(set) var cxRevision = 0
+    /// Destacadas de carretera (`día|carrera`) y de ciclocross (`cx_race_featured`): encabezan su
+    /// día, como en Hoy.
+    @ObservationIgnored private var roadFeatured: Set<String> = []
+    @ObservationIgnored private var cxFeatured: Set<String> = []
     @ObservationIgnored private var roadMemo: EntriesMemo?
     @ObservationIgnored private var cxMemo: EntriesMemo?
     @ObservationIgnored private var daysMemo: DaysMemo?
@@ -72,7 +76,7 @@ final class VideosFeedStore {
         if let memo = roadMemo, memo.revision == roadRevision, memo.groups == groups, memo.english == english {
             return memo.entries
         }
-        let entries = VideosFeedLogic.roadEntries(roadDays, allowedGroups: groups)
+        let entries = VideosFeedLogic.roadEntries(roadDays, allowedGroups: groups, featured: roadFeatured)
         roadMemo = EntriesMemo(revision: roadRevision, groups: groups, english: english, entries: entries)
         return entries
     }
@@ -102,10 +106,32 @@ final class VideosFeedStore {
         let result: [VideoFeedDayGroup]
         switch active {
         case .road: result = VideosFeedLogic.days(roadEntries, fromKey: from, toKey: todayKey)
-        case .cyclocross: result = VideosFeedLogic.days(cxEntries, fromKey: from, toKey: todayKey, cxRaces: cxRaces)
+        case .cyclocross: result = VideosFeedLogic.days(cxEntries, fromKey: from, toKey: todayKey, cxRaces: cxRaces, cxFeatured: cxFeatured)
         }
         daysMemo = DaysMemo(discipline: active, revision: revision, from: from, groups: groups, english: english, days: result)
         return result
+    }
+
+    /// Días con las carreras que pasan los filtros de Hoy y Calendario (los mismos, por
+    /// disciplina); un día sin carreras que pasen no aparece.
+    var filteredDays: [VideoFeedDayGroup] {
+        let result = days
+        let filters = RaceFilterStore.shared
+        let road = filters.road, cx = filters.cx
+        guard discipline == .road ? road.isActive : cx.isActive else { return result }
+        return result.compactMap { group in
+            let kept = group.entries.filter { entry in
+                if discipline == .road, let race = entry.roadRace { return road.matches(category: race.uciCategory, name: race.name, gender: race.gender) }
+                if discipline == .cyclocross, let race = entry.cxRace { return cx.matches(race) }
+                return true
+            }
+            return kept.isEmpty ? nil : VideoFeedDayGroup(date: group.date, entries: kept)
+        }
+    }
+
+    var filtersActive: Bool {
+        let filters = RaceFilterStore.shared
+        return discipline == .road ? filters.road.isActive : filters.cx.isActive
     }
 
     var canLoadMore: Bool { (fromKey[discipline] ?? "") > seasonStart(discipline) }
@@ -124,6 +150,7 @@ final class VideosFeedStore {
             fromKey[.road] = max(roadFrom, ResultsFeedLogic.seasonStart)
             fromKey[.cyclocross] = fromKey[.cyclocross] ?? max(VideosFeedLogic.shift(cxLatest, days: -(VideosFeedLogic.windowDays - 1)), cxSeasonStart)
             roadDays = try await SupabaseService.shared.videoFeedDays(from: fromKey[.road], to: todayKey)
+            roadFeatured = await loadRoadFeatured(for: roadDays.map(\.dateKey))
             roadRevision &+= 1
             error = nil
             hasLoaded = true
@@ -131,6 +158,13 @@ final class VideosFeedStore {
             if error is CancellationError { return }
             self.error = LocaleService.t("No se han podido cargar los vídeos.", "Videos could not be loaded.")
         }
+    }
+
+    /// Carreras destacadas de carretera en esos días; sin red, sin destacadas.
+    private func loadRoadFeatured(for dateKeys: [String]) async -> Set<String> {
+        let keys = Array(Set(dateKeys)).sorted()
+        guard !keys.isEmpty, let selections = try? await SupabaseService.shared.featuredRaces(for: keys) else { return [] }
+        return Set(selections.map { VideosFeedLogic.featuredKey(dateKey: $0.dateKey, raceId: $0.raceId) })
     }
 
     private func loadCx() async throws {
@@ -150,6 +184,7 @@ final class VideosFeedStore {
         }
         cxRaces = races.sorted { ($0.dateKey, $0.id) < ($1.dateKey, $1.id) }
         cxRounds = (try? await SupabaseService.shared.cxSeasonRounds(season: season)) ?? [:]
+        cxFeatured = await CyclocrossRepository.shared.featuredRaceIds()
         cxRevision &+= 1
     }
 
@@ -168,6 +203,7 @@ final class VideosFeedStore {
             if current == .road {
                 guard let rows = try? await SupabaseService.shared.videoFeedDays(from: older, to: to) else { return }
                 roadDays += rows
+                roadFeatured.formUnion(await loadRoadFeatured(for: rows.map(\.dateKey)))
                 roadRevision &+= 1
                 found = !VideosFeedLogic.roadEntries(rows, allowedGroups: RegionService.shared.allowedBroadcastGroups).isEmpty
             } else {
@@ -231,6 +267,14 @@ struct VideosFeedView: View {
                     CCHeaderMarkView()
                 }
             }
+            // «Filtros»: la misma selección de Hoy, Calendario y Últimos resultados.
+            ToolbarItem(placement: .topBarTrailing) {
+                if store.discipline == .cyclocross {
+                    CxFiltersMenu { isActive in filtersSymbol(isActive) }
+                } else {
+                    RoadFiltersMenu { isActive in filtersSymbol(isActive) }
+                }
+            }
         }
         .navigationDestination(for: StageVideosRoute.self) { route in
             StageDetailView(raceDayId: route.raceDayId, raceIdHint: route.raceId, titleHint: route.title, initialSection: "videos")
@@ -246,17 +290,23 @@ struct VideosFeedView: View {
         .onChange(of: store.discipline) { _, _ in logScreen() }
     }
 
+    private func filtersSymbol(_ isActive: Bool) -> some View {
+        Image(systemName: isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+    }
+
     private var list: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                let days = store.days
+                let days = store.filteredDays
                 if days.isEmpty {
                     EmptyStateView(
                         icon: "play.rectangle",
                         title: localeService.t("Sin vídeos", "No videos"),
-                        subtitle: store.discipline == .cyclocross
-                            ? localeService.t("No hay vídeos de ciclocross en este periodo.", "No cyclocross videos in this period.")
-                            : localeService.t("No hay vídeos de carretera en este periodo.", "No road videos in this period.")
+                        subtitle: store.filtersActive
+                            ? localeService.t("No hay vídeos con estos filtros en este periodo.", "No videos match these filters in this period.")
+                            : store.discipline == .cyclocross
+                                ? localeService.t("No hay vídeos de ciclocross en este periodo.", "No cyclocross videos in this period.")
+                                : localeService.t("No hay vídeos de carretera en este periodo.", "No road videos in this period.")
                     )
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, minHeight: 320)

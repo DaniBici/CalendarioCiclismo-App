@@ -101,7 +101,6 @@ struct TransfersTeamView: View {
             LazyVStack(alignment: .leading, spacing: 8) {
                 TeamHeader(
                     season: season,
-                    stripes: TransfersLogic.stripesTeam(for: season, prev: data.prevSeasonsByTeamId),
                     countryCode: countryCode,
                     confirmedCount: detail.squad.isEmpty ? nil : detail.confirmedCount
                 )
@@ -472,7 +471,6 @@ struct TransfersTeamView: View {
 /// recuento bajan a la siguiente, juntos o por separado.
 private struct TeamHeader: View {
     let season: TeamSeason
-    let stripes: Team?
     let countryCode: String?
     let confirmedCount: Int?
 
@@ -513,13 +511,10 @@ private struct TeamHeader: View {
     }
 
     private var name: some View {
-        HStack(spacing: 8) {
-            if let stripes { TeamColorBands(team: stripes, width: 14, height: 15) }
-            Text(season.name ?? "")
-                .ccFont(.s20, weight: .bold)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-        }
+        Text(season.name ?? "")
+            .ccFont(.s20, weight: .bold)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// Nombre con la división y la temporada al final de la línea.

@@ -15,6 +15,7 @@ import app.calendariociclismo.android.util.CxAgendaSort
 import app.calendariociclismo.android.util.CxCategoryCardState
 import app.calendariociclismo.android.util.CxPresentation
 import app.calendariociclismo.android.util.CyclocrossLogic
+import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RegionDetector
 import java.time.Instant
 import java.time.LocalDate
@@ -153,8 +154,10 @@ class CyclocrossAgendaState(
     /** Siguiente día con carreras del filtro activo. */
     val nextRaceDay: String? get() = CyclocrossLogic.nextRaceDay(raceDays, dateKey)
 
-    val canGoPrevious: Boolean get() = dateKey > firstDay
-    val canGoNext: Boolean get() = dateKey < lastDay
+    // Sin límite hacia delante; hacia atrás, hasta la temporada 2026-27. Pasado el extremo de la
+    // temporada se abre la contigua.
+    val canGoPrevious: Boolean get() = dateKey > DateFormatting.EARLIEST_CX_DATE
+    val canGoNext: Boolean get() = true
 
     /** Carga una sola vez por temporada el mapa raceId → CxRound. Fallo silencioso. */
     suspend fun loadRounds() {
@@ -216,7 +219,7 @@ class CyclocrossAgendaState(
         filter = initialFilter
         navigated = false
         lastTodayKey = todayKey()
-        val restored = restoredDay?.takeIf { it in firstDay..lastDay }
+        val restored = restoredDay?.takeIf { CyclocrossLogic.season(LocalDate.parse(it)) == season }
         if (cache.isNotEmpty()) {
             showOpening(restored)
             loaded = true
@@ -245,7 +248,7 @@ class CyclocrossAgendaState(
         filter = initialFilter
         navigated = false
         lastTodayKey = todayKey()
-        val restored = restoredDay?.takeIf { it in firstDay..lastDay }
+        val restored = restoredDay?.takeIf { CyclocrossLogic.season(LocalDate.parse(it)) == season }
         try {
             // Destacadas de la última lectura: el día pintado desde la caché
             // sale ya en su orden y la red no lo recoloca.
@@ -401,7 +404,7 @@ class CyclocrossAgendaState(
      *  la pantalla lo invoca al cambiar [dateKey]. Un día ya descargado se
      *  vuelve a pedir solo si espera su detalle. */
     suspend fun showDay() {
-        if (!dayMode || !loaded || (freshDay == dateKey && awaitingDay != dateKey)) return
+        if (!dayMode || !loaded || dateKey !in firstDay..lastDay || (freshDay == dateKey && awaitingDay != dateKey)) return
         loadDay(dateKey, revision)
     }
 
@@ -595,23 +598,42 @@ class CyclocrossAgendaState(
 
     // MARK: - Navegación de la agenda general
 
-    /** Muestra [target], acotado a la temporada. */
-    fun navigateTo(target: String) {
-        show(target.coerceIn(firstDay, lastDay))
+    /** Muestra [target]. Un día de otra temporada abre esa temporada. */
+    suspend fun navigateTo(target: String) {
+        if (tournamentId == null && target < DateFormatting.EARLIEST_CX_DATE) return
+        val targetSeason = CyclocrossLogic.season(LocalDate.parse(target))
+        if (tournamentId == null && targetSeason != season) {
+            open(targetSeason, restoredDay = target, initialFilter = filter)
+            navigated = true
+            return
+        }
+        show(target)
         navigated = true
         autoNavigate()
     }
 
-    fun navigateToNextDay() {
-        CyclocrossLogic.stepDay(raceDays, dateKey, forward = true, season = season)?.let(::navigateTo)
+    /** Siguiente día con carreras; sin más en la temporada, el primero de la siguiente. */
+    suspend fun navigateToNextDay() {
+        CyclocrossLogic.nextRaceDay(raceDays, dateKey)?.takeIf { it <= lastDay }?.let { navigateTo(it); return }
+        if (tournamentId != null) return
+        open(CyclocrossLogic.nextSeason(season), initialFilter = filter)
+        navigated = true
     }
 
-    fun navigateToPreviousDay() {
-        CyclocrossLogic.stepDay(raceDays, dateKey, forward = false, season = season)?.let(::navigateTo)
+    /** Día con carreras anterior; sin más en la temporada, el último de la anterior. */
+    suspend fun navigateToPreviousDay() {
+        CyclocrossLogic.previousRaceDay(raceDays, dateKey)?.takeIf { it >= firstDay }?.let { navigateTo(it); return }
+        if (tournamentId != null) return
+        val previous = CyclocrossLogic.previousSeason(season)
+        if (CyclocrossLogic.seasonLastDay(previous).toString() < DateFormatting.EARLIEST_CX_DATE) return
+        val last = CyclocrossLogic.seasonLastDay(previous)
+        open(previous, restoredDay = last.toString(), initialFilter = filter)
+        navigated = true
+        CyclocrossLogic.previousRaceDay(raceDays, last.plusDays(1).toString())?.let(::show)
     }
 
-    fun navigateToNextRaceDay() {
-        nextRaceDay?.let(::navigateTo)
+    suspend fun navigateToNextRaceDay() {
+        nextRaceDay?.let { navigateTo(it) }
     }
 
     /** «Hoy»: el día actual; si ya pertenece a otra temporada, la abre. */

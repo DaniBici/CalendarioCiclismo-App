@@ -170,9 +170,9 @@ html.light {
   --bg-tint:       #e8f1ff;
   --control-bg:    var(--bg-card);
   --control-sep:   var(--border);
-  --inverse-bg:     #10233f;
+  --inverse-bg:     #1f1f1f;
   --inverse-text:   #ffffff;
-  --inverse-border: #10233f;
+  --inverse-border: #1f1f1f;
   --selected-bg:    var(--inverse-bg);
   --selected-text:  var(--inverse-text);
   --selected-border: var(--inverse-border);
@@ -244,9 +244,9 @@ html.light {
     --bg-tint:       #e8f1ff;
     --control-bg:    var(--bg-card);
     --control-sep:   var(--border);
-    --inverse-bg:     #10233f;
+    --inverse-bg:     #1f1f1f;
     --inverse-text:   #ffffff;
-    --inverse-border: #10233f;
+    --inverse-border: #1f1f1f;
     --selected-bg:    var(--inverse-bg);
     --selected-text:  var(--inverse-text);
     --selected-border: var(--inverse-border);

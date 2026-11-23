@@ -65,6 +65,9 @@ struct VideoFeedEntry: Identifiable {
     let full: (url: URL, label: String)?
     let stageRoute: StageVideosRoute?
     let cxRoute: CxDestination?
+    /// Carrera de origen, para los filtros de Hoy (carretera o ciclocross).
+    var roadRace: VideoFeedDay.RaceInfo? = nil
+    var cxRace: CxRace? = nil
 }
 
 struct VideoFeedDayGroup: Identifiable {
@@ -96,7 +99,7 @@ enum VideosFeedLogic {
     // MARK: Carretera
 
     @MainActor
-    static func roadEntries(_ days: [VideoFeedDay], allowedGroups: Set<String>) -> [VideoFeedEntry] {
+    static func roadEntries(_ days: [VideoFeedDay], allowedGroups: Set<String>, featured: Set<String> = []) -> [VideoFeedEntry] {
         days.compactMap { day -> (VideoFeedDay, VideoFeedEntry)? in
             guard let race = day.race else { return nil }
             let broadcasts = day.broadcasts.map { item in
@@ -124,10 +127,10 @@ enum VideosFeedLogic {
                 id: "road-\(day.id)", date: day.dateKey, name: name, subtitle: roadSubtitle(day),
                 logoUrl: race.logoUrl, countryCode: day.countryCode ?? race.countryCode, placeholderLogo: race.uciCategory != "CN",
                 oneDay: oneDay, rows: rows, expandable: expandable, full: full,
-                stageRoute: StageVideosRoute(raceDayId: day.id, raceId: day.raceId, title: name), cxRoute: nil)
+                stageRoute: StageVideosRoute(raceDayId: day.id, raceId: day.raceId, title: name), cxRoute: nil, roadRace: race)
             return (day, entry)
         }
-        .sorted { compareRoad($0.0, $1.0) }
+        .sorted { compareRoad($0.0, $1.0, featured: featured) }
         .map(\.1)
     }
 
@@ -154,9 +157,15 @@ enum VideosFeedLogic {
         return parts.joined(separator: " · ")
     }
 
-    /// Orden canónico de Hoy entre carreras: gran vuelta, categoría, género,
-    /// hora de salida y nombre (espejo de `compareRoad`).
-    private static func compareRoad(_ a: VideoFeedDay, _ b: VideoFeedDay) -> Bool {
+    /// Clave de una carrera destacada de carretera en un día (`featured_races_for_dates`).
+    static func featuredKey(dateKey: String, raceId: String?) -> String { "\(dateKey)|\(raceId ?? "")" }
+
+    /// Orden canónico de Hoy entre carreras: destacadas (corona del panel) primero, gran
+    /// vuelta, categoría, género, hora de salida y nombre (espejo de `compareRoad`).
+    private static func compareRoad(_ a: VideoFeedDay, _ b: VideoFeedDay, featured: Set<String>) -> Bool {
+        let fa = featured.contains(featuredKey(dateKey: a.dateKey, raceId: a.race?.id))
+        let fb = featured.contains(featuredKey(dateKey: b.dateKey, raceId: b.race?.id))
+        if fa != fb { return fa }
         let ga = a.race?.isGrandTour == true ? 0 : 1, gb = b.race?.isGrandTour == true ? 0 : 1
         if ga != gb { return ga < gb }
         let ca = RaceLogic.categoryRank(category: a.race?.uciCategory, name: a.race?.name, country: a.race?.countryCode)
@@ -232,7 +241,7 @@ enum VideosFeedLogic {
                     id: "cx-\(race.id)-\(date)", date: date, name: CyclocrossPresentation.name(race), subtitle: subtitle,
                     logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode, placeholderLogo: race.raceClass != "CN",
                     oneDay: true, rows: videos + lists.revive, expandable: expandable, full: full,
-                    stageRoute: nil, cxRoute: CxDestination(raceId: race.id, anchor: "videos", title: CyclocrossPresentation.name(race))))
+                    stageRoute: nil, cxRoute: CxDestination(raceId: race.id, anchor: "videos", title: CyclocrossPresentation.name(race)), cxRace: race))
             }
         }
         return out
@@ -266,13 +275,13 @@ enum VideosFeedLogic {
 
     /// Días de [fromKey, toKey] en orden cronológico inverso; ciclocross en el
     /// orden de la agenda (`CyclocrossLogic.races(on:)`).
-    static func days(_ entries: [VideoFeedEntry], fromKey: String?, toKey: String, cxRaces: [CxRace] = []) -> [VideoFeedDayGroup] {
+    static func days(_ entries: [VideoFeedEntry], fromKey: String?, toKey: String, cxRaces: [CxRace] = [], cxFeatured: Set<String> = []) -> [VideoFeedDayGroup] {
         let inWindow = entries.filter { (fromKey == nil || $0.date >= fromKey!) && $0.date <= toKey }
         let dates = Set(inWindow.map(\.date)).sorted(by: >)
         return dates.map { date in
             var list = inWindow.filter { $0.date == date }
             if !cxRaces.isEmpty {
-                let order = CyclocrossLogic.races(on: date, races: cxRaces).map(\.id)
+                let order = CyclocrossLogic.races(on: date, races: cxRaces, featured: cxFeatured).map(\.id)
                 func rank(_ entry: VideoFeedEntry) -> Int {
                     guard let id = entry.cxRoute?.raceId else { return Int.max }
                     return order.firstIndex(of: id) ?? Int.max

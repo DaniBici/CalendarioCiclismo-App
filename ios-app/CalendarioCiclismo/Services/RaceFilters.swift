@@ -29,8 +29,10 @@ struct RoadRaceFilter: Equatable, Codable {
     /// entra sola; sin nivel, solo se ve con el grupo entero marcado.
     private static let development: Set<String> = ["1.2", "2.2", "1.2U", "2.2U", "1.Ncup", "2.Ncup", "1.NE", "2.NE"]
 
-    static func level(of race: Race) -> String? {
-        let cat = race.uciCategory ?? ""
+    static func level(of race: Race) -> String? { level(category: race.uciCategory) }
+
+    static func level(category: String?) -> String? {
+        let cat = category ?? ""
         if worldTour.contains(cat) { return "wt" }
         if professional.contains(cat) { return "pro" }
         if development.contains(cat) { return "dev" }
@@ -40,18 +42,26 @@ struct RoadRaceFilter: Equatable, Codable {
     /// Una carrera sin género (mixta o con pruebas de ambos sexos) y los relevos
     /// mixtos cuentan en Masculino y en Femenino.
     static func genders(of race: Race) -> Set<String> {
-        let cat = race.uciCategory ?? ""
+        genders(category: race.uciCategory, name: race.name, gender: race.gender)
+    }
+
+    static func genders(category: String?, name: String, gender: String?) -> Set<String> {
+        let cat = category ?? ""
         let mixedRelay = (cat == "WC" || cat == "CC")
-            && (race.name.localizedCaseInsensitiveContains("relevo mixto") || race.name.localizedCaseInsensitiveContains("mixed relay"))
-        if !mixedRelay, let gender = race.gender, gender == "male" || gender == "female" { return [gender] }
+            && (name.localizedCaseInsensitiveContains("relevo mixto") || name.localizedCaseInsensitiveContains("mixed relay"))
+        if !mixedRelay, let gender, gender == "male" || gender == "female" { return [gender] }
         return Set(allGenders)
     }
 
     func matches(_ race: Race) -> Bool {
+        matches(category: race.uciCategory, name: race.name, gender: race.gender)
+    }
+
+    func matches(category: String?, name: String, gender: String?) -> Bool {
         if levels.count < Self.allLevels.count {
-            guard let level = Self.level(of: race), levels.contains(level) else { return false }
+            guard let level = Self.level(category: category), levels.contains(level) else { return false }
         }
-        if genders.count < Self.allGenders.count, genders.isDisjoint(with: Self.genders(of: race)) { return false }
+        if genders.count < Self.allGenders.count, genders.isDisjoint(with: Self.genders(category: category, name: name, gender: gender)) { return false }
         return true
     }
 

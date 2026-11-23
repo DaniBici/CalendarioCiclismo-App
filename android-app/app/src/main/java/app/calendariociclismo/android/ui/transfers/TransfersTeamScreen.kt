@@ -451,19 +451,12 @@ private fun TeamHeader(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
-                    Text(
-                        season.name.orEmpty(),
-                        style = CCText.S20,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.semantics { heading() },
-                    )
-                }
+                Text(
+                    season.name.orEmpty(),
+                    style = CCText.S20,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
                 Text(
                     listOfNotNull(season.category?.takeUnless(String::isBlank), TransfersLogic.MARKET_SEASON.toString()).joinToString(" · "),
                     style = CCText.S13,

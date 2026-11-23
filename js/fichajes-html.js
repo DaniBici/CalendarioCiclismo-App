@@ -779,7 +779,7 @@ export function teamViewHtml(market, teamId, roster, { rosterError = false, squa
     <div class="tr-team-header" style="${teamColorStyle(market, season)}">
       <div class="tr-team-header__text">
         <div class="tr-team-header__top">
-          <h2 class="tr-team-header__name">${marketStripesHtml(market, season)}${esc(season.name)}</h2>
+          <h2 class="tr-team-header__name">${esc(season.name)}</h2>
           <span class="tr-team-header__cat">${esc(divisionName(season))} · ${SEASON}</span>
         </div>
         ${facts ? `<div class="tr-team-header__facts">${facts}</div>` : ''}

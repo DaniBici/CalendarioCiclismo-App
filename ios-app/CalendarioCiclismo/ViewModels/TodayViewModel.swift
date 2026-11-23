@@ -423,17 +423,25 @@ final class TodayViewModel {
     }
 
     func goToPreviousDay() async {
-        if let prev = previousDayMatchingFilter(before: dateKey) {
-            await navigate(to: prev)
-        } else if let prev = DateFormatting.previousDay(dateKey) {
+        let earliest = DateFormatting.earliestRoadDate
+        guard dateKey > earliest else { return }
+        var found = previousDayMatchingFilter(before: dateKey)
+        if found == nil, (Int(dateKey.prefix(4)) ?? 0) - 1 >= (Int(earliest.prefix(4)) ?? 0) {
+            await includePreviousYear()
+            found = previousDayMatchingFilter(before: dateKey)
+        }
+        if let prev = found ?? DateFormatting.previousDay(dateKey), prev >= earliest {
             await navigate(to: prev)
         }
     }
 
     func goToNextDay() async {
-        if let next = nextDayMatchingFilter(after: dateKey) {
-            await navigate(to: next)
-        } else if let next = DateFormatting.nextDay(dateKey) {
+        var found = nextDayMatchingFilter(after: dateKey)
+        if found == nil {
+            await includeFollowingYear()
+            found = nextDayMatchingFilter(after: dateKey)
+        }
+        if let next = found ?? DateFormatting.nextDay(dateKey) {
             await navigate(to: next)
         }
     }
@@ -469,28 +477,39 @@ final class TodayViewModel {
 
     // MARK: - Filter-aware day scanning
 
-    /// Carreras del año siguiente al mostrado, cargadas solo cuando el año
-    /// mostrado no tiene más días que cumplan el filtro. Las fechas son
-    /// absolutas: unirlas a `allRaces` nunca produce un día falso.
+    /// Carreras de los años contiguos al mostrado, cargadas solo cuando el año
+    /// mostrado no tiene más días que cumplan el filtro en ese sentido. Las
+    /// fechas son absolutas: unirlas a `allRaces` nunca produce un día falso.
     private var followingYearRaces: [Race] = []
     private var followingYearOf: Int?
+    private var previousYearRaces: [Race] = []
+    private var previousYearOf: Int?
 
     /// Carga las carreras del año siguiente para que la búsqueda del próximo
     /// día con carreras cruce el cambio de año.
     func includeFollowingYear() async {
-        guard let year = Int(dateKey.prefix(4)), followingYearOf != year else { return }
-        let service = SupabaseService.shared
-        let cache = CacheManager.shared
-        let key = CacheManager.yearRacesKey(year + 1)
-        if let fresh = try? await service.racesByYear(year + 1) {
-            followingYearRaces = fresh
-            await cache.save(fresh, forKey: key)
-        } else if let cached: [Race] = await cache.load([Race].self, forKey: key) {
-            followingYearRaces = cached
-        } else {
-            return
-        }
+        guard let year = Int(dateKey.prefix(4)), followingYearOf != year,
+              let races = await adjacentYearRaces(year + 1) else { return }
+        followingYearRaces = races
         followingYearOf = year
+    }
+
+    /// Ídem hacia atrás: día anterior más allá del 1 de enero.
+    func includePreviousYear() async {
+        guard let year = Int(dateKey.prefix(4)), previousYearOf != year,
+              let races = await adjacentYearRaces(year - 1) else { return }
+        previousYearRaces = races
+        previousYearOf = year
+    }
+
+    private func adjacentYearRaces(_ year: Int) async -> [Race]? {
+        let cache = CacheManager.shared
+        let key = CacheManager.yearRacesKey(year)
+        if let fresh = try? await SupabaseService.shared.racesByYear(year) {
+            await cache.save(fresh, forKey: key)
+            return fresh
+        }
+        return await cache.load([Race].self, forKey: key)
     }
 
     /// Busca el siguiente día con carreras que coincidan con el filtro activo.
@@ -513,7 +532,7 @@ final class TodayViewModel {
     func previousDayMatchingFilter(before dateKey: String) -> String? {
         guard !allRaces.isEmpty else { return nil }
         var candidate = dateKey
-        for _ in 0..<180 {
+        for _ in 0..<400 {
             guard let prev = DateFormatting.previousDay(candidate) else { break }
             candidate = prev
             if hasMatchingRaces(on: candidate, filter: filter) {
@@ -525,7 +544,7 @@ final class TodayViewModel {
 
     /// Comprueba si hay carreras que coincidan con el filtro en un día dado.
     private func hasMatchingRaces(on dateKey: String, filter: RoadRaceFilter) -> Bool {
-        (allRaces + followingYearRaces).contains { race in
+        (allRaces + followingYearRaces + previousYearRaces).contains { race in
             guard !race.isCancelled else { return false }
             guard RaceLogic.isRaceDay(race: race, dateKey: dateKey) else { return false }
             return filter.matches(race)

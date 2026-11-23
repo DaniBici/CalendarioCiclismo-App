@@ -243,8 +243,7 @@ struct CyclocrossView: View {
 
             DateBarView(
                 selectedDate: model.dateKey,
-                firstDate: model.firstDay,
-                lastDate: model.lastDay,
+                firstDate: DateFormatting.earliestCxDate,
                 onSelect: { newDate in
                     animateNavigation(forward: newDate > model.dateKey) { model.navigate(to: newDate) }
                 }
@@ -269,7 +268,6 @@ struct CyclocrossView: View {
         .frame(maxWidth: AdaptiveLayoutPolicy.headerStripMaxWidth)
         .frame(maxWidth: .infinity)
         .foregroundStyle(Color.accentColor)
-        .background(AppTheme.headerBackground)
     }
 
     /// Fecha del día mostrado, categoría y orden de la lista, como en Hoy de

@@ -71,7 +71,7 @@
   --primary-nav-h: 0px;
   --dorsal-bg-a: #1c1e22;
   /* Relleno y suelo del perfil de la pantalla de carga: en oscuro, la
-     superficie de ficha; el acento al 10 % componía una franja azul marino. */
+     superficie de ficha; el acento al 10 % componía una franja gris casi negro. */
   --loading-terrain: var(--bg-card);
   /* Los diálogos consumen la misma jerarquía cromática que la web. Estos
      alias evitan que una superficie modal conserve una paleta independiente
@@ -1258,7 +1258,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   border-color: var(--border-light);
 }
 /* Día seleccionado: selección inversa (claro con texto oscuro en oscuro;
-   azul marino con texto claro en claro). */
+   gris casi negro con texto claro en claro). */
 .date-pill.active, .date-pill.active:hover { background: var(--selected-bg); border-color: var(--selected-border); }
 .date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { color: var(--selected-text); font-weight: 700; }
 /* Botón HOY: aparece al alejarse del día actual. */

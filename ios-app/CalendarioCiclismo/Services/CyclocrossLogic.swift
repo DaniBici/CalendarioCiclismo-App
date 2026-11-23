@@ -74,6 +74,17 @@ enum CyclocrossLogic {
         return (CxMonth(year: year, month: 8).firstDate, CxMonth(year: year + 1, month: 2).lastDate)
     }
 
+    /// Temporada a la que pertenece `date` (de agosto a febrero; marzo a julio, la que empieza ese agosto).
+    static func season(of date: String) -> String {
+        CxMonth(year: Int(date.prefix(4)) ?? 2026, month: Int(date.dropFirst(5).prefix(2)) ?? 1).season
+    }
+
+    /// Temporada contigua: `by` = -1 la anterior, 1 la siguiente.
+    static func adjacentSeason(_ season: String, by: Int) -> String {
+        let year = (Int(season.prefix(4)) ?? 2026) + by
+        return String(format: "%04d-%02d", year, (year + 1) % 100)
+    }
+
     /// Fecha acotada al rango navegable de la temporada.
     static func clamp(_ date: String, season: String) -> String {
         guard let bounds = seasonBounds(season) else { return date }

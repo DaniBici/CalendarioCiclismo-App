@@ -31,6 +31,11 @@ import java.util.TimeZone
  * que sea razonable para evitar los bugs de thread-safety de los formatters clásicos.
  */
 object DateFormatting {
+    /** Primer día navegable de Hoy: 2026 en carretera y la temporada 2026-27 en ciclocross;
+     *  antes no hay datos ni los habrá. */
+    const val EARLIEST_ROAD_DATE = "2026-01-01"
+    const val EARLIEST_CX_DATE = "2026-08-01"
+
 
     private val LOCALE_ES = Locale("es", "ES")
     private val LOCALE_EN = Locale("en", "US")

@@ -417,6 +417,7 @@ struct TodayView: View {
 
             DateBarView(
                 selectedDate: viewModel.dateKey,
+                firstDate: DateFormatting.earliestRoadDate,
                 onSelect: { newDate in
                     let forward = newDate > viewModel.dateKey
                     animateNavigation(forward: forward) { await viewModel.navigate(to: newDate) }
@@ -444,7 +445,6 @@ struct TodayView: View {
         .frame(maxWidth: AdaptiveLayoutPolicy.headerStripMaxWidth)
         .frame(maxWidth: .infinity)
         .foregroundStyle(Color.accentColor)
-        .background(AppTheme.headerBackground)
     }
 
     // MARK: - Sort menu bar

@@ -66,6 +66,11 @@ enum DateFormatting {
         dateKeyFormatter.string(from: date)
     }
 
+    /// Primer día navegable de Hoy: la web y las apps empiezan en 2026 (carretera) y en la
+    /// temporada 2026-27 (ciclocross); antes no hay datos ni los habrá.
+    static let earliestRoadDate = "2026-01-01"
+    static let earliestCxDate = "2026-08-01"
+
     /// Hoy como dateKey.
     static func todayKey() -> String {
         toDateKey(Date())

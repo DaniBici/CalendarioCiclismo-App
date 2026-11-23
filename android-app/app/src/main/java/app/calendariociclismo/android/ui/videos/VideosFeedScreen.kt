@@ -79,6 +79,12 @@ import app.calendariociclismo.android.util.RoadTodayAvailability
 import app.calendariociclismo.android.util.VideoFeedDay
 import app.calendariociclismo.android.util.VideoFeedEntry
 import app.calendariociclismo.android.util.VideosFeedLogic
+import androidx.compose.runtime.collectAsState
+import app.calendariociclismo.android.util.CxRaceFilter
+import app.calendariociclismo.android.util.RoadRaceFilter
+import app.calendariociclismo.android.ui.components.FiltersMenuStyle
+import app.calendariociclismo.android.ui.components.CxFiltersMenu
+import app.calendariociclismo.android.ui.components.RoadFiltersMenu
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.CancellationException
@@ -116,6 +122,9 @@ fun VideosFeedScreen(navController: NavController) {
     var roadDays by remember { mutableStateOf<List<VideoFeedDay>>(emptyList()) }
     var cxRaces by remember { mutableStateOf<List<CxRace>>(emptyList()) }
     var rounds by remember { mutableStateOf<Map<String, CxRound>>(emptyMap()) }
+    // Destacadas (corona del panel): encabezan su día, como en Hoy. Carretera: `día|carrera`.
+    var roadFeatured by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var cxFeatured by remember { mutableStateOf<Set<String>>(emptySet()) }
     var roadFrom by remember { mutableStateOf<String?>(null) }
     var cxFrom by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -124,8 +133,20 @@ fun VideosFeedScreen(navController: NavController) {
     var loadingMore by remember { mutableStateOf(false) }
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     val groups = remember { RegionDetector.allowedBroadcastGroups() }
+    // Filtros de Hoy y Calendario, compartidos por disciplina. Sin leer aún (null), la lista espera.
+    val storedRoadFilter by app.preferences.roadRaceFilter.collectAsState(initial = null)
+    val roadFilter = storedRoadFilter ?: RoadRaceFilter()
+    val cxFilter by app.preferences.cxRaceFilter.collectAsState(initial = CxRaceFilter())
+    val filtersActive = if (discipline == ROAD) roadFilter.isActive else cxFilter.isActive
 
-    val roadEntries = remember(roadDays) { VideosFeedLogic.roadEntries(roadDays, groups) }
+    val roadEntries = remember(roadDays, roadFeatured) { VideosFeedLogic.roadEntries(roadDays, groups, roadFeatured) }
+
+    suspend fun roadFeaturedFor(rows: List<VideoFeedDay>): Set<String> {
+        val keys = rows.map { it.dateKey }.distinct()
+        if (keys.isEmpty()) return emptySet()
+        return runCatching { app.supabaseService.featuredRaces(keys) }.getOrDefault(emptyList())
+            .map { VideosFeedLogic.featuredKey(it.dateKey, it.raceId) }.toSet()
+    }
     val cxEntries = remember(cxRaces, rounds) { VideosFeedLogic.cxEntries(cxRaces, groups, rounds) }
 
     suspend fun loadCx() {
@@ -134,6 +155,7 @@ fun VideosFeedScreen(navController: NavController) {
         cxRaces = rows.distinctBy { it.id }.filter { CxPresentation.listedInAgenda(it) }
             .sortedWith(compareBy({ it.dateKey }, { it.id }))
         rounds = runCatching { app.supabaseService.cxSeasonRounds(cxSeason) }.getOrDefault(emptyMap())
+        cxFeatured = runCatching { app.supabaseService.cxFeaturedRaceIds() }.getOrDefault(cxFeatured)
     }
 
     suspend fun load() {
@@ -148,7 +170,9 @@ fun VideosFeedScreen(navController: NavController) {
             val road = roadFrom ?: maxOf(VideosFeedLogic.shift(roadLatest, -(VideosFeedLogic.WINDOW_DAYS - 1)), VideosFeedLogic.ROAD_SEASON_START)
             roadFrom = road
             cxFrom = cxFrom ?: maxOf(VideosFeedLogic.shift(cxLatest, -(VideosFeedLogic.WINDOW_DAYS - 1)), cxSeasonStart)
-            roadDays = app.supabaseService.videoFeedDays(road, today)
+            val fetched = app.supabaseService.videoFeedDays(road, today)
+            roadFeatured = roadFeaturedFor(fetched)
+            roadDays = fetched
             error = null
             loaded = true
         } catch (e: Exception) {
@@ -176,6 +200,7 @@ fun VideosFeedScreen(navController: NavController) {
                     val to = VideosFeedLogic.shift(from, -1)
                     val found = if (current == ROAD) {
                         val rows = app.supabaseService.videoFeedDays(older, to)
+                        roadFeatured = roadFeatured + roadFeaturedFor(rows)
                         roadDays = roadDays + rows
                         VideosFeedLogic.roadEntries(rows, groups).isNotEmpty()
                     } else {
@@ -193,8 +218,16 @@ fun VideosFeedScreen(navController: NavController) {
         }
     }
 
-    val days = if (discipline == ROAD) VideosFeedLogic.days(roadEntries, roadFrom, today)
-        else VideosFeedLogic.days(cxEntries, cxFrom, today, cxRaces)
+    val allDays = if (discipline == ROAD) VideosFeedLogic.days(roadEntries, roadFrom, today)
+        else VideosFeedLogic.days(cxEntries, cxFrom, today, cxRaces, cxFeatured)
+    // Solo las carreras que pasan los filtros; un día sin ninguna no aparece.
+    val days = if (!filtersActive) allDays else allDays.mapNotNull { group ->
+        val kept = group.entries.filter { entry ->
+            if (discipline == ROAD) entry.roadRace?.let { roadFilter.matches(it.uciCategory, it.name, it.gender) } ?: true
+            else entry.cxRace?.let { cxFilter.matches(it) } ?: true
+        }
+        if (kept.isEmpty()) null else group.copy(entries = kept)
+    }
     val canLoadMore = ((if (discipline == ROAD) roadFrom else cxFrom) ?: "") >
         (if (discipline == ROAD) VideosFeedLogic.ROAD_SEASON_START else cxSeasonStart)
     val onExternal: (String) -> Unit = { url -> openExternalUrl(context, url) }
@@ -207,6 +240,27 @@ fun VideosFeedScreen(navController: NavController) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         CCHeaderMark()
                         Text(LocaleHolder.t("Vídeos", "Videos"), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                    }
+                },
+                actions = {
+                    if (discipline == ROAD) {
+                        RoadFiltersMenu(
+                            filter = roadFilter,
+                            onChange = {
+                                haptic(Haptics.Event.Selection)
+                                scope.launch { app.preferences.setRoadRaceFilter(it) }
+                            },
+                            style = FiltersMenuStyle.TopBar,
+                        )
+                    } else {
+                        CxFiltersMenu(
+                            filter = cxFilter,
+                            onChange = {
+                                haptic(Haptics.Event.Selection)
+                                scope.launch { app.preferences.setCxRaceFilter(it) }
+                            },
+                            style = FiltersMenuStyle.TopBar,
+                        )
                     }
                 },
             )
@@ -224,7 +278,7 @@ fun VideosFeedScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
                 when {
-                    !loaded && error == null -> RouteLoadingView(message = LocaleHolder.t("Cargando vídeos", "Loading videos"), title = LocaleHolder.t("Vídeos", "Videos"))
+                    (!loaded && error == null) || (loaded && storedRoadFilter == null) -> RouteLoadingView(message = LocaleHolder.t("Cargando vídeos", "Loading videos"), title = LocaleHolder.t("Vídeos", "Videos"))
                     !loaded -> Text(
                         text = error.orEmpty(),
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -239,7 +293,8 @@ fun VideosFeedScreen(navController: NavController) {
                         if (days.isEmpty()) {
                             item(key = "empty") {
                                 Text(
-                                    text = if (discipline == CX) LocaleHolder.t("No hay vídeos de ciclocross en este periodo.", "No cyclocross videos in this period.")
+                                    text = if (filtersActive) LocaleHolder.t("No hay vídeos con estos filtros en este periodo.", "No videos match these filters in this period.")
+                                    else if (discipline == CX) LocaleHolder.t("No hay vídeos de ciclocross en este periodo.", "No cyclocross videos in this period.")
                                     else LocaleHolder.t("No hay vídeos de carretera en este periodo.", "No road videos in this period."),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,

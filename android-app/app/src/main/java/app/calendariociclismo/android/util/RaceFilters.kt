@@ -31,9 +31,11 @@ data class RoadRaceFilter(
     fun toggleLevel(value: String) = copy(levels = toggled(levels, value, ALL_LEVELS))
     fun toggleGender(value: String) = copy(genders = toggled(genders, value, ALL_GENDERS))
 
-    fun matches(race: Race): Boolean {
-        if (levels.size < ALL_LEVELS.size && level(race) !in levels) return false
-        if (genders.size < ALL_GENDERS.size && genders.none { it in genders(race) }) return false
+    fun matches(race: Race): Boolean = matches(race.uciCategory, race.name, race.gender)
+
+    fun matches(category: String?, name: String, gender: String?): Boolean {
+        if (levels.size < ALL_LEVELS.size && level(category) !in levels) return false
+        if (genders.size < ALL_GENDERS.size && genders.none { it in genders(category, name, gender) }) return false
         return true
     }
 
@@ -62,7 +64,9 @@ data class RoadRaceFilter(
          */
         private val DEVELOPMENT = setOf("1.2", "2.2", "1.2U", "2.2U", "1.Ncup", "2.Ncup", "1.NE", "2.NE")
 
-        fun level(race: Race): String? = when (race.uciCategory ?: "") {
+        fun level(race: Race): String? = level(race.uciCategory)
+
+        fun level(category: String?): String? = when (category ?: "") {
             in WORLD_TOUR -> "wt"
             in PROFESSIONAL -> "pro"
             in DEVELOPMENT -> "dev"
@@ -73,11 +77,12 @@ data class RoadRaceFilter(
          * Una carrera sin género (mixta o con pruebas de ambos sexos) y los
          * relevos mixtos cuentan en Masculino y en Femenino.
          */
-        fun genders(race: Race): Set<String> {
-            val cat = race.uciCategory ?: ""
+        fun genders(race: Race): Set<String> = genders(race.uciCategory, race.name, race.gender)
+
+        fun genders(category: String?, name: String, gender: String?): Set<String> {
+            val cat = category ?: ""
             val mixedRelay = (cat == "WC" || cat == "CC") &&
-                (race.name.contains("relevo mixto", ignoreCase = true) || race.name.contains("mixed relay", ignoreCase = true))
-            val gender = race.gender
+                (name.contains("relevo mixto", ignoreCase = true) || name.contains("mixed relay", ignoreCase = true))
             return if (!mixedRelay && (gender == "male" || gender == "female")) setOf(gender) else ALL_GENDERS.toSet()
         }
 

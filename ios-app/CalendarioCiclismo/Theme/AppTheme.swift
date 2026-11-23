@@ -13,9 +13,9 @@ enum AppTheme {
     static let onAccent = Color(light: "ffffff", dark: "0b0c0f")
 
     /// Selección inversa (día elegido de Hoy): relleno claro con texto oscuro en
-    /// oscuro; azul marino con texto blanco en claro (`--selected-bg` y
+    /// oscuro; gris casi negro (el color del texto) con texto blanco en claro (`--selected-bg` y
     /// `--selected-text` de la web).
-    static let selectedFill = Color(light: "10233f", dark: "f2f3f5")
+    static let selectedFill = Color(light: "1f1f1f", dark: "f2f3f5")
     static let onSelected = Color(light: "ffffff", dark: "0b0c0f")
 
     /// Color de marca para el arranque y la bienvenida: azul (#1A73E8) en claro

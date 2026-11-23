@@ -91,6 +91,8 @@ final class CyclocrossAgendaModel {
     private var userNavigated = false
     /// Último día mostrado como «hoy», para el auto-avance de medianoche.
     private var lastTodayKey: String
+    /// Temporada de hoy en la última comprobación de medianoche.
+    private var lastTodaySeason = ""
 
     init(repo: CyclocrossRepository = .shared, today: String? = nil, tournamentId: String? = nil) {
         self.tournamentId = tournamentId
@@ -105,6 +107,7 @@ final class CyclocrossAgendaModel {
         let opening = CyclocrossLogic.clamp(civil, season: month.season)
         dateKey = opening
         lastTodayKey = opening
+        lastTodaySeason = month.season
     }
     /// Tras cambiar los filtros: conserva el día; si queda sin carreras,
     /// avanza al siguiente que las tenga.
@@ -149,28 +152,53 @@ final class CyclocrossAgendaModel {
     var nextDayWithRaces: String? { raceDays.first { $0 > dateKey } }
     var firstDay: String? { CyclocrossLogic.seasonBounds(season)?.first }
     var lastDay: String? { CyclocrossLogic.seasonBounds(season)?.last }
-    var canGoToPreviousDay: Bool { CyclocrossLogic.stepDay(from: dateKey, forward: false, raceDays: raceDays, season: season) != nil }
-    var canGoToNextDay: Bool { CyclocrossLogic.stepDay(from: dateKey, forward: true, raceDays: raceDays, season: season) != nil }
+    // Sin límite hacia delante; hacia atrás, hasta la temporada 2026-27. Pasado el extremo
+    // de la temporada se abre la contigua.
+    var canGoToPreviousDay: Bool { dateKey > DateFormatting.earliestCxDate }
+    var canGoToNextDay: Bool { true }
 
     func goToPreviousDay() { step(forward: false) }
     func goToNextDay() { step(forward: true) }
     func goToToday() { navigate(to: agendaToday) }
     func navigate(to date: String) {
+        guard date >= DateFormatting.earliestCxDate || tournamentId != nil else { return }
         userNavigated = true
+        if tournamentId == nil, CyclocrossLogic.season(of: date) != season {
+            switchSeason(CyclocrossLogic.season(of: date), day: date)
+            return
+        }
         let previous = dateKey
         settle(on: date)
         if dateKey != previous { loadDayInBackground() }
     }
     private func step(forward: Bool) {
-        guard let target = CyclocrossLogic.stepDay(from: dateKey, forward: forward, raceDays: raceDays, season: season) else { return }
-        navigate(to: target)
+        if let target = CyclocrossLogic.stepDay(from: dateKey, forward: forward, raceDays: raceDays, season: season),
+           raceDays.contains(target) {
+            navigate(to: target)
+        } else if tournamentId == nil {
+            // Sin más días con carreras en la temporada: la contigua, en su primer
+            // (adelante) o último (atrás) día con carreras; antes de 2026-27 no hay nada.
+            let target = CyclocrossLogic.adjacentSeason(season, by: forward ? 1 : -1)
+            guard target >= CyclocrossLogic.season(of: DateFormatting.earliestCxDate) else { return }
+            switchSeason(target, edge: forward ? .first : .last)
+        }
+    }
+
+    /// Día al que abre otra temporada: uno concreto o su primer o último día con carreras.
+    private enum Edge { case first, last }
+    private var pendingDay: String?
+    private var pendingEdge: Edge?
+    private func switchSeason(_ newSeason: String, day: String? = nil, edge: Edge? = nil) {
+        pendingDay = day
+        pendingEdge = edge
+        Task { await open(newSeason) }
     }
     /// Muestra `date` dentro de la temporada; un día sin carreras que pasen el
     /// filtro avanza al siguiente que las tenga (auto-navegación de Hoy).
     private func settle(on date: String) {
         guard tournamentId == nil else { return }
         let previous = dateKey
-        dateKey = CyclocrossLogic.clamp(date, season: season)
+        dateKey = date
         if dayRaces.isEmpty, let next = nextDayWithRaces { dateKey = next }
         if dateKey == agendaToday { lastTodayKey = dateKey }
         if dateKey != previous { awaitDetailIfNeeded() }
@@ -179,6 +207,18 @@ final class CyclocrossAgendaModel {
     /// el siguiente día con carreras del filtro); con ella, el día elegido.
     private func resolveDay() {
         guard tournamentId == nil else { return }
+        if pendingDay != nil || pendingEdge != nil {
+            let previous = dateKey
+            if let day = pendingDay { dateKey = day }
+            else if let bounds = CyclocrossLogic.seasonBounds(season) {
+                dateKey = (pendingEdge == .first ? raceDays.first : raceDays.last) ?? (pendingEdge == .first ? bounds.first : bounds.last)
+            }
+            pendingDay = nil
+            pendingEdge = nil
+            userNavigated = true
+            if dateKey != previous { awaitDetailIfNeeded() }
+            return
+        }
         if userNavigated {
             settle(on: dateKey)
         } else {
@@ -208,10 +248,16 @@ final class CyclocrossAgendaModel {
     func advanceIfNewLocalDay() async {
         guard tournamentId == nil, hasLoaded else { return }
         let current = CxMonth(year: Int(today.prefix(4))!, month: Int(today.dropFirst(5).prefix(2))!).season
-        if current != season {
-            await open(current)
-            return
+        // Solo cuando cambia la temporada de hoy (no cuando el usuario ve otra
+        // contigua: puede navegar sin límite hacia delante).
+        if current != lastTodaySeason {
+            lastTodaySeason = current
+            if current != season {
+                await open(current)
+                return
+            }
         }
+        guard season == current else { return }
         let now = agendaToday
         if dateKey == now { lastTodayKey = now; return }
         guard dateKey == lastTodayKey else { return }
