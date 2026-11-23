@@ -95,7 +95,7 @@ import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.rememberLoadingVisible
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
-import app.calendariociclismo.android.ui.startlist.TeamColorBands
+import app.calendariociclismo.android.ui.startlist.teamHeaderColors
 import app.calendariociclismo.android.ui.theme.CCRadius
 import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.util.DateFormatting
@@ -603,7 +603,6 @@ private fun MarketSidebar(
             }
             items(teams, key = { "team_${it.teamId}" }) { season ->
                 SidebarRow(selected = selectedTeamId == season.teamId, onClick = { onSelect(season.teamId) }) {
-                    TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
                     // Nombre completo: la palabra que no cabe baja a la segunda línea.
                     WholeWordText(
                         text = season.name.orEmpty(),
@@ -1067,9 +1066,9 @@ internal fun ContractText(text: String) {
 }
 
 /**
- * Tarjeta de equipo: superficie neutra con el cuadrado de colores de
- * Resultados delante del nombre (colores del mercado si están publicados; si
- * no, los de la temporada anterior).
+ * Tarjeta de equipo con los colores de cabecera del equipo (los del mercado si
+ * están publicados; si no, los de la temporada anterior) y, sin ellos, la
+ * superficie neutra. Espejo de `.tr-team-card` web.
  */
 @Composable
 private fun TeamTile(
@@ -1077,7 +1076,12 @@ private fun TeamTile(
     prev: Map<String, TeamSeason>,
     onTap: () -> Unit,
 ) {
-    CCCard(modifier = Modifier.fillMaxWidth()) {
+    val colors = marketHeaderColors(season, prev)
+    CCCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = colors?.first ?: MaterialTheme.colorScheme.surface,
+        contentColor = colors?.second ?: MaterialTheme.colorScheme.onSurface,
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1091,21 +1095,14 @@ private fun TeamTile(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Row(
+                // Sin partir palabras: la que no cabe baja a la segunda línea y,
+                // si tampoco cabe allí, termina en puntos suspensivos.
+                WholeWordText(
+                    text = season.name.orEmpty(),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    TransfersLogic.stripesTeam(season, prev)?.let { TeamColorBands(it) }
-                    // Sin partir palabras: la que no cabe baja a la segunda línea y,
-                    // si tampoco cabe allí, termina en puntos suspensivos.
-                    WholeWordText(
-                        text = season.name.orEmpty(),
-                        style = CCText.S14,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                )
                 if (season.continuityDoubt) {
                     TransferStateChip(stringResource(R.string.transfers_team_doubt), TransferChipKind.Doubt)
                 }
@@ -1113,10 +1110,20 @@ private fun TeamTile(
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = colors?.second?.copy(alpha = 0.75f) ?: MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+/**
+ * Fondo y texto de la tarjeta y de la cabecera de un equipo del mercado: los
+ * colores de cabecera de [TransfersLogic.badgeSeason], con texto de contraste
+ * 4,5:1 (`teamColorStyle` en `js/fichajes-html.js`); null → superficie neutra.
+ */
+internal fun marketHeaderColors(season: TeamSeason, prev: Map<String, TeamSeason>): Pair<Color, Color>? {
+    val source = TransfersLogic.badgeSeason(season, prev) ?: return null
+    return teamHeaderColors(source.headerBg, source.headerText)
 }
 
 internal enum class TransferChipKind { Rumor, Doubt }

@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.ui.theme.CCRadius
@@ -25,18 +26,23 @@ val CC_CARD_ELEVATION: Dp = 2.dp
  * El contenido recibe el área interna ya recortada a la forma de la tarjeta;
  * cualquier `clickable`/ripple del contenido queda confinado a las esquinas.
  *
+ * `containerColor` y `contentColor` sustituyen la superficie neutra cuando la
+ * tarjeta lleva colores propios (losetas de equipo de Fichajes).
+ *
  * Paridad: iOS `CCCard` / `ccCardSurface`.
  */
 @Composable
 fun CCCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = CCRadius.Surface,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     ElevatedCard(
         shape = shape,
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.elevatedCardColors(containerColor = containerColor, contentColor = contentColor),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = CC_CARD_ELEVATION),
         modifier = modifier,
     ) {

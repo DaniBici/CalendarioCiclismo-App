@@ -101,6 +101,7 @@ struct TransfersTeamView: View {
             LazyVStack(alignment: .leading, spacing: 8) {
                 TeamHeader(
                     season: season,
+                    colors: TeamHeaderPalette.market(season, prev: data.prevSeasonsByTeamId),
                     countryCode: countryCode,
                     confirmedCount: detail.squad.isEmpty ? nil : detail.confirmedCount
                 )
@@ -471,6 +472,9 @@ struct TransfersTeamView: View {
 /// recuento bajan a la siguiente, juntos o por separado.
 private struct TeamHeader: View {
     let season: TeamSeason
+    /// Colores de cabecera del equipo; con ellos, los textos secundarios
+    /// derivan del texto de la cabecera. nil → superficie neutra.
+    let colors: (background: Color, text: Color)?
     let countryCode: String?
     let confirmedCount: Int?
 
@@ -507,7 +511,9 @@ private struct TeamHeader: View {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .ccCardSurface()
+        // `.secondary` de país, recuento y división se resuelve sobre este texto.
+        .foregroundStyle(colors?.text ?? .primary)
+        .ccCardSurface(fill: colors?.background ?? AppTheme.cardBackground)
     }
 
     private var name: some View {

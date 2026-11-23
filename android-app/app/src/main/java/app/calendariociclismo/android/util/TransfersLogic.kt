@@ -100,27 +100,6 @@ object TransfersLogic {
         else -> prev[season.teamId]
     }
 
-    /**
-     * Equipo que alimenta el cuadrado de colores (`TeamColorBands`) de una
-     * tarjeta o cabecera del mercado: los colores de [badgeSeason]. Espejo de
-     * `marketStripesHtml` en `js/fichajes.js`.
-     */
-    fun stripesTeam(season: TeamSeason, prev: Map<String, TeamSeason>): Team? {
-        val source = badgeSeason(season, prev) ?: return null
-        return Team(
-            id = source.teamId,
-            name = source.name ?: season.name ?: source.teamId,
-            badgeTorsoCenter = source.badgeTorsoCenter ?: "#ffffff",
-            badgeTorsoSides = source.badgeTorsoSides ?: "#000000",
-            badgeShorts = source.badgeShorts ?: "#000000",
-            badgeInnerCircle = source.badgeInnerCircle,
-            headerBg = source.headerBg ?: "#1f2937",
-            headerText = source.headerText ?: "#ffffff",
-            nameAliases = null,
-            category = source.category,
-        )
-    }
-
     /** Marcador de "baja sin destino conocido" en el texto libre de destino. */
     const val UNKNOWN_DEST = "?"
 

@@ -224,7 +224,6 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer; text-decoration:none;
 }
 .tr-team-card:hover { background:var(--bg-card-hover); }
-/* Cuadrado de colores (el de Resultados) delante del nombre del equipo. */
 .tr-team-card__name { overflow-wrap:anywhere; }
 .tr-team-card__label { min-width:0; }
 .tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }

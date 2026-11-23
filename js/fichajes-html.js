@@ -468,8 +468,8 @@ function countryHtml(market, teamId) {
   return `<span class="tr-team-country">${countryFlag(code)}<span>${esc(regionName(code))}</span></span>`;
 }
 
-// Cuadrado de colores del equipo, como en Resultados; sin colores publicados
-// de la temporada, los de la anterior, salvo con prevColorsHidden
+// Cuadrado de colores del equipo de destino en el feed, como en Resultados;
+// sin colores publicados de la temporada, los de la anterior, salvo con prevColorsHidden
 // (denominación sin confirmar): sin cuadrado.
 function marketStripesHtml(market, season) {
   const source = season?.badgeVisible === true
@@ -478,10 +478,10 @@ function marketStripesHtml(market, season) {
   return source ? teamStripes(source) : '';
 }
 
-// Colores de la loseta y de la cabecera del equipo: los de cabecera de la
-// temporada de mercado si sus colores están publicados; si no, los de la
-// temporada en curso, salvo con prevColorsHidden (igual que el cuadrado). Sin
-// pareja válida, los neutros de la página.
+// Colores de la loseta y de la cabecera del equipo, que no llevan cuadrado:
+// los de cabecera de la temporada de mercado si sus colores están publicados;
+// si no, los de la temporada en curso, salvo con prevColorsHidden (igual que
+// el cuadrado del feed). Sin pareja válida, los neutros de la página.
 function teamColorStyle(market, season) {
   const source = season?.badgeVisible === true
     ? season
@@ -504,7 +504,7 @@ export function teamGridHtml(market, div) {
   return teams.map(s => `
     <a class="tr-team-card" style="${teamColorStyle(market, s)}" href="${teamHref(market, s.teamId)}" data-team="${esc(s.teamId)}" data-key="${esc(s.teamId)}">
       <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
-        <span class="tr-team-card__name">${marketStripesHtml(market, s)}${esc(s.name)}</span>
+        <span class="tr-team-card__name">${esc(s.name)}</span>
         ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
       </span><span class="tr-team-chevron" aria-hidden="true">›</span>
     </a>`).join('');

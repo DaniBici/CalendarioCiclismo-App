@@ -16,6 +16,34 @@ private extension Color {
     }
 }
 
+/// Fondo y texto de cabecera de un equipo (`teamHeaderColors` y
+/// `readableTeamHeaderText` de `js/team-appearance.js`): la pareja editorial si
+/// llega a contraste 4,5:1 (WCAG AA); si no, el fondo con blanco o negro, el que
+/// más contraste dé. nil si falta o no es válido alguno de los dos colores.
+enum TeamHeaderPalette {
+    static func colors(background: String?, text: String?) -> (background: Color, text: Color)? {
+        guard let background = background.flatMap({ Color.fromHex($0.trimmingCharacters(in: .whitespaces)) }),
+              let text = text.flatMap({ Color.fromHex($0.trimmingCharacters(in: .whitespaces)) }) else { return nil }
+        if contrast(background, text) >= 4.5 { return (background, text) }
+        return (background, contrast(background, .black) > contrast(background, .white) ? .black : .white)
+    }
+
+    private static func luminance(_ color: Color) -> Double {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func linear(_ value: CGFloat) -> Double {
+            let v = Double(value)
+            return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
+
+    private static func contrast(_ a: Color, _ b: Color) -> Double {
+        let (hi, lo) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
+        return (hi + 0.05) / (lo + 0.05)
+    }
+}
+
 struct StartlistView: View {
     @State private var viewModel = StartlistViewModel()
     @State private var contentWidth: CGFloat = 0
@@ -446,29 +474,11 @@ struct StartlistTeamHeaderView: View {
     let team: StartlistTeamWithRiders
     let isProvisional: Bool
 
-    /// Fondo y texto editoriales del equipo (`teamHeaderColors` de la web);
-    /// nil si falta o no es válido alguno de los dos.
+    /// Fondo y texto editoriales del equipo; nil si falta o no es válido
+    /// alguno de los dos.
     private var headerColors: (background: Color, text: Color)? {
-        guard let team = team.team,
-              let background = Color.fromHex(team.headerBg.trimmingCharacters(in: .whitespaces)),
-              let text = Color.fromHex(team.headerText.trimmingCharacters(in: .whitespaces)) else { return nil }
-        // Contraste mínimo 4,5:1 (WCAG AA): si la pareja editorial no llega,
-        // blanco o negro, el que más contraste dé (como `teamHeaderColors` de la web).
-        func luminance(_ color: Color) -> Double {
-            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-            UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-            func linear(_ value: CGFloat) -> Double {
-                let v = Double(value)
-                return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
-            }
-            return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
-        }
-        func contrast(_ a: Color, _ b: Color) -> Double {
-            let (hi, lo) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
-            return (hi + 0.05) / (lo + 0.05)
-        }
-        if contrast(background, text) >= 4.5 { return (background, text) }
-        return (background, contrast(background, .black) > contrast(background, .white) ? .black : .white)
+        guard let team = team.team else { return nil }
+        return TeamHeaderPalette.colors(background: team.headerBg, text: team.headerText)
     }
 
     var body: some View {

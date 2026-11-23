@@ -57,10 +57,13 @@ private fun parseColor(colorStr: String, default: Color): Color {
  * Fondo y texto editoriales de la cabecera de equipo (`teamHeaderColors` de la
  * web); null si falta o no es válido alguno de los dos.
  */
-internal fun teamHeaderColors(team: Team?): Pair<Color, Color>? {
-    team ?: return null
-    val background = parseColor(team.headerBg.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
-    val text = parseColor(team.headerText.trim(), Color.Unspecified).takeIf { it != Color.Unspecified } ?: return null
+internal fun teamHeaderColors(team: Team?): Pair<Color, Color>? =
+    team?.let { teamHeaderColors(it.headerBg, it.headerText) }
+
+/** Igual que [teamHeaderColors] a partir de los dos colores en hexadecimal. */
+internal fun teamHeaderColors(headerBg: String?, headerText: String?): Pair<Color, Color>? {
+    val background = headerBg?.let { parseColor(it.trim(), Color.Unspecified) }?.takeIf { it != Color.Unspecified } ?: return null
+    val text = headerText?.let { parseColor(it.trim(), Color.Unspecified) }?.takeIf { it != Color.Unspecified } ?: return null
     // Contraste mínimo 4,5:1 (WCAG AA): si la pareja editorial no llega, blanco o
     // negro, el que más contraste dé (como `teamHeaderColors` de la web).
     fun contrast(a: Color, b: Color): Float {

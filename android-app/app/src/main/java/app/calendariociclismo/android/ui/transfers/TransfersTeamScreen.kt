@@ -432,8 +432,8 @@ private fun ContractLegend(dark: Boolean) {
 }
 
 /**
- * Cabecera de la vista de equipo, espejo de `.tr-team-header` web, con la
- * disposición de iOS: cuadrado de colores y nombre, con la división y la
+ * Cabecera de la vista de equipo, espejo de `.tr-team-header` web, con los
+ * colores de cabecera del equipo y la disposición de iOS: nombre, con la división y la
  * temporada al final de la línea (el nombre largo pasa a dos líneas); debajo,
  * país y ciclistas confirmados separados por «·», o uno bajo otro si no caben.
  */
@@ -444,8 +444,14 @@ private fun TeamHeader(
     countryCode: String?,
     confirmedCount: Int?,
 ) {
-    val dim = MaterialTheme.colorScheme.onSurfaceVariant
-    CCCard(modifier = Modifier.fillMaxWidth()) {
+    val colors = marketHeaderColors(season, data.prevSeasonsByTeamId)
+    // Con los colores del equipo, los textos secundarios derivan del texto de la cabecera.
+    val dim = colors?.second?.copy(alpha = 0.8f) ?: MaterialTheme.colorScheme.onSurfaceVariant
+    CCCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = colors?.first ?: MaterialTheme.colorScheme.surface,
+        contentColor = colors?.second ?: MaterialTheme.colorScheme.onSurface,
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -504,6 +510,7 @@ private fun TeamHeader(
                             )
                         }
                     },
+                    separatorColor = dim,
                 )
             }
         }
@@ -515,12 +522,12 @@ private fun TeamHeader(
  * uno debajo de otro y sin separador.
  */
 @Composable
-private fun HeaderFacts(country: (@Composable () -> Unit)?, count: (@Composable () -> Unit)?) {
+private fun HeaderFacts(country: (@Composable () -> Unit)?, count: (@Composable () -> Unit)?, separatorColor: Color) {
     val gap = 6.dp
     Layout(
         content = {
             country?.invoke()
-            if (country != null && count != null) HeaderSeparator()
+            if (country != null && count != null) HeaderSeparator(separatorColor)
             count?.invoke()
         },
     ) { measurables, constraints ->
@@ -554,11 +561,11 @@ private fun HeaderFacts(country: (@Composable () -> Unit)?, count: (@Composable 
 }
 
 @Composable
-private fun HeaderSeparator() {
+private fun HeaderSeparator(color: Color) {
     Text(
         "·",
         style = CCText.S13,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = color,
         modifier = Modifier.clearAndSetSemantics { },
     )
 }

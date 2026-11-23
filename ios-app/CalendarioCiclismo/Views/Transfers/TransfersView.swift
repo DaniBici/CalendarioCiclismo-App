@@ -73,7 +73,7 @@ struct TransfersSplitView: View {
                     if !teams.isEmpty {
                         Section(division) {
                             ForEach(teams, id: \.teamId) { season in
-                                teamRow(season, prev: data.prevSeasonsByTeamId)
+                                teamRow(season)
                                     .tag(TransfersSidebarItem.team(season.teamId))
                             }
                         }
@@ -101,13 +101,9 @@ struct TransfersSplitView: View {
         }
     }
 
-    /// Fila de equipo: cuadrado de colores y nombre completo, que pasa a otra
-    /// línea entre palabras.
-    private func teamRow(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
+    /// Fila de equipo: nombre completo, que pasa a otra línea entre palabras.
+    private func teamRow(_ season: TeamSeason) -> some View {
         HStack(spacing: 8) {
-            if let team = TransfersLogic.stripesTeam(for: season, prev: prev) {
-                TeamColorBands(team: team, width: 14, height: 15)
-            }
             Text(season.name ?? "")
                 .ccFont(.s14, weight: .medium)
                 .fixedSize(horizontal: false, vertical: true)
@@ -534,27 +530,23 @@ struct TransfersView: View {
             .padding(.vertical, 4)
     }
 
-    /// Tarjeta de equipo: superficie neutra con el cuadrado de colores de
-    /// Resultados delante del nombre (colores del mercado si están publicados;
-    /// si no, los de la temporada anterior).
+    /// Tarjeta de equipo con los colores de cabecera del equipo (los del
+    /// mercado si están publicados; si no, los de la temporada anterior) y, sin
+    /// ellos, la superficie neutra.
     private func teamTile(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
-        Button {
+        let colors = TeamHeaderPalette.market(season, prev: prev)
+        return Button {
             openTeam(season.teamId)
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .center, spacing: 6) {
-                        if let team = TransfersLogic.stripesTeam(for: season, prev: prev) {
-                            TeamColorBands(team: team, width: 14, height: 15)
-                        }
-                        // Nombre completo, sin truncar: pasa a otra línea
-                        // entre palabras.
-                        Text(season.name ?? "")
-                            .ccFont(.s14, weight: .semibold)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    // Nombre completo, sin truncar: pasa a otra línea entre
+                    // palabras.
+                    Text(season.name ?? "")
+                        .ccFont(.s14, weight: .semibold)
+                        .foregroundStyle(colors?.text ?? .primary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     if season.continuityDoubt == true {
                         DoubtBadge(text: localeService.t("En duda", "TBC"))
                     }
@@ -562,16 +554,27 @@ struct TransfersView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(colors.map { AnyShapeStyle($0.text.opacity(0.75)) } ?? AnyShapeStyle(.tertiary))
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .ccCardSurface()
+            .ccCardSurface(fill: colors?.background ?? AppTheme.cardBackground)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+extension TeamHeaderPalette {
+    /// Fondo y texto de la tarjeta y de la cabecera de un equipo del mercado:
+    /// los colores de cabecera de `TransfersLogic.badgeSeason`, con texto de
+    /// contraste 4,5:1 (`teamColorStyle` en `js/fichajes-html.js`); nil →
+    /// superficie neutra.
+    static func market(_ season: TeamSeason, prev: [String: TeamSeason]) -> (background: Color, text: Color)? {
+        let source = TransfersLogic.badgeSeason(for: season, prev: prev)
+        return colors(background: source?.headerBg, text: source?.headerText)
     }
 }
 

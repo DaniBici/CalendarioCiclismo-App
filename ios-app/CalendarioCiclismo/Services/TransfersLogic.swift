@@ -82,39 +82,21 @@ enum TransfersLogic {
     enum TeamSide { case from, to }
 
     /// Colores EFECTIVOS de un equipo del mercado (decisión Dani
-    /// 2026-07-18):
+    /// 2026-07-18), que dan fondo y texto a su tarjeta y a su cabecera
+    /// (`teamColorStyle` en `js/fichajes-html.js`):
     ///  - Colores del mercado PUBLICADOS (`badgeVisible == true`) → la fila del
     ///    mercado (2027).
     ///  - Sin publicar pero el equipo YA existía la temporada anterior → su fila
     ///    ANTERIOR (2026): los colores que la gente ya conoce, hasta que se
     ///    anuncie el kit.
     ///  - Sin publicar y SIN identidad anterior (equipo nacido este año) → nil
-    ///    (sin franjas).
+    ///    (superficie neutra).
     ///  - Sin publicar y con `prevColorsHidden` (denominación sin confirmar) →
-    ///    nil (sin franjas).
+    ///    nil (superficie neutra).
     static func badgeSeason(for season: TeamSeason, prev: [String: TeamSeason]) -> TeamSeason? {
         if season.badgeVisible == true { return season }
         if season.prevColorsHidden == true { return nil }
         return prev[season.teamId]
-    }
-
-    /// Equipo que alimenta el cuadrado de colores (`TeamColorBands`) de una
-    /// tarjeta o cabecera del mercado: los colores de `badgeSeason`. Espejo de
-    /// `marketStripesHtml` en `js/fichajes.js`.
-    static func stripesTeam(for season: TeamSeason, prev: [String: TeamSeason]) -> Team? {
-        guard let source = badgeSeason(for: season, prev: prev) else { return nil }
-        return Team(
-            id: source.teamId,
-            name: source.name ?? season.name ?? source.teamId,
-            badgeTorsoCenter: source.badgeTorsoCenter ?? "#ffffff",
-            badgeTorsoSides: source.badgeTorsoSides ?? "#000000",
-            badgeShorts: source.badgeShorts ?? "#000000",
-            badgeInnerCircle: source.badgeInnerCircle,
-            headerBg: source.headerBg ?? "#1f2937",
-            headerText: source.headerText ?? "#ffffff",
-            nameAliases: nil,
-            category: source.category
-        )
     }
 
     /// Marcador de "baja sin destino conocido" en el texto libre de destino.
