@@ -22,7 +22,7 @@ import { writeFileSync } from 'fs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
-const YEAR = parseInt(getArg('year') || '2026', 10);
+const YEAR = parseInt(getArg('year') || String(new Date().getUTCFullYear()), 10);
 const OUT = getArg('out');
 const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');

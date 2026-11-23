@@ -13,7 +13,7 @@ if (feed && datos && typeof datos === 'object') {
     .map(([clave, valores]) => ({ clave, valores, marcados: valores.filter(v => Array.isArray(datos[clave]) && datos[clave].includes(v)) }))
     .filter(grupo => grupo.marcados.length && grupo.marcados.length < grupo.valores.length);
   if (filtrados.length) {
-    document.getElementById('trFiltersBtn')?.classList.add('tr-div-btn--active');
+    document.getElementById('trFiltersBtn')?.classList.add('agenda-filter-btn--active');
     const maxDias = Number(feed.dataset.maxDays);
     const maxFilas = Number(feed.dataset.maxItems);
     for (const columna of feed.querySelectorAll('.tr-feed-column')) {

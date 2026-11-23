@@ -14,7 +14,7 @@ const IDIOMAS = {
   es: { dir: 'resultados', canonBase: '/resultados/', timeZone: 'Europe/Madrid', etiqueta: null, slug: race => race.slug },
   en: { dir: 'en/results', canonBase: '/en/results/', timeZone: 'Etc/GMT', etiqueta: 'GMT', slug: race => race.slugEn || race.slug },
 };
-const archivada = year => Number.isInteger(Number(year)) && Number(year) >= 2020 && Number(year) <= 2025;
+const archivada = year => Number.isInteger(Number(year)) && Number(year) === 2025;
 
 export async function crearFamiliaCarrera({ lang, headerHtml, pie, huella }) {
   const H = await load('js/resultados-html.js');

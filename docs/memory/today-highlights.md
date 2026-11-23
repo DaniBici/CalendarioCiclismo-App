@@ -15,7 +15,7 @@ el resto de superficies de carretera leen `road`; la agenda de Ciclocross lee
 Ciclocross ocupa la home (web, `cyclocrossHome`) o Hoy de carretera está oculta
 (apps 5.1, `RoadTodayAvailability`), la agenda de Ciclocross muestra un solo
 cintillo con las entradas `cx` seguidas de las `road`, cada grupo por
-`position`, con el dismiss de Ciclocross en web e iOS. Desde el 1-1-2027 cada vista vuelve a
+`position`, con el dismiss de Ciclocross en web e iOS. Fuera del periodo de Ciclocross (de la Chrono des Nations al primer lunes del año) cada vista vuelve a
 leer solo su sección.
 
 Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.

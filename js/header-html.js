@@ -141,9 +141,10 @@ export function headerHtml({ lang = 'es', hasBack = false, active = null } = {})
 
 // Línea de autoría del pie (sin Privacidad ni Términos, que viven en «Más»).
 function creditosPie(lang) {
+  const anio = new Date().getFullYear();
   return lang === 'en'
-    ? '<p class="site-footer__legal">&copy; 2026 Calendario Ciclismo - Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>'
-    : '<p class="site-footer__legal">&copy; 2026 Calendario Ciclismo - Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>';
+    ? `<p class="site-footer__legal">&copy; ${anio} Calendario Ciclismo - Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>`
+    : `<p class="site-footer__legal">&copy; ${anio} Calendario Ciclismo - Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a></p>`;
 }
 
 // Pie común de todas las páginas: la misma estructura que monta buildFooterNav

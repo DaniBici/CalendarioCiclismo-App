@@ -39,7 +39,7 @@ const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
 const hasFlag = (n) => args.includes(`--${n}`);
 
-const YEAR = parseInt(getArg('year') || '2026', 10);
+const YEAR = parseInt(getArg('year') || String(new Date().getUTCFullYear()), 10);
 const SLACK = parseInt(getArg('slack') || '1', 10);
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el match-report en una ruta distinta de la que imprime, y una lectura

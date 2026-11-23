@@ -19,7 +19,7 @@ data class ResultsSectionsLayout(
  * Regla de pestañas de Resultados según la fecha civil local:
  * - Hoy de carretera oculta ([RoadTodayAvailability]): Ciclocross, Carretera
  *   y Ránking UCI, con Ciclocross inicial.
- * - Desde que Hoy vuelve (1 de enero de 2027): Últimos resultados y Ránking
+ * - Desde que Hoy vuelve (5 de enero): Últimos resultados y Ránking
  *   UCI, como antes del cambio.
  * Espejo de la regla de la web y de iOS.
  */

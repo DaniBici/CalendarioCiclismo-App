@@ -1,21 +1,51 @@
 import Foundation
 import SwiftUI
 
-/// Pestaña Hoy de carretera: retirada hasta `returnDate` y visible desde ese
-/// día civil local. Mientras está retirada, Ciclocross ocupa la primera
-/// posición y es la pestaña inicial. Espejo de `RoadTodayAvailability` en
-/// Android.
+/// Disciplina inicial de Hoy, Resultados y Vídeos según el día civil local:
+/// cada año es Ciclocross desde el día siguiente a la Chrono des Nations (el
+/// tercer domingo de octubre: 18-10-2026, 17-10-2027) hasta el domingo anterior
+/// al primer lunes del año siguiente (el de 2027 es el 4 de enero); el resto del
+/// año, Ruta. El primer periodo empieza el 19 de octubre de 2026. Sin
+/// ediciones anuales. Espejo de `RoadTodayAvailability` en Android y de
+/// `cyclocrossHome` en la web.
 enum RoadTodayAvailability {
-    static let returnDate = "2027-01-01"
+    static let firstCyclocrossDay = "2026-10-19"
+
+    /// Día de la semana (0 = domingo) del día 1 del mes, calendario gregoriano.
+    private static func weekdayOfFirst(year: Int, month: Int) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let date = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        return calendar.component(.weekday, from: date) - 1
+    }
+
+    /// Tercer domingo de octubre de `year`: día de la Chrono des Nations.
+    static func chronoDesNationsDay(year: Int) -> String {
+        let day = 1 + (7 - weekdayOfFirst(year: year, month: 10)) % 7 + 14
+        return String(format: "%04d-10-%02d", year, day)
+    }
+
+    /// Primer lunes de enero de `year`: día en que se vuelve a Ruta.
+    static func firstMondayOfYear(year: Int) -> String {
+        let day = 1 + (8 - weekdayOfFirst(year: year, month: 1)) % 7
+        return String(format: "%04d-01-%02d", year, day)
+    }
 
     /// Valores (`Tab.value`) de cada sección; identidad estable con
     /// independencia de la posición, coincidente con `DeepLink.tab`.
     /// 5 y 6 corresponden a los enlaces retirados `subscribe` y `notifications`.
     static let todayTab = 0, resultsTab = 1, transfersTab = 2, cyclocrossTab = 3, calendarTab = 4, videosTab = 7
 
-    /// Temporada de carretera: Hoy abre en Ruta; antes, en Ciclocross.
+    /// True si, en `today` (YYYY-MM-DD), la disciplina inicial es Ciclocross.
+    static func isCyclocrossPeriod(today: String = DateFormatting.todayKey()) -> Bool {
+        guard today >= firstCyclocrossDay,
+              let year = Int(today.prefix(4)), let month = Int(today.dropFirst(5).prefix(2)) else { return false }
+        return month >= 7 ? today > chronoDesNationsDay(year: year) : today < firstMondayOfYear(year: year)
+    }
+
+    /// Fuera de ese periodo Hoy abre en Ruta.
     static func isVisible(today: String = DateFormatting.todayKey()) -> Bool {
-        today >= returnDate
+        !isCyclocrossPeriod(today: today)
     }
 
     /// Pestañas en el orden de la barra, todo el año (docs/plans/videos-5-2.md,
@@ -46,6 +76,10 @@ final class TodayViewModel {
         didSet { UserDefaults.standard.set(sortMode.rawValue, forKey: "road_sort_mode") }
     }
     var nextDayWithRaces: String?
+    /// Hoy sin carreras visibles y a punto de saltar al siguiente día con
+    /// carreras (a veces del año siguiente, que hay que descargar): la vista
+    /// mantiene la pantalla de carga en lugar de mostrar el estado vacío.
+    var isResolvingJump = false
     var hasLoaded = false
     /// Indica que los datos mostrados provienen de la caché offline.
     var isFromCache = false
@@ -143,6 +177,9 @@ final class TodayViewModel {
         let generation = loadGeneration
         let capturedKey = dateKey
         let retainsContent = preservingContent && !items.isEmpty
+        // Al cambiar de día, un día de la caché sin carreras visibles no se
+        // pinta como vacío hasta saber si la red lo deja o salta a otro.
+        isResolvingJump = !retainsContent
 
         isLoading = !retainsContent
         if !retainsContent {
@@ -283,10 +320,19 @@ final class TodayViewModel {
 
             // Buscar siguiente día con carreras (respetando filtro activo)
             nextDayWithRaces = nextDayMatchingFilter(after: dateKey)
+            // Sin carreras visibles y sin más días en este año: busca en el siguiente.
+            if displayItems.isEmpty, nextDayWithRaces == nil {
+                isResolvingJump = true
+                await includeFollowingYear()
+                guard dateKey == capturedKey, generation == loadGeneration else { return }
+                nextDayWithRaces = nextDayMatchingFilter(after: dateKey)
+                if nextDayWithRaces == nil { isResolvingJump = false }
+            }
 
             // Sin carreras visibles (con o sin filtros), salta siempre al
             // siguiente día que las tenga.
             if displayItems.isEmpty, let next = nextDayWithRaces {
+                isResolvingJump = true
                 isLoading = false
                 isNetworkLoading = false
                 goToDate(next)
@@ -300,6 +346,7 @@ final class TodayViewModel {
             // pegado al volver a esta vista.
             guard dateKey == capturedKey, generation == loadGeneration else { return }
             if Task.isCancelled {
+                isResolvingJump = false
                 isFromCache = false
                 isLoading = false
                 isNetworkLoading = false
@@ -311,6 +358,7 @@ final class TodayViewModel {
                 isUncachedOffline = true
             }
         }
+        isResolvingJump = false
         isLoading = false
         isNetworkLoading = false
     }
@@ -421,12 +469,36 @@ final class TodayViewModel {
 
     // MARK: - Filter-aware day scanning
 
+    /// Carreras del año siguiente al mostrado, cargadas solo cuando el año
+    /// mostrado no tiene más días que cumplan el filtro. Las fechas son
+    /// absolutas: unirlas a `allRaces` nunca produce un día falso.
+    private var followingYearRaces: [Race] = []
+    private var followingYearOf: Int?
+
+    /// Carga las carreras del año siguiente para que la búsqueda del próximo
+    /// día con carreras cruce el cambio de año.
+    func includeFollowingYear() async {
+        guard let year = Int(dateKey.prefix(4)), followingYearOf != year else { return }
+        let service = SupabaseService.shared
+        let cache = CacheManager.shared
+        let key = CacheManager.yearRacesKey(year + 1)
+        if let fresh = try? await service.racesByYear(year + 1) {
+            followingYearRaces = fresh
+            await cache.save(fresh, forKey: key)
+        } else if let cached: [Race] = await cache.load([Race].self, forKey: key) {
+            followingYearRaces = cached
+        } else {
+            return
+        }
+        followingYearOf = year
+    }
+
     /// Busca el siguiente día con carreras que coincidan con el filtro activo.
-    /// Escanea hasta 180 días hacia delante.
+    /// Escanea hasta 400 días hacia delante (con el año siguiente si se cargó).
     func nextDayMatchingFilter(after dateKey: String) -> String? {
         guard !allRaces.isEmpty else { return nil }
         var candidate = dateKey
-        for _ in 0..<180 {
+        for _ in 0..<400 {
             guard let next = DateFormatting.nextDay(candidate) else { break }
             candidate = next
             if hasMatchingRaces(on: candidate, filter: filter) {
@@ -453,7 +525,7 @@ final class TodayViewModel {
 
     /// Comprueba si hay carreras que coincidan con el filtro en un día dado.
     private func hasMatchingRaces(on dateKey: String, filter: RoadRaceFilter) -> Bool {
-        allRaces.contains { race in
+        (allRaces + followingYearRaces).contains { race in
             guard !race.isCancelled else { return false }
             guard RaceLogic.isRaceDay(race: race, dateKey: dateKey) else { return false }
             return filter.matches(race)

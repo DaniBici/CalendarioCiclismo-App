@@ -384,7 +384,7 @@ struct ResultsFeedTabLayout: Equatable {
 /// Regla de pestañas de Resultados por fecha. Espejo de la web y de Android.
 ///  · Hoy de carretera oculta (`RoadTodayAvailability`): Ciclocross,
 ///    Carretera y Ránking UCI, con Ciclocross por defecto.
-///  · Desde que Hoy vuelve (1 de enero de 2027): Últimos resultados y Ránking
+///  · Desde que Hoy vuelve (5 de enero): Últimos resultados y Ránking
 ///    UCI, como antes del cambio.
 enum ResultsFeedTabs {
     static func layout(today: String = DateFormatting.todayKey()) -> ResultsFeedTabLayout {

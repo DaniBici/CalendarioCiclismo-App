@@ -262,7 +262,7 @@ Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inlin
 - `<title>`, `<meta description>`, canonical, OG + Twitter cards completas.
 - `og:image:alt` / `twitter:image:alt` (fijo: «Calendario Ciclismo») / `og:locale=es_ES`.
 - `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">`.
-- Excepción: las carreras con `races.year` entre 2020 y 2025 llevan `noindex, follow` (ver sección «Temporadas archivadas»).
+- Excepción: las carreras con `races.year` de 2025 llevan `noindex, follow` (ver sección «Temporadas archivadas»).
 - `hreflang="es"` + `hreflang="x-default"` hacia el canonical y `hreflang="en"` con `en_url=` cuando existe la gemela EN.
 - `<link rel="alternate" type="application/atom+xml" href="/atom.xml">`.
 - JSON-LD: `SportsEvent` (`startDate`, `endDate`, `location`, `superEvent` para etapas de vuelta, `eventStatus`, `eventAttendanceMode`, `organizer`).
@@ -350,9 +350,9 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 - **Pruebas:** `test_sitemap.py` (anticipación y exclusiones) y `test_generated.py` (cuerpo estático).
 - **Pendiente de medir:** comparar en Search Console la indexación de `/inscritos/` anticipadas con la de las `/resultados/` anticipadas. Si Google las clasifica como soft 404, acotar la ventana (p. ej. N días antes de la carrera).
 
-## Temporadas archivadas 2020-2025 — noindex (2026-09-26)
+## Temporada archivada 2025 — noindex (2026-09-26)
 
-Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
+Decisión de producto (Dani): todas las páginas de carrera de la temporada 2025 se publican con `noindex, follow`, incluidos resultados.
 
 - **Criterio:** `races.year` (temporada UCI), no `startDate`: hay carreras de temporada 2021-2025 que empiezan en octubre del año anterior.
 - **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; ninguna prueba compara los dos ni fija el rango.
@@ -450,7 +450,7 @@ Los PDF de `assets.calendariociclismo.app` aparecían en Google y captaban clics
 
 - **Mapa:** `tools/site/gen_asset_canonicals.py` genera `/asset-canonicals.json` (`{"/races/…/map.pdf": "https://calendariociclismo.app/…"}`, unas 2.100 rutas, 270 KB) dentro del bloque `sitemap` de `build_generated.py` (misma caché diaria; la ampliación incremental lo regenera entero). Verificación: JSON con al menos 100 entradas, todas con ruta `.pdf` y destino bajo `https://calendariociclismo.app/`.
 - **Aplicación en nginx:** `assets.calendariociclismo.app` se sirve desde el VPS sin proxy de Cloudflare (bloqueos de LaLiga a las IP de Cloudflare), así que un Worker no puede actuar y la cabecera se añade en nginx. `scripts/assets-canonical/sync-map.mjs` (temporizador horario `cc-assets-canonical`, `deploy/assets-canonical-vps/`) descarga el JSON y escribe `/etc/nginx/cc-assets-canonicals.map` (ruta decodificada → valor de `Link`); `map $uri $cc_canonical_link` y `add_header Link $cc_canonical_link always;` en `assets-proxy` lo emiten solo para rutas del mapa. Valida con `nginx -t` antes de recargar y restaura el mapa anterior si falla. Instalación: `docs/runbooks/assets-canonical-vps.md`.
-- **Alcance:** solo PDF. Se omiten jornadas no publicadas, temporadas archivadas 2020-2025 (`noindex`, ver «Temporadas archivadas») y rutas compartidas por jornadas de carreras distintas (p. ej. `technicalGuide.pdf` de los Campeonatos de Europa o de Giro del Veneto), que tendrían dos destinos. Los mapas de ciclocross son imágenes y quedan fuera; las guías técnicas CX se asocian a `/ciclocross/{slug}/` solo en la temporada vigente.
+- **Alcance:** solo PDF. Se omiten jornadas no publicadas, temporada archivada 2025 (`noindex`, ver «Temporadas archivadas») y rutas compartidas por jornadas de carreras distintas (p. ej. `technicalGuide.pdf` de los Campeonatos de Europa o de Giro del Veneto), que tendrían dos destinos. Los mapas de ciclocross son imágenes y quedan fuera; las guías técnicas CX se asocian a `/ciclocross/{slug}/` solo en la temporada vigente.
 
 | Tipo de asset | Página canónica | Si la jornada no tiene esa página |
 |---|---|---|

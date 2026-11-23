@@ -4,9 +4,9 @@
 
 ## Subfeeds disponibles
 
-Solo se generan feeds de carreras con `race.year >= año actual UTC`, tanto
+Solo se generan feeds de carreras con `race.year >= año actual UTC - 1` (el año que acaba de terminar se conserva para quien siga suscrito), tanto
 anuales como individuales y en ES/EN. Las carreras sin año conocido no ofrecen
-calendario. Web, iOS y Android aplican el mismo guard al botón; los accesos a
+calendario. Web, iOS y Android ocultan el botón de calendario de las carreras de años anteriores al actual; los accesos a
 documentación, notificaciones y consulta histórica no cambian.
 
 | Key | Descripción |

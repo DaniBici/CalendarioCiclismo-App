@@ -11,19 +11,16 @@ enum DateFormatting {
 
     // MARK: - Mes inicial del Calendario
 
-    /// Primer mes que puede abrir el Calendario (Mes y Temporada). Terminada
-    /// la temporada de carretera 2026, el Calendario abre en 2027.
-    static let calendarEarliestStart = (year: 2027, month: 1)
-
-    /// Año y mes con los que abre el Calendario: el mes en curso o, si es
-    /// anterior a `calendarEarliestStart`, ese mes. Espejo de
-    /// `CalendarStart.initial` en Android.
+    /// Año y mes con los que abre el Calendario: el mes en curso o, de octubre a
+    /// diciembre con la temporada de carretera cerrada, enero del año siguiente.
+    /// Espejo de `CalendarStart.initial` en Android.
     static func calendarStart(now: Date = Date(), calendar: Calendar = .current) -> (year: Int, month: Int) {
         let year = calendar.component(.year, from: now)
         let month = calendar.component(.month, from: now)
-        let earliest = calendarEarliestStart
-        if year < earliest.year || (year == earliest.year && month < earliest.month) {
-            return earliest
+        let day = calendar.component(.day, from: now)
+        let key = String(format: "%04d-%02d-%02d", year, month, day)
+        if RoadTodayAvailability.isCyclocrossPeriod(today: key) && month >= 7 {
+            return (year + 1, 1)
         }
         return (year, month)
     }

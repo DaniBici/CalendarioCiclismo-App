@@ -159,6 +159,8 @@ struct DateBarView: View {
                         }
                     } label: {
                         DateBarItem(dateKey: key, isSelected: false)
+                            .frame(width: capsuleWidth, height: itemHeight)
+                            .overlay { if key == DateFormatting.todayKey() { Self.todayOutline } }
                             .frame(width: dayWidth, height: itemHeight)
                             .contentShape(Rectangle())
                     }
@@ -202,7 +204,7 @@ struct DateBarView: View {
         // Azul de marca suave (15 %), radio de superficie: único adorno
         // de la tira. El texto del día centrado (Capa 3) va en azul.
         RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
-            .fill(Color.accentColor.opacity(0.15))
+            .fill(AppTheme.selectedFill)
             .frame(width: capsuleWidth, height: itemHeight)
             .allowsHitTesting(false)
 
@@ -217,6 +219,12 @@ struct DateBarView: View {
     /// `firstDate` o terminan en `lastDate`, con la capsule sobre el día
     /// seleccionado. Tocar un día lo selecciona; arrastrar hacia el centro de
     /// la temporada pasa al día contiguo.
+    /// Día actual sin seleccionar: solo contorno, sin relleno.
+    private static var todayOutline: some View {
+        RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
+            .stroke(AppTheme.border, lineWidth: 1)
+    }
+
     private func edgeStripView(_ keys: [String], dayWidth: CGFloat, capsuleWidth: CGFloat) -> some View {
         let atStart = keys.first == firstDate
         return HStack(spacing: 0) {
@@ -232,7 +240,9 @@ struct DateBarView: View {
                         .background {
                             if selected {
                                 RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
-                                    .fill(Color.accentColor.opacity(0.15))
+                                    .fill(AppTheme.selectedFill)
+                            } else if key == DateFormatting.todayKey() {
+                                Self.todayOutline
                             }
                         }
                         .frame(width: dayWidth, height: itemHeight)
@@ -346,10 +356,10 @@ private struct DateBarItem: View {
         VStack(spacing: 2) {
             Text(weekday)
                 .ccFont(.s12, weight: isSelected ? .bold : .semibold)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isSelected ? AppTheme.onSelected : Color.secondary)
             Text(dayNumber)
                 .ccFont(.s16, weight: isSelected ? .bold : .semibold)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                .foregroundStyle(isSelected ? AppTheme.onSelected : Color.primary)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 48)

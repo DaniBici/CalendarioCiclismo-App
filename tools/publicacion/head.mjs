@@ -78,7 +78,7 @@ function evento({ name, start, end, url: enlace, description, lugar, pais, cance
 
 const robots = race => {
   const year = Number(race.year);
-  return Number.isInteger(year) && year >= 2020 && year <= 2025 ? 'noindex, follow' : ROBOTS_INDEX;
+  return Number.isInteger(year) && year === 2025 ? 'noindex, follow' : ROBOTS_INDEX;
 };
 
 function lugarEvento(misma, inicio, fin) {

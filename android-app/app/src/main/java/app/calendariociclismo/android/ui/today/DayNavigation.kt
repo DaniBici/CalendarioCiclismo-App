@@ -2,6 +2,7 @@ package app.calendariociclismo.android.ui.today
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -28,10 +29,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.EventBusy
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
@@ -169,11 +172,13 @@ internal fun DateBarWithControls(
         }
 
         if (!isToday) {
-            FilledTonalButton(
+            OutlinedButton(
                 onClick = onToday,
                 modifier = Modifier.height(48.dp),
                 shape = RoundedCornerShape(CCRadius.Surface),
                 contentPadding = PaddingValues(horizontal = 10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
             ) {
                 Text(
                     text = stringResource(R.string.today_button_today),
@@ -250,9 +255,14 @@ private fun DateBarItem(
         }.orEmpty()
     }
 
-    val primary = MaterialTheme.colorScheme.primary
-    val foreground = if (isSelected) primary else MaterialTheme.colorScheme.onSurface
-    val weekdayColor = if (isSelected) primary else MaterialTheme.colorScheme.onSurfaceVariant
+    // Selección inversa: relleno claro con texto oscuro en oscuro; azul marino
+    // con texto blanco en claro. El día actual sin seleccionar, solo contorno.
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val selectedFill = if (isDark) Color(0xFFF2F3F5) else Color(0xFF10233F)
+    val onSelected = if (isDark) Color(0xFF0B0C0F) else Color.White
+    val isTodayCell = remember(dateKey) { dateKey == DateFormatting.todayKey() }
+    val foreground = if (isSelected) onSelected else MaterialTheme.colorScheme.onSurface
+    val weekdayColor = if (isSelected) onSelected else MaterialTheme.colorScheme.onSurfaceVariant
     val cellLabel = "$weekday $day"
 
     Surface(
@@ -262,7 +272,8 @@ private fun DateBarItem(
             .height(56.dp)
             .semantics { contentDescription = cellLabel },
         shape = RoundedCornerShape(CCRadius.Surface),
-        color = if (isSelected) primary.copy(alpha = 0.15f) else Color.Transparent,
+        color = if (isSelected) selectedFill else Color.Transparent,
+        border = if (isTodayCell && !isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

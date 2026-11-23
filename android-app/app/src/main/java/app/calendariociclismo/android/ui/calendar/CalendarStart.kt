@@ -1,15 +1,17 @@
 package app.calendariociclismo.android.ui.calendar
 
+import app.calendariociclismo.android.util.RoadTodayAvailability
 import java.time.LocalDate
 import java.time.YearMonth
 
-/** Mes con el que abre el Calendario (Mes y Temporada). Terminada la
- *  temporada de carretera 2026, el Calendario abre en 2027. Espejo de
- *  `DateFormatting.calendarStart` en iOS. */
+/** Mes con el que abre el Calendario (Mes y Temporada): el mes en curso o, de
+ *  octubre a diciembre con la temporada de carretera cerrada, enero del año
+ *  siguiente. Espejo de `DateFormatting.calendarStart` en iOS. */
 object CalendarStart {
-    val EARLIEST: YearMonth = YearMonth.of(2027, 1)
-
-    /** Mes en curso o, si es anterior a [EARLIEST], ese mes. */
     fun initial(today: LocalDate = LocalDate.now()): YearMonth =
-        maxOf(YearMonth.from(today), EARLIEST)
+        if (RoadTodayAvailability.isCyclocrossPeriod(today) && today.monthValue >= 7) {
+            YearMonth.of(today.year + 1, 1)
+        } else {
+            YearMonth.from(today)
+        }
 }

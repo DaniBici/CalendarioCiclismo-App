@@ -84,6 +84,9 @@ class TodayViewModel(
         val data: DayData? = null,
         /** Filtros de carretera, recordados y compartidos con Mes y Temporada. */
         val filter: RoadRaceFilter = RoadRaceFilter(),
+        /** Sin carreras visibles y a punto de saltar al siguiente día con carreras
+         *  (quizá del año siguiente): se mantiene la pantalla de carga. */
+        val resolvingJump: Boolean = false,
         val sortMode: SortMode = SortMode.CATEGORY,
         val nextRaceDate: String? = null,
     )
@@ -118,7 +121,7 @@ class TodayViewModel(
 
     fun setDate(dateKey: String) {
         _state.value = _state.value.copy(
-            dateKey = dateKey, data = null, nextRaceDate = null,
+            dateKey = dateKey, data = null, nextRaceDate = null, resolvingJump = false,
         )
         load()
     }
@@ -191,12 +194,31 @@ class TodayViewModel(
     }
 
     /** Con el filtro nuevo el día mostrado queda sin carreras: salta al siguiente
-     *  día que las tenga. Sin datos aún o con carga en curso lo decide [load]. */
+     *  día que las tenga, también del año siguiente. Sin datos aún o con carga en
+     *  curso lo decide [load]. */
     private fun skipDayEmptiedByFilter() {
         val current = _state.value
-        val next = current.nextRaceDate ?: return
         if (current.isLoading || current.data == null) return
-        if (visibleData()?.raceDays.isNullOrEmpty()) setDate(next)
+        if (!visibleData()?.raceDays.isNullOrEmpty()) return
+        val next = current.nextRaceDate
+        if (next != null) {
+            setDate(next)
+            return
+        }
+        val key = current.dateKey
+        _state.value = current.copy(resolvingJump = true)
+        viewModelScope.launch {
+            includeFollowingYear()
+            val found = nextDayMatchingFilter(key, _state.value.filter)
+            if (found == null || _state.value.dateKey != key || _state.value.isLoading ||
+                !visibleData()?.raceDays.isNullOrEmpty()
+            ) {
+                if (_state.value.dateKey == key) _state.value = _state.value.copy(resolvingJump = false)
+                return@launch
+            }
+            _state.value = _state.value.copy(nextRaceDate = found)
+            setDate(found)
+        }
     }
 
     fun setSortMode(mode: SortMode) {
@@ -232,6 +254,9 @@ class TodayViewModel(
             isLoading = true,
             isRefreshing = force && !silent,
             error = null,
+            // Al cambiar de día, un día de la caché sin carreras visibles no se
+            // pinta como vacío hasta saber si la red lo deja o salta a otro.
+            resolvingJump = !silent && !force,
         )
         viewModelScope.launch {
             // 1. Caché local inmediata
@@ -266,6 +291,7 @@ class TodayViewModel(
                     _state.value = _state.value.copy(
                         isLoading = false,
                         isRefreshing = false,
+                        resolvingJump = false,
                         error = t.message ?: "",
                         data = _state.value.data ?: offlineFallback,
                     )
@@ -291,7 +317,7 @@ class TodayViewModel(
 
             // Siguiente día con carreras (respetando filtro activo)
             val filter = _state.value.filter
-            val nextDate = nextDayMatchingFilter(key, filter)
+            var nextDate = nextDayMatchingFilter(key, filter)
             _state.value = _state.value.copy(
                 isLoading = false,
                 isRefreshing = false,
@@ -299,11 +325,20 @@ class TodayViewModel(
                 data = presented,
                 refreshToken = _state.value.refreshToken + 1,
                 nextRaceDate = nextDate,
+                resolvingJump = false,
             )
 
             // Sin carreras visibles (con o sin filtros), salta siempre al
-            // siguiente día que las tenga.
+            // siguiente día que las tenga; si el año mostrado no tiene más,
+            // busca en el siguiente.
             val visible = visibleData()
+            if (nextDate == null && !silent && (visible == null || visible.raceDays.isEmpty())) {
+                _state.value = _state.value.copy(resolvingJump = true)
+                includeFollowingYear()
+                if (generation != loadGeneration || _state.value.dateKey != key) return@launch
+                nextDate = nextDayMatchingFilter(key, filter)
+                _state.value = _state.value.copy(nextRaceDate = nextDate, resolvingJump = nextDate != null)
+            }
             if (!silent &&
                 (visible == null || visible.raceDays.isEmpty()) &&
                 nextDate != null
@@ -319,6 +354,20 @@ class TodayViewModel(
 
     /** Carreras del año cacheadas para navegación filter-aware. */
     private var _allRaces: List<Race> = emptyList()
+
+    /** Carreras del año siguiente al mostrado, cargadas solo cuando el año
+     *  mostrado no tiene más días que cumplan el filtro. Las fechas son
+     *  absolutas, así que unirlas a [_allRaces] nunca da un día falso. */
+    private var _followingYearRaces: List<Race> = emptyList()
+    private var _followingYearOf: Int? = null
+
+    private suspend fun includeFollowingYear() {
+        val year = _state.value.dateKey.take(4).toIntOrNull() ?: return
+        if (_followingYearOf == year) return
+        runCatching { repo.refreshRacesYear(year + 1) }
+        _followingYearRaces = runCatching { repo.cachedRacesForYear(year + 1) }.getOrDefault(emptyList())
+        _followingYearOf = year
+    }
 
     private suspend fun addPlaceholders(data: DayData, dateKey: String, year: Int): DayData {
         val allRaces = runCatching { repo.cachedRacesForYear(year) }.getOrDefault(emptyList())
@@ -356,14 +405,15 @@ class TodayViewModel(
 
     // ── Navegación filter-aware ────────────────────────────────
 
-    /** Siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
+    /** Siguiente día con carreras que coincidan con el filtro (escanea hasta 400 días,
+     *  con el año siguiente si ya se cargó). */
     private fun nextDayMatchingFilter(
         afterDateKey: String,
         filter: RoadRaceFilter,
     ): String? {
         if (_allRaces.isEmpty()) return null
         var candidate = afterDateKey
-        repeat(180) {
+        repeat(400) {
             val next = DateFormatting.nextDay(candidate) ?: return null
             candidate = next
             if (hasMatchingRaces(candidate, filter)) return candidate
@@ -388,7 +438,7 @@ class TodayViewModel(
 
     /** True si hay al menos una carrera que coincida con el filtro en el día dado. */
     private fun hasMatchingRaces(dateKey: String, filter: RoadRaceFilter): Boolean =
-        _allRaces.any { race ->
+        (_allRaces.asSequence() + _followingYearRaces.asSequence()).any { race ->
             !race.isCancelled &&
                 RaceLogic.isRaceDay(race, dateKey) &&
                 filter.matches(race)

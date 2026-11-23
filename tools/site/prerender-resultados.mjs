@@ -103,7 +103,7 @@ function parseScope(value) {
   return scope;
 }
 
-const archived = year => Number.isInteger(Number(year)) && Number(year) >= 2020 && Number(year) <= 2025;
+const archived = year => Number.isInteger(Number(year)) && Number(year) === 2025;
 
 // ── Carreras candidatas y firma (como site_data.py) ─────────────────────────
 /** resultados_candidates() de site_data.py: carreras con clasificaciones, con año no archivado y fuera de la ventana. */

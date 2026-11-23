@@ -1,6 +1,6 @@
 """Temporadas de carretera archivadas: páginas publicadas con noindex y fuera del sitemap."""
 
-ARCHIVED_SEASONS = range(2020, 2026)
+ARCHIVED_SEASONS = range(2025, 2026)
 ROBOTS_INDEX = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
 ROBOTS_NOINDEX = "noindex, follow"
 

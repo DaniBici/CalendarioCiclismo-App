@@ -64,7 +64,7 @@ const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
 const hasFlag = (n) => args.includes(`--${n}`);
 
-const YEAR = parseInt(getArg('year') || '2026', 10);
+const YEAR = parseInt(getArg('year') || String(new Date().getUTCFullYear()), 10);
 const SLACK = getArg('slack') || '1';
 const REPORT_IN = getArg('report');
 const APPLY = hasFlag('apply');

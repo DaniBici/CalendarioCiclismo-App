@@ -444,13 +444,13 @@ export function feedButtonsHtml(activeFeed) {
 // por grupo y «Limpiar filtros» (js/components/filter-menu.js); sin filas
 // añadidas sobre los paneles (decisión de Dani, 2026-11-18).
 const svgIcon = (paths, size = 16, stroke = 2) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
-export const FILTER_MENU = { idPrefix: 'trFilters', activeClass: 'tr-div-btn--active' };
+export const FILTER_MENU = { idPrefix: 'trFilters', activeClass: 'agenda-filter-btn--active' };
 
 export const filterMenuItemsHtml = filters =>
   filterMenuItems(FILTER_GROUPS, filters, { idPrefix: FILTER_MENU.idPrefix, clearLabel: t('transfers.clearFilters') });
 
 function filtersHtml(filters) {
-  return filterMenu(FILTER_GROUPS, filters, { ...FILTER_MENU, label: t('transfers.filtersTitle'), clearLabel: t('transfers.clearFilters'), wrapClass: 'tr-filter', buttonClass: 'tr-div-btn' });
+  return filterMenu(FILTER_GROUPS, filters, { ...FILTER_MENU, label: t('transfers.filtersTitle'), clearLabel: t('transfers.clearFilters'), wrapClass: 'tr-filter', buttonClass: 'agenda-filter-btn' });
 }
 
 // ── Divisiones + lista de equipos ─────────────────────────────────

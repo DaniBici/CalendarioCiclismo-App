@@ -109,7 +109,7 @@ fun AppNavHost(navController: NavHostController) {
     val isSubscribed by app.premium.isSubscribed.collectAsState()
     val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     var showContributionPrompt by remember { mutableStateOf(false) }
-    // Temporada de carretera (desde [RoadTodayAvailability.RETURN_DATE]): Hoy
+    // Temporada de carretera (fuera del periodo de Ciclocross de [RoadTodayAvailability]): Hoy
     // abre en Ruta; antes, en Ciclocross. Se evalúa al arrancar y al volver a
     // primer plano.
     var todayVisible by remember { mutableStateOf(RoadTodayAvailability.isVisible()) }

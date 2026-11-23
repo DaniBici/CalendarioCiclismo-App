@@ -380,7 +380,7 @@ button.back-btn { border: 0; font-family: inherit; cursor: pointer; }
   transition: color var(--transition), background var(--transition);
 }
 .lang-btn:hover { color: var(--header-text); background: var(--hover-bg); }
-.lang-btn--active, .lang-btn--active:hover { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg-header)); font-weight: 700; }
+.lang-btn--active, .lang-btn--active:hover { color: var(--selected-text); background: var(--selected-bg); font-weight: 700; }
 
 /* Flechas de desplazamiento compartidas (js/scroll-rail.js): zona propia,
    separadores y extremos desactivados. */
@@ -1251,17 +1251,16 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   transition: color var(--transition);
 }
 .date-pill__num { font-size: var(--fs-4); font-weight: 600; line-height: 1.1; }
-.date-pill:hover { background: var(--accent-dim); }
-/* Hoy sin seleccionar: tinte suave con borde, como en las apps. */
+.date-pill:hover { background: var(--bg-card-hover); }
+/* Hoy sin seleccionar: solo contorno, sin relleno. */
 .date-pill.is-today:not(.active) {
-  background: var(--accent-dim);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: transparent;
+  border-color: var(--border-light);
 }
-/* Día seleccionado: relleno azul suave, texto en acento. */
-.date-pill.active { background: var(--accent-dim); }
-.date-pill.active .date-pill__wd { color: var(--accent-text); }
-.date-pill.active .date-pill__num { color: var(--accent-text); }
-.date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { font-weight: 700; }
+/* Día seleccionado: selección inversa (claro con texto oscuro en oscuro;
+   azul marino con texto claro en claro). */
+.date-pill.active, .date-pill.active:hover { background: var(--selected-bg); border-color: var(--selected-border); }
+.date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { color: var(--selected-text); font-weight: 700; }
 /* Botón HOY: aparece al alejarse del día actual. */
 .date-today-btn {
   flex-shrink: 0;
@@ -1270,10 +1269,10 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   max-width: 0;
   padding: 0.35rem 0;
   overflow: hidden;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-light);
   border-radius: var(--radius);
-  background: var(--accent-dim);
-  color: var(--accent-text);
+  background: transparent;
+  color: var(--text);
   font-family: var(--font-body);
   font-size: var(--fs-3);
   font-weight: 600;
@@ -1291,7 +1290,7 @@ span.discipline-switch__pin { display: inline-flex; color: var(--accent-text); }
   padding-left: 0.85rem;
   padding-right: 0.85rem;
 }
-.date-today-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.date-today-btn:hover { background: var(--bg-card-hover); }
 /* Flechas de semana: mismo aspecto que .cc-scroll-arrow; ≥24px de área táctil. */
 .date-week-arrow {
   display: inline-flex;
@@ -4361,3 +4360,9 @@ html.cc-android-banner-pending body::before { content: ''; display: block; heigh
   }
   .cookie-panel__btn { min-height: 44px; }
 }
+
+/* Vídeos con filtros o disciplina guardados: el panel del build sería otro que el que pinta el JS;
+   se oculta tras el indicador de carga hasta el primer pintado, en un solo paso. */
+html.videos-wait #videosFeedPanel { position: relative; min-height: 12rem; }
+html.videos-wait #videosFeedPanel > :not(.videos-wait__loading) { visibility: hidden; }
+html.videos-wait .videos-wait__loading { position: absolute; inset: 0 0 auto; }

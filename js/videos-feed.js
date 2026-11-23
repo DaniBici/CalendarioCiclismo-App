@@ -60,6 +60,8 @@ const LOADING = text => `<div class="loading" role="status" aria-live="polite"><
 
 async function init() {
   window.__spaDrivenAnalytics = true;
+  // «Filtros» responde desde el primer toque, sin esperar a las traducciones.
+  bindMenuButtons();
   await initI18n();
   const isEn = getLang() === 'en';
   const locale = isEn ? 'en-GB' : 'es-ES';
@@ -118,18 +120,29 @@ async function init() {
       return;
     }
     const html = `${videosHeroHtml(videosSwitchHtml({ view, pinned: roadPinned(), isEn }), filterSlotHtml())}<div id="videosFeedPanel" data-view="${view}">${body}</div>`;
-    if (!prerendered || htmlFingerprint(html) !== prerendered) content.innerHTML = html;
+    if (prerendered && htmlFingerprint(html) !== prerendered) {
+      // Vista del build con otros datos o filtros: se actualiza el panel sobre lo
+      // pintado, sin recrear la cabecera, y el menú de «Filtros» (que el visitante
+      // puede tener abierto) conserva su nodo.
+      if (panel && panel.dataset.view === view) {
+        panel.querySelector('.videos-wait__loading')?.remove();
+        patchHtml(panel, body);
+        document.getElementById(`${FILTER_MENUS[view].idPrefix}Btn`)?.classList.toggle(FILTER_ACTIVE_CLASS, filtersOn(view));
+      } else content.innerHTML = html;
+    } else if (!prerendered) content.innerHTML = html;
     prerendered = null;
     delete content.dataset.prerendered;
+    content.querySelector('.videos-wait__loading')?.remove();
+    document.documentElement.classList.remove('videos-wait');
     content.querySelector('#videosMoreBtn')?.addEventListener('click', loadMore);
   }
 
-  bindMenuButtons();
   for (const [which, menu] of Object.entries(FILTER_MENUS)) {
     bindFilterMenu(content, {
       idPrefix: menu.idPrefix, groups: menu.groups, storageKey: menu.storageKey, activeClass: FILTER_ACTIVE_CLASS,
       clearLabel: filterLabels().clearLabel, getFilters: menu.get, setFilters: menu.set, patch: patchHtml,
-      onChange: () => { if (view === which) render({ panelOnly: true }); },
+      // Antes de tener los datos, la selección solo se guarda: la usa el primer pintado.
+      onChange: () => { if (loadedAt && view === which) render({ panelOnly: true }); },
     });
   }
 
@@ -224,6 +237,8 @@ async function init() {
     render();
   } catch (error) {
     console.error('[videos]', error);
+    content.querySelector('.videos-wait__loading')?.remove();
+    document.documentElement.classList.remove('videos-wait');
     // Sin red, la vista del build se conserva.
     if (!prerendered) content.innerHTML = `${videosHeroHtml()}<div class="startlist-empty">${isEn ? 'Videos could not be loaded.' : 'No se han podido cargar los vídeos.'}</div>`;
   }

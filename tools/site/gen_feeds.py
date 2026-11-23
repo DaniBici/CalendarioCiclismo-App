@@ -343,8 +343,10 @@ def build_vevent_en(race, dtstamp, day=None):
 
 
 def eligible_calendar_year(year, now=None):
+    """Año actual y anterior: quien sigue suscrito a un feed del año que acaba
+    de terminar no recibe un 404 el 1 de enero."""
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).year
-    return isinstance(year, int) and not isinstance(year, bool) and year >= current
+    return isinstance(year, int) and not isinstance(year, bool) and year >= current - 1
 
 
 def filter_races(races, key, lang):
@@ -508,7 +510,7 @@ def generate_feeds(now=None):
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     # El filtro precede a cualquier consulta de jornadas históricas.
     year_rows = supabase_get("races?" + urlencode({
-        "select": "id,year", "year": f"gte.{now.year}", "order": "year.asc,id.asc",
+        "select": "id,year", "year": f"gte.{now.year - 1}", "order": "year.asc,id.asc",
     }))
     years = sorted({row["year"] for row in year_rows
                     if eligible_calendar_year(row.get("year"), now)})

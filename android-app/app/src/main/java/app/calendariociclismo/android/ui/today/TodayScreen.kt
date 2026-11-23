@@ -410,7 +410,7 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     when {
-                        state.isLoading && data == null -> RouteLoadingView(
+                        (state.isLoading && data == null) || (state.resolvingJump && data?.raceDays.isNullOrEmpty()) -> RouteLoadingView(
                             message = stringResource(R.string.loading),
                             title = LocaleHolder.t("Carreras de hoy", "Today's races"),
                         )

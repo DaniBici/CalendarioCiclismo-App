@@ -91,10 +91,22 @@ struct TodayView: View {
             }
             .onChange(of: viewModel.filter) { _, _ in
                 viewModel.nextDayWithRaces = viewModel.nextDayMatchingFilter(after: viewModel.dateKey)
-                // Con el filtro nuevo el día queda sin carreras: salta al siguiente que las tenga.
-                // Sin items aún (carga en curso o sin conexión) lo decide `loadDay`.
-                if !viewModel.isLoading, !viewModel.items.isEmpty, viewModel.displayItems.isEmpty,
-                   let next = viewModel.nextDayWithRaces {
+                // Con el filtro nuevo el día queda sin carreras: salta al siguiente que las tenga,
+                // también del año siguiente. Sin items aún (carga en curso o sin conexión) lo
+                // decide `loadDay`.
+                guard !viewModel.isLoading, !viewModel.items.isEmpty, viewModel.displayItems.isEmpty else { return }
+                Task {
+                    let key = viewModel.dateKey
+                    if viewModel.nextDayWithRaces == nil {
+                        viewModel.isResolvingJump = true
+                        await viewModel.includeFollowingYear()
+                        guard viewModel.dateKey == key else { return }
+                        viewModel.nextDayWithRaces = viewModel.nextDayMatchingFilter(after: key)
+                    }
+                    guard viewModel.displayItems.isEmpty, let next = viewModel.nextDayWithRaces else {
+                        viewModel.isResolvingJump = false
+                        return
+                    }
                     animateNavigation(forward: true) { await viewModel.navigate(to: next) }
                 }
             }
@@ -393,10 +405,10 @@ struct TodayView: View {
                 } label: {
                     Text(localeService.t("Hoy", "Today"))
                         .ccFont(.s14, weight: .semibold)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.primary)
                         .frame(minWidth: 44, minHeight: 48)
                         .padding(.horizontal, 4)
-                        .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
+                        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.surface).stroke(AppTheme.border, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(localeService.t("Ir al día de hoy", "Go to today"))
@@ -480,7 +492,7 @@ struct TodayView: View {
 
     @ViewBuilder private var contentArea: some View {
         Group {
-            if viewModel.isLoading {
+            if viewModel.isLoading || (viewModel.isResolvingJump && viewModel.displayItems.isEmpty) {
                 LoadingView(branded: true, title: LocaleService.t("Carreras de hoy", "Today's races"))
             } else {
                 ScrollView {

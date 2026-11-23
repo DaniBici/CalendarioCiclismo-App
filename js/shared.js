@@ -704,12 +704,12 @@ export function setMetaProperty(property, content) {
   el.content = content;
 }
 
-// Temporadas 2020-2025 archivadas: noindex en todas las páginas de carrera.
+// Temporada 2025 archivada: noindex en todas las páginas de carrera.
 // Espejo de tools/site/archived_seasons.py (páginas pre-renderizadas).
 const ROBOTS_INDEX = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 function isArchivedSeason(year) {
   const y = Number(year);
-  return Number.isInteger(y) && y >= 2020 && y <= 2025;
+  return Number.isInteger(y) && y === 2025;
 }
 export function setRaceRobots(race) {
   let el = document.querySelector('meta[name="robots"]');

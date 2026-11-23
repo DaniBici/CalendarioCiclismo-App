@@ -5,8 +5,9 @@ import {writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {collectUciCxCalendar} from '../../supabase/functions/_shared/cx-uci-calendar.mjs';
 import {countryCode} from '../uci-catalog/countries.mjs';
+import {cxSeason} from '../../js/cx/season.js';
 
-const seasonKey=process.argv[2] || '2026-27';
+const seasonKey=process.argv[2] || cxSeason();
 const target=resolve(process.argv[3] || `/tmp/cc-cx-calendar-${seasonKey}.json`);
 try {
   const manifest=await collectUciCxCalendar({seasonKey,countryCode,onProgress:({completed,total})=>{

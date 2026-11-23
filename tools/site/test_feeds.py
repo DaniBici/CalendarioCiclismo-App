@@ -61,7 +61,7 @@ class FeedsTest(unittest.TestCase):
                 ) as fetch:
                     years, totals = feeds.generate_feeds(now)
                 self.assertEqual(years, [2026, 2027])
-                self.assertIn("year=gte.2026", query.call_args.args[0])
+                self.assertIn("year=gte.2025", query.call_args.args[0])
                 self.assertEqual([call.args[0] for call in fetch.call_args_list], [2026, 2027])
                 self.assertEqual(totals, {"annual": 24, "events": 2010})
                 self.assertFalse(Path("feed/2020.ics").exists())

@@ -232,10 +232,10 @@ struct CyclocrossView: View {
                 } label: {
                     Text(CyclocrossPresentation.t("Hoy", "Today"))
                         .ccFont(.s14, weight: .semibold)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.primary)
                         .frame(minWidth: 44, minHeight: 48)
                         .padding(.horizontal, 4)
-                        .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
+                        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.surface).stroke(AppTheme.border, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(CyclocrossPresentation.t("Ir al día de hoy", "Go to today"))

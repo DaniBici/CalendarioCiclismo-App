@@ -176,7 +176,7 @@ Web: cada cambio de día muestra la carga y relee el mes del día de destino.
 ### Ciclocross en lugar de Hoy fuera de la temporada de carretera
 
 - **Web:** desde el día siguiente al último de la temporada de carretera
-  (`js/services/today-season.js`, por año) hasta el 31 de diciembre, `/` y
+  (`js/services/today-season.js`: desde el día siguiente a la Chrono des Nations, el tercer domingo de octubre, hasta el domingo anterior al primer lunes del año siguiente; desde 2026) `/` y
   `/en/` sin `?date=` pintan Ciclocross en la misma URL sin tocar título,
   canonical ni texto estático (`js/home.js`). El menú tiene cuatro destinos:
   Hoy (a `/`, activo en `/`, en `/?date=` y en las páginas de Ciclocross),
@@ -185,7 +185,7 @@ Web: cada cambio de día muestra la carga y relee el mes del día de destino.
   periodo conserva `?date=` también en el día actual, salvo con Carretera
   fijada (ver «Chincheta de Carretera» abajo).
 - **Apps (5.0.15; rótulo Hoy desde la 5.1.2):** `RoadTodayAvailability` saca
-  Hoy de carretera de la barra hasta el 1 de enero de 2027. Pestañas Hoy,
+  Hoy de carretera de la barra desde el día siguiente a la Chrono des Nations hasta el domingo anterior al primer lunes del año (regla anual, sin ediciones; mismo periodo en la web). Pestañas Hoy,
   Resultados, Fichajes y Calendario: la primera es la pestaña Ciclocross
   (`cyclocrossTab`, ruta `CYCLOCROSS`) rotulada Hoy con el icono de Hoy, y es
   la inicial. Los enlaces a Hoy van a la pestaña inicial vigente, los destinos
@@ -243,7 +243,7 @@ Web: cada cambio de día muestra la carga y relee el mes del día de destino.
   la pestaña Hoy es `cyclocrossTab`; Android `Routes.MAIN_TABS` y
   `Routes.HOME` (`CYCLOCROSS`). Los enlaces `today` y `cyclocross` abren la
   pestaña Hoy en Ruta y en CX. Web: `PRIMARY_NAV_ITEMS` (`js/header-html.js`).
-- **Desde el 1 de enero de 2027**, la disciplina inicial pasa a Ruta: Hoy abre
+- **Desde el primer lunes del año hasta la Chrono des Nations** (la primera vez, el 4 de enero de 2027), la disciplina inicial pasa a Ruta: Hoy abre
   en carretera (apps: `RoadTodayAvailability.isVisible`) y Resultados y Vídeos
   en Carretera, con el conmutador para volver a CX. Dani prevé dar prioridad a
   Ruta sobre CX en todas las secciones desde esa fecha. Sustituye, en lo

@@ -73,9 +73,17 @@ function bindFooterApps(root) {
   });
 }
 
+// El año del © de las páginas ya publicadas se pone al día en el navegador.
+function refreshCopyrightYear(footer) {
+  const line = footer.querySelector('.site-footer__legal') || footer.querySelector(':scope > p');
+  const text = line && line.firstChild && line.firstChild.nodeType === 3 ? line.firstChild : null;
+  if (text) text.textContent = text.textContent.replace(/\b20\d{2}\b/, String(new Date().getFullYear()));
+}
+
 function buildFooterNav(s) {
   const footer = document.querySelector('.site-footer');
   if (!footer) return;
+  refreshCopyrightYear(footer);
   // Pie ya generado en el build (tools/publicacion): la estructura viene hecha y
   // solo falta enlazar el botón «Apps».
   if (footer.querySelector('.site-footer__top')) { bindFooterApps(footer); return; }
