@@ -5,6 +5,7 @@ import { fetchAllRows, fetchByIds } from './paged-query.js';
 import { enrichResultFeed, resolveRiderTeams } from './result-feed-context.js';
 import { supabase, enBase, categoryRank, genderRank, grandTourRank, tsSeconds } from '../shared.js';
 import { isNonWinnerIrm } from '../results/uci-irm.js';
+import { loadNameHistory, riderNameAt } from '../rider-name-history.js';
 import { compareChampionships } from '../campeonatos-config.js';
 import { resultFeedEntryKey, sectorSuffixMap } from './races.js';
 
@@ -214,21 +215,26 @@ export async function fetchResultEntries(fromKey, toKey, isEn) {
         if (row.globalRiderId) byRef.get(row.stageRef).add(row.globalRiderId);
       });
       const riderIds = [...new Set([...byRef.values()].filter(s => s.size === 1).map(s => [...s][0]))];
-      const nameById = new Map();
+      const riderById = new Map();
+      let nameHistory = new Map();
       if (riderIds.length) {
-        const [{ data: men }, { data: women }] = await Promise.all([
+        const [{ data: men }, { data: women }, history] = await Promise.all([
           supabase.from('riders_men').select('id, firstName, lastName').in('id', riderIds),
           supabase.from('riders_women').select('id, firstName, lastName').in('id', riderIds),
+          loadNameHistory(supabase),
         ]);
-        [...(men || []), ...(women || [])].forEach(r =>
-          nameById.set(r.id, `${r.firstName || ''} ${r.lastName || ''}`.trim()));
+        nameHistory = history;
+        [...(men || []), ...(women || [])].forEach(r => riderById.set(r.id, r));
       }
       entries.forEach(e => {
         if (e.kind !== 'inhouse' || !e._stageRef) return;
         const set = byRef.get(e._stageRef);
         if (nonWinnerRefs.has(e._stageRef) && !set?.size) e.winner = '';
         if (set && set.size === 1) {
-          const nm = nameById.get([...set][0]);
+          // Nombre vigente el día de la carrera (cambios de apellido con vigencia).
+          const rider = riderById.get([...set][0]);
+          const at = rider ? riderNameAt(rider, nameHistory, e.race?.startDate) : null;
+          const nm = at ? `${at.firstName || ''} ${at.lastName || ''}`.trim() : '';
           if (nm) e.winner = nm;
         }
       });

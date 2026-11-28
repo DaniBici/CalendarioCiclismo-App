@@ -52,6 +52,7 @@ select
             'resultValue', x."resultValue", 'timeText', x."timeText", 'gapText', x."gapText", 'points', x.points, 'uciPoints', x."uciPoints", 'irm', x.irm, 'sortOrder', x."sortOrder") order by x.id), '[]'::json) from filas x) as resultados_results,
   (select coalesce(json_agg(to_json(m) order by m.id), '[]'::json) from ficha_men m) as resultados_riders_men,
   (select coalesce(json_agg(to_json(w) order by w.id), '[]'::json) from ficha_women w) as resultados_riders_women,
+  (select coalesce(json_agg(json_build_object('riderId', h."riderId", 'firstName', h."firstName", 'lastName', h."lastName", 'validTo', h."validTo") order by h."riderId", h."validTo"), '[]'::json) from rider_name_history h) as resultados_rider_name_history,
   (select coalesce(json_agg(json_build_object('id', t.id, 'name', t.name, 'category', t.category, 'nameAliases', t."nameAliases", 'badgeTorsoCenter', t."badgeTorsoCenter", 'badgeTorsoSides', t."badgeTorsoSides",
             'badgeShorts', t."badgeShorts", 'badgeInnerCircle', t."badgeInnerCircle", 'teamKind', t."teamKind", 'selectionScope', t."selectionScope", 'countryCode', t."countryCode", 'selectionCode', t."selectionCode") order by t.id), '[]'::json)
      from visibles t where t.id in (select id from ids_equipo)) as resultados_team_list,

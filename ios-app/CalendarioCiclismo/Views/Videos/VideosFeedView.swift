@@ -22,7 +22,8 @@ final class VideosFeedStore {
     private(set) var isLoadingMore = false
     private(set) var hasLoaded = false
     var error: String?
-    private let todayKey = DateFormatting.todayKey()
+    private(set) var todayKey: String
+    @ObservationIgnored private var roadTodayVisible: Bool
     /// Cambian con cada modificación de los datos de origen de cada disciplina.
     /// Las entradas y los días se derivan de ellos y se memorizan: la vista los
     /// lee en cada evaluación de su cuerpo y recalcularlos congelaba el hilo
@@ -54,8 +55,32 @@ final class VideosFeedStore {
     }
 
     init() {
+        let now = DateFormatting.todayKey()
+        let visible = RoadTodayAvailability.isVisible(today: now)
+        todayKey = now
+        roadTodayVisible = visible
         // Ciclocross primero mientras la portada es Ciclocross; Carretera el resto del año.
-        discipline = RoadTodayAvailability.isVisible() ? .road : .cyclocross
+        discipline = visible ? .road : .cyclocross
+    }
+
+    /// Reevalúa la fecha local y la disponibilidad de Hoy de carretera: si se
+    /// cruza la frontera estacional, cambia la disciplina activa de Vídeos
+    /// automáticamente sin reiniciar la app.
+    @discardableResult
+    func syncDayState() -> (dayChanged: Bool, disciplineChanged: Bool) {
+        let nowKey = DateFormatting.todayKey()
+        let visible = RoadTodayAvailability.isVisible(today: nowKey)
+        let dayChanged = nowKey != todayKey
+        let disciplineChanged = visible != roadTodayVisible
+        if dayChanged {
+            todayKey = nowKey
+            daysMemo = nil
+        }
+        if disciplineChanged {
+            roadTodayVisible = visible
+            discipline = visible ? .road : .cyclocross
+        }
+        return (dayChanged, disciplineChanged)
     }
 
     private var cxSeason: String {
@@ -192,7 +217,40 @@ final class VideosFeedStore {
     /// amplía hacia atrás hasta alcanzarlo o llegar al principio de la temporada.
     static let minDays = 15
 
+    private struct FillKey: Equatable {
+        let discipline: VideosFeedDiscipline
+        let road: RoadRaceFilter
+        let cx: CxRaceFilter
+    }
+
+    private var fillKey: FillKey {
+        FillKey(discipline: discipline, road: RaceFilterStore.shared.road, cx: RaceFilterStore.shared.cx)
+    }
+
+    /// Disciplina y filtros con los que la ampliación se detuvo antes del mínimo
+    /// (sin red o sin avance): con ellos se muestra la lista tal cual.
+    private var stalledFill: FillKey?
+    @ObservationIgnored private var fillTask: Task<Void, Never>?
+
+    /// La lista aún no llega al mínimo y se está ampliando: la vista muestra la carga
+    /// en lugar de una lista que crecería a saltos.
+    var needsFill: Bool {
+        hasLoaded && canLoadMore && stalledFill != fillKey && filteredDays.count < Self.minDays
+    }
+
+    /// Las ampliaciones se encadenan: una nueva (otro filtro u otra disciplina) espera a
+    /// la anterior y no se cancela con la tarea de la vista.
     func ensureMinDays() async {
+        let previous = fillTask
+        let task = Task { [weak self] in
+            await previous?.value
+            await self?.fillToMinDays()
+        }
+        fillTask = task
+        await task.value
+    }
+
+    private func fillToMinDays() async {
         var rounds = 0
         while hasLoaded, filteredDays.count < Self.minDays, canLoadMore, rounds < 60 {
             let before = fromKey[discipline]
@@ -200,6 +258,7 @@ final class VideosFeedStore {
             rounds += 1
             if fromKey[discipline] == before { break }
         }
+        if hasLoaded, filteredDays.count < Self.minDays, canLoadMore { stalledFill = fillKey }
     }
 
     /// Semanas anteriores de la vista activa hasta encontrar algún día con
@@ -263,7 +322,7 @@ struct VideosFeedView: View {
             .padding(.bottom, 8)
             .accessibilityIdentifier(AccessibilityID.videosDisciplinePicker)
 
-            if !store.hasLoaded && store.error == nil {
+            if (!store.hasLoaded && store.error == nil) || store.needsFill {
                 LoadingView(branded: true, title: localeService.t("Vídeos", "Videos"))
             } else if let error = store.error, !store.hasLoaded {
                 ErrorView(message: error) { Task { await store.load() } }
@@ -304,8 +363,20 @@ struct VideosFeedView: View {
         }
         .safariSheet(url: $safariURL)
         .task {
+            if store.syncDayState().disciplineChanged { openId = nil }
             if !store.hasLoaded { await store.load() }
             await store.ensureMinDays()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            let change = store.syncDayState()
+            if change.disciplineChanged { openId = nil }
+            if change.dayChanged && store.hasLoaded {
+                Task {
+                    await store.load()
+                    await store.ensureMinDays()
+                }
+            }
         }
         // Con los filtros de Hoy o al cambiar de disciplina, la lista se amplía hasta
         // tener al menos 15 días con vídeos.
@@ -314,7 +385,17 @@ struct VideosFeedView: View {
         }
         // GA4: `videos` (Carretera) y `videos_cx` (Ciclocross), al abrir y en
         // cada cambio de disciplina, como `results_feed` / `results_feed_cx`.
-        .onAppear { logScreen() }
+        .onAppear {
+            let change = store.syncDayState()
+            if change.disciplineChanged { openId = nil }
+            logScreen()
+            if change.dayChanged && store.hasLoaded {
+                Task {
+                    await store.load()
+                    await store.ensureMinDays()
+                }
+            }
+        }
         .onChange(of: store.discipline) { _, _ in logScreen() }
     }
 

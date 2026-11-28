@@ -275,6 +275,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         }
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.statusBars)) {
         val wideDetail = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
+        val contextColumnWidth = AdaptiveLayoutPolicy.contextColumnDp(maxWidth.value).dp
         val videoColumns = AdaptiveLayoutPolicy.videoColumns(maxWidth.value, maxWidth > maxHeight, adaptiveInfo)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Sin indicador en línea durante el refresco periódico: insertarlo
@@ -425,6 +426,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             showAllTV = showAllTV,
                             mapUrl = mapUrl,
                             wide = wideDetail,
+                            sideColumnWidth = contextColumnWidth,
                             paneSpacing = adaptiveInfo.paneSpacing,
                             onToggleTV = { showAllTV = !showAllTV },
                             onStartlist = { code -> categoryCode = code; section = CxDetailSection.STARTLIST },
@@ -450,8 +452,8 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing),
                             verticalAlignment = Alignment.Top,
                         ) {
-                            Box(Modifier.weight(0.60f)) { selectedContent() }
-                            Box(Modifier.weight(0.40f)) { sideColumn() }
+                            Box(Modifier.weight(1f)) { selectedContent() }
+                            Box(Modifier.width(contextColumnWidth)) { sideColumn() }
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -726,6 +728,7 @@ private fun CxProgrammeLayout(
     showAllTV: Boolean,
     mapUrl: String?,
     wide: Boolean,
+    sideColumnWidth: androidx.compose.ui.unit.Dp,
     paneSpacing: androidx.compose.ui.unit.Dp,
     onToggleTV: () -> Unit,
     onStartlist: (String) -> Unit,
@@ -753,8 +756,8 @@ private fun CxProgrammeLayout(
             horizontalArrangement = Arrangement.spacedBy(paneSpacing),
             verticalAlignment = Alignment.Top,
         ) {
-            Box(Modifier.weight(0.60f)) { CxMapPreview(url = mapUrl) }
-            Column(Modifier.weight(0.40f), verticalArrangement = Arrangement.spacedBy(12.dp)) { schedule(); mediaCards() }
+            Box(Modifier.weight(1f)) { CxMapPreview(url = mapUrl) }
+            Column(Modifier.width(sideColumnWidth), verticalArrangement = Arrangement.spacedBy(12.dp)) { schedule(); mediaCards() }
         }
         wide && scheduled.isNotEmpty() && hasMedia -> Row(
             Modifier.fillMaxWidth(),
@@ -797,7 +800,7 @@ private fun CxScheduleCard(detail: CxDetail, scheduled: List<CxCategory>, onStar
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (detail.startlist.any { it.category == category.category }) {
-                            RaceGlyphAction(ImageVector.vectorResource(R.drawable.ic_logo_cyclist), onClick = { onStartlist(category.category) }, contentDescription = stringResource(R.string.cx_startlist), boxSize = 28.dp, glyphSize = 20.dp)
+                            RaceGlyphAction(ImageVector.vectorResource(R.drawable.ic_startlist_bib), onClick = { onStartlist(category.category) }, contentDescription = stringResource(R.string.cx_startlist), boxSize = 28.dp, glyphSize = 20.dp)
                         }
                         // Copa solo-icono de las cards de Hoy en lugar del botón de texto.
                         if (category.category in CxPresentation.resultCategories(detail)) {
@@ -925,6 +928,9 @@ private fun CxReviveCard(race: CxRace, revive: List<app.calendariociclismo.andro
 /** Ancho a partir del cual la tabla de dorsales separa la columna Equipo. */
 private val CxStartlistTeamColumnMinWidth = 480.dp
 
+/** Columna del dorsal: cabe un dorsal de cuatro cifras (la de posición mide 32 dp). */
+private val CxStartlistBibWidth = 44.dp
+
 /**
  * Dorsales de una categoría con la superficie de tabla de Resultados:
  * Dorsal, Corredor y Equipo (franjas y nombre). En anchos estrechos el
@@ -947,7 +953,7 @@ private fun CxStartlistTable(riders: List<CxStartlistRider>, teams: List<CxTeam>
                 horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ResultsHeaderCell(stringResource(R.string.start_order_col_bib), Modifier.width(ResultsTableMetrics.RankWidth), align = TextAlign.Center)
+                ResultsHeaderCell(stringResource(R.string.start_order_col_bib), Modifier.width(CxStartlistBibWidth), align = TextAlign.Center)
                 ResultsHeaderCell(stringResource(R.string.results_col_rider), Modifier.weight(1f))
                 if (teamColumn) ResultsHeaderCell(stringResource(R.string.results_col_team), Modifier.weight(1f))
             }
@@ -980,7 +986,7 @@ private fun CxStartlistRow(rider: CxStartlistRider, teamName: String?, team: Tea
     ) {
         Text(
             rider.bib.orEmpty(),
-            Modifier.width(ResultsTableMetrics.RankWidth),
+            Modifier.width(CxStartlistBibWidth),
             style = CCText.S14.copy(fontFeatureSettings = "tnum"),
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

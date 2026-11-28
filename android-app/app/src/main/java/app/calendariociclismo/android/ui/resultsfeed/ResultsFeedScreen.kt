@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -600,7 +602,7 @@ private fun UciRankingTag(text: String, style: UciRankingKeyStyle?, modifier: Mo
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun UciRankingContent(
     state: RankingState,
@@ -635,12 +637,14 @@ private fun UciRankingContent(
                 UciTeamRankingLogic.decorate(state.rows, gender.value)
             }
             val keyItems = remember(rows, isEnglish) { UciTeamRankingLogic.keyItems(rows, isEnglish) }
+            val basis = remember(rows, isEnglish) { UciTeamRankingLogic.basisText(rows, isEnglish) }
             Column(Modifier.fillMaxSize()) {
-                // Género y fecha de actualización en una fila.
-                Row(
+                // Género y fecha de actualización: la fecha, siempre en una línea, va al
+                // lado del selector si cabe y, si no, debajo (como la web).
+                FlowRow(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val options = listOf(
                         RankingGender.Male to stringResource(R.string.uci_ranking_men),
@@ -663,16 +667,24 @@ private fun UciRankingContent(
                             }
                         }
                     }
-                    rows.firstOrNull()?.row?.rankingDate?.let { rankingDate ->
+                    UciTeamRankingLogic.updatedText(rows, isEnglish)?.let { updated ->
                         Text(
-                            text = DateFormatting.formatUciRankingUpdated(rankingDate, isEnglish),
-                            modifier = Modifier.weight(1f),
+                            text = updated,
+                            modifier = Modifier.align(Alignment.CenterVertically),
                             style = CCText.S12,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
+                }
+                basis?.let {
+                    Text(
+                        text = it,
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        style = CCText.S12,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (rows.isEmpty()) {
                     Text(

@@ -74,9 +74,16 @@ struct ResultsView: View {
     @State private var contextVideos: [StageVideoLogic.Entry] = []
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Ancho de la pantalla: la columna de contexto exige ancho regular y al
-    /// menos `twoColumnThreshold` (en la columna de detalle del iPad puede
-    /// faltar sitio).
+    /// menos `detailThreshold`, como la ficha de ciclocross; por debajo
+    /// (iPhone Duo en vertical, detalle del iPad con la columna lateral) va
+    /// bajo la clasificación.
     @State private var viewWidth: CGFloat = 0
+    @State private var viewHeight: CGFloat = 0
+    /// En una pantalla baja (iPhone Duo abierto, iPhone en horizontal o SE)
+    /// la ficha fija dejaba poco sitio a la clasificación: por debajo de este
+    /// alto sube con el contenido y solo quedan fijadas las pestañas.
+    private static let fixedHeaderMinHeight: CGFloat = 760
+    private var headerScrolls: Bool { viewHeight > 0 && viewHeight < Self.fixedHeaderMinHeight }
 
     var body: some View {
         Group {
@@ -101,7 +108,10 @@ struct ResultsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewWidth = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: {
+            viewWidth = $0.width
+            viewHeight = $0.height
+        }
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(LocaleService.t("Clasificaciones", "Classifications"))
         .navigationBarTitleDisplayMode(.inline)
@@ -340,21 +350,13 @@ struct ResultsView: View {
             // La ficha general permanece fuera del scroll. Documentación y
             // selector de etapas se desplazan; las pestañas de clasificación
             // quedan fijadas al recorrer los resultados.
-            VStack(alignment: .leading, spacing: 0) {
-                if let rd = headerRaceDay {
-                    resultsHeader(raceDay: rd, race: data.race)
-                } else {
-                    ResultsPlainHeader(race: data.race)
-                }
+            if !headerScrolls {
+                headerBlock(data)
             }
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .background(AppTheme.background)
 
             if let activeStage {
                 if horizontalSizeClass == .regular,
-                   viewWidth == 0 || viewWidth >= AdaptiveLayoutPolicy.twoColumnThreshold,
+                   viewWidth == 0 || viewWidth >= AdaptiveLayoutPolicy.detailThreshold,
                    let rd = headerRaceDay,
                    hasResultsStageContext(rd) {
                     HStack(alignment: .top, spacing: 16) {
@@ -367,7 +369,7 @@ struct ResultsView: View {
                                 onExternal: openVideo
                             )
                         }
-                        .frame(width: 320)
+                        .frame(width: AdaptiveLayoutPolicy.contextColumnWidth(containerWidth: viewWidth))
                         .padding(.trailing)
                     }
                 } else {
@@ -382,6 +384,22 @@ struct ResultsView: View {
                 Spacer()
             }
         }
+        .background(AppTheme.background)
+    }
+
+    /// Ficha general de la carrera: fija sobre la clasificación o, en
+    /// pantallas bajas, al principio del contenido desplazable.
+    private func headerBlock(_ data: UciResultsData) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let rd = headerRaceDay {
+                resultsHeader(raceDay: rd, race: data.race)
+            } else {
+                ResultsPlainHeader(race: data.race)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
         .background(AppTheme.background)
     }
 
@@ -420,6 +438,9 @@ struct ResultsView: View {
             // Las pestañas de clasificación son la cabecera fijada; las tablas
             // no fijan su fila de columnas para no superponerse a ellas.
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if headerScrolls {
+                    headerBlock(data)
+                }
                 if let rd = headerRaceDay {
                     resultsAssetStrip(data: data, raceDay: rd)
                         .padding(.horizontal)
@@ -582,7 +603,7 @@ struct ResultsView: View {
                 let provisional = data.race.startlistProvisional == true
                 NavigationLink(destination: StartlistView(raceId: data.race.id)) {
                     ActionStripTile(
-                        icon: LogoCyclistIcon.name,
+                        icon: StartlistIcon.name,
                         label: provisional
                             ? LocaleService.t("Lista provisional", "Provisional Startlist")
                             : LocaleService.t("Dorsales", "Startlist")

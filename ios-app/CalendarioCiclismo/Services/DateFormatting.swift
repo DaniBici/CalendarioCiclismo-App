@@ -135,12 +135,36 @@ enum DateFormatting {
         isEnglish: Bool = LocaleService.shouldShowEnglishContent
     ) -> String {
         let prefix = isEnglish ? "Updated" : "Actualizado"
-        guard let date = date(from: dateKey) else { return "\(prefix): \(dateKey)" }
+        return "\(prefix): \(formatUciRankingDate(dateKey, isEnglish: isEnglish))"
+    }
+
+    /// Fecha y hora de la última actualización del ránking UCI en números y en
+    /// la zona del dispositivo: «Actualizado: 24/11/2026, 14:41».
+    static func formatUciRankingUpdatedAt(
+        _ isoString: String,
+        isEnglish: Bool = LocaleService.shouldShowEnglishContent,
+        timeZone: TimeZone = .current
+    ) -> String? {
+        guard let date = parseISO(isoString) else { return nil }
+        let f = formatter(
+            locale: Locale(identifier: isEnglish ? "en_GB" : "es_ES"),
+            format: "dd/MM/yyyy, HH:mm",
+            timeZone: timeZone
+        )
+        return "\(isEnglish ? "Updated" : "Actualizado"): \(f.string(from: date))"
+    }
+
+    /// Fecha larga del ránking UCI («martes, 24 de noviembre de 2026»).
+    static func formatUciRankingDate(
+        _ dateKey: String,
+        isEnglish: Bool = LocaleService.shouldShowEnglishContent
+    ) -> String {
+        guard let date = date(from: dateKey) else { return dateKey }
         let f = formatter(
             locale: Locale(identifier: isEnglish ? "en_GB" : "es_ES"),
             format: isEnglish ? "EEEE, d MMMM yyyy" : "EEEE, d 'de' MMMM 'de' yyyy"
         )
-        return "\(prefix): \(f.string(from: date))"
+        return f.string(from: date)
     }
 
     /// Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO

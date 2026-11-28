@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.results
 
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.StageVideoLogic
@@ -379,7 +381,11 @@ private fun ResultsContent(
                 || it.neutralStartTimeUtc != null || it.averageSpeedKmh != null
                 || it.hasValidTimeLimit
         } == true
-        val showSideContext = maxWidth >= 700.dp && hasStageContext
+        // Mismo umbral que la ficha de ciclocross: por debajo, el perfil y
+        // los vídeos van bajo la clasificación (iOS: `detailThreshold`).
+        val adaptiveInfo = rememberAdaptiveLayoutInfo()
+        val showSideContext = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo) && hasStageContext
+        val contextColumnWidth = AdaptiveLayoutPolicy.contextColumnDp(maxWidth.value).dp
         Row(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
         // La ficha general permanece fuera del scroll. Documentación y selector
@@ -532,7 +538,7 @@ private fun ResultsContent(
         contextDay?.takeIf { showSideContext }?.let { sideDay ->
             Box(
                 modifier = Modifier
-                    .width(320.dp)
+                    .width(contextColumnWidth)
                     .fillMaxHeight()
                     .padding(top = 16.dp, end = 16.dp),
             ) {
@@ -620,7 +626,7 @@ private fun ResultsAssetStrip(
 
         if (data.race.startlistImportedAt != null) {
             AssetChip(
-                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
+                icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib),
                 label = if (data.race.startlistProvisional) {
                     LocaleHolder.t("Lista provisional", "Provisional Startlist")
                 } else {

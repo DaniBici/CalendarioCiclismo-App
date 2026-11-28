@@ -25,6 +25,7 @@ struct TransfersSplitView: View {
     @State private var loadFailed = false
     @State private var selection: TransfersSidebarItem? = .market
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var windowWidth: CGFloat = 0
     @State private var localeService = LocaleService.shared
 
     private var title: String {
@@ -44,7 +45,7 @@ struct TransfersSplitView: View {
             NavigationStack {
                 switch selection {
                 case .team(let teamId):
-                    TransfersTeamView(teamId: teamId)
+                    TransfersTeamView(teamId: teamId, preloadedMarket: data)
                 default:
                     TransfersView(
                         deepLinkedTeamId: .constant(nil),
@@ -60,14 +61,27 @@ struct TransfersSplitView: View {
         .task { await load() }
         .onAppear(perform: openDeepLinkedTeamIfNeeded)
         .onChange(of: deepLinkedTeamId) { _, _ in openDeepLinkedTeamIfNeeded() }
-        .onChange(of: selection) { _, _ in Haptics.play(.selection) }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
+        .onChange(of: selection) { _, _ in
+            Haptics.play(.selection)
+            if AdaptiveLayoutPolicy.collapsesSidebarOnSelection(windowWidth: windowWidth) {
+                withAnimation { columnVisibility = .detailOnly }
+            }
+        }
     }
 
     @ViewBuilder private var sidebar: some View {
         if let data {
             List(selection: $selection) {
-                Label(localeService.t("Movimientos", "Moves"), systemImage: "arrow.left.arrow.right")
-                    .tag(TransfersSidebarItem.market)
+                Label {
+                    Text(localeService.t("Movimientos", "Moves"))
+                        .foregroundStyle(sidebarText(selected: selection == .market))
+                } icon: {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .foregroundStyle(selection == .market ? AppTheme.onAccent : AppTheme.accent)
+                }
+                .tag(TransfersSidebarItem.market)
+                .listRowBackground(sidebarRowBackground(selected: selection == .market))
                 ForEach(TransfersLogic.divisions, id: \.self) { division in
                     let teams = TransfersLogic.divisionTeams(data.seasons, division: division)
                     if !teams.isEmpty {
@@ -75,6 +89,7 @@ struct TransfersSplitView: View {
                             ForEach(teams, id: \.teamId) { season in
                                 teamRow(season)
                                     .tag(TransfersSidebarItem.team(season.teamId))
+                                    .listRowBackground(sidebarRowBackground(selected: selection == .team(season.teamId)))
                             }
                         }
                     }
@@ -106,11 +121,32 @@ struct TransfersSplitView: View {
         HStack(spacing: 8) {
             Text(season.name ?? "")
                 .ccFont(.s14, weight: .medium)
+                .foregroundStyle(sidebarText(selected: selection == .team(season.teamId)))
                 .fixedSize(horizontal: false, vertical: true)
             if season.continuityDoubt == true {
                 Spacer(minLength: 4)
                 DoubtBadge(text: localeService.t("En duda", "TBC"))
             }
+        }
+    }
+
+    /// El sistema rellena la fila elegida con el acento (lima en oscuro) cuando
+    /// la columna tiene el foco, o de gris cuando no, y le pone el texto en
+    /// blanco, que no se lee sobre el lima. La fila elegida lleva siempre el
+    /// relleno de acento con el texto sobre acento: oscuro sobre lima, blanco
+    /// sobre el azul de claro.
+    private func sidebarText(selected: Bool) -> Color {
+        selected ? AppTheme.onAccent : .primary
+    }
+
+    @ViewBuilder private func sidebarRowBackground(selected: Bool) -> some View {
+        if selected {
+            Capsule(style: .continuous)
+                .fill(AppTheme.accent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 2)
+        } else {
+            Color.clear
         }
     }
 
@@ -235,7 +271,7 @@ struct TransfersView: View {
             }
         }
         .navigationDestination(item: $teamRoute) { route in
-            TransfersTeamView(teamId: route.teamId)
+            TransfersTeamView(teamId: route.teamId, preloadedMarket: data)
         }
         .task { await load() }
         .onChange(of: filters) { _, newValue in newValue.save() }

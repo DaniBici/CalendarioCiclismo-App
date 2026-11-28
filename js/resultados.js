@@ -37,6 +37,7 @@ import { supabase, setMeta, setMetaProperty, raceName as getRaceName, enBase, lo
          setRaceRobots, raceSearchName, deArticulo, seoLongDateWeekday, seoDayMonth,
          embeddedId, orEqFilter, pickByPreference, esc, visitorTimeZoneLabel, filterBroadcastsByRegion } from './shared.js';
 import { isNearToday } from './services/refresh-window.js';
+import { feedPageFromPath } from './results/feed-pages.js';
 import { getLang, initI18n } from './i18n.js';
 
 const stickyHeightObservers = new Map();
@@ -147,7 +148,8 @@ async function init(i18nReady = Promise.resolve()) {
   }
 
   let stageFromPath; // segmento de etapa leído del path (string)
-  if (!raceId && !raceSlug) {
+  // /resultados/ciclocross/ no es una carrera: es una vista de Últimos resultados.
+  if (!raceId && !raceSlug && !feedPageFromPath(location.pathname)) {
     const m = location.pathname.match(/^\/(?:resultados|en\/results)\/([^\/]+)(?:\/([^\/]+))?\/?$/);
     if (m) {
       raceSlug = decodeURIComponent(m[1]);
@@ -158,6 +160,7 @@ async function init(i18nReady = Promise.resolve()) {
   // ── Sin carrera → feed "Últimos resultados" ────────────────────────
   // El bare /resultados/ (ES) y /en/results/ (EN) son el ÍNDICE del sitio de
   // resultados: etapas y clásicas en cronología inversa (decisión 2026-06-11).
+  // Ciclocross y el ránking UCI tienen su página (results/feed-pages.js).
   // El módulo del feed se carga en diferido para no engordar las páginas de
   // carrera, que son la ruta caliente.
   if (!raceId && !raceSlug) {

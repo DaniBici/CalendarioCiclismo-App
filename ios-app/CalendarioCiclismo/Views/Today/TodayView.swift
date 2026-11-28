@@ -42,6 +42,8 @@ struct TodayView: View {
     @State private var stageVideosRoute: StageVideosRoute?
     @State private var highlightedStageDayId: IdentifiableID?
     @State private var startlistRouteRaceId: IdentifiableID?
+    /// Carrera de la hoja «Busca dorsal».
+    @State private var bibSearchRace: Race?
     @State private var startOrderRouteRaceDayId: IdentifiableID?
     /// Burbujas de la primera visita (Filtros y Ordenar).
     @State private var tips = TodayTips.group(.road)
@@ -232,6 +234,12 @@ struct TodayView: View {
             }
             .navigationDestination(item: $startlistRouteRaceId) { wrapper in
                 StartlistView(raceId: wrapper.id)
+            }
+            .sheet(item: $bibSearchRace) { race in
+                BibSearchSheet(race: race) {
+                    bibSearchRace = nil
+                    startlistRouteRaceId = IdentifiableID(id: race.id)
+                }
             }
             .navigationDestination(item: $startOrderRouteRaceDayId) { wrapper in
                 StartOrderView(raceDayId: wrapper.id)
@@ -731,6 +739,9 @@ struct TodayView: View {
                         if let race = item.race {
                             startlistRouteRaceId = IdentifiableID(id: race.id)
                         }
+                    } : nil,
+                    onSearchBib: raceState == .running ? {
+                        bibSearchRace = item.race
                     } : nil,
                     onStartOrderTap: {
                         startOrderRouteRaceDayId = IdentifiableID(id: item.raceDay.id)

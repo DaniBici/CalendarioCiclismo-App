@@ -133,6 +133,9 @@
         '/apps/':        '/en/apps/',
         '/betaandroid.html': '/en/apps/',
         '/resultados/':  '/en/results/',
+        '/resultados/ciclocross/': '/en/results/cyclocross/',
+        '/ranking-uci/': '/en/uci-ranking/',
+        '/ranking-uci/femenino/': '/en/uci-ranking/women/',
         '/fichajes/':    '/en/transfers/',
         '/privacidad.html': '/en/privacy/',
         '/terminos.html': '/en/terms/',
@@ -186,6 +189,9 @@
           '/open/':         '/abierto/',
           '/support/':      '/apoyar/',
           '/results/':      '/resultados/',
+          '/results/cyclocross/': '/resultados/ciclocross/',
+          '/uci-ranking/':  '/ranking-uci/',
+          '/uci-ranking/women/': '/ranking-uci/femenino/',
           '/transfers/':    '/fichajes/',
           '/privacy/':      '/privacidad.html',
           '/terms/':        '/terminos.html',
@@ -215,7 +221,10 @@
       if (path.startsWith('/en/support/')) return '/apoyar/' + qs;
       if (path.startsWith('/en/apps/')) return '/apps/' + qs;
       if (path.startsWith('/en/beta/')) return '/apps/' + qs;
+      if (path === '/en/results/cyclocross/') return '/resultados/ciclocross/' + qs;
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;
+      if (path === '/en/uci-ranking/women/') return '/ranking-uci/femenino/' + qs;
+      if (path.startsWith('/en/uci-ranking/')) return '/ranking-uci/' + qs;
       if (path.startsWith('/en/transfers/')) return '/fichajes/' + qs;
       if (path.startsWith('/en/privacy/')) return '/privacidad.html' + qs;
       if (path.startsWith('/en/terms/')) return '/terminos.html' + qs;

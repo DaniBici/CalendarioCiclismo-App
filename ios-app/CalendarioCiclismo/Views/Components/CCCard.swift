@@ -7,6 +7,23 @@ enum AdaptiveLayoutPolicy {
     static let twoColumnThreshold: CGFloat = 620
     static let detailThreshold: CGFloat = 820
     static let spacing: CGFloat = 12
+    /// Columna lateral de contexto junto a una clasificación (perfil y datos
+    /// de la jornada; mapa y horarios de ciclocross): 280 pt y 320 pt desde
+    /// 1100 pt de contenedor, como `.res-layout--context` de la web. En un
+    /// iPad en vertical la clasificación conserva así cerca de dos tercios.
+    static func contextColumnWidth(containerWidth: CGFloat) -> CGFloat {
+        containerWidth >= 1100 ? 320 : 280
+    }
+
+    /// Por debajo de este ancho de ventana (iPad en vertical, pantalla
+    /// interior del iPhone Duo), la columna lateral de una vista dividida se
+    /// oculta al elegir un elemento: el detalle se queda con todo el ancho
+    /// y vuelve a tener columna de contexto. El botón de la barra la reabre.
+    static let splitCollapseThreshold: CGFloat = 1100
+
+    static func collapsesSidebarOnSelection(windowWidth: CGFloat) -> Bool {
+        windowWidth > 0 && windowWidth < splitCollapseThreshold
+    }
     /// Ancho máximo del cintillo de destacadas y del selector de días de Hoy:
     /// en ventanas anchas quedan centrados en lugar de recorrer toda la
     /// ventana (Android: `HEADER_STRIP_MAX_DP`).

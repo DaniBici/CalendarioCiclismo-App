@@ -5,13 +5,23 @@ import { recordAutomationSourceRun } from '../automation-monitor.mjs';
 import { databaseUrl, PG_CONNECTION_LIMITS } from '../db/env.mjs';
 
 /**
- * Sincroniza la instantánea vigente del ránking UCI de equipos.
+ * Sincroniza las instantáneas oficiales del ránking UCI de equipos y recalcula
+ * el ránking publicado (public.uci_team_rankings).
  *
  * - DataRide se consulta fuera de la transacción.
- * - Los equipos se resuelven contra team_seasons + teams del año UCI.
+ * - Se leen la temporada publicada y las posteriores ya empezadas: el ránking
+ *   final de la cerrada y el de la temporada en curso se guardan por separado
+ *   en public.uci_team_ranking_official.
+ * - Los equipos se resuelven contra team_seasons + teams del año UCI y, para
+ *   los equipos sin temporada de ese año, contra la del anterior.
  * - Sin --apply solo valida y muestra el resumen (no escribe).
  * - Con --fetch-only ni siquiera necesita DATABASE_URL.
- * - Con --apply sustituye hombres + mujeres en una transacción corta.
+ * - Con --apply actualiza las filas de cada equipo publicado (los ausentes
+ *   conservan su última fila) y después llama a
+ *   public.refresh_uci_team_rankings(), que suma a la última instantánea
+ *   oficial los puntos de las clasificaciones oficiales posteriores y resta
+ *   las penalizaciones manuales.
+ * - Con --refresh-only no consulta DataRide: solo recalcula (timer de 15 min).
  */
 
 const DATARIDE_BASE = 'https://dataride.uci.ch/iframe';
@@ -25,7 +35,6 @@ const RANKINGS = [
   { gender: 'female', categoryId: 23, groupId: 2, rankingId: 35 },
 ];
 
-const TOP_DIVISIONS = new Set(['WT', 'PT', 'WWT', 'PRW']);
 const GENERIC_NAME_WORDS = new Set([
   'team', 'cycling', 'cyclisme', 'pro', 'professional', 'continental',
   'women', 'womens', 'woman', 'femme', 'femmes',
@@ -33,6 +42,7 @@ const GENERIC_NAME_WORDS = new Set([
 
 const shouldApply = process.argv.includes('--apply');
 const fetchOnly = process.argv.includes('--fetch-only');
+const refreshOnly = process.argv.includes('--refresh-only');
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -57,12 +67,6 @@ async function fetchJson(path, init = {}) {
 function microsoftDateMillis(value) {
   const match = String(value || '').match(/Date\(([-\d]+)\)/);
   return match ? Number(match[1]) : Number.NaN;
-}
-
-function isActiveSeason(season, now) {
-  const start = microsoftDateMillis(season.StartDate);
-  const end = microsoftDateMillis(season.EndDate);
-  return Number.isFinite(start) && Number.isFinite(end) && start <= now && now <= end;
 }
 
 function rankingDate(moment) {
@@ -94,27 +98,23 @@ async function fetchLatestMoment(config, season) {
     .sort((a, b) => momentTimestamp(b) - momentTimestamp(a))[0] || null;
 }
 
+function seasonDate(value) {
+  const millis = microsoftDateMillis(value);
+  invariant(Number.isFinite(millis), `Fecha de temporada inesperada: ${value}`);
+  // DataRide da la medianoche de Europa central en UTC (22:00 o 23:00 del día anterior).
+  return new Date(millis).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' });
+}
+
 /**
- * Temporada activa si ya publica fechas en ambos rankings; si no, la más
- * reciente que las tenga. DataRide cerró 2025 el 19/10 con un ránking final
- * de esa fecha, y la temporada 2026 (desde el 20/10/2025) no tuvo fechas
- * hasta el 20/01/2026.
- *
- * Una temporada no cuenta hasta enero de su año: el ránking final de la
- * cerrada se mantiene aunque la nueva publique fechas antes (2027 abrió el
- * 27/10/2026 con 13 equipos masculinos y 5 femeninos).
+ * Temporadas que se sincronizan: la publicada y las posteriores que ya hayan
+ * empezado. DataRide abre la temporada nueva al día siguiente del cierre (2027
+ * empezó el 19-10-2026 y publicó su primera fecha el 27-10-2026).
  */
-export async function resolveSeason(seasons, latestMomentFor = fetchLatestMoment, now = Date.now()) {
-  const ordered = seasons
-    .filter((season) => Date.UTC(Number(season.Year), 0, 1) <= now)
-    .sort((a, b) =>
-      Number(isActiveSeason(b, now)) - Number(isActiveSeason(a, now)) ||
-      Number(b.Year) - Number(a.Year));
-  for (const season of ordered.slice(0, 3)) {
-    const moments = await Promise.all(RANKINGS.map((config) => latestMomentFor(config, season)));
-    if (moments.every(Boolean)) return { season, moments };
-  }
-  throw new Error('DataRide no ofrece fechas de ránking en las temporadas recientes');
+export function seasonsToSync(seasons, publishedYear, now = Date.now()) {
+  return seasons
+    .filter((season) => Number(season.Year) >= Number(publishedYear))
+    .filter((season) => microsoftDateMillis(season.StartDate) <= now)
+    .sort((a, b) => Number(a.Year) - Number(b.Year));
 }
 
 async function fetchRanking(config, season, moment) {
@@ -164,14 +164,21 @@ async function fetchRanking(config, season, moment) {
     uciTeamId: Number(row.TeamId ?? row.ObjectId),
     sourceName: String(row.TeamName ?? row.ObjectName ?? '').trim(),
     teamCode: String(row.TeamCode ?? '').trim() || null,
-    countryCode: String(row.CountryIsoCode2 ?? '').trim().toUpperCase() || null,
+    // DataRide da «--» a los equipos sin país (WCC Team de la UCI): sin bandera.
+    countryCode: countryCode(row.CountryIsoCode2),
     points: Number(row.Points),
+    sanctionPoints: row.SanctionPoints == null ? null : Number(row.SanctionPoints),
     rankingDate: date,
     rankingId: config.rankingId,
     momentId: Number(moment.Id),
     disciplineSeasonId: Number(season.Id),
     sourceUrl,
   }));
+}
+
+function countryCode(value) {
+  const code = String(value ?? '').trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : null;
 }
 
 function normalizedName(value) {
@@ -318,43 +325,11 @@ export function resolveTeams(rows, seasons) {
   });
 }
 
-export function missingTopDivision(rows, seasons) {
-  const matchedIds = new Set(rows.map((row) => row.teamId).filter(Boolean));
-  return seasons.filter(
-    (season) => TOP_DIVISIONS.has(season.category) && !matchedIds.has(season.teamId),
-  );
-}
-
-/**
- * Una temporada nueva sustituye a la anterior cuando su lista incluye todos los
- * equipos de máxima división; hasta entonces se conserva la anterior. Con la
- * temporada ya en la tabla, un equipo ausente vuelve a ser un error.
- */
-export async function selectSnapshot(seasons, storedRows, loadRows, resolve = resolveSeason) {
-  const chosen = await resolve(seasons);
-  const candidate = { ...chosen, ...(await loadRows(chosen)) };
-  const inTable = storedRows.some(
-    (row) => Number(row.disciplineSeasonId) === Number(chosen.season.Id),
-  );
-  let selected = { ...candidate, pending: null };
-  if (candidate.missing.length && !inTable) {
-    const closed = await resolve(
-      seasons.filter((season) => Number(season.Year) < Number(chosen.season.Year)),
-    );
-    selected = { ...closed, ...(await loadRows(closed)), pending: candidate };
-  }
-  invariant(
-    selected.missing.length === 0,
-    `Faltan equipos de máxima división: ${selected.missing
-      .map((season) => `${season.category}:${season.seasonName || season.baseName}`)
-      .join(', ')}`,
-  );
-  return selected;
-}
-
+// Temporada del año del ránking y, para los equipos que aún no la tienen (altas
+// de 2027 pendientes), la del año anterior: la identidad del equipo es la misma.
 async function loadTeamSeasons(client, year) {
   const { rows } = await client.query(
-    `select
+    `select distinct on (ts."teamId")
        ts."teamId",
        ts.name as "seasonName",
        ts."nameAliases" as "seasonNameAliases",
@@ -367,51 +342,48 @@ async function loadTeamSeasons(client, year) {
        t."countryCode"
      from public.team_seasons ts
      join public.teams t on t.id = ts."teamId"
-     where ts.year = $1`,
+     where ts.year in ($1, $1 - 1)
+     order by ts."teamId", ts.year desc`,
     [year],
   );
   return rows;
 }
 
-async function replaceSnapshot(client, rows) {
-  const columns = [
-    'gender', 'rank', '"previousRank"', '"uciTeamId"', '"teamId"',
-    '"teamCategory"', '"sourceName"', '"displayName"', '"teamCode"',
-    '"countryCode"', 'points', '"rankingDate"', '"rankingId"', '"momentId"',
-    '"disciplineSeasonId"', '"sourceUrl"', '"syncedAt"',
-  ];
+const OFFICIAL_COLUMNS = [
+  'seasonYear', 'gender', 'rank', 'previousRank', 'uciTeamId', 'teamId',
+  'teamCategory', 'sourceName', 'displayName', 'teamCode', 'countryCode',
+  'points', 'sanctionPoints', 'rankingDate', 'rankingId', 'momentId',
+  'disciplineSeasonId', 'sourceUrl',
+];
+
+async function upsertOfficial(client, seasonYear, rows) {
   const values = [];
   const tuples = rows.map((row, rowIndex) => {
-    const offset = rowIndex * columns.length;
-    values.push(
-      row.gender,
-      row.rank,
-      row.previousRank,
-      row.uciTeamId,
-      row.teamId,
-      row.teamCategory,
-      row.sourceName,
-      row.displayName,
-      row.teamCode,
-      row.countryCode,
-      row.points,
-      row.rankingDate,
-      row.rankingId,
-      row.momentId,
-      row.disciplineSeasonId,
-      row.sourceUrl,
-      new Date(),
+    const offset = rowIndex * (OFFICIAL_COLUMNS.length + 1);
+    values.push(...OFFICIAL_COLUMNS.map((column) => (
+      column === 'seasonYear' ? seasonYear : row[column] ?? null
+    )), new Date());
+    const placeholders = Array.from(
+      { length: OFFICIAL_COLUMNS.length + 1 },
+      (_, columnIndex) => `$${offset + columnIndex + 1}`,
     );
-    return `(${columns.map((_, columnIndex) => `$${offset + columnIndex + 1}`).join(',')})`;
+    return `(${placeholders.join(',')})`;
   });
+  const columnList = [...OFFICIAL_COLUMNS, 'syncedAt'].map((column) => `"${column}"`).join(',');
 
   await client.query('begin');
   try {
     await client.query(`set local statement_timeout = '30s'`);
     await client.query(`select pg_advisory_xact_lock(hashtext('uci_team_rankings_sync'))`);
-    await client.query('delete from public.uci_team_rankings');
+    // Sin borrar los equipos ausentes: en enero la UCI vacía el ránking y repone
+    // los equipos según los registra; cada uno conserva su última fila oficial.
+    const updates = [...OFFICIAL_COLUMNS, 'syncedAt']
+      .filter((column) => !['seasonYear', 'gender', 'uciTeamId'].includes(column))
+      .map((column) => `"${column}" = excluded."${column}"`)
+      .join(', ');
     await client.query(
-      `insert into public.uci_team_rankings (${columns.join(',')}) values ${tuples.join(',')}`,
+      `insert into public.uci_team_ranking_official (${columnList}) values ${tuples.join(',')}
+       on conflict ("seasonYear", gender, "uciTeamId") do update set ${updates}`,
       values,
     );
     await client.query('commit');
@@ -421,10 +393,25 @@ async function replaceSnapshot(client, rows) {
   }
 }
 
+async function upsertSeason(client, season) {
+  await client.query(
+    `insert into public.uci_ranking_seasons ("seasonYear", "startDate", "endDate", "dataRideSeasonId")
+     values ($1, $2, $3, $4)
+     on conflict ("seasonYear") do update set
+       "startDate" = excluded."startDate",
+       "endDate" = excluded."endDate",
+       "dataRideSeasonId" = excluded."dataRideSeasonId",
+       "updatedAt" = now()
+     where (uci_ranking_seasons."startDate", uci_ranking_seasons."endDate", uci_ranking_seasons."dataRideSeasonId")
+       is distinct from (excluded."startDate", excluded."endDate", excluded."dataRideSeasonId")`,
+    [Number(season.Year), seasonDate(season.StartDate), seasonDate(season.EndDate), Number(season.Id)],
+  );
+}
+
 const SNAPSHOT_FIELDS = [
   'gender', 'rank', 'previousRank', 'uciTeamId', 'teamId', 'teamCategory',
-  'sourceName', 'displayName', 'teamCode', 'countryCode', 'points', 'rankingDate',
-  'sourceUrl',
+  'sourceName', 'displayName', 'teamCode', 'countryCode', 'points', 'sanctionPoints',
+  'rankingDate', 'sourceUrl',
 ];
 
 function snapshotKey(row) {
@@ -434,7 +421,9 @@ function snapshotKey(row) {
 // points es numeric(…, 2): pg devuelve "2018.00" y DataRide, 2018.
 function signatureValue(field, value) {
   if (value === null || value === undefined) return '';
-  return field === 'points' ? Number(value).toFixed(2) : String(value);
+  return field === 'points' || field === 'sanctionPoints'
+    ? Number(value).toFixed(2)
+    : String(value);
 }
 
 function snapshotSignature(row) {
@@ -465,21 +454,31 @@ export function storedIsNewer(rows, storedRows) {
   return rows.some((row) => latest.has(row.gender) && latest.get(row.gender) > row.rankingDate);
 }
 
-async function loadStoredRows(client) {
+async function loadStoredRows(client, seasonYear) {
   const { rows } = await client.query(
     `select gender, rank, "previousRank", "uciTeamId", "teamId", "teamCategory",
             "sourceName", "displayName", "teamCode", "countryCode", points,
-            "rankingDate"::text as "rankingDate", "sourceUrl", "disciplineSeasonId"
-     from public.uci_team_rankings`,
+            "sanctionPoints", "rankingDate"::text as "rankingDate", "sourceUrl"
+     from public.uci_team_ranking_official
+     where "seasonYear" = $1`,
+    [seasonYear],
   );
   return rows;
 }
 
+async function latestMoments(season) {
+  return Promise.all(RANKINGS.map((config) => fetchLatestMoment(config, season)));
+}
+
+// Un género sin fechas publicadas en la temporada (inicio de temporada) se omite.
 async function fetchRankings({ season, moments }) {
   invariant(season?.Id && season?.Year, 'No se pudo determinar la temporada de DataRide');
-  return Promise.all(
-    RANKINGS.map((config, index) => fetchRanking(config, season, moments[index])),
+  const groups = await Promise.all(
+    RANKINGS.map((config, index) => (
+      moments[index] ? fetchRanking(config, season, moments[index]) : null
+    )),
   );
+  return groups.filter(Boolean);
 }
 
 function rankingSummary(rankingGroups) {
@@ -490,20 +489,7 @@ function rankingSummary(rankingGroups) {
   }));
 }
 
-async function main() {
-  const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
-
-  if (fetchOnly) {
-    const chosen = await resolveSeason(seasons);
-    console.log(JSON.stringify({
-      ok: true,
-      season: Number(chosen.season.Year),
-      rankings: rankingSummary(await fetchRankings(chosen)),
-      applied: false,
-    }));
-    return;
-  }
-
+async function openClient() {
   invariant(databaseUrl(), 'Falta DATABASE_URL (usa --fetch-only para validar solo DataRide)');
   const { Client } = await import('pg');
   const client = new Client({
@@ -514,67 +500,107 @@ async function main() {
     ...PG_CONNECTION_LIMITS,
   });
   await client.connect();
-  try {
-    const storedRows = await loadStoredRows(client);
-    const { season, rankingGroups, rows, pending } = await selectSnapshot(
-      seasons,
-      storedRows,
-      async (chosen) => {
-        const groups = await fetchRankings(chosen);
-        const teamSeasons = await loadTeamSeasons(client, Number(chosen.season.Year));
-        const resolved = resolveTeams(groups.flat(), teamSeasons);
-        return {
-          rankingGroups: groups,
-          rows: resolved,
-          missing: missingTopDivision(resolved, teamSeasons),
-        };
-      },
-    );
-    const unmatched = rows.filter((row) => !row.teamId);
-    if (unmatched.length) {
-      console.warn(
-        `Aviso: ${unmatched.length} equipos sin asociación canónica:\n` +
-        unmatched.map((row) => `- ${row.gender} #${row.rank} ${row.sourceName} (${row.matchIssue})`).join('\n'),
-      );
+  return client;
+}
+
+async function refreshPublished(client) {
+  const { rows } = await client.query('select public.refresh_uci_team_rankings() as result');
+  return rows[0].result;
+}
+
+async function syncSeason(client, season) {
+  const year = Number(season.Year);
+  const rankingGroups = await fetchRankings({ season, moments: await latestMoments(season) });
+  if (!rankingGroups.length) {
+    return { season: year, rankings: [], matched: 0, unmatched: [], applied: false };
+  }
+  const teamSeasons = await loadTeamSeasons(client, year);
+  const rows = resolveTeams(rankingGroups.flat(), teamSeasons);
+  const storedRows = await loadStoredRows(client, year);
+  const genders = rankingGroups.map((group) => group[0].gender);
+  const storedForGenders = storedRows.filter((row) => genders.includes(row.gender));
+  const storedNewer = storedIsNewer(rows, storedForGenders);
+  // Las filas conservadas de equipos ausentes no cuentan para la comparación.
+  const freshKeys = new Set(rows.map((row) => `${row.gender}:${row.uciTeamId}`));
+  const alreadyCurrent = !storedNewer && snapshotIsCurrent(
+    rows,
+    storedSnapshot(storedForGenders.filter((row) => freshKeys.has(`${row.gender}:${row.uciTeamId}`))),
+  );
+  const applied = shouldApply && !storedNewer && !alreadyCurrent;
+  if (shouldApply) await upsertSeason(client, season);
+  if (applied) await upsertOfficial(client, year, rows);
+  const unmatched = rows.filter((row) => !row.teamId);
+  return {
+    season: year,
+    rankings: rankingSummary(rankingGroups),
+    matched: rows.length - unmatched.length,
+    unmatched: unmatched.map((row) => `${row.gender} #${row.rank} ${row.sourceName} (${row.matchIssue})`),
+    applied,
+    alreadyCurrent,
+    storedNewer,
+  };
+}
+
+async function main() {
+  if (refreshOnly) {
+    const client = await openClient();
+    try {
+      console.log(JSON.stringify({ ok: true, refresh: await refreshPublished(client) }));
+    } finally {
+      await client.end();
     }
-    const storedNewer = shouldApply && storedIsNewer(rows, storedRows);
-    const alreadyCurrent = shouldApply && !storedNewer &&
-      snapshotIsCurrent(rows, storedSnapshot(storedRows));
-    const applied = shouldApply && !storedNewer && !alreadyCurrent;
-    if (applied) await replaceSnapshot(client, rows);
+    return;
+  }
+
+  const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
+
+  if (fetchOnly) {
+    const latest = seasons
+      .filter((season) => microsoftDateMillis(season.StartDate) <= Date.now())
+      .sort((a, b) => Number(b.Year) - Number(a.Year))
+      .slice(0, 2);
+    const summaries = [];
+    for (const season of latest) {
+      const groups = await fetchRankings({ season, moments: await latestMoments(season) });
+      summaries.push({ season: Number(season.Year), rankings: rankingSummary(groups) });
+    }
+    console.log(JSON.stringify({ ok: true, seasons: summaries, applied: false }));
+    return;
+  }
+
+  const client = await openClient();
+  try {
+    const { rows: published } = await client.query(
+      'select "seasonYear" from public.uci_ranking_seasons where "isPublished"',
+    );
+    invariant(published.length === 1, 'No hay una temporada de ránking publicada');
+    const results = [];
+    for (const season of seasonsToSync(seasons, published[0].seasonYear)) {
+      results.push(await syncSeason(client, season));
+    }
+    const unmatched = results.flatMap((result) => result.unmatched);
+    if (unmatched.length) {
+      console.warn(`Aviso: ${unmatched.length} equipos sin asociación canónica:\n- ${unmatched.join('\n- ')}`);
+    }
+    const refresh = shouldApply ? await refreshPublished(client) : null;
 
     if (process.env.CC_AUTOMATION_RUN_ID) {
+      const found = results.reduce((sum, result) => sum + result.matched + result.unmatched.length, 0);
       await recordAutomationSourceRun(client, {
         runId: process.env.CC_AUTOMATION_RUN_ID,
         source: 'uci_team_ranking',
-        status: pending ? 'warning' : 'success',
-        itemsFound: rows.length,
-        itemsMatched: rows.length - unmatched.length,
-        itemsChanged: applied ? rows.length : 0,
-        summary: pending ? {
-          note: `Temporada ${pending.season.Year} retenida: su lista no incluye ` +
-            `${pending.missing.length} equipos de máxima división. ` +
-            `Se mantiene ${season.Year}.`,
-        } : {},
+        status: unmatched.length ? 'warning' : 'success',
+        itemsFound: found,
+        itemsMatched: found - unmatched.length,
+        itemsChanged: results.filter((result) => result.applied).length,
+        summary: {
+          seasons: results.map(({ season, rankings, applied }) => ({ season, rankings, applied })),
+          refresh,
+        },
       });
     }
 
-    console.log(JSON.stringify({
-      ok: true,
-      season: Number(season.Year),
-      rankings: rankingSummary(rankingGroups),
-      matched: rows.length - unmatched.length,
-      unmatched: unmatched.length,
-      applied,
-      alreadyCurrent,
-      storedNewer,
-      pendingSeason: pending && {
-        season: Number(pending.season.Year),
-        rankings: rankingSummary(pending.rankingGroups),
-        missingTopDivision: pending.missing.length,
-        unmatched: pending.rows.filter((row) => !row.teamId).map((row) => row.sourceName),
-      },
-    }));
+    console.log(JSON.stringify({ ok: true, seasons: results, refresh }));
   } finally {
     await client.end();
   }

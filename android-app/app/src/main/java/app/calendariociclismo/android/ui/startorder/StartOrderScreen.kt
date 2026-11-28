@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.startorder
 
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import android.os.Bundle
 import androidx.compose.foundation.background
@@ -271,7 +272,8 @@ private fun StartOrderContent(
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     ) {
-        val wide = adaptiveInfo.supportsTwoPanes && maxWidth >= 700.dp && hasStageContext
+        val wide = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo) && hasStageContext
+        val contextColumnWidth = AdaptiveLayoutPolicy.contextColumnDp(maxWidth.value).dp
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             // Margen de la jornada: la cabecera ocupa el mismo ancho.
@@ -303,7 +305,7 @@ private fun StartOrderContent(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                             content = tableContent,
                         )
-                        Box(Modifier.width(320.dp)) {
+                        Box(Modifier.width(contextColumnWidth)) {
                             ResultsStageContextCard(
                                 raceDay = wideDay,
                                 race = wideRace,

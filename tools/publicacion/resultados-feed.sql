@@ -44,6 +44,8 @@ select
      from riders_men m where not m."historicalCatalogOnly" and m.id in (select id from fichas)) as riders_men,
   (select coalesce(json_agg(json_build_object('id', w.id, 'firstName', w."firstName", 'lastName', w."lastName", 'nationality', w.nationality) order by w.id), '[]'::json)
      from riders_women w where not w."historicalCatalogOnly" and w.id in (select id from fichas)) as riders_women,
+  (select coalesce(json_agg(json_build_object('riderId', h."riderId", 'firstName', h."firstName", 'lastName', h."lastName", 'validTo', h."validTo") order by h."riderId", h."validTo"), '[]'::json)
+     from rider_name_history h) as rider_name_history,
   (select coalesce(json_agg(to_json(s) order by s.id), '[]'::json) from inscritos s) as startlist_riders_resolved,
   (select coalesce(json_agg(to_json(l) order by l.id), '[]'::json) from equipos_lista l) as startlist_teams,
   (select coalesce(json_agg(json_build_object('id', t.id, 'name', t.name, 'teamKind', t."teamKind", 'selectionScope', t."selectionScope",
@@ -54,7 +56,9 @@ select
      from featured_races_for_dates((select array_agg(distinct d."dateKey") from jornadas d where d."dateKey" >= '2026-01-01')) f) as featured,
   (select coalesce(json_agg(json_build_object('gender', r.gender, 'rank', r.rank, 'previousRank', r."previousRank", 'uciTeamId', r."uciTeamId",
             'teamId', r."teamId", 'teamCategory', r."teamCategory", 'sourceName', r."sourceName", 'displayName', r."displayName",
-            'teamCode', r."teamCode", 'countryCode', r."countryCode", 'points', r.points, 'rankingDate', r."rankingDate", 'sourceUrl', r."sourceUrl")
+            'teamCode', r."teamCode", 'countryCode', r."countryCode", 'points', r.points, 'rankingDate', r."rankingDate", 'sourceUrl', r."sourceUrl",
+            'seasonYear', r."seasonYear", 'officialPoints', r."officialPoints", 'provisionalPoints', r."provisionalPoints",
+            'penaltyPoints', r."penaltyPoints", 'officialRankingDate', r."officialRankingDate", 'syncedAt', r."syncedAt")
           order by r.gender, r.rank), '[]'::json) from uci_team_rankings r) as uci_team_rankings,
   (select coalesce(json_agg(json_build_object('id', x.id, 'raceId', x."raceId", 'category', x.category, 'riderDisplay', x."riderDisplay",
             'teamName', x."teamName", 'rank', x.rank) order by x.id), '[]'::json)

@@ -66,6 +66,7 @@ internal object ResultsRowsCache {
             else repository.enrichRidersByGlobalId(
                 unmatchedIds,
                 includeCurrentTeam = raceYear == java.time.Year.now(java.time.ZoneId.of("Europe/Madrid")).value,
+                raceId = loaded.firstOrNull()?.raceId,
             )
         // Override de equipo: resolver los teamId de override a su equipo canónico.
         val overrideIds = loaded.mapNotNull { it.teamId }

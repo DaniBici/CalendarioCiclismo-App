@@ -765,6 +765,7 @@ button.feed-row {
 .uci-ranking-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.35rem 0 0.75rem; }
 .uci-ranking-gender-tabs { margin: 0; }
 .uci-ranking-updated { margin: 0; color: var(--text-muted); font-size: var(--fs-1); }
+.uci-ranking-basis { margin: -0.35rem 0 0.75rem; color: var(--text-muted); font-size: var(--fs-1); }
 /* Explicación de las etiquetas: panel a la izquierda desde 761 px, encima
    de la lista en una columna. */
 .uci-ranking-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; }

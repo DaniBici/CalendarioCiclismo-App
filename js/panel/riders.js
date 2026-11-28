@@ -175,6 +175,34 @@ function riderEditorBodyHtml() {
         <label for="re-verified" class="re-verified-label">Verificado <span class="u-dim">— marca cuando los datos del corredor estén revisados y completos</span></label>
         <span id="re-source-info" class="u-ml-auto u-fs-1 u-c-dim"></span>
       </div>
+      <details class="field u-span-all" id="re-namechange" style="display:none">
+        <summary>Cambio de nombre con vigencia…</summary>
+        <div class="u-fs-1 u-c-dim u-mt-025">
+          Para un cambio real de nombre o apellido (p. ej., por matrimonio). Guarda el nombre actual como nombre anterior hasta el último día indicado y pone el nuevo en la ficha: las carreras que empiezan hasta esa fecha siguen mostrando el nombre anterior. El nombre anterior pasa a «Otros nombres». Para corregir una errata, edita el nombre arriba: eso lo cambia en todas partes.
+        </div>
+        <div class="u-grid u-cols-2 u-gap-075 u-mt-050">
+          <div class="field">
+            <label>Nombre nuevo</label>
+            <input type="text" id="re-nc-first" class="u-w-full">
+          </div>
+          <div class="field">
+            <label>Apellido(s) nuevo(s)</label>
+            <input type="text" id="re-nc-last" class="u-w-full">
+          </div>
+          <div class="field">
+            <label>Último día del nombre actual</label>
+            <input type="date" id="re-nc-validTo" class="u-w-full">
+          </div>
+          <div class="field">
+            <label>Fuente <span class="u-dim">— URL, opcional</span></label>
+            <input type="url" id="re-nc-source" class="u-w-full" autocomplete="off">
+          </div>
+        </div>
+        <div class="u-row u-gap-075 u-mt-050">
+          <button type="button" class="btn btn--ghost" id="re-nc-apply">Aplicar cambio de nombre</button>
+          <span class="u-fs-2 u-c-dim" id="re-nc-status"></span>
+        </div>
+      </details>
     </div>
     <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveRiderBtn">Guardar</button>
@@ -190,6 +218,7 @@ function wireRiderEditor() {
   document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
   document.getElementById('deleteRiderBtn').addEventListener('click', deleteRider);
   document.getElementById('mergeRiderBtn').addEventListener('click', openMergeRiderPicker);
+  document.getElementById('re-nc-apply').addEventListener('click', applyRiderNameChange);
   document.getElementById('re-nationality').addEventListener('input', (e) => {
     const code = e.target.value.trim().toLowerCase();
     document.getElementById('re-nationality-flag').innerHTML = _slRiderFlagPreview(code);
@@ -245,6 +274,8 @@ export function openRiderEditor(riderId, { level = _riderEditorLevel, loading = 
 
     document.getElementById('deleteRiderBtn').style.display = rider ? '' : 'none';
     document.getElementById('mergeRiderBtn').style.display  = rider ? '' : 'none';
+    // Cambio de nombre con vigencia: solo al EDITAR una ficha existente.
+    document.getElementById('re-namechange').style.display  = rider ? '' : 'none';
     document.getElementById('riderSaveStatus').textContent  = '';
 
     // Selector de sexo: solo al CREAR una ficha (al editar, el género lo fija la
@@ -311,6 +342,61 @@ function openNewRiderFromRiders() {
   panelState._onRiderSavedOnce = null;
   panelState._ridersAllCache = [];
   openRiderEditor(null, { level: 1 });
+}
+
+// Cambio de nombre con vigencia (RPC admin_change_rider_name): el nombre actual
+// pasa al historial hasta `validTo` y la ficha recibe el nuevo. No toca las
+// inscripciones: la vista startlist_riders_resolved elige el nombre por la fecha
+// de cada carrera. Distinto de saveRider, que corrige erratas en todas partes.
+async function applyRiderNameChange() {
+  const status = document.getElementById('re-nc-status');
+  const riderId = panelState._editingRiderId;
+  const current = riderId ? panelState._ridersAllCache.find(r => r.id === riderId) : null;
+  if (!current) return;
+  const firstName = document.getElementById('re-nc-first').value.trim();
+  const lastName = document.getElementById('re-nc-last').value.trim();
+  const validTo = document.getElementById('re-nc-validTo').value;
+  const sourceUrl = document.getElementById('re-nc-source').value.trim();
+  status.style.color = 'var(--red)';
+  if (!firstName || !lastName || !validTo) {
+    status.textContent = 'Faltan el nombre nuevo, el apellido nuevo y el último día del nombre actual.';
+    return;
+  }
+  const ok = await confirmDialog(
+    `¿Cambiar «${current.firstName} ${current.lastName}» por «${firstName} ${lastName}»? Las carreras que empiezan hasta el ${validTo} seguirán mostrando el nombre actual.`,
+    { confirmText: 'Cambiar nombre', title: 'Cambio de nombre con vigencia' },
+  );
+  if (!ok) return;
+  status.style.color = 'var(--text-dim)';
+  status.textContent = 'Aplicando…';
+  try {
+    const { error } = await supabase.rpc('admin_change_rider_name', {
+      p_gender: panelState._ridersGender, p_rider_id: riderId,
+      p_first_name: firstName, p_last_name: lastName, p_valid_to: validTo,
+      p_source_url: sourceUrl || null,
+    });
+    if (error) throw error;
+    // La RPC también añade el nombre anterior a otherNames y recalcula la
+    // clave de identidad: se relee la ficha para que el formulario y la caché
+    // reflejen lo guardado.
+    const table = panelState._ridersGender === 'male' ? 'riders_men' : 'riders_women';
+    const { data: fresh, error: readError } = await supabase.from(table).select('*').eq('id', riderId).maybeSingle();
+    if (readError) throw readError;
+    if (fresh) {
+      panelState._ridersAllCache = panelState._ridersAllCache.map(r => r.id === riderId ? { ...r, ...fresh } : r);
+      document.getElementById('re-firstName').value = fresh.firstName || '';
+      document.getElementById('re-lastName').value = fresh.lastName || '';
+      document.getElementById('re-otherNames').value = fresh.otherNames || '';
+    }
+    ['re-nc-first', 're-nc-last', 're-nc-validTo', 're-nc-source'].forEach(id => { document.getElementById(id).value = ''; });
+    await _refreshOpenRoster();
+    status.textContent = '';
+    showToast('Nombre cambiado', 'success');
+  } catch (err) {
+    console.error('[applyRiderNameChange]', err);
+    status.style.color = 'var(--red)';
+    status.textContent = 'Error: ' + (err.message || err);
+  }
 }
 
 async function saveRider() {

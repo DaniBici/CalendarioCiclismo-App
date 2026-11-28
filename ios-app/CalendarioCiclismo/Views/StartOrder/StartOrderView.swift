@@ -7,6 +7,7 @@ struct StartOrderView: View {
     @State private var safariURL: URL?
     @State private var quickLookURL: URL?
     @State private var offlineAlert: OfflineAccessAlert?
+    @State private var viewWidth: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -29,6 +30,7 @@ struct StartOrderView: View {
                                         quickLookURL: $quickLookURL, offlineAlert: $offlineAlert)
 
                         if horizontalSizeClass == .regular,
+                           viewWidth == 0 || viewWidth >= AdaptiveLayoutPolicy.detailThreshold,
                            let rd = stage.raceDay,
                            let race = stage.race,
                            hasStageContext(rd) {
@@ -39,7 +41,7 @@ struct StartOrderView: View {
                                     raceDay: rd,
                                     race: race
                                 )
-                                    .frame(width: 320)
+                                    .frame(width: AdaptiveLayoutPolicy.contextColumnWidth(containerWidth: viewWidth))
                             }
                         } else {
                             orderContent
@@ -69,6 +71,7 @@ struct StartOrderView: View {
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewWidth = $0 }
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

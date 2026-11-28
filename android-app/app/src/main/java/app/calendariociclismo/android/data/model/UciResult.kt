@@ -193,3 +193,15 @@ data class RiderProfile(
     val fullName: String
         get() = "${firstName.orEmpty()} ${lastName.orEmpty()}".trim()
 }
+
+/**
+ * Fila de `rider_name_history`: un nombre anterior de un corredor y el último
+ * día en que estuvo vigente. La ficha ([RiderProfile]) guarda el nombre actual.
+ */
+@Serializable
+data class RiderNameHistoryRow(
+    val riderId: String,
+    val firstName: String,
+    val lastName: String,
+    val validTo: String,   // YYYY-MM-DD
+)

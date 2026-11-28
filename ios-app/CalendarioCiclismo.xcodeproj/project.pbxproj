@@ -131,6 +131,7 @@
 		C829F4CC13A0D760F62722C4 /* CyclocrossRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB830637ACFE8917D59C8E7 /* CyclocrossRepository.swift */; };
 		C8F10F654475D708C86318AE /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AFF922534DD63F535F407D0 /* WidgetModels.swift */; };
 		C90037F5053B3A9E336CFFC8 /* Flags.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ECAEF742B151429F3F65D887 /* Flags.xcassets */; };
+		CBD487AA526B831133840448 /* BibSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E56CB7CE621BA99E5091FC /* BibSearchSheet.swift */; };
 		CE796463544EBABAC59E226C /* TVBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF4A2A4A4205FF96FF5489B /* TVBadge.swift */; };
 		D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */ = {isa = PBXBuildFile; fileRef = B270A77DFF32A6444C93BA91 /* BundledLogos */; };
 		D0E28E42F6CD6235825ECC1E /* RaceDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */; };
@@ -258,6 +259,7 @@
 		468893C68879486E9A3D9859 /* SupabaseService+UciResults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+UciResults.swift"; sourceTree = "<group>"; };
 		48F94BBFA47CC5EA0A0D8D43 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		493A6548104A38662359470C /* SupabaseService+Transfers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+Transfers.swift"; sourceTree = "<group>"; };
+		49E56CB7CE621BA99E5091FC /* BibSearchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BibSearchSheet.swift; sourceTree = "<group>"; };
 		4C7A8280CFC316531A7598A7 /* ResultsFeedLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsFeedLogic.swift; sourceTree = "<group>"; };
 		4F5F8AEBCD527F96AD9FC75C /* RaceFollowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceFollowService.swift; sourceTree = "<group>"; };
 		4FC94B5A84FB5302532B485A /* NotificationCategoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCategoryService.swift; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 		187EF7DF19E2E049B5B1F9B0 /* Startlist */ = {
 			isa = PBXGroup;
 			children = (
+				49E56CB7CE621BA99E5091FC /* BibSearchSheet.swift */,
 				D7AEF801C0A7E4A20304BC02 /* StartlistView.swift */,
 			);
 			path = Startlist;
@@ -1076,6 +1079,7 @@
 				D18EB5528F090BA272F5C9D8 /* AnalyticsService.swift in Sources */,
 				775321AD68C6563AC93A7129 /* AppTheme.swift in Sources */,
 				F6ADD8EAF4A9C790AE6FD1D6 /* Asset.swift in Sources */,
+				CBD487AA526B831133840448 /* BibSearchSheet.swift in Sources */,
 				A40B44F0C4881350A548D411 /* Broadcast.swift in Sources */,
 				846DCAC6CA719B23556BEC7B /* CCCard.swift in Sources */,
 				26E8DC343F910C5C9446E51C /* CacheManager.swift in Sources */,
@@ -1251,7 +1255,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1521;
+				CURRENT_PROJECT_VERSION = 1610;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1270,7 +1274,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.2.5;
+				MARKETING_VERSION = 5.2.8;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1319,7 +1323,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1521;
+				CURRENT_PROJECT_VERSION = 1610;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1332,7 +1336,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.2.5;
+				MARKETING_VERSION = 5.2.8;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1394,7 +1398,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1521;
+				CURRENT_PROJECT_VERSION = 1610;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1403,7 +1407,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2.5;
+				MARKETING_VERSION = 5.2.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1445,7 +1449,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1521;
+				CURRENT_PROJECT_VERSION = 1610;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1454,7 +1458,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2.5;
+				MARKETING_VERSION = 5.2.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

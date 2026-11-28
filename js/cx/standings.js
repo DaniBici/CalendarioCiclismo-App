@@ -316,6 +316,10 @@ function calculateTime(entries, rounds, rule) {
   const extras = rule.extras;
   const forfait = extras?.forfait;
   const bonusPolicy = rule.review?.forfaitBonusesPolicy;
+  // Art. 8 X2O: solo entra quien llegó alguna vez a menos de 5 minutos. `allParticipants` reproduce la general
+  // publicada por la organización (Chronorace), que incluye a todos con el forfait de cada ronda.
+  const eligibilityPolicy = rule.review?.timeEligibilityPolicy === undefined ? 'finishWithinWinner' : rule.review.timeEligibilityPolicy;
+  if (!['finishWithinWinner', 'allParticipants'].includes(eligibilityPolicy)) throw new Error('Elegibilidad por tiempo sin cotejar');
   if (rule.perRank != null || rule.drops?.mode !== 'none' || extras?.precision !== 'wholeSeconds'
     || extras.timeSource !== 'timeSeconds' || extras.bonusesSource !== 'bonusSeconds'
     || extras.bonusesOperation !== 'subtract' || extras.unknownBonusesPolicy !== 'stopForReview'
@@ -345,7 +349,7 @@ function calculateTime(entries, rounds, rule) {
     }
   }
   for (const entry of entries) {
-    entry.eligible = false;
+    entry.eligible = eligibilityPolicy === 'allParticipants';
     const contributions = [];
     for (const round of entry.rounds) {
       const row = round.result;
@@ -404,6 +408,18 @@ function tieKey(tie, rule, entries) {
     return entry => [-entry.rounds.filter(round => round.result && irm(round.result) !== 'DNS').length];
   }
   if (tie.type === 'wins' && tie.direction === 'desc') return entry => [-entry.rounds.filter(round => round.sourceRank === 1).length];
+  // Desempates de la general publicada por Chronorace (X2O): más rondas con puesto, menor suma de puestos y,
+  // después, la ronda más reciente con fila (DNF o DNS incluidos) y el puesto en ella.
+  if (tie.type === 'classifiedRounds' && tie.direction === 'desc') return entry => [-entry.rounds.filter(round => round.sourceRank != null).length];
+  if (tie.type === 'rankSum' && tie.direction === 'asc') {
+    return entry => [entry.rounds.reduce((total, round) => total + (round.sourceRank ?? 0), 0)];
+  }
+  if (tie.type === 'latestRoundWithResult' && tie.direction === 'desc') {
+    return entry => {
+      const index = entry.rounds.findLastIndex(round => round.result);
+      return [-index, rank(entry.rounds[index])];
+    };
+  }
   if (tie.type === 'lastHeldRoundRank' && tie.direction === 'asc') return entry => [rank(last(entry))];
   if (tie.type === 'bestSeriesRank' && tie.direction === 'asc') return entry => [Math.min(...entry.rounds.map(rank))];
   throw new Error('Desempate no implementado por el reglamento');

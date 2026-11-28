@@ -1,0 +1,14 @@
+[Unit]
+Description=Calendario Ciclismo - recalcular el ránking UCI de equipos cada 15 minutos
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/results-vps.md
+
+[Timer]
+# Suma al último ránking oficial las clasificaciones que pasan a oficiales y
+# las penalizaciones manuales. La función solo reescribe la tabla si cambia.
+OnCalendar=*:2/15
+AccuracySec=1min
+Persistent=true
+Unit=cc-uci-team-ranking-refresh.service
+
+[Install]
+WantedBy=timers.target

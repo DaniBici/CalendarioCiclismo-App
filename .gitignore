@@ -173,4 +173,7 @@ docs/design/**/*.mov
 .agents/skills/cc-graficos-sociales/examples/dispositivos/*.png
 .agents/skills/cc-graficos-sociales/examples/lanzamiento/*.png
 .agents/skills/cc-graficos-sociales/examples/maqueta-movil/c/
+.agents/skills/cc-graficos-sociales/examples/ranking-vivo/c/
+.agents/skills/cc-graficos-sociales/examples/busca-dorsal/c/
+.agents/skills/cc-graficos-sociales/examples/ranking-vivo/*.png
 .agents/skills/cc-graficos-sociales/examples/*-4x5.json

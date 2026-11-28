@@ -380,6 +380,14 @@ function initAgendaCardEvents() {
       openBroadcastTvModal(rd, race, tv.href);
       return;
     }
+    // Busca dorsal: el panel se carga al pulsar.
+    const bib = e.target.closest('[data-bib-search]');
+    if (bib) {
+      e.preventDefault();
+      e.stopPropagation();
+      import('./bib-search.js').then(module => module.toggleBibSearch(bib, race));
+      return;
+    }
     if (e.target.closest('.badge--results')) {
       e.stopPropagation();
       openResultsModal(rd, race);

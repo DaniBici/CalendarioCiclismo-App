@@ -122,12 +122,34 @@ object DateFormatting {
 
     /** Fecha canónica del ránking UCI, completa y con el mismo patrón por idioma. */
     fun formatUciRankingUpdated(dateKey: String, isEnglish: Boolean): String {
-        val locale = if (isEnglish) LOCALE_EN else LOCALE_ES
         val prefix = if (isEnglish) "Updated" else "Actualizado"
-        val date = parseDateKey(dateKey) ?: return "$prefix: $dateKey"
+        if (parseDateKey(dateKey) == null) return "$prefix: $dateKey"
+        return "$prefix: ${formatUciRankingDate(dateKey, isEnglish)}"
+    }
+
+    /** Fecha y hora de la última actualización del ránking UCI en números y en
+     *  la zona del dispositivo: «Actualizado: 24/11/2026, 14:41». */
+    fun formatUciRankingUpdatedAt(
+        isoString: String,
+        isEnglish: Boolean,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        val instant = try {
+            OffsetDateTime.parse(isoString).toInstant()
+        } catch (_: DateTimeParseException) {
+            parseIso(isoString)
+        } ?: return null
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy, HH:mm", if (isEnglish) LOCALE_EN else LOCALE_ES)
+            .withZone(zone)
+        return "${if (isEnglish) "Updated" else "Actualizado"}: ${formatter.format(instant)}"
+    }
+
+    /** Fecha larga del ránking UCI («martes, 24 de noviembre de 2026»). */
+    fun formatUciRankingDate(dateKey: String, isEnglish: Boolean): String {
+        val locale = if (isEnglish) LOCALE_EN else LOCALE_ES
+        val date = parseDateKey(dateKey) ?: return dateKey
         val pattern = if (isEnglish) "EEEE, d MMMM yyyy" else "EEEE, d 'de' MMMM 'de' yyyy"
-        val f = SimpleDateFormat(pattern, locale)
-        return "$prefix: ${f.format(date)}"
+        return SimpleDateFormat(pattern, locale).format(date)
     }
 
     /** Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO

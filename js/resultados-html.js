@@ -21,6 +21,7 @@ import { stageVideosContextHtml } from './stage/videos-html.js';
 import { stageProfileHtml } from './stage/profile.js';
 import { TEAM_COLUMNS, resultTeamStripes, teamsForSeason, splitStartlistTeams } from './team-appearance.js';
 import { localizedTeamName } from './services/national-team-name.js';
+import { loadNameHistory, riderNameAt } from './rider-name-history.js';
 import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
 import { arrowHtml } from './scroll-rail.js';
 import { flagIconUrl } from './flag-url.js';
@@ -484,6 +485,8 @@ export async function enrichRiders(client, resolver, ids, now = new Date()) {
     client.from('riders_women').select(riderColumns).in('id', need),
   ]);
   const riders = [...(men || []), ...(women || [])];
+  // Nombre vigente el día de la carrera (cambios de apellido con vigencia).
+  const nameHistory = await loadNameHistory(client);
   const teamById = new Map();
   if (includeCurrentTeam) {
     const curIds = [...new Set(riders.map(r => r.currentTeamId).filter(Boolean))];
@@ -496,12 +499,13 @@ export async function enrichRiders(client, resolver, ids, now = new Date()) {
   }
   for (const r of riders) {
     const team = includeCurrentTeam && r.currentTeamId ? teamById.get(r.currentTeamId) : null;
+    const nameAtRace = riderNameAt(r, nameHistory, race.startDate);
     byRider.set(r.id, {
       // Nombre canónico de la ficha (orden natural "Nombre Apellido"). El
       // render lo prefiere al riderDisplay crudo (que en CN sin startlist
       // llega como "APELLIDO Nombre" de la fuente). Así el formato del
       // riderDisplay deja de importar cuando la fila está enlazada a ficha.
-      name: [r.firstName, r.lastName].filter(Boolean).join(' ').trim(),
+      name: [nameAtRace.firstName, nameAtRace.lastName].filter(Boolean).join(' ').trim(),
       countryCode: r.nationality || '',
       teamName: localizedTeamName(team?.name || '', team, isEn),
       teamHref: teamLinkUrl(team),

@@ -734,12 +734,14 @@ class SupabaseService : CxRemote {
             order("id", Order.ASCENDING)
         }
 
-    /** Instantánea semanal de DataRide compartida por web, iOS y Android. */
+    /** Ránking publicado compartido por web, iOS y Android: instantánea oficial
+     *  de los martes más clasificaciones oficiales y penalizaciones posteriores. */
     suspend fun uciTeamRankings(): List<UciTeamRankingRow> =
         client.from("uci_team_rankings").select(
             columns = Columns.raw(
                 "gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName," +
-                    "displayName,teamCode,countryCode,points,rankingDate,sourceUrl"
+                    "displayName,teamCode,countryCode,points,rankingDate,sourceUrl," +
+                    "seasonYear,officialPoints,provisionalPoints,penaltyPoints,officialRankingDate,syncedAt"
             )
         ) {
             order("gender", Order.ASCENDING)
@@ -1076,6 +1078,21 @@ class SupabaseService : CxRemote {
         return out
     }
 
+    /**
+     * Historial de nombres por corredor (cambios de apellido con vigencia). La
+     * tabla es pequeña: se lee entera.
+     */
+    suspend fun riderNameHistory(): Map<String, List<RiderNameHistoryRow>> =
+        client.from("rider_name_history").select(
+            columns = Columns.list("riderId", "firstName", "lastName", "validTo")
+        ).decodeList<RiderNameHistoryRow>().groupBy { it.riderId }
+
+    /** Fecha de inicio (YYYY-MM-DD) de una carrera, o null si no consta. */
+    suspend fun raceStartDate(raceId: String): String? =
+        client.from("races").select(columns = Columns.list("startDate")) {
+            filter { eq("id", raceId) }
+        }.decodeList<RaceStartRow>().firstOrNull()?.startDate
+
     /** Inscritos de las carreras destacadas, para el fallback por dorsal del feed. */
     suspend fun feedStartlistIdentities(raceIds: List<String>): List<FeedStartlistIdentityRow> {
         if (raceIds.isEmpty()) return emptyList()
@@ -1338,6 +1355,11 @@ class SupabaseService : CxRemote {
         val id: String,
         val firstName: String? = null,
         val lastName: String? = null,
+    )
+
+    @Serializable
+    private data class RaceStartRow(
+        val startDate: String? = null,
     )
 
     @Serializable

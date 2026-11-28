@@ -509,7 +509,7 @@ private fun StartlistTeamCard(
 }
 
 @Composable
-private fun StartlistRiderRow(
+internal fun StartlistRiderRow(
     rider: StartlistRider,
     out: RiderOut? = null,
     isOneDay: Boolean = false,

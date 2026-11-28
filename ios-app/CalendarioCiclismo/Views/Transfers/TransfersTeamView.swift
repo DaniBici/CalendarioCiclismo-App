@@ -8,6 +8,10 @@ import SwiftUI
 /// y lo pinta como baja·Rumor.
 struct TransfersTeamView: View {
     let teamId: String
+    /// Mercado que el llamador ya tiene cargado: la primera carga lo reutiliza
+    /// en lugar de pedirlo entero otra vez (como `TransfersTeamPane` de Android).
+    /// La recarga manual (pull-to-refresh, Reintentar) siempre lo vuelve a pedir.
+    var preloadedMarket: TransfersLogic.MarketData? = nil
 
     @State private var season: TeamSeason?
     @State private var data: TransfersLogic.MarketData?
@@ -36,9 +40,12 @@ struct TransfersTeamView: View {
     var body: some View {
         // Rótulo de la carga: el nombre del equipo si el mercado ya se cargó.
         LoadingGate(isLoading: isLoading && detail == nil, title: season?.name ?? SupabaseService.shared.transfersTeamNames[teamId] ?? title) {
-            if let error {
+            // El error solo sustituye a la página si todavía no tiene
+            // contenido: una recarga fallida conserva lo que ya se ve, como
+            // `TransfersView`.
+            if let error, detail == nil {
                 ErrorView(message: error) {
-                    Task { await load() }
+                    Task { await load(refresh: true) }
                 }
             } else if let season, let data, let detail {
                 content(season: season, data: data, detail: detail)
@@ -49,7 +56,7 @@ struct TransfersTeamView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $linkedTeamRoute) { route in
-            TransfersTeamView(teamId: route.teamId)
+            TransfersTeamView(teamId: route.teamId, preloadedMarket: data)
         }
         .task { await load() }
         .onAppear {
@@ -57,10 +64,15 @@ struct TransfersTeamView: View {
         }
     }
 
-    private func load() async {
-        isLoading = true
+    private func load(refresh: Bool = false) async {
+        if detail == nil { isLoading = true }
         do {
-            let market = try await SupabaseService.shared.loadTransfersMarket(season: TransfersLogic.marketSeason)
+            let market: TransfersLogic.MarketData
+            if !refresh, let preloaded = preloadedMarket {
+                market = preloaded
+            } else {
+                market = try await SupabaseService.shared.loadTransfersMarket(season: TransfersLogic.marketSeason)
+            }
             guard let teamSeason = market.seasons.first(where: { $0.teamId == teamId }) else {
                 throw URLError(.resourceUnavailable)
             }
@@ -81,10 +93,14 @@ struct TransfersTeamView: View {
             )
             error = nil
         } catch {
-            self.error = localeService.t(
-                "No se pudo cargar el mercado de fichajes.",
-                "Could not load the transfer market."
-            )
+            // Se conserva lo que ya se ve: solo una página sin contenido
+            // muestra el error.
+            if detail == nil {
+                self.error = localeService.t(
+                    "No se pudo cargar el mercado de fichajes.",
+                    "Could not load the transfer market."
+                )
+            }
         }
         isLoading = false
     }
@@ -141,7 +157,9 @@ struct TransfersTeamView: View {
             contentWidth = width
         }
         .background(AppTheme.background)
-        .refreshable { await load() }
+        // Tarea no estructurada: si SwiftUI cancela la acción de recarga al
+        // repintar la vista, las peticiones en curso no se cancelan con ella.
+        .refreshable { await Task { await load(refresh: true) }.value }
     }
 
     private enum MarketBlock: Identifiable {

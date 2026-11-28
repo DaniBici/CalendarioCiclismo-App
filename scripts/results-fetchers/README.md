@@ -30,11 +30,13 @@ watcher y no una decisión editorial. No se utiliza ningún booleano de activaci
 los enlaces automáticos sin jornadas también entran en el backlog cuando la fecha
 final de la carrera ya ha pasado.
 
-La excepción es `uci-team-ranking-sync.mjs`: mantiene la única instantánea
-semanal de los ránkings de equipos masculino y femenino. Un timer del VPS consulta
-DataRide cada hora durante lunes y martes y repite el miércoles como red de
-seguridad; el workflow queda manual. Sin `--apply` valida DataRide y los
-emparejamientos sin escribir; `--fetch-only` comprueba solo la fuente.
+La excepción es `uci-team-ranking-sync.mjs`: guarda las instantáneas oficiales
+de los ránkings de equipos masculino y femenino por temporada y recalcula el
+ránking publicado (`docs/runbooks/results-vps.md`, «Ránking UCI de equipos»). Un
+timer del VPS consulta DataRide cada hora durante lunes y martes y repite el
+miércoles; otro recalcula cada 15 minutos con `--refresh-only`. Sin `--apply`
+valida DataRide y los emparejamientos sin escribir; `--fetch-only` comprueba
+solo la fuente.
 
 Antes se llamaba `catalog-continental/`, nombre heredado de la tarea puntual con la
 que nació el directorio. Se renombró en la preparación del repo público (2026-07-18)

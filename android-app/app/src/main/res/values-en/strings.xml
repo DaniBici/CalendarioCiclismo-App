@@ -73,6 +73,15 @@
     <string name="today_results_cd">Results</string>
     <string name="today_revive_cd">Watch back</string>
     <string name="today_startlist_badge">Startlist</string>
+    <string name="today_bib_search_badge">Find bib</string>
+    <string name="bib_search_full_list">Full startlist</string>
+    <string name="bib_search_number">Bib number</string>
+    <string name="bib_search_hint">Type the number you see on screen.</string>
+    <string name="bib_search_none">No rider with bib %1$s.</string>
+    <string name="bib_search_no_bibs">This startlist has no bib numbers yet.</string>
+    <string name="bib_search_error">The bib numbers could not be loaded.</string>
+    <string name="bib_search_mates">Teammates</string>
+    <string name="bib_search_mates_female">Teammates</string>
     <string name="today_prev_day_cd">Previous day</string>
     <string name="today_next_day_cd">Next day</string>
     <string name="today_refresh_cd">Refresh</string>

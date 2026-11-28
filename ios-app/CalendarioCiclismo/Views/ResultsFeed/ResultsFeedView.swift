@@ -213,6 +213,7 @@ struct ResultsSplitView: View {
     @State private var store = ResultsFeedStore()
     @State private var selection: ResultsFeedSelection?
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var windowWidth: CGFloat = 0
 
     var body: some View {
         Group {
@@ -224,6 +225,9 @@ struct ResultsSplitView: View {
                 splitView
             }
         }
+        // Al cambiar de sección (también pasando por el ránking) el detalle no
+        // conserva la carrera de la otra: vuelve al aviso «Elige un resultado».
+        .onChange(of: store.activeSection) { _, _ in selection = nil }
     }
 
     private var splitView: some View {
@@ -262,6 +266,12 @@ struct ResultsSplitView: View {
             .id(selection)
         }
         .navigationSplitViewStyle(.balanced)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
+        .onChange(of: selection) { _, newValue in
+            if newValue != nil, AdaptiveLayoutPolicy.collapsesSidebarOnSelection(windowWidth: windowWidth) {
+                withAnimation { columnVisibility = .detailOnly }
+            }
+        }
     }
 }
 
@@ -792,6 +802,27 @@ struct ResultsFeedView: View {
     /// Ránking UCI por equipos con la presentación de las clasificaciones:
     /// género y fecha de actualización en una fila, panel «Invitaciones» y
     /// tabla. En pantallas anchas el panel va a la izquierda.
+    private var rankingGenderPicker: some View {
+        Picker(localeService.t("Género del ránking", "Ranking gender"), selection: $store.rankingGender) {
+            Text(localeService.t("Masculino", "Men")).tag(UciRankingGender.male)
+            Text(localeService.t("Femenino", "Women")).tag(UciRankingGender.female)
+        }
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .onChange(of: store.rankingGender) { _, _ in Haptics.play(.selection) }
+    }
+
+    @ViewBuilder
+    private func rankingUpdatedLabel(_ updated: String?) -> some View {
+        if let updated {
+            Text(updated)
+                .ccFont(.s12)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
     private var rankingList: some View {
         let ranking = decoratedRanking
         let isEnglish = LocaleService.shouldShowEnglishContent
@@ -800,27 +831,34 @@ struct ResultsFeedView: View {
             width: contentWidth,
             isRegular: horizontalSizeClass == .regular
         )
+        let updated = UciTeamRankingLogic.updatedText(ranking, isEnglish: isEnglish)
         return VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Picker(localeService.t("Género del ránking", "Ranking gender"), selection: $store.rankingGender) {
-                    Text(localeService.t("Masculino", "Men")).tag(UciRankingGender.male)
-                    Text(localeService.t("Femenino", "Women")).tag(UciRankingGender.female)
+            // Género y fecha de actualización: la fecha, siempre en una línea, va al
+            // lado del selector si cabe y, si no, debajo (como la web).
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    rankingGenderPicker
+                    rankingUpdatedLabel(updated)
+                    Spacer(minLength: 0)
                 }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .onChange(of: store.rankingGender) { _, _ in Haptics.play(.selection) }
-
-                if let rankingDate = ranking.first?.row.rankingDate {
-                    Text(DateFormatting.formatUciRankingUpdated(rankingDate))
-                        .ccFont(.s12)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
+                VStack(alignment: .leading, spacing: 8) {
+                    rankingGenderPicker
+                    rankingUpdatedLabel(updated)
                 }
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, rankingHorizontalInset)
             .padding(.bottom, 12)
+
+            if let basis = UciTeamRankingLogic.basisText(ranking, isEnglish: isEnglish) {
+                Text(basis)
+                    .ccFont(.s12)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, rankingHorizontalInset)
+                    .padding(.bottom, 12)
+            }
 
             if ranking.isEmpty {
                 EmptyStateView(

@@ -740,7 +740,8 @@ final class ResultsRowsCache {
             ? [:]
             : await SupabaseService.shared.enrichRidersByGlobalId(
                 unmatchedIds,
-                includeCurrentTeam: raceYear == currentMadridYear
+                includeCurrentTeam: raceYear == currentMadridYear,
+                raceId: loaded.first?.raceId
             )
         // Override de equipo: resolver los teamId de override a su equipo canónico.
         let overrideIds = loaded.compactMap(\.teamId)

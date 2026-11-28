@@ -1,6 +1,8 @@
 import Foundation
 
-/// Una fila de la instantánea sobrescribible `uci_team_rankings`.
+/// Una fila del ránking publicado `uci_team_rankings`: última instantánea
+/// oficial de la UCI más las clasificaciones oficiales y las penalizaciones
+/// posteriores. Las columnas de temporada y desglose llegan desde la 5.2.6.
 struct UciTeamRankingRow: Codable, Identifiable {
     let gender: String
     let rank: Int
@@ -15,12 +17,25 @@ struct UciTeamRankingRow: Codable, Identifiable {
     let points: Double
     let rankingDate: String
     let sourceUrl: String
+    var seasonYear: Int?
+    var officialPoints: Double?
+    var provisionalPoints: Double?
+    var penaltyPoints: Double?
+    var officialRankingDate: String?
+    /// Última reescritura del ránking (varias al día).
+    var syncedAt: String?
 
     var id: String { "\(gender)-\(rank)" }
 
+    /// La temporada del ránking (19-10-2026 a 17-10-2027 para 2027) define
+    /// las invitaciones del año siguiente.
     var invitationSeason: Int {
-        let rankingYear = Int(rankingDate.prefix(4))
-        return (rankingYear ?? Calendar.current.component(.year, from: Date())) + 1
+        let season = seasonYear ?? Int(rankingDate.prefix(4))
+        return (season ?? Calendar.current.component(.year, from: Date())) + 1
+    }
+
+    var isAdjusted: Bool {
+        (provisionalPoints ?? 0) != 0 || (penaltyPoints ?? 0) != 0
     }
 }
 
@@ -140,10 +155,36 @@ enum UciTeamRankingLogic {
         }
     }
 
-    /// Año de las invitaciones: el del ránking + 1.
+    /// Año de las invitaciones: el de la temporada del ránking + 1.
     static func invitationYear(_ rows: [UciTeamRankingPresentation]) -> Int {
         if let first = rows.first { return first.row.invitationSeason }
         return Calendar.current.component(.year, from: Date()) + 1
+    }
+
+    /// Origen de los puntos cuando el ránking suma clasificaciones o
+    /// penalizaciones posteriores a la última publicación oficial; nil si
+    /// coincide con ella. Paridad con `uciRankingBasisText` de la web.
+    static func basisText(_ rows: [UciTeamRankingPresentation], isEnglish: Bool) -> String? {
+        guard rows.contains(where: { $0.row.isAdjusted }) else { return nil }
+        guard let officialDate = rows.lazy.compactMap(\.row.officialRankingDate).first else {
+            return isEnglish
+                ? "Points from official results until the UCI publishes this season's ranking."
+                : "Puntos de las clasificaciones oficiales hasta que la UCI publique el ránking de esta temporada."
+        }
+        let date = DateFormatting.formatUciRankingDate(officialDate, isEnglish: isEnglish)
+        return isEnglish
+            ? "UCI ranking of \(date) plus later official results and commissaires' penalties."
+            : "Ránking UCI del \(date) más las clasificaciones oficiales y las sanciones del jurado posteriores."
+    }
+
+    /// Fecha y hora local de la última reescritura del ránking; sin
+    /// `syncedAt`, la fecha larga del ránking. Paridad con la web.
+    static func updatedText(_ rows: [UciTeamRankingPresentation], isEnglish: Bool) -> String? {
+        if let syncedAt = rows.compactMap(\.row.syncedAt).max(),
+           let text = DateFormatting.formatUciRankingUpdatedAt(syncedAt, isEnglish: isEnglish) {
+            return text
+        }
+        return rows.first.map { DateFormatting.formatUciRankingUpdated($0.row.rankingDate, isEnglish: isEnglish) }
     }
 
     /// Explicación de cada etiqueta de puesto: solo los niveles presentes en

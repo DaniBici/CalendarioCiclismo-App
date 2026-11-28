@@ -9,6 +9,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { cxSeason } from '../../js/cx/season.js';
+import { cyclocrossHome } from '../../js/services/today-season.js';
 import { conectar, leerClasificacionesHoy, leerHoy, leerPorFilas, leerInscritosPorLotes, leerInscritos, leerCarrera, leerPortada, leerResultadosFeed, leerTemporadas, leerTodo, Senal, Datos, DatosInscritos, TABLAS_PORTADA } from './datos.mjs';
 import { montar, publicarCalendario, publicarCampeonatos, publicarCarreras, publicarCompeticiones, publicarCx, publicarEtapas, publicarHoy, publicarMercado, publicarPortada, publicarRegeneradas, publicarResultados, todasLasEntradas } from './publicacion.mjs';
 
@@ -33,13 +34,13 @@ const TABLAS_COMPETICION = new Set(['races', 'race_days', 'broadcasts', 'race_da
 // Hoy de carretera: lo que sale en las tarjetas de un día y en el cintillo.
 const TABLAS_HOY = new Set(['races', 'race_days', 'broadcasts', 'race_day_videos', 'assets', 'race_uci_stages', 'race_featured_overrides', 'today_highlights']);
 const TABLAS_BASE = new Set(['races', 'race_days', 'broadcasts', 'race_day_videos', 'assets', 'cx_races', 'cx_race_categories', 'cx_broadcasts', 'cx_videos', 'cx_results', 'cx_startlist_riders', 'cx_standings_state', 'cx_tournament_standings', 'cx_tournaments']);
-const TABLAS_FEED = new Set(['race_uci_stages', 'race_uci_results', 'race_days', 'races', 'race_classifications', 'uci_team_rankings', 'cx_results', 'cx_race_categories']);
+const TABLAS_FEED = new Set(['race_uci_stages', 'race_uci_results', 'race_days', 'races', 'race_classifications', 'uci_team_rankings', 'cx_results', 'cx_race_categories', 'rider_name_history']);
 const TABLAS_TEMPORADA = new Set(['races', 'race_days', 'challenge_groups']);
 // Modal del calendario (pruebas de un día sin página): emisiones, documentos, clasificaciones y equipos.
 // Solo cuentan las carreras que tienen modal.
 const TABLAS_MODAL = new Set(['broadcasts', 'assets', 'race_uci_stages', 'startlist_teams']);
 const TABLAS_ETAPA = new Set(['race_days', 'races', 'assets', 'start_order_entries', 'startlist_teams']);
-const TABLAS_CARRERA = new Set(['race_uci_stages', 'race_uci_results', 'race_classifications', 'race_days', 'races', 'assets', 'broadcasts', 'race_day_videos', 'startlist_teams', 'startlist_riders', 'teams', 'team_seasons', 'riders_men', 'riders_women']);
+const TABLAS_CARRERA = new Set(['race_uci_stages', 'race_uci_results', 'race_classifications', 'race_days', 'races', 'assets', 'broadcasts', 'race_day_videos', 'startlist_teams', 'startlist_riders', 'teams', 'team_seasons', 'riders_men', 'riders_women', 'rider_name_history']);
 
 mkdirSync(trabajo, { recursive: true });
 const registro = join(trabajo, 'servicio.jsonl');
@@ -295,6 +296,12 @@ async function principal() {
             await publicador.reiniciar();
             pendiente.hoy = true;
             ultimo.hoy = 0;
+            // Si cambia la disciplina inicial (octubre / primer lunes de enero),
+            // el árbol base se regenera para actualizar /videos/ prerenderizado.
+            if (cyclocrossHome(diaProceso) !== cyclocrossHome(diaAhora)) {
+              pendiente.base = true;
+              ultimo.base = 0;
+            }
           } else {
             await publicarHoy(publicador, hoyDatos, portada, { solo: alrededorDeHoy() });
           }

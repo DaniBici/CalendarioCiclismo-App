@@ -1,6 +1,7 @@
-// Isla de la portada de resultados: el HTML ya está completo. Cambia de vista con las
-// plantillas de la página, trae días anteriores de los archivos por mes y comprueba si
-// hay una versión nueva. Sin lecturas de Supabase.
+// Isla de Últimos resultados, Ciclocross y el ránking UCI: el HTML ya está completo. Cambia de
+// vista con las plantillas de la página y pone la URL de la vista (js/results/feed-pages.js) sin
+// recargar, trae días anteriores de los archivos por mes y comprueba si hay una versión nueva.
+// Sin lecturas de Supabase.
 import { bindRankingRows, packCxDays, packFeaturedEntries } from '../../../js/resultados-feed-layout.js';
 import { RESULTS_SEASON_START, previousResultsWindow } from '../../../js/services/result-feed-pagination.js';
 import { roadPinned, setRoadPinned } from '../../../js/services/today-season.js';
@@ -11,6 +12,7 @@ import { bindMenuButtons } from '../../../js/components/menu-button.js';
 import { scheduleResultsTip } from '../../../js/components/today-tip.js';
 import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, CX_FILTERS_KEY, cxFilterGroups, loadRoadFilters, loadCxFilters, filterLabels } from '../../../js/race-filters.js';
 import { aplicarFiltros } from './filtros-resultados.js';
+import { feedPageFromPath, pageGender, pageView, viewPage } from '../../../js/results/feed-pages.js';
 
 const COMPROBACION_MS = 60_000;
 const CX_VENTANA = 14;
@@ -31,7 +33,10 @@ const metaVersion = document.querySelector('meta[name="cc:v"]');
 const lang = main.dataset.lang;
 
 let vista = panel.dataset.view;
-let genero = 'male';
+let genero = panel.dataset.genero || 'male';
+// Página de cada URL: título, descripción, h1 y rutas ES y EN.
+let paginas = JSON.parse(document.getElementById('feedPages').textContent);
+let pagina = main.dataset.pagina;
 let desde = main.dataset.desde;
 let cxDesde = main.dataset.cxDesde;
 // Lo pintado de cada vista al salir de ella: conserva los días ya cargados.
@@ -56,6 +61,73 @@ addEventListener('load', () => alReposar(() => cargarRanking().catch(() => {})),
 const plantilla = selector => document.querySelector(`template[${selector}]`);
 const panelDe = nombre => plantilla(`data-panel="${nombre}"`)?.content.cloneNode(true) ?? null;
 
+// En las páginas del ránking, el género de la página viaja en el panel y el otro en su plantilla.
+if (vista === 'ranking' && !plantilla(`data-panel="ranking-${genero}"`)) {
+  const propia = document.createElement('template');
+  propia.dataset.panel = `ranking-${genero}`;
+  propia.innerHTML = panel.innerHTML;
+  document.querySelector('.site-footer').before(propia);
+}
+
+// <head> y h1 de la página `nueva`: lo que lee un buscador al llegar a su URL.
+function ponerCabeza(nueva) {
+  const datos = paginas[nueva];
+  if (!datos) return;
+  // El del <head> publicado, también si la página se sirve con www.
+  const origen = new URL(document.querySelector('link[rel="canonical"]').href).origin;
+  document.title = datos.title;
+  const poner = (selector, atributo, valor) => document.head.querySelector(selector)?.setAttribute(atributo, valor);
+  poner('meta[name="description"]', 'content', datos.description);
+  poner('link[rel="canonical"]', 'href', origen + datos.path);
+  poner('link[hreflang="es"]', 'href', origen + datos.es);
+  poner('link[hreflang="en"]', 'href', origen + datos.en);
+  poner('link[hreflang="x-default"]', 'href', origen + datos.es);
+  poner('meta[property="og:title"]', 'content', datos.title);
+  poner('meta[property="og:description"]', 'content', datos.description);
+  poner('meta[property="og:url"]', 'content', origen + datos.path);
+  poner('meta[name="twitter:title"]', 'content', datos.title);
+  poner('meta[name="twitter:description"]', 'content', datos.description);
+  const h1 = main.querySelector('.feed-hero > h1');
+  if (h1) h1.textContent = datos.h1;
+}
+
+// URL de la vista visible. La portada (/resultados/) puede mostrar Ciclocross o Carretera: el
+// estado del historial guarda la vista para volver a ella con «atrás».
+function irA(nueva) {
+  const cambiaUrl = nueva !== pagina;
+  pagina = nueva;
+  const estado = { vista, genero };
+  const previo = history.state;
+  if (cambiaUrl || previo?.vista !== vista || previo?.genero !== genero) history.pushState(estado, '', paginas[nueva].path);
+  ponerCabeza(nueva);
+  if (cambiaUrl && window.gtag) window.gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
+}
+history.replaceState({ vista, genero }, '', location.href);
+
+async function mostrarGenero(nuevo) {
+  genero = nuevo;
+  if (!plantilla(`data-panel="ranking-${nuevo}"`)) {
+    try { await cargarRanking(); } catch { return; }
+    if (genero !== nuevo || vista !== 'ranking') return;
+  }
+  panel.dataset.genero = nuevo;
+  panel.replaceChildren(panelDe(`ranking-${nuevo}`));
+  bindRankingRows(panel);
+}
+
+addEventListener('popstate', ({ state }) => {
+  const nueva = feedPageFromPath(location.pathname);
+  if (!nueva) return;
+  pagina = nueva;
+  const destino = state?.vista || pageView(nueva);
+  const destinoGenero = state?.genero || pageGender(nueva);
+  if (destino === 'ranking') {
+    if (vista !== 'ranking') mostrar('ranking', destinoGenero);
+    else if (destinoGenero !== genero) mostrarGenero(destinoGenero);
+  } else mostrar(destino);
+  ponerCabeza(nueva);
+});
+
 function colocar() {
   aplicarFiltros(main, panel, vista);
   if (vista === 'latest') packFeaturedEntries(main);
@@ -68,7 +140,7 @@ function pintarPestanas() {
   if (actual && nueva) actual.replaceWith(nueva.content.cloneNode(true));
 }
 
-function mostrar(nombre) {
+function mostrar(nombre, nuevoGenero = genero) {
   if (nombre === vista) return;
   const fragmento = document.createDocumentFragment();
   fragmento.append(...panel.childNodes);
@@ -79,14 +151,11 @@ function mostrar(nombre) {
   aplicarFiltros(main, panel, nombre);
   if (nombre === 'ranking') {
     // Lo anterior sigue a la vista si el ránking aún no ha llegado.
-    panel.append(fragmento.cloneNode(true));
-    cargarRanking().then(() => {
-      if (vista !== 'ranking') return;
-      panel.replaceChildren(panelDe(`ranking-${genero}`));
-      bindRankingRows(panel);
-    }).catch(() => {});
+    if (!plantilla(`data-panel="ranking-${nuevoGenero}"`)) panel.append(fragmento.cloneNode(true));
+    mostrarGenero(nuevoGenero);
     return;
   }
+  delete panel.dataset.genero;
   panel.replaceChildren(guardadas.get(nombre) ?? panelDe(nombre) ?? '');
   colocar();
 }
@@ -184,13 +253,22 @@ main.addEventListener('click', evento => {
     (main.querySelector('button.discipline-switch__pin') || main.querySelector('[data-results-view="latest"]'))?.focus();
     return;
   }
+  // Enlaces de vista y de género: sin recargar, salvo para abrirlos en otra pestaña.
+  const nuevaVentana = evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey;
   const pestana = objetivo.closest('[data-results-view]');
-  if (pestana) { mostrar(pestana.dataset.resultsView); return; }
+  if (pestana) {
+    if (nuevaVentana) return;
+    evento.preventDefault();
+    mostrar(pestana.dataset.resultsView);
+    irA(viewPage(vista, genero));
+    return;
+  }
   const botonGenero = objetivo.closest('[data-ranking-gender]');
   if (botonGenero) {
-    genero = botonGenero.dataset.rankingGender;
-    panel.replaceChildren(panelDe(`ranking-${genero}`));
-    bindRankingRows(panel);
+    if (nuevaVentana) return;
+    evento.preventDefault();
+    if (botonGenero.dataset.rankingGender !== genero) mostrarGenero(botonGenero.dataset.rankingGender);
+    irA(viewPage('ranking', botonGenero.dataset.rankingGender));
     return;
   }
   const mas = objetivo.closest('#feedMoreBtn');
@@ -219,7 +297,13 @@ async function comprobar() {
     const mismoDia = nuevoMain.dataset.hoy === main.dataset.hoy;
     document.querySelectorAll('template[data-panel]:not([data-panel^="ranking-"]),template[data-pestanas]').forEach(nodo => nodo.remove());
     const pie = document.querySelector('.site-footer');
-    nuevo.querySelectorAll('template[data-panel],template[data-pestanas]').forEach(nodo => pie.before(document.adoptNode(nodo)));
+    nuevo.querySelectorAll('template[data-panel]:not([data-panel^="ranking-"]),template[data-pestanas]').forEach(nodo => pie.before(document.adoptNode(nodo)));
+    const nuevasPaginas = nuevo.getElementById('feedPages');
+    if (nuevasPaginas) {
+      paginas = JSON.parse(nuevasPaginas.textContent);
+      document.getElementById('feedPages').textContent = nuevasPaginas.textContent;
+      ponerCabeza(pagina);
+    }
     if (nuevoPanel.dataset.view !== vista) {
       const inicial = document.createElement('template');
       inicial.dataset.panel = nuevoPanel.dataset.view;
@@ -262,6 +346,8 @@ async function comprobar() {
     comprobando = false;
   }
 }
+
+if (vista === 'ranking') bindRankingRows(panel);
 
 let marco = 0;
 const recolocar = () => { cancelAnimationFrame(marco); marco = requestAnimationFrame(colocar); };

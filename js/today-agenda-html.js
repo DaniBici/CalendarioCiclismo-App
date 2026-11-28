@@ -9,7 +9,7 @@ import { formatTime, formatTimeUser, stageLabel, countryFlag, effectiveCountryCo
 import { t, getLang, getLocale } from './i18n.js';
 import { roadRaceLevel, roadRaceGenders } from './category-filter.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
-import { todayRaceState, startlistCyclistHtml, tvIconHtml, tvStatusChipHtml } from './services/race-presentation.js';
+import { todayRaceState, startlistIconHtml, bibSearchIconHtml, tvIconHtml, tvStatusChipHtml } from './services/race-presentation.js';
 import { pickBadgeBroadcast } from './broadcast-priority.js';
 import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js';
 import { hasModalData } from './stage/profile-availability.js';
@@ -20,7 +20,7 @@ import { noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, s
 
 const attr = value => String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const _liveTextSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>';
-const _cyclistSvg = startlistCyclistHtml;
+const _startlistSvg = startlistIconHtml;
 
 function tvBadgeHtml(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBlocked = false, nowMs = Date.now()) {
   // En la versión EN (/en/), "unavailable_es" es irrelevante: el usuario no está en España.
@@ -216,7 +216,13 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
   // Crono de etapa única: el orden de salida sustituye a los dorsales.
   const isSingleTimeTrial = isTimeTrial && race.raceFormat !== 'stage_race';
   const startlistHtml = race.startlistImportedAt && !showResults && !waiting && !rd.isCancelledDay && isFirstOrOnlyDay && !isSingleTimeTrial
-    ? `<a class="badge badge--startlist" href="${startlistUrl(race)}" onclick="event.stopPropagation()">${_cyclistSvg} <span class="badge__text">${race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'))}</span></a>` : '';
+    ? `<a class="badge badge--startlist" href="${startlistUrl(race)}" onclick="event.stopPropagation()">${_startlistSvg} <span class="badge__text">${race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'))}</span></a>` : '';
+  // Busca dorsal: solo con la jornada en curso y dorsales definitivos; en las
+  // cronos manda el orden de salida. Junto a «Dorsales», las dos van unidas.
+  const bibSearchHtml = state === 'running' && race.startlistImportedAt && !race.startlistProvisional && !isTimeTrial
+    ? `<button type="button" class="badge badge--bibsearch" data-bib-search aria-label="${attr(t('stage.bibSearch'))}" title="${attr(t('stage.bibSearch'))}"><span class="badge--bibsearch__icon">${bibSearchIconHtml}</span><span class="badge__text">${t('stage.bibSearch')}</span></button>` : '';
+  const startlistGroupHtml = startlistHtml && bibSearchHtml
+    ? `<span class="badge-pair">${startlistHtml}${bibSearchHtml}</span>` : startlistHtml + bibSearchHtml;
   const startOrderHtml = isTimeTrial && rd._assets?.some(a => a.url && a.type === 'startOrder') && !rd.isCancelledDay && !showResults && !waiting
     ? startOrderBadgeHtml(startOrderUrl(rd)) : '';
 
@@ -273,7 +279,7 @@ function stageCardHtml(rd, { agendaCat, agendaSort, variantes, now }) {
       logo,
       name: `<span>${name}</span>${overviewBtn}`,
       sub: stageSubHtml({ stage, route: stageRouteText(rd, rdLocation), km, elev }),
-      badges: `${catBadgeHtml}${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>` : ''}${typeBadgeHtml}${tvHtml}${startlistHtml}${startOrderHtml}`,
+      badges: `${catBadgeHtml}${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>` : ''}${typeBadgeHtml}${tvHtml}${startlistGroupHtml}${startOrderHtml}`,
       meta,
     }) + profile + seoLink,
   });

@@ -66,7 +66,7 @@ async function init() {
   const isEn = getLang() === 'en';
   const locale = isEn ? 'en-GB' : 'es-ES';
   const content = document.getElementById('videosContent');
-  const todayKey = toDateKey(new Date());
+  let todayKey = toDateKey(new Date());
 
   const title = isEn ? 'Cycling videos - Calendario Ciclismo' : 'Vídeos de ciclismo - Calendario Ciclismo App';
   document.title = title;
@@ -218,8 +218,15 @@ async function init() {
     if (document.hidden || busy || content.querySelector('details.video-card[open]')) return;
     busy = true;
     try {
+      const nowKey = toDateKey(new Date());
+      const dayChanged = nowKey !== todayKey;
+      if (dayChanged) {
+        const seasonChanged = cyclocrossHome(nowKey) !== cyclocrossHome(todayKey);
+        todayKey = nowKey;
+        if (seasonChanged) view = cyclocrossHome(todayKey) && !roadPinned() ? 'cx' : 'road';
+      }
       const next = await watermark();
-      if (next === mark && Date.now() - loadedAt < CX_FULL_REFRESH_MS) return;
+      if (!dayChanged && next === mark && Date.now() - loadedAt < CX_FULL_REFRESH_MS) return;
       await loadAll();
       const y = scrollY;
       render();

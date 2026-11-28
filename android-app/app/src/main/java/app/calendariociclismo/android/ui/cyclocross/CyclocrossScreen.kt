@@ -990,7 +990,7 @@ private fun CxCardBadges(race: CxRace, date: String, clock: Instant, english: Bo
             )
             if (startlist != null && onStartlist != null) RaceActionBadge(
                 label = stringResource(R.string.today_startlist_badge),
-                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist).takeIf { showIcon },
+                icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib).takeIf { showIcon },
                 primaryAction = true,
                 onClick = { onStartlist(startlist.category) },
                 showLabel = showLabel,

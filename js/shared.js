@@ -381,8 +381,9 @@ export function stageLabel(n, suffix, isFinal = false) {
 // `outline`: filete tenue (css/app.css, `.flag-img--outlined`) para las banderas de Hoy y de
 // Últimos resultados; sin él, la bandera no cambia.
 export function countryFlag(code, { lazy = false, outline = false } = {}) {
-  if (!code) return '';
-  const c = code.toLowerCase();
+  // Sin país asignado (vacío o un marcador como «--» de DataRide), sin bandera.
+  const c = String(code || '').toLowerCase();
+  if (!/^[a-z]{2}(-[a-z0-9]+)?$/.test(c)) return '';
   return `<img src="${flagIconUrl(c)}" alt="${c}"${outline ? ' class="flag-img--outlined"' : ''}${lazy ? ' loading="lazy"' : ''} style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;vertical-align:-0.05em;display:inline-block">`;
 }
 

@@ -227,12 +227,68 @@ extension SupabaseService {
         let currentTeamId: String?
     }
 
+    /// Fila de `rider_name_history`: un nombre anterior de un corredor y el
+    /// último día en que estuvo vigente. La ficha guarda el nombre actual.
+    private struct NameHistoryRow: Codable, Sendable {
+        let riderId: String
+        let firstName: String
+        let lastName: String
+        let validTo: String   // YYYY-MM-DD
+    }
+
+    private struct RaceStartRow: Codable, Sendable {
+        let startDate: String?
+    }
+
+    /// Historial de nombres por corredor. La tabla es pequeña: se lee entera.
+    /// Fail-silent: sin historial, vale el nombre de la ficha.
+    private func riderNameHistory() async -> [String: [NameHistoryRow]] {
+        let rows: [NameHistoryRow] = (try? await client.from("rider_name_history")
+            .select("riderId,firstName,lastName,validTo")
+            .execute()
+            .value) ?? []
+        return Dictionary(grouping: rows, by: \.riderId)
+    }
+
+    /// Nombre vigente el día `date` (YYYY-MM-DD, inicio de la carrera): el de la
+    /// fila con la menor `validTo` mayor o igual que la fecha. nil si no hay
+    /// ninguna → vale el nombre de la ficha. Misma regla que la vista
+    /// `startlist_riders_resolved` y que `riderNameAt` de la web.
+    private static func historicalName(_ rows: [NameHistoryRow]?, on date: String?) -> String? {
+        guard let rows, let date else { return nil }
+        guard let row = rows.filter({ $0.validTo >= date }).min(by: { $0.validTo < $1.validTo }) else { return nil }
+        return "\(row.firstName) \(row.lastName)".trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Nombres vigentes el día de la carrera `raceId` de los corredores con
+    /// historial (normalmente ninguno). Vacío si no hay carrera, historial o
+    /// fecha de inicio.
+    private func historicalNames(raceId: String?, riderIds: [String]) async -> [String: String] {
+        guard let raceId else { return [:] }
+        let history = await riderNameHistory()
+        let relevant = riderIds.filter { history[$0] != nil }
+        guard !relevant.isEmpty else { return [:] }
+        let races: [RaceStartRow] = (try? await client.from("races")
+            .select("startDate")
+            .eq("id", value: raceId)
+            .execute()
+            .value) ?? []
+        guard let start = races.first?.startDate else { return [:] }
+        var out: [String: String] = [:]
+        for id in relevant {
+            if let name = SupabaseService.historicalName(history[id], on: start) { out[id] = name }
+        }
+        return out
+    }
+
     /// Resuelve un conjunto de `globalRiderId` a `ResolvedRider` directamente
     /// desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
     /// actual solo se incluye cuando el llamador confirma que consulta el año vigente.
+    /// Con `raceId`, el nombre es el vigente el día de esa carrera (cambios de
+    /// apellido con vigencia).
     /// Fail-silent: si una query falla, esos ids
     /// no entran en el mapa (la fila se renderiza sin bandera ni colores, como antes).
-    func enrichRidersByGlobalId(_ ids: [String], includeCurrentTeam: Bool = true) async -> [String: ResolvedRider] {
+    func enrichRidersByGlobalId(_ ids: [String], includeCurrentTeam: Bool = true, raceId: String? = nil) async -> [String: ResolvedRider] {
         let need = Array(Set(ids.filter { !$0.isEmpty }))
         guard !need.isEmpty else { return [:] }
         let columns = includeCurrentTeam ? "id,firstName,lastName,nationality,currentTeamId" : "id,firstName,lastName,nationality"
@@ -248,6 +304,7 @@ extension SupabaseService {
             .value) ?? []
         let riders = await menReq + womenReq
         guard !riders.isEmpty else { return [:] }
+        let historical = await historicalNames(raceId: raceId, riderIds: riders.map(\.id))
 
         let currentIds = includeCurrentTeam ? Array(Set(riders.compactMap(\.currentTeamId))) : []
         var teamById: [String: Team] = [:]
@@ -263,9 +320,10 @@ extension SupabaseService {
         out.reserveCapacity(riders.count)
         for r in riders {
             let team = includeCurrentTeam ? r.currentTeamId.flatMap { teamById[$0] } : nil
+            let currentName = [r.firstName, r.lastName].compactMap { $0 }.joined(separator: " ")
+                .trimmingCharacters(in: .whitespaces)
             out[r.id] = ResolvedRider(
-                name: [r.firstName, r.lastName].compactMap { $0 }.joined(separator: " ")
-                    .trimmingCharacters(in: .whitespaces),
+                name: historical[r.id] ?? currentName,
                 countryCode: r.nationality ?? "",
                 teamName: team?.name ?? "",
                 team: team,
@@ -630,11 +688,12 @@ extension SupabaseService {
     private static let raceDayProgramColumns =
         "id,raceId,dateKey,isRestDay,isCancelledDay,stageNumber,neutralStartTimeUtc,editorialStatus,hasAssets"
 
-    /// Instantánea semanal de DataRide compartida por las tres plataformas.
-    /// La tabla no conserva históricos: cada martes se reemplazan ambos géneros.
+    /// Ránking publicado compartido por las tres plataformas: instantánea
+    /// oficial de los martes más clasificaciones oficiales y penalizaciones
+    /// posteriores (se recalcula cada 15 minutos).
     func loadUciTeamRankings() async throws -> [UciTeamRankingRow] {
         try await client.from("uci_team_rankings")
-            .select("gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl")
+            .select("gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl,seasonYear,officialPoints,provisionalPoints,penaltyPoints,officialRankingDate,syncedAt")
             .order("gender", ascending: true)
             .order("rank", ascending: true)
             .execute()
@@ -1024,10 +1083,19 @@ extension SupabaseService {
                 }
             }
 
+            // Nombre vigente el día de la carrera (cambios de apellido con vigencia).
+            let nameHistory = await riderNameHistory()
+            let raceStart: [String: String] = Dictionary(
+                entries.compactMap { entry in entry.race.startDate.map { (entry.race.id, $0) } },
+                uniquingKeysWith: { first, _ in first }
+            )
+
             func resolvedRiderName(_ row: FeedRank1Row) -> String? {
                 let fallback = Int(row.bib ?? "").flatMap { startlistByBib["\(row.raceId)#\($0)"] }
                 if let gid = row.globalRiderId ?? fallback?.globalRiderId,
-                   let name = nameById[gid], !name.isEmpty { return name }
+                   let name = nameById[gid], !name.isEmpty {
+                    return SupabaseService.historicalName(nameHistory[gid], on: raceStart[row.raceId]) ?? name
+                }
                 let fallbackName = "\(fallback?.firstName ?? "") \(fallback?.lastName ?? "")"
                     .trimmingCharacters(in: .whitespaces)
                 if !fallbackName.isEmpty { return fallbackName }

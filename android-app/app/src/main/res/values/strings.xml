@@ -77,6 +77,15 @@
     <string name="today_results_cd">Resultados</string>
     <string name="today_revive_cd">Revive</string>
     <string name="today_startlist_badge">Dorsales</string>
+    <string name="today_bib_search_badge">Busca dorsal</string>
+    <string name="bib_search_full_list">Lista completa</string>
+    <string name="bib_search_number">Número de dorsal</string>
+    <string name="bib_search_hint">Escribe el número que ves en pantalla.</string>
+    <string name="bib_search_none">Sin corredor con el dorsal %1$s.</string>
+    <string name="bib_search_no_bibs">Esta lista aún no tiene dorsales.</string>
+    <string name="bib_search_error">No se han podido cargar los dorsales.</string>
+    <string name="bib_search_mates">Compañeros</string>
+    <string name="bib_search_mates_female">Compañeras</string>
     <string name="today_prev_day_cd">Día anterior</string>
     <string name="today_next_day_cd">Día siguiente</string>
     <string name="today_refresh_cd">Actualizar</string>

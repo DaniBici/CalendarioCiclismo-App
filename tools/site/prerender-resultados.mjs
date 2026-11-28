@@ -87,7 +87,8 @@ const MAX_PAGE_BYTES = 64 * 1024;
 const CACHE_FORMAT = 1;
 // Versión de los datos de la firma: RESULTADOS_CACHE_CONTRACT de site_data.py.
 // 2: las páginas llevan los vídeos de la jornada de contexto (2026-11-11).
-const SIGNATURE_CONTRACT = 2;
+// 3: el catálogo de cada carrera lleva el historial de nombres de sus fichas (2026-11-28).
+const SIGNATURE_CONTRACT = 3;
 // Carreras leídas por build como máximo: RESULTADOS_MAX_READS de site_data.py.
 const RESULTADOS_MAX_READS = 150;
 // RESULTADOS_ROTATION_DAYS de site_data.py.
@@ -186,6 +187,7 @@ const RACE_QUERIES = {
 const CATALOG_QUERIES = {
   resultados_riders_men: 'riders_men?select=id,firstName,lastName,nationality,currentTeamId&order=id.asc',
   resultados_riders_women: 'riders_women?select=id,firstName,lastName,nationality,currentTeamId&order=id.asc',
+  resultados_rider_name_history: 'rider_name_history?select=riderId,firstName,lastName,validTo&order=riderId.asc,validTo.asc',
   resultados_team_list: `teams?select=${TEAM_COLUMNS}&order=id.asc`,
   resultados_team_seasons: years => `team_seasons?select=year,${SEASON_COLUMNS}&year=in.(${years.join(',')})&order=id.asc`,
 };
@@ -215,6 +217,7 @@ async function loadApiRaces(raceIds, { races, stages }, key) {
   for (const chunk of chunked(stageIds)) add('resultados_results', RACE_QUERIES.resultados_results(inFilter('stageRef', chunk)));
   add('resultados_riders_men', CATALOG_QUERIES.resultados_riders_men);
   add('resultados_riders_women', CATALOG_QUERIES.resultados_riders_women);
+  add('resultados_rider_name_history', CATALOG_QUERIES.resultados_rider_name_history);
   add('resultados_team_list', CATALOG_QUERIES.resultados_team_list);
   add('resultados_team_seasons', CATALOG_QUERIES.resultados_team_seasons(years));
   const tables = Object.fromEntries(Object.keys({ ...RACE_QUERIES, ...CATALOG_QUERIES }).map(name => [name, []]));
@@ -324,6 +327,7 @@ export function raceData(tables, raceIds, index) {
   const resultsByStage = groupBy(tables.resultados_results || [], 'stageRef');
   const men = new Map((tables.resultados_riders_men || []).map(row => [row.id, row]));
   const women = new Map((tables.resultados_riders_women || []).map(row => [row.id, row]));
+  const nameHistory = groupBy(tables.resultados_rider_name_history || [], 'riderId');
   const teams = new Map((tables.resultados_team_list || []).map(row => [row.id, row]));
   const seasons = groupBy(tables.resultados_team_seasons || [], 'teamId');
   const data = new Map();
@@ -340,6 +344,8 @@ export function raceData(tables, raceIds, index) {
     const resolved = row => (row.bib != null && /^\d+$/.test(String(row.bib)) && dorsals.has(Number(row.bib))) || listed.has(row.globalRiderId);
     const riderIds = [...new Set(rows.filter(row => !resolved(row)).map(row => row.globalRiderId).filter(Boolean))];
     const catalog = { riders_men: riderIds.map(id => men.get(id)).filter(Boolean), riders_women: riderIds.map(id => women.get(id)).filter(Boolean) };
+    // Nombres anteriores de esas fichas, para el nombre vigente el día de la carrera.
+    catalog.rider_name_history = riderIds.flatMap(id => nameHistory.get(id) || []);
     const teamIds = [...new Set([...rows.map(row => row.teamId), ...catalog.riders_men.concat(catalog.riders_women).map(row => row.currentTeamId)].filter(Boolean))];
     catalog.teams = teamIds.map(id => teams.get(id)).filter(Boolean);
     catalog.team_seasons = teamIds.flatMap(id => (seasons.get(id) || []).filter(season => season.year === race?.year));

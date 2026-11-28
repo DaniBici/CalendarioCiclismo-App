@@ -76,6 +76,16 @@ object AdaptiveLayoutPolicy {
     const val LIST_DETAIL_WIDE_SIDEBAR_MIN_DP = 760
     const val LIST_DETAIL_SIDEBAR_DP = 280
     const val LIST_DETAIL_WIDE_SIDEBAR_DP = 320
+    /** Columna lateral de contexto junto a una clasificación (perfil y datos
+     *  de la jornada; mapa y horarios de ciclocross): 280 dp y 320 dp desde
+     *  1100 dp de contenedor, como `.res-layout--context` de la web (iOS:
+     *  `contextColumnWidth`). */
+    const val CONTEXT_COLUMN_DP = 280
+    const val CONTEXT_COLUMN_WIDE_DP = 320
+    const val CONTEXT_COLUMN_WIDE_MIN_DP = 1100
+
+    fun contextColumnDp(containerWidthDp: Float): Int =
+        if (containerWidthDp >= CONTEXT_COLUMN_WIDE_MIN_DP) CONTEXT_COLUMN_WIDE_DP else CONTEXT_COLUMN_DP
 
     data class Row<T>(val items: List<T>, val spansAllColumns: Boolean)
 

@@ -250,14 +250,14 @@ struct CxRaceDetailView: View {
                         CxMapView(url: url, preloaded: mapImageUrl == url.absoluteString ? mapImage : nil)
                             .frame(maxWidth: .infinity, alignment: .top)
                         selectedContent(detail, wide: true)
-                            .frame(width: min(380, max(320, (proxy.size.width - gap - 32) * 0.40)), alignment: .top)
+                            .frame(width: AdaptiveLayoutPolicy.contextColumnWidth(containerWidth: proxy.size.width), alignment: .top)
                     }
                 } else {
                     HStack(alignment: .top, spacing: gap) {
                         selectedContent(detail, wide: true)
                             .frame(maxWidth: .infinity, alignment: .top)
                         sideColumn(detail, mapUrl: mapUrl, raceData: raceData)
-                            .frame(width: min(380, max(320, (proxy.size.width - gap - 32) * 0.40)), alignment: .top)
+                            .frame(width: AdaptiveLayoutPolicy.contextColumnWidth(containerWidth: proxy.size.width), alignment: .top)
                     }
                 }
             } else {
@@ -565,7 +565,7 @@ private struct CxProgrammeSection: View {
                                     // Bicicleta solo-icono con el mismo cuadro, tamaño y
                                     // color que la copa de resultados.
                                     Button { onStartlist(category.category) } label: {
-                                        LogoCyclistIcon(size: 20).foregroundStyle(.secondary)
+                                        StartlistIcon(size: 20).foregroundStyle(.secondary)
                                             .frame(width: 32, height: 24).contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
@@ -634,6 +634,8 @@ private struct CxStartlistSection: View {
     /// Ancho mínimo de la tabla con columna Equipo (web: más de 600 px).
     private static let teamColumnMinWidth: CGFloat = 560
     private static let riderColumnWidth: CGFloat = 256
+    /// Columna del dorsal: cabe un dorsal de cuatro cifras (la de posición mide 32 pt).
+    private static let bibColumnWidth: CGFloat = 44
     private var rows: [CxStartlistRider] { detail.startlist.filter { $0.category == category }.sorted { $0.sortOrder < $1.sortOrder } }
     var body: some View {
         let rows = rows
@@ -666,7 +668,7 @@ private struct CxStartlistSection: View {
     private func header(hasTeam: Bool, teamColumn: Bool) -> some View {
         HStack(spacing: ResultsTableMetrics.columnSpacing) {
             ResultsHeaderCell(text: CyclocrossPresentation.t("Dor.", "Bib"))
-                .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
+                .frame(width: Self.bibColumnWidth, alignment: .center)
             ResultsHeaderCell(text: CyclocrossPresentation.t("Corredor", "Rider"))
                 .frame(maxWidth: teamColumn ? Self.riderColumnWidth : .infinity, alignment: .leading)
             if teamColumn {
@@ -683,7 +685,9 @@ private struct CxStartlistSection: View {
             Text(rider.bib ?? "")
                 .ccFont(.s14, weight: .bold).monospacedDigit()
                 .foregroundStyle(.secondary)
-                .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: Self.bibColumnWidth, alignment: .center)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     if let country = rider.countryCode, !country.isEmpty {

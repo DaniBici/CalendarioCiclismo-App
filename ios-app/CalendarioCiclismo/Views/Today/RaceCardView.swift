@@ -36,6 +36,9 @@ struct RaceCardView: View {
     /// Llamada cuando el usuario pulsa la etiqueta de dorsales. Nil = sin
     /// etiqueta. Solo se renderiza además si `race.startlistImportedAt` no es nulo.
     var onShowStartlist: (() -> Void)? = nil
+    /// Abre «Busca dorsal». El caller solo lo proporciona con la jornada en
+    /// curso; la tarjeta comprueba además que haya dorsales definitivos.
+    var onSearchBib: (() -> Void)? = nil
     /// Llamada cuando el usuario pulsa la etiqueta «Orden de salida» en CRI/CRE.
     /// Abre la vista nativa de orden de salida desde el caller.
     var onStartOrderTap: (() -> Void)? = nil
@@ -135,6 +138,14 @@ struct RaceCardView: View {
         return true
     }
 
+    /// «Busca dorsal»: jornada en curso con dorsales definitivos. En las
+    /// cronos manda el orden de salida.
+    private var showsBibSearch: Bool {
+        guard premium.featuresUnlocked, showsLinkBadges, onSearchBib != nil else { return false }
+        guard !rd.isRestDay, !rd.isCancelledDay, !isTimeTrial else { return false }
+        return race?.startlistImportedAt != nil && race?.startlistProvisional != true
+    }
+
     /// Las etiquetas de enlace (TV, dorsales, orden de salida) solo mientras la
     /// jornada no ha terminado ni espera resultados (paridad con la web).
     private var showsLinkBadges: Bool { !isFinishedMode && !isWaitingForResults }
@@ -222,9 +233,43 @@ struct RaceCardView: View {
                 Haptics.play(.primaryAction)
                 onShowStartlist()
             } label: {
-                RaceActionLabel(label: startlistLabel, icon: LogoCyclistIcon.name)
+                RaceActionLabel(label: startlistLabel, icon: StartlistIcon.name)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var bibSearchLabel: String { LocaleService.t("Busca dorsal", "Find bib") }
+
+    /// «Busca dorsal», unida a «Dorsales» cuando la tarjeta también la lleva.
+    /// Si la fila no da para el rótulo, queda solo la lupa.
+    private var bibSearchGroup: some View {
+        ViewThatFits(in: .horizontal) {
+            bibSearchBadges(compact: false)
+            bibSearchBadges(compact: true)
+        }
+    }
+
+    private func bibSearchBadges(compact: Bool) -> some View {
+        HStack(spacing: 1) {
+            if showsStartlistBadge, let onShowStartlist {
+                Button {
+                    Haptics.play(.primaryAction)
+                    onShowStartlist()
+                } label: {
+                    RaceActionLabel(label: startlistLabel, icon: StartlistIcon.name, corners: .leading)
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                Haptics.play(.primaryAction)
+                onSearchBib?()
+            } label: {
+                RaceActionLabel(label: compact ? "" : bibSearchLabel, icon: BibSearchIcon.name,
+                                corners: showsStartlistBadge ? .trailing : .all)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(bibSearchLabel)
         }
     }
 
@@ -316,6 +361,9 @@ struct RaceCardView: View {
             }
             if showsStartlistBadge, showsLinkBadges, let onShowStartlist {
                 Button(LocaleService.t("Ver inscritos", "View startlist"), action: onShowStartlist)
+            }
+            if showsBibSearch, let onSearchBib {
+                Button(bibSearchLabel, action: onSearchBib)
             }
             if hasStartOrder, showsLinkBadges, let onStartOrderTap {
                 Button(LocaleService.t("Ver orden de salida", "View start order"), action: onStartOrderTap)
@@ -483,7 +531,10 @@ struct RaceCardView: View {
             if !rd.isCancelledDay {
                 TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
             }
-            if showsStartlistBadge {
+            if showsBibSearch {
+                bibSearchGroup
+                    .layoutValue(key: RaceCardHeaderLayout.ShrinksKey.self, value: true)
+            } else if showsStartlistBadge {
                 startlistBadge
             }
             startOrderBadge
@@ -698,6 +749,12 @@ private struct RaceCardHeaderLayout: Layout {
         static let defaultValue = Role.badge
     }
 
+    /// Etiqueta con una versión más corta (`ViewThatFits`): si no cabe, se
+    /// mide de nuevo con el ancho que queda en la línea.
+    struct ShrinksKey: LayoutValueKey {
+        static let defaultValue = false
+    }
+
     var columnSpacing: CGFloat = 12
     var badgesTop: CGFloat = 6
     var badgeSpacing: CGFloat = 6
@@ -752,8 +809,11 @@ private struct RaceCardHeaderLayout: Layout {
         var overflowed = false
         func available() -> CGFloat { y < trailingSize.height ? mainWidth : totalWidth }
         for index in subviews.indices where subviews[index][RoleKey.self] == .badge {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            var size = subviews[index].sizeThatFits(.unspecified)
             guard size.width > 0 || size.height > 0 else { continue }
+            if x + size.width > available(), subviews[index][ShrinksKey.self] {
+                size = subviews[index].sizeThatFits(ProposedViewSize(width: max(0, available() - x), height: nil))
+            }
             if x > 0 && x + size.width > available() { overflowed = true }
             if overflowed {
                 frames[index] = CGRect(origin: Self.hiddenOrigin, size: size)

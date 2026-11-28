@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────────
 //  ÚLTIMOS RESULTADOS — motor compartido de filas de resultados
 //
-//  Consumidor: renderResultsFeed(content), el índice /resultados/ y
-//  /en/results/ (lo monta resultados.js cuando la URL no trae carrera):
-//  cronología inversa agrupada por fecha + "Cargar más" de 14 en 14 días.
+//  Consumidor: renderResultsFeed(content), las páginas de Últimos resultados
+//  (results/feed-pages.js: /resultados/, /resultados/ciclocross/ y el ránking
+//  UCI; lo monta resultados.js): cronología inversa agrupada por fecha +
+//  "Cargar más" de 14 en 14 días. Cambiar de vista pone su URL sin recargar.
 //
 //  Reglas de las filas (espec Dani 2026-06-11):
 //   · Etapas de vueltas y pruebas de un día (estas SIN etiqueta) + las
@@ -25,13 +26,15 @@ import { cxDaysHtml, cxEmptyHtml, feedDaysHtml, feedEmptyHtml, feedHeroHtml, fee
 import { bindRankingRows, packCxDays, packFeaturedEntries } from './resultados-feed-layout.js';
 import { resolveCxWinnerTeams } from './services/result-feed-context.js';
 import { supabase, esc, setMeta, setMetaProperty } from './shared.js';
+import { feedPageFromPath, feedPageMeta, feedPagePath, pageGender, pageView, viewPage } from './results/feed-pages.js';
+import { uciRankingSeasonYear } from './results/uci-team-ranking.js';
 import { getLang, t } from './i18n.js';
 import { filterMenuHtml, filtersActive, bindFilterMenu } from './components/filter-menu.js';
 import { bindMenuButtons } from './components/menu-button.js';
 import { scheduleResultsTip } from './components/today-tip.js';
 import { patchHtml } from './dom-patch.js';
 import { ROAD_FILTER_GROUPS, ROAD_FILTERS_KEY, CX_FILTERS_KEY, cxFilterGroups, loadRoadFilters, loadCxFilters, roadRaceMatches, cxRaceMatches, filterLabels } from './race-filters.js';
-import { cyclocrossHome, roadPinned, setRoadPinned } from './services/today-season.js';
+import { cyclocrossHome, roadPinned, setRoadPinned, seasonCalendarYear } from './services/today-season.js';
 import { cxSeasonRows, cxSeasonRounds, cxListedInAgenda } from './services/cx-data.js';
 import { cxSeason } from './cx/presentation.js';
 import { cxResultEntries, cxFeedNeedsReload, CX_FULL_REFRESH_MS } from './cx/results-feed.js';
@@ -84,33 +87,56 @@ export function renderResultsFeed(content) {
   // En ese periodo las tres vistas forman el conmutador de Hoy y Carretera
   // abre por defecto si está fijada con su chincheta.
   const cxTab = cyclocrossHome(todayKey);
-  const views = feedViews(cxTab);
-  let activeView = cxTab && roadPinned() ? 'latest' : views[0];
-  let rankingGender = 'male';
+  const lang = _isEn ? 'en' : 'es';
+  // Página de la URL. La portada (/resultados/) abre en la primera vista:
+  // Ciclocross mientras la home es Ciclocross, salvo con Carretera fijada.
+  let page = feedPageFromPath(location.pathname) || 'latest';
+  const views = feedViews(cxTab || page === 'cx');
+  let activeView = page === 'latest' ? (cxTab && roadPinned() ? 'latest' : views[0]) : pageView(page);
+  let rankingGender = pageGender(page);
   let feedEntries = null;
   let rankingRows = null;
 
-  // ── SEO (la home del feed es evergreen) ───────────────────────────
-  const title = _isEn
-    ? 'Latest results - Calendario Ciclismo'
-    : 'Últimos resultados - Calendario Ciclismo App';
-  const description = _isEn
-    ? 'Latest professional cycling results: stages and one-day classics in reverse chronological order, with winners and full classifications.'
-    : 'Últimos resultados del ciclismo profesional: etapas y clásicas en orden cronológico inverso, con ganador y clasificaciones completas.';
-  document.title = title;
-  if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: title });
-  setMeta('description', description);
-  setMetaProperty('og:title', title);
-  setMetaProperty('og:description', description);
+  // ── SEO: título, descripción, canonical y hreflang de la página ──
   const origin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : location.origin;
-  const esUrl = `${origin}/resultados/`;
-  const enUrl = `${origin}/en/results/`;
-  setMetaProperty('og:url', _isEn ? enUrl : esUrl);
-  let canonEl = document.querySelector('link[rel="canonical"]');
-  if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
-  canonEl.href = _isEn ? enUrl : esUrl;
+  const pageMeta = () => feedPageMeta(page, lang, {
+    cxSeason: cxSeason(),
+    rankingSeason: rankingRows?.length ? uciRankingSeasonYear(rankingRows.find(row => row.gender === 'male') || rankingRows[0]) : seasonCalendarYear(todayKey),
+  });
+  function applyPageMeta() {
+    const meta = pageMeta();
+    document.title = meta.title;
+    setMeta('description', meta.description);
+    setMetaProperty('og:title', meta.title);
+    setMetaProperty('og:description', meta.description);
+    setMetaProperty('og:url', origin + feedPagePath(page, lang));
+    let canonEl = document.querySelector('link[rel="canonical"]');
+    if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
+    canonEl.href = origin + feedPagePath(page, lang);
+    for (const [hreflang, target] of [['es', 'es'], ['en', 'en'], ['x-default', 'es']]) {
+      document.querySelector(`link[rel="alternate"][hreflang="${hreflang}"]`)?.setAttribute('href', origin + feedPagePath(page, target));
+    }
+    const h1 = content.querySelector('.feed-hero > h1');
+    if (h1) h1.textContent = meta.h1;
+  }
+  applyPageMeta();
+  if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
 
-  const tabsHtml = () => feedTabsHtml({ cxTab, activeView, pinned: roadPinned(), isEn: _isEn });
+  // Cambio de vista sin recarga: URL de la vista y su <head>. La portada puede
+  // mostrar Ciclocross o Carretera; el historial guarda la vista.
+  function goToPage(next) {
+    const changed = next !== page;
+    page = next;
+    const state = { view: activeView, gender: rankingGender };
+    const previous = history.state;
+    if (changed || previous?.view !== activeView || previous?.gender !== rankingGender) history.pushState(state, '', feedPagePath(next, lang));
+    applyPageMeta();
+    if (changed && window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation?.() ?? location.href, page_title: document.title });
+  }
+  history.replaceState({ view: activeView, gender: rankingGender }, '', location.href);
+  const opensElsewhere = event => event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+
+  const tabsHtml = () => feedTabsHtml({ views, activeView, pinnable: cxTab, pinned: roadPinned(), isEn: _isEn });
 
   // Filtros de carreras: la misma selección de Hoy y Calendario (js/race-filters.js),
   // por disciplina. El Ránking UCI no lleva filtros.
@@ -131,7 +157,7 @@ export function renderResultsFeed(content) {
   const cxVisible = entries => entries.filter(entry => cxRaceMatches(entry.race, cxFilters, cxGroups));
   const filteredEmptyHtml = () => `<div class="startlist-empty">${esc(t('filter.resultsEmpty'))}</div>`;
 
-  const shell = body => `${feedHeroHtml(tabsHtml() + filterSlotHtml(), _isEn)}
+  const shell = body => `${feedHeroHtml(tabsHtml() + filterSlotHtml(), pageMeta().h1)}
       <div id="resultsFeedPanel">${body}</div>`;
   // Con la cabecera de la vista ya pintada solo cambia el panel: un filtro no
   // cierra su menú ni mueve la burbuja.
@@ -169,25 +195,47 @@ export function renderResultsFeed(content) {
       (content.querySelector('button.discipline-switch__pin') || content.querySelector('[data-results-view="latest"]'))?.focus();
     });
     content.querySelectorAll('[data-results-view]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const next = button.dataset.resultsView;
-        if (next === activeView) return;
-        activeView = next;
-        if (activeView === 'ranking') {
-          renderRankingOrLoad();
-        } else if (activeView === 'cx') {
-          // Se pinta lo cargado y se sondea enseguida, como al volver a la
-          // pestaña: no se espera al siguiente ciclo de 60 s.
-          if (cxEntries) { renderCx(cxEntries); refreshCx(); } else loadCx();
-        } else if (feedEntries) {
-          renderFeed(feedEntries);
-          refreshFeed();
-        } else {
-          loadFeed();
-        }
+      button.addEventListener('click', (event) => {
+        if (opensElsewhere(event)) return;
+        event.preventDefault();
+        showView(button.dataset.resultsView);
+        goToPage(viewPage(activeView, rankingGender));
       });
     });
   }
+
+  function showView(next) {
+    if (next === activeView) return;
+    activeView = next;
+    if (activeView === 'ranking') {
+      renderRankingOrLoad();
+    } else if (activeView === 'cx') {
+      // Se pinta lo cargado y se sondea enseguida, como al volver a la
+      // pestaña: no se espera al siguiente ciclo de 60 s.
+      if (cxEntries) { renderCx(cxEntries); refreshCx(); } else loadCx();
+    } else if (feedEntries) {
+      renderFeed(feedEntries);
+      refreshFeed();
+    } else {
+      loadFeed();
+    }
+  }
+
+  window.addEventListener('popstate', ({ state }) => {
+    const next = feedPageFromPath(location.pathname);
+    if (!next || !content.isConnected) return;
+    page = next;
+    const gender = state?.gender || pageGender(next);
+    const view = state?.view || pageView(next);
+    if (view === 'ranking' && activeView === 'ranking' && gender !== rankingGender) {
+      rankingGender = gender;
+      if (rankingRows) renderRanking(rankingRows);
+    } else {
+      rankingGender = gender;
+      showView(view);
+    }
+    applyPageMeta();
+  });
 
   function renderFeed(entries) {
     const visible = roadVisible(entries);
@@ -378,9 +426,12 @@ export function renderResultsFeed(content) {
   function renderRanking(rows) {
     paint(rankingBodyHtml(rows, rankingGender, _isEn));
     content.querySelectorAll('[data-ranking-gender]').forEach((button) => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', (event) => {
+        if (opensElsewhere(event)) return;
+        event.preventDefault();
         rankingGender = button.dataset.rankingGender;
         renderRanking(rows);
+        goToPage(viewPage('ranking', rankingGender));
       });
     });
     bindRankingRows(content);
@@ -395,11 +446,12 @@ export function renderResultsFeed(content) {
     try {
       const { data, error } = await supabase
         .from('uci_team_rankings')
-        .select('gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl')
+        .select('gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl,seasonYear,officialPoints,provisionalPoints,penaltyPoints,officialRankingDate,syncedAt')
         .order('gender', { ascending: true })
         .order('rank', { ascending: true });
       if (error) throw error;
       rankingRows = data || [];
+      if (page.startsWith('ranking')) applyPageMeta();
       if (activeView === 'ranking') renderRanking(rankingRows);
     } catch (error) {
       console.error('[resultados-feed] ranking', error);
@@ -533,5 +585,6 @@ export function renderResultsFeed(content) {
   }
 
   if (activeView === 'cx') loadCx();
+  else if (activeView === 'ranking') renderRankingOrLoad();
   else loadFeed();
 }

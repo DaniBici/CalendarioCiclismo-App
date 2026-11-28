@@ -121,6 +121,7 @@ RESULTADOS_RESULTS = ("resultados_results", "race_uci_results?select=stageRef,ra
 RESULTADOS_CATALOG = {
     "resultados_riders_men": "riders_men?select=id,firstName,lastName,nationality,currentTeamId&order=id.asc",
     "resultados_riders_women": "riders_women?select=id,firstName,lastName,nationality,currentTeamId&order=id.asc",
+    "resultados_rider_name_history": "rider_name_history?select=riderId,firstName,lastName,validTo&order=riderId.asc,validTo.asc",
     "resultados_team_list": f"teams?select={TEAM_COLUMNS}&order=id.asc",
 }
 RESULTADOS_SEASONS = ("resultados_team_seasons", f"team_seasons?select=year,{SEASON_COLUMNS}&year=in.({{}})&order=id.asc")
@@ -128,7 +129,7 @@ RESULTADOS_NAMES = (*RESULTADOS_BASE, RESULTADOS_RIDERS[0], RESULTADOS_TEAMS[0],
                     *RESULTADOS_CATALOG, RESULTADOS_SEASONS[0])
 # Versión del formato de los datos de la caché: entra en la firma de cada
 # carrera, de modo que cambiarla obliga a leerlas todas.
-RESULTADOS_CACHE_CONTRACT = 2
+RESULTADOS_CACHE_CONTRACT = 3
 # Días con los mismos datos antes de volver a leer una carrera (más 0–13 según
 # su id, para repartir las lecturas): cambios de fichas o equipos que no tocan
 # sus clasificaciones (listas y catálogo no tienen marca de modificación).

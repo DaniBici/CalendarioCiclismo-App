@@ -645,6 +645,10 @@ def generate_full():
     entries = static_entries() + sections["competicion"] + sections["inscritos"]
     # Feed de últimos resultados (índice /resultados/ + /en/results/)
     add_bilingual(entries, f"{BASE_URL}/resultados/", f"{BASE_URL_EN}/results/", today, "hourly", "0.8")
+    # Vistas de Últimos resultados con página propia (js/results/feed-pages.js)
+    add_bilingual(entries, f"{BASE_URL}/resultados/ciclocross/", f"{BASE_URL_EN}/results/cyclocross/", today, "hourly", "0.7")
+    add_bilingual(entries, f"{BASE_URL}/ranking-uci/", f"{BASE_URL_EN}/uci-ranking/", today, "daily", "0.8")
+    add_bilingual(entries, f"{BASE_URL}/ranking-uci/femenino/", f"{BASE_URL_EN}/uci-ranking/women/", today, "daily", "0.7")
     # Vídeos por día (/videos/ + /en/videos/)
     add_bilingual(entries, f"{BASE_URL}/videos/", f"{BASE_URL_EN}/videos/", today, "daily", "0.7")
     # Mercado de fichajes (/fichajes/ + /en/transfers/)

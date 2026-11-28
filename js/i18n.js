@@ -181,6 +181,7 @@ const LOCALES = {
       descriptionRace: 'Descripción de la carrera', descriptionStage: 'Info de la etapa',
       bonuses: 'Bonificaciones', notes: 'Notas',
       websiteLabel: 'Web oficial', startlistLabel: 'Dorsales', startlistLabelFemale: 'Dorsales', startlistProvisional: 'Lista provisional',
+      bibSearch: 'Busca dorsal',
       stagesCount_one: '{n} etapa', stagesCount_other: '{n} etapas',
       racesCount_one: '{n} carrera', racesCount_other: '{n} carreras',
       addToCalendar: 'Añadir al calendario', reportChanges: 'Reportar cambios',
@@ -257,6 +258,10 @@ const LOCALES = {
       provisionalNote: ' (provisional, sujeta a cambios)',
       downloadPdf: 'Descargar PDF', generatingPdf: 'Generando…',
       // Motivo de abandono en el tooltip del corredor (lista con resultados in-house).
+      // Busca dorsal de la tarjeta de Hoy (js/bib-search.js).
+      bibHint: 'Escribe el número que ves en pantalla.', bibNone: 'Sin corredor con el dorsal {n}.',
+      bibMates: 'Compañeros', bibMatesFemale: 'Compañeras', bibFullList: 'Lista completa',
+      bibNumber: 'Número de dorsal', bibError: 'No se han podido cargar los dorsales.',
       dnfReasonStage: '{label} · etapa {n}',
       dnfReasonPrologue: '{label} · prólogo',
       dnfReason: '{label}',

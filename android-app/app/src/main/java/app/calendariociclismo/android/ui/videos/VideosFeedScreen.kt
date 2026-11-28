@@ -80,6 +80,9 @@ import app.calendariociclismo.android.util.VideoFeedDay
 import app.calendariociclismo.android.util.VideoFeedEntry
 import app.calendariociclismo.android.util.VideosFeedLogic
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.calendariociclismo.android.util.CxRaceFilter
 import app.calendariociclismo.android.util.RoadRaceFilter
 import app.calendariociclismo.android.ui.components.FiltersMenuStyle
@@ -118,10 +121,11 @@ fun VideosFeedScreen(navController: NavController) {
     val context = LocalContext.current
     val haptic = rememberHaptics()
     val scope = rememberCoroutineScope()
-    val today = remember { LocalDate.now().toString() }
-    val cxSeason = remember { CyclocrossLogic.season(LocalDate.now()) }
-    val cxSeasonStart = remember { CyclocrossLogic.months(cxSeason).first().atDay(1).toString() }
-    var discipline by rememberSaveable { mutableStateOf(if (RoadTodayAvailability.isVisible()) ROAD else CX) }
+    var today by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    val cxSeason = remember(today) { CyclocrossLogic.season(LocalDate.parse(today)) }
+    val cxSeasonStart = remember(cxSeason) { CyclocrossLogic.months(cxSeason).first().atDay(1).toString() }
+    var roadTodayVisible by rememberSaveable { mutableStateOf(RoadTodayAvailability.isVisible()) }
+    var discipline by rememberSaveable { mutableStateOf(if (roadTodayVisible) ROAD else CX) }
     var roadDays by remember { mutableStateOf<List<VideoFeedDay>>(emptyList()) }
     var cxRaces by remember { mutableStateOf<List<CxRace>>(emptyList()) }
     var rounds by remember { mutableStateOf<Map<String, CxRound>>(emptyMap()) }
@@ -152,28 +156,30 @@ fun VideosFeedScreen(navController: NavController) {
     }
     val cxEntries = remember(cxRaces, rounds) { VideosFeedLogic.cxEntries(cxRaces, groups, rounds) }
 
-    suspend fun loadCx() {
-        val months = CyclocrossLogic.months(cxSeason).filter { it.atDay(1).toString() <= today }
-        val rows = coroutineScope { months.map { async { app.supabaseService.cxMonth(cxSeason, it) } }.awaitAll() }.flatten()
+    suspend fun loadCx(targetToday: String = today) {
+        val season = CyclocrossLogic.season(LocalDate.parse(targetToday))
+        val months = CyclocrossLogic.months(season).filter { it.atDay(1).toString() <= targetToday }
+        val rows = coroutineScope { months.map { async { app.supabaseService.cxMonth(season, it) } }.awaitAll() }.flatten()
         cxRaces = rows.distinctBy { it.id }.filter { CxPresentation.listedInAgenda(it) }
             .sortedWith(compareBy({ it.dateKey }, { it.id }))
-        rounds = runCatching { app.supabaseService.cxSeasonRounds(cxSeason) }.getOrDefault(emptyMap())
+        rounds = runCatching { app.supabaseService.cxSeasonRounds(season) }.getOrDefault(emptyMap())
         cxFeatured = runCatching { app.supabaseService.cxFeaturedRaceIds() }.getOrDefault(cxFeatured)
     }
 
-    suspend fun load() {
+    suspend fun load(targetToday: String = today) {
         try {
+            val seasonStart = CyclocrossLogic.months(CyclocrossLogic.season(LocalDate.parse(targetToday))).first().atDay(1).toString()
             val anchor = coroutineScope {
-                val anchor = async { app.supabaseService.videoFeedDays(null, today) }
-                runCatching { loadCx() }
+                val anchor = async { app.supabaseService.videoFeedDays(null, targetToday) }
+                runCatching { loadCx(targetToday) }
                 anchor.await()
             }
-            val roadLatest = anchor.map { it.dateKey }.filter { it <= today }.maxOrNull() ?: today
-            val cxLatest = VideosFeedLogic.cxEntries(cxRaces, groups, rounds).map { it.date }.filter { it <= today }.maxOrNull() ?: today
+            val roadLatest = anchor.map { it.dateKey }.filter { it <= targetToday }.maxOrNull() ?: targetToday
+            val cxLatest = VideosFeedLogic.cxEntries(cxRaces, groups, rounds).map { it.date }.filter { it <= targetToday }.maxOrNull() ?: targetToday
             val road = roadFrom ?: maxOf(VideosFeedLogic.shift(roadLatest, -(VideosFeedLogic.WINDOW_DAYS - 1)), VideosFeedLogic.ROAD_SEASON_START)
             roadFrom = road
-            cxFrom = cxFrom ?: maxOf(VideosFeedLogic.shift(cxLatest, -(VideosFeedLogic.WINDOW_DAYS - 1)), cxSeasonStart)
-            val fetched = app.supabaseService.videoFeedDays(road, today)
+            cxFrom = cxFrom ?: maxOf(VideosFeedLogic.shift(cxLatest, -(VideosFeedLogic.WINDOW_DAYS - 1)), seasonStart)
+            val fetched = app.supabaseService.videoFeedDays(road, targetToday)
             roadFeatured = roadFeaturedFor(fetched)
             roadDays = fetched
             error = null
@@ -185,6 +191,29 @@ fun VideosFeedScreen(navController: NavController) {
     }
 
     LaunchedEffect(Unit) { if (!loaded) load() }
+    // Al volver a primer plano tras cruzar la frontera estacional, cambia la
+    // disciplina por defecto a Carretera o Ciclocross sin reiniciar la app.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        var firstResume = true
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            val now = LocalDate.now()
+            val nowKey = now.toString()
+            val dayChanged = nowKey != today
+            if (dayChanged) today = nowKey
+            val visible = RoadTodayAvailability.isVisible(now)
+            if (visible != roadTodayVisible) {
+                roadTodayVisible = visible
+                discipline = if (visible) ROAD else CX
+                openId = null
+            }
+            if (firstResume) {
+                firstResume = false
+            } else if (dayChanged && loaded) {
+                load(nowKey)
+            }
+        }
+    }
     // GA4: `videos` (Carretera) y `videos_cx` (Ciclocross), al abrir y en cada
     // cambio de disciplina, como `results_feed` / `results_feed_cx`.
     LaunchedEffect(discipline) { app.analytics.logScreenView(if (discipline == ROAD) "videos" else "videos_cx") }

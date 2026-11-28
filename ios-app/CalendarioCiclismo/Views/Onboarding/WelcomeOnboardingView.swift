@@ -93,7 +93,7 @@ struct WelcomeOnboardingView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        header(screenHeight: screenHeight, topInset: insets.top)
+                        header(screenHeight: screenHeight, topInset: insets.top, horizontalInsets: (insets.leading, insets.trailing))
 
                         if showsSteps {
                             steps
@@ -126,7 +126,7 @@ struct WelcomeOnboardingView: View {
 
     // MARK: - Cabecera
 
-    private func header(screenHeight: CGFloat, topInset: CGFloat) -> some View {
+    private func header(screenHeight: CGFloat, topInset: CGFloat, horizontalInsets: (leading: CGFloat, trailing: CGFloat)) -> some View {
         let markCenter = screenHeight / 2 - LaunchBrandLayout.markLift
         let finalProfileHeight = screenHeight < 700 ? Self.compactProfileHeight : Self.profileHeight
         // Hasta medir, la posición final de los símbolos se deduce del área
@@ -176,6 +176,11 @@ struct WelcomeOnboardingView: View {
                     .frame(height: isLaunchLayout ? LaunchBrandLayout.profileHeight : finalProfileHeight)
                     .opacity(profileFrame == nil ? 0 : 1)
                     .offset(y: isLaunchLayout ? profileOffset : 0)
+                    // De borde a borde también con márgenes laterales de
+                    // seguridad (pantalla interior del iPhone Duo en
+                    // horizontal): sin esto el perfil acaba antes del borde.
+                    .padding(.leading, -horizontalInsets.leading)
+                    .padding(.trailing, -horizontalInsets.trailing)
                 }
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { profileFrame = $0 }
                 .padding(.top, 6)
@@ -337,7 +342,9 @@ struct WelcomeOnboardingView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 32)
+        // Mismo margen lateral que las tarjetas de los pasos: el botón queda
+        // alineado con sus bordes.
+        .padding(.horizontal, 20)
         .padding(.bottom, 32)
     }
 

@@ -341,6 +341,30 @@ describe('X2O: segundos, bonos, forfaits y elegibilidad', () => {
     const input = snapshot('X2O Trofee'); addRound(input, '2026-09-12', [['a', 1, finish(3600)], ['b', 2, finish(3900)], ['c', 3, finish(3901)]]);
     expect(result(input).rows.map(row => row.globalRiderId)).toEqual(['a', 'b']);
   });
+  it('incluye con su forfait a quien nunca llega a 5 minutos si la general oficial lo publica', () => {
+    const input = snapshot('X2O Trofee'); addRound(input, '2026-09-12', [['a', 1, finish(3600)], ['b', 2, finish(3901)],
+      ['c', null, { irm: 'DNS', bonusSeconds: 0 }]]);
+    input.tournament.pointsScheme.categories.ME.review.timeEligibilityPolicy = 'allParticipants';
+    expect(result(input).rows.map(row => [row.globalRiderId, row.timeSeconds])).toEqual([['a', '3600'], ['b', '3900'], ['c', '3900']]);
+    input.tournament.pointsScheme.categories.ME.review.timeEligibilityPolicy = 'publishedOnly'; review(input);
+  });
+  it('reproduce el desempate y los puestos compartidos de la general intermedia de Chronorace', () => {
+    const input = snapshot('X2O Trofee');
+    const rule = input.tournament.pointsScheme.categories.ME;
+    rule.review.timeEligibilityPolicy = 'allParticipants'; rule.review.intermediateTiesPolicy = 'tieBreakersThenSharedRank';
+    rule.tieBreakers = [{ type: 'classifiedRounds', direction: 'desc' }, { type: 'rankSum', direction: 'asc' },
+      { type: 'latestRoundWithResult', direction: 'desc' }];
+    // Todos fuera de los 5 minutos: mismo total. Delante, más rondas con puesto; después, menor suma de puestos;
+    // después, la fila más reciente. DNF y DNS en la misma ronda comparten puesto.
+    addRound(input, '2026-09-12', [['w', 1, finish(3600)], ['two', 30, finish(4000)], ['best', 20, finish(4000)],
+      ['early', 10, finish(4000)], ['dnfOld', null, { irm: 'DNF', bonusSeconds: 0 }]]);
+    addRound(input, '2026-09-13', [['w', 1, finish(3600)], ['two', 31, finish(4000)], ['late', 10, finish(4000)],
+      ['dnf', null, { irm: 'DNF', bonusSeconds: 0 }], ['dns', null, { irm: 'DNS', bonusSeconds: 0 }]]);
+    addRound(input, '2026-09-14', [['x', 1, finish(3600)]]).manga.resultsStatus = 'provisional';
+    const value = result(input); expect(value.status).toBe('ready');
+    expect(value.rows.map(row => [row.globalRiderId, row.rank])).toEqual([['w', 1], ['two', 2], ['late', 3], ['early', 4],
+      ['best', 5], ['dnf', 6], ['dns', 6], ['dnfOld', 8]]);
+  });
   it('desempata por mejor plaza en la serie y plaza de la última ronda', () => {
     const input = snapshot('X2O Trofee'); addRound(input, '2026-09-12', [['a', 1, finish(3600)], ['b', 2, finish(3610)]]);
     addRound(input, '2026-09-13', [['b', 1, finish(3600)], ['a', 2, finish(3610)]]);

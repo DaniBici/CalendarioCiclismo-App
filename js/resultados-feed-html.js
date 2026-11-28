@@ -7,8 +7,9 @@ import { cxRaceLevel } from './race-filters.js';
 import { classificationLabel, classificationColor } from './services/race-presentation.js';
 import { roadPinButtonHtml } from './components/discipline-switch.js';
 import { cxRaceName, cxRacePageUrl, cxRoundBadge, cxClassLabel } from './cx/presentation.js';
-import { decorateUciRanking, formatUciRankingUpdated, UciRankingTier, uciRankingRuleText } from './results/uci-team-ranking.js';
+import { decorateUciRanking, formatUciRankingUpdated, formatUciRankingUpdatedAt, UciRankingTier, uciRankingBasisText, uciRankingInvitationYear, uciRankingRuleText, uciRankingUpdatedAt } from './results/uci-team-ranking.js';
 import { LOGO_ONERROR, logoPlaceholderHtml } from './components/logo-placeholder.js';
+import { feedPagePath, viewPage } from './results/feed-pages.js';
 
 // Nivel y género de la fila (js/category-filter.js): con ellos la página publicada
 // aplica los filtros recordados sobre las filas ya pintadas (tools/publicacion).
@@ -225,39 +226,43 @@ export const cxEmptyHtml = (hasEntries, isEn) => `<div class="startlist-empty">$
 export const feedMoreHtml = (id, isEn) => `<div class="feed-more-wrap"><button class="feed-more" id="${id}">${isEn ? 'Load more results' : 'Cargar más resultados'}</button></div>`;
 
 // Conmutador Ciclocross / Carretera / Ránking (components/discipline-switch.js)
-// mientras la home es Ciclocross; pestañas el resto del año. Carretera lleva la
-// chincheta, como en Hoy: en contorno si está activa y llena si está fijada.
+// con Ciclocross entre las vistas; pestañas sin ella. Cada vista es un enlace a
+// su página (results/feed-pages.js): la página publicada cambia de vista sin
+// recargar. Carretera lleva la chincheta, como en Hoy, mientras la home es
+// Ciclocross (`pinnable`): en contorno si está activa y llena si está fijada.
 export const feedViews = cxTab => (cxTab ? ['cx', 'latest', 'ranking'] : ['latest', 'ranking']);
 
-export function feedTabsHtml({ cxTab, activeView, pinned, isEn }) {
-  const views = feedViews(cxTab);
+export function feedTabsHtml({ views, activeView, pinnable = false, pinned = false, isEn }) {
+  const withCx = views.includes('cx');
+  const lang = isEn ? 'en' : 'es';
   const viewLabels = {
     cx: isEn ? 'Cyclocross' : 'Ciclocross',
-    latest: cxTab ? (isEn ? 'Road' : 'Carretera') : (isEn ? 'Latest Results' : 'Últimos resultados'),
+    latest: withCx ? (isEn ? 'Road' : 'Carretera') : (isEn ? 'Latest Results' : 'Últimos resultados'),
     ranking: isEn ? 'UCI Ranking' : 'Ránking UCI',
   };
   const viewShortLabels = { cx: 'CX', latest: isEn ? 'Road' : 'Ruta', ranking: isEn ? 'Ranking' : 'Ránking' };
-  if (cxTab) {
-    return `<div class="discipline-switch feed-view-switch" role="group" aria-label="${isEn ? 'Results view' : 'Vista de resultados'}">${views.map((view) => {
+  const label = isEn ? 'Results view' : 'Vista de resultados';
+  const current = view => (activeView === view ? ' aria-current="page"' : '');
+  if (withCx) {
+    return `<nav class="discipline-switch feed-view-switch" aria-label="${label}">${views.map((view) => {
       const active = activeView === view;
       const cls = `discipline-switch__option${active ? ' discipline-switch__option--active' : ''}`;
-      const button = className => `<button type="button" class="${className}" aria-pressed="${active}" data-results-view="${view}"><span class="btn-label-full">${viewLabels[view]}</span><span class="btn-label-short">${viewShortLabels[view]}</span></button>`;
-      if (view !== 'latest') return button(cls);
-      return `<span class="${cls}">${button('discipline-switch__select')}${active || pinned ? roadPinButtonHtml(pinned) : ''}</span>`;
-    }).join('')}</div>`;
+      const link = className => `<a class="${className}" href="${feedPagePath(view, lang)}"${current(view)} data-results-view="${view}"><span class="btn-label-full">${viewLabels[view]}</span><span class="btn-label-short">${viewShortLabels[view]}</span></a>`;
+      if (view !== 'latest' || !pinnable) return link(cls);
+      return `<span class="${cls}">${link('discipline-switch__select')}${active || pinned ? roadPinButtonHtml(pinned) : ''}</span>`;
+    }).join('')}</nav>`;
   }
   return `
-        <div class="feed-view-tabs" role="tablist" aria-label="${isEn ? 'Results view' : 'Vista de resultados'}">
-          ${views.map(view => `<button class="feed-view-tab${activeView === view ? ' feed-view-tab--active' : ''}"
-                  type="button" role="tab" aria-selected="${activeView === view}" data-results-view="${view}">
-            ${viewLabels[view]}
-          </button>`).join('')}
-        </div>`;
+        <nav class="feed-view-tabs" aria-label="${label}">
+          ${views.map(view => `<a class="feed-view-tab${activeView === view ? ' feed-view-tab--active' : ''}"
+                  href="${feedPagePath(view, lang)}"${current(view)} data-results-view="${view}">${viewLabels[view]}</a>`).join('')}
+        </nav>`;
 }
 
-export const feedHeroHtml = (tabs, isEn) => `
+/** Cabecera de la vista: el h1 (oculto) de la página y las pestañas. */
+export const feedHeroHtml = (tabs, h1) => `
       <div class="feed-hero">
-        <h1 class="sr-only">${isEn ? 'Results' : 'Resultados'}</h1>
+        <h1 class="sr-only">${esc(h1)}</h1>
         ${tabs}
       </div>`;
 
@@ -276,13 +281,18 @@ export function rankingBodyHtml(rows, rankingGender, isEn) {
   const _isEn = isEn;
   const locale = isEn ? 'en-GB' : 'es-ES';
   const selected = decorateUciRanking(rows, rankingGender);
-  const updated = formatUciRankingUpdated(selected[0]?.rankingDate, _isEn);
+  // Con syncedAt, fecha y hora en números (UTC aquí; bindRankingRows la pasa a
+  // la hora local); sin él, la fecha larga del ránking.
+  const updatedAt = uciRankingUpdatedAt(selected);
+  const updatedHtml = updatedAt
+    ? `<time datetime="${esc(new Date(updatedAt).toISOString())}" data-uci-updated="${_isEn ? 'en' : 'es'}">${esc(formatUciRankingUpdatedAt(updatedAt, _isEn, 'UTC'))}</time>`
+    : esc(formatUciRankingUpdated(selected[0]?.rankingDate, _isEn));
+  const basis = uciRankingBasisText(selected, _isEn);
   // Puntos enteros con separador de millares siempre: las cifras se alinean.
   const pointsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 0, useGrouping: 'always' });
   // Explicación de cada etiqueta de puesto (columna izquierda en escritorio):
   // solo los niveles presentes en el ránking seleccionado.
-  const rankingYear = Number(String(selected[0]?.rankingDate || '').slice(0, 4));
-  const invitationYear = Number.isFinite(rankingYear) && rankingYear > 0 ? rankingYear + 1 : new Date().getFullYear() + 1;
+  const invitationYear = uciRankingInvitationYear(selected[0]);
   const keyItems = [
     ['wt', UciRankingTier.WORLD_TOUR, _isEn ? 'WorldTour licence' : 'Licencia WorldTour',
       _isEn ? 'Entitled and required to ride every UCI WorldTour race.' : 'Derecho y obligación de correr todas las pruebas UCI WorldTour.'],
@@ -305,8 +315,8 @@ export function rankingBodyHtml(rows, rankingGender, isEn) {
     ['male', _isEn ? 'Men' : 'Masculino'],
     ['female', _isEn ? 'Women' : 'Femenino'],
   ].map(([value, label]) => `
-    <button class="feed-view-tab${value === rankingGender ? ' feed-view-tab--active' : ''}"
-            type="button" data-ranking-gender="${value}">${label}</button>`).join('');
+    <a class="feed-view-tab${value === rankingGender ? ' feed-view-tab--active' : ''}"
+       href="${feedPagePath(viewPage('ranking', value), _isEn ? 'en' : 'es')}"${value === rankingGender ? ' aria-current="page"' : ''} data-ranking-gender="${value}">${label}</a>`).join('');
   const rowsHtml = selected.map((row) => {
     const rule = uciRankingRuleText(row, _isEn);
     const classes = [
@@ -328,11 +338,12 @@ export function rankingBodyHtml(rows, rankingGender, isEn) {
     <section class="uci-ranking">
       <h2 class="sr-only">${_isEn ? 'UCI Team Ranking' : 'Ránking UCI por equipos'}</h2>
       <div class="uci-ranking-bar">
-        <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
+        <nav class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
           ${genderButtons}
-        </div>
-        <p class="uci-ranking-updated">${esc(updated)}</p>
+        </nav>
+        <p class="uci-ranking-updated">${updatedHtml}</p>
       </div>
+      ${basis ? `<p class="uci-ranking-basis">${esc(basis)}</p>` : ''}
       <div class="uci-ranking-layout">
       ${keyHtml}
       <!-- Sin role="table": las filas son <div> sin role="row"/"cell" y

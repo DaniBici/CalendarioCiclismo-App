@@ -33,6 +33,7 @@ import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.InhouseStageMap
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.RiderNameHistory
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.ResultsFeedLogic
 import app.calendariociclismo.android.util.StartlistLogic
@@ -675,14 +676,21 @@ class CalendarRepository(
      * Resuelve un conjunto de `globalRiderId` a [ResolvedRider] directamente
      * desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
      * actual solo se incluye cuando el llamador confirma que consulta el año vigente.
+     * Con [raceId], el nombre es el vigente el día de esa carrera (cambios de
+     * apellido con vigencia).
      * Silencioso: si una query falla, esos ids
      * no entran en el mapa (la fila se renderiza sin bandera ni colores, como antes).
      */
-    suspend fun enrichRidersByGlobalId(ids: List<String>, includeCurrentTeam: Boolean = true): Map<String, ResolvedRider> {
+    suspend fun enrichRidersByGlobalId(
+        ids: List<String>,
+        includeCurrentTeam: Boolean = true,
+        raceId: String? = null,
+    ): Map<String, ResolvedRider> {
         val need = ids.filter { it.isNotEmpty() }.distinct()
         if (need.isEmpty()) return emptyMap()
         val riders = runCatching { api.ridersByIds(need) }.getOrNull().orEmpty()
         if (riders.isEmpty()) return emptyMap()
+        val historical = historicalNames(raceId, riders.map { it.id })
 
         val currentIds = if (includeCurrentTeam) riders.mapNotNull { it.currentTeamId }.distinct() else emptyList()
         val teamById = if (currentIds.isNotEmpty()) {
@@ -691,13 +699,29 @@ class CalendarRepository(
         return riders.associate { r ->
             val team = if (includeCurrentTeam) r.currentTeamId?.let { teamById[it] } else null
             r.id to ResolvedRider(
-                name = r.fullName,
+                name = historical[r.id] ?: r.fullName,
                 countryCode = r.nationality.orEmpty(),
                 teamName = team?.name.orEmpty(),
                 team = team,
                 globalRiderId = r.id,
             )
         }
+    }
+
+    /**
+     * Nombres vigentes el día de la carrera [raceId] de los corredores con
+     * historial de nombres (normalmente ninguno). Vacío si no hay carrera,
+     * historial o fecha de inicio. Silencioso ante fallos de red.
+     */
+    private suspend fun historicalNames(raceId: String?, riderIds: List<String>): Map<String, String> {
+        if (raceId == null) return emptyMap()
+        val history = runCatching { api.riderNameHistory() }.getOrNull().orEmpty()
+        val relevant = riderIds.filter { it in history }
+        if (relevant.isEmpty()) return emptyMap()
+        val start = runCatching { api.raceStartDate(raceId) }.getOrNull() ?: return emptyMap()
+        return relevant.mapNotNull { id ->
+            RiderNameHistory.nameAt(history[id], start)?.let { id to it }
+        }.toMap()
     }
 
     /**
@@ -1160,9 +1184,22 @@ class CalendarRepository(
                 nameById
             }
         }
+        // Nombre vigente el día de la carrera (cambios de apellido con vigencia).
+        val nameHistory = try {
+            api.riderNameHistory()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        val raceStart = entries
+            .mapNotNull { e -> e.race.startDate?.let { e.race.id to it } }
+            .toMap()
         val resolvedRiderName: (UciRank1Row) -> String? = { row ->
             val fallback = row.bib?.toIntOrNull()?.let { startlistByBib["${row.raceId}#$it"] }
-            resolvedRiderId(row)?.let { nameById[it] }
+            resolvedRiderId(row)?.let { id ->
+                nameById[id]?.let { RiderNameHistory.nameAt(nameHistory[id], raceStart[row.raceId]) ?: it }
+            }
                 ?: listOfNotNull(fallback?.firstName, fallback?.lastName).joinToString(" ").ifBlank { null }
                 ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
         }

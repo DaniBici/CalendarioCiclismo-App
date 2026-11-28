@@ -414,7 +414,7 @@ private fun RaceDocumentationChips(
         }
         if (hasStartlist) {
             AssetChip(
-                icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
+                icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib),
                 label = when {
                     race.startlistProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
                     race.isFemale -> stringResource(R.string.race_startlist_female)

@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.IntrinsicMeasurable
 import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
@@ -111,6 +112,7 @@ import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
+import app.calendariociclismo.android.ui.startlist.BibSearchSheet
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CCHeaderBrand
@@ -161,6 +163,8 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
     val state by vm.state.collectAsState()
     val data = remember(state) { vm.visibleData() }
     var placeholderItem by remember { mutableStateOf<PlaceholderItem?>(null) }
+    // Carrera de la hoja «Busca dorsal».
+    var bibSearchRace by remember { mutableStateOf<Race?>(null) }
     // Jornadas visibles con resultados in-house (raceDayId → stageNumber): el
     // acceso de esas etapas navega a la pantalla nativa. Sin clasificación
     // publicada, Hoy mantiene «Esperando resultados» y no ofrece enlaces
@@ -493,6 +497,10 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
                                         haptic(Haptics.Event.PrimaryAction)
                                         navController.navigate(Routes.startlist(day.race!!.id))
                                     } } else null,
+                                    onSearchBib = if (raceState == RaceLogic.TodayRaceState.RUNNING) { {
+                                        haptic(Haptics.Event.PrimaryAction)
+                                        bibSearchRace = day.race
+                                    } } else null,
                                     onShowStartOrder = {
                                         haptic(Haptics.Event.PrimaryAction)
                                         navController.navigate(Routes.startOrder(day.raceDay.id))
@@ -547,6 +555,16 @@ fun TodayScreen(navController: NavController, onSelectCyclocross: (() -> Unit)? 
         item = placeholderItem,
         onDismiss = { placeholderItem = null },
     )
+    bibSearchRace?.let { race ->
+        BibSearchSheet(
+            race = race,
+            onDismiss = { bibSearchRace = null },
+            onShowFullList = {
+                bibSearchRace = null
+                navController.navigate(Routes.startlist(race.id))
+            },
+        )
+    }
     }
 }
 
@@ -630,6 +648,7 @@ private fun RaceCard(
     onRevive: (() -> Unit)? = null,
     onShowVideos: (() -> Unit)? = null,
     onShowStartlist: (() -> Unit)? = null,
+    onSearchBib: (() -> Unit)? = null,
     onShowStartOrder: (() -> Unit)? = null,
     onShowCompetition: (() -> Unit)? = null,
     isFinalStage: Boolean = false,
@@ -666,6 +685,11 @@ private fun RaceCard(
     // Etiquetas de enlace (TV, dorsales, orden de salida) solo mientras la
     // jornada no ha terminado ni espera resultados (paridad con la web).
     val showsLinkBadges = !isFinishedMode && !isWaitingForResults
+    // «Busca dorsal»: el llamador solo pasa `onSearchBib` con la jornada en
+    // curso; hacen falta dorsales definitivos y en las cronos manda el orden de salida.
+    val showsBibSearch = featuresUnlocked && showsLinkBadges && onSearchBib != null &&
+        !rd.isRestDay && !rd.isCancelledDay && !isTimeTrial &&
+        race?.startlistImportedAt != null && race.startlistProvisional != true
     // Tipo: CRI/CRE y cronoescalada siempre; el resto solo sin miniperfil.
     // Etiqueta de tipo solo en contrarreloj (CRI, CRE y cronoescalada), como
     // la web: el resto de tipos no lleva etiqueta, haya o no miniperfil.
@@ -797,7 +821,15 @@ private fun RaceCard(
                                         liveTextUrl = liveTextUrl,
                                     )
                                 }
-                                if (showsStartlistBadge && onShowStartlist != null) {
+                                if (showsBibSearch && onSearchBib != null) {
+                                    BibSearchBadges(
+                                        startlistLabel = startlistBadgeLabel(race?.isFemale == true, isProvisional = false)
+                                            .takeIf { showsStartlistBadge },
+                                        onShowStartlist = onShowStartlist,
+                                        onSearchBib = onSearchBib,
+                                        modifier = Modifier.layoutId(BibSearchLayoutId),
+                                    )
+                                } else if (showsStartlistBadge && onShowStartlist != null) {
                                     StartlistBadge(
                                         onClick = onShowStartlist,
                                         isFemale = race?.isFemale == true,
@@ -878,8 +910,16 @@ private object RaceCardHeaderPolicy : MultiContentMeasurePolicy {
         }
         val mainWidth = (width - reserved(trailingSize.width)).coerceAtLeast(0)
         val main = mainItems.map { it.measure(Constraints.fixedWidth(mainWidth)) }
-        val badges = badgeItems.map { it.measure(Constraints(maxWidth = width)) }
-        val slots = slots(width, trailingSize, main.maxOfOrNull { it.height } ?: 0, badges.map { IntSize(it.width, it.height) })
+        val mainHeight = main.maxOfOrNull { it.height } ?: 0
+        // «Busca dorsal» recibe el ancho que queda en la línea y elige con él
+        // su versión con rótulo o solo con la lupa.
+        val lineWidth = if (mainHeight + BadgesTop.roundToPx() < trailingSize.height) mainWidth else width
+        var used = 0
+        val badges = badgeItems.map { item ->
+            val maxWidth = if (item.layoutId == BibSearchLayoutId) (lineWidth - used).coerceAtLeast(0) else width
+            item.measure(Constraints(maxWidth = maxWidth)).also { if (it.width > 0) used += it.width + BadgeGap.roundToPx() }
+        }
+        val slots = slots(width, trailingSize, mainHeight, badges.map { IntSize(it.width, it.height) })
         return layout(width, slots.height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
             main.forEach { it.placeRelative(0, 0) }
             trailing.forEach { it.placeRelative(width - it.width, 0) }
@@ -1159,12 +1199,60 @@ private fun StartlistBadge(
     isFemale: Boolean = false,
     isProvisional: Boolean = false,
 ) {
-    val label = when {
-        isProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
-        isFemale -> stringResource(R.string.stage_doc_startlist_female)
-        else -> stringResource(R.string.today_startlist_badge)
+    RaceActionBadge(label = startlistBadgeLabel(isFemale, isProvisional), icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib), primaryAction = true, onClick = onClick)
+}
+
+@Composable
+private fun startlistBadgeLabel(isFemale: Boolean, isProvisional: Boolean): String = when {
+    isProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
+    isFemale -> stringResource(R.string.stage_doc_startlist_female)
+    else -> stringResource(R.string.today_startlist_badge)
+}
+
+/** Identifica «Busca dorsal» en [RaceCardHeaderPolicy], que le da el ancho que queda en la línea. */
+private const val BibSearchLayoutId = "bibSearch"
+
+/**
+ * «Busca dorsal», unida a «Dorsales» cuando la tarjeta también la lleva
+ * ([startlistLabel] no nulo). Si el ancho recibido no da para el rótulo, queda
+ * solo la lupa; si tampoco cabe así, no ocupa sitio.
+ */
+@Composable
+private fun BibSearchBadges(
+    startlistLabel: String?,
+    onShowStartlist: (() -> Unit)?,
+    onSearchBib: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val searchLabel = stringResource(R.string.today_bib_search_badge)
+    val joined = startlistLabel != null && onShowStartlist != null
+    val radius = CCRadius.Control
+    val variant: @Composable (Boolean) -> Unit = { compact ->
+        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+            if (startlistLabel != null && onShowStartlist != null) {
+                RaceActionBadge(
+                    label = startlistLabel,
+                    icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib),
+                    primaryAction = true,
+                    onClick = onShowStartlist,
+                    shape = RoundedCornerShape(topStart = radius, bottomStart = radius),
+                )
+            }
+            RaceActionBadge(
+                label = searchLabel,
+                icon = ImageVector.vectorResource(R.drawable.ic_bib_search),
+                primaryAction = true,
+                showLabel = !compact,
+                onClick = onSearchBib,
+                shape = if (joined) RoundedCornerShape(topEnd = radius, bottomEnd = radius) else RoundedCornerShape(radius),
+            )
+        }
     }
-    RaceActionBadge(label = label, icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist), primaryAction = true, onClick = onClick)
+    Layout(contents = listOf({ variant(false) }, { variant(true) }), modifier = modifier) { (full, compact), constraints ->
+        val chosen = full.first().measure(Constraints()).takeIf { it.width <= constraints.maxWidth }
+            ?: compact.first().measure(Constraints()).takeIf { it.width <= constraints.maxWidth }
+        if (chosen == null) layout(0, 0) {} else layout(chosen.width, chosen.height) { chosen.placeRelative(0, 0) }
+    }
 }
 
 @Composable

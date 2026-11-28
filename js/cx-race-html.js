@@ -20,7 +20,7 @@
 //  y del momento: fuera de la zona del build se repintan solo esos huecos.
 // ─────────────────────────────────────────────────────────────────
 
-import {startlistCyclistHtml,resultsTrophyHtml,tvStatusChipHtml} from './services/race-presentation.js';
+import {startlistIconHtml,resultsTrophyHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {buildRaceHeader,buildCxRoundList,raceLayoutHtml,sideLinksNavHtml,raceDateRangeText,findMatchingTeam,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDate,seoLongDateWeekday} from './shared.js';
 import {t,getLang,getLocale} from './i18n.js';
@@ -167,7 +167,7 @@ function scheduledCategories(race,categories) {
 function categoryBadges(model,c) {
   const {race,results,lang}=model;
   const hasResults=['official','provisional'].includes(c.resultsStatus)&&results.some(row=>row.category===c.category);
-  return `${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistCyclistHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
+  return `${c.startlistImportedAt?`<a class="badge badge--startlist badge--icon" href="${esc(cxRacePageUrl(race,lang,'startlist',c.category))}" title="${esc(t('cx.startlist'))}" aria-label="${esc(t('cx.startlist'))}">${startlistIconHtml}<span class="badge__label">${esc(t('cx.startlist'))}</span></a>`:''}${hasResults?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(t('stage.viewResults'))}" aria-label="${esc(t('stage.viewResults'))}">${resultsTrophyHtml}<span class="badge__label">${esc(t('stage.viewResults'))}</span></a>`:''}`;
 }
 
 // En escritorio, la TV y el streaming acompañan a los horarios en la columna

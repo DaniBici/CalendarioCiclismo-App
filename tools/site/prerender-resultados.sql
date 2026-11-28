@@ -65,6 +65,9 @@ select
   (select coalesce(json_agg(json_build_object('id', w.id, 'firstName', w."firstName", 'lastName', w."lastName",
             'nationality', w.nationality, 'currentTeamId', w."currentTeamId") order by w.id), '[]'::json)
      from riders_women w where not w."historicalCatalogOnly") as resultados_riders_women,
+  (select coalesce(json_agg(json_build_object('riderId', h."riderId", 'firstName', h."firstName", 'lastName', h."lastName",
+            'validTo', h."validTo") order by h."riderId", h."validTo"), '[]'::json)
+     from rider_name_history h) as resultados_rider_name_history,
   (select coalesce(json_agg(json_build_object('id', t.id, 'name', t.name, 'category', t.category,
             'nameAliases', t."nameAliases", 'badgeTorsoCenter', t."badgeTorsoCenter",
             'badgeTorsoSides', t."badgeTorsoSides", 'badgeShorts', t."badgeShorts",

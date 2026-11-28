@@ -2,6 +2,7 @@ import { classificationInventory, loadFeaturedRaces } from './race-presentation.
 import { fetchByIds } from './paged-query.js';
 import { isNonWinnerIrm } from '../results/uci-irm.js';
 import { localizedTeamName } from './national-team-name.js';
+import { loadNameHistory, riderNameAt } from '../rider-name-history.js';
 
 // Equipo de cada corredor en cada carrera: entrada = [{raceId, globalRiderId}],
 // salida = Map `${raceId}:${globalRiderId}` → nombre del equipo. Los rank 1 de
@@ -104,13 +105,16 @@ export async function enrichResultFeed(client, entries, isEn=false) {
   // debe cubrir filas cuya ficha existe pero no resuelve nombre (oculta por
   // el aislamiento del catálogo histórico o sin nombre público), no solo las
   // que llegan sin globalRiderId.
-  const names=new Map(),namesLoaded=new Set();
+  const names=new Map(),namesLoaded=new Set(),riderRows=new Map();
   const loadNames=async ids=>{
     const pending=[...ids].filter(id=>!namesLoaded.has(id));
     if(!pending.length) return;
     pending.forEach(id=>namesLoaded.add(id));
     const results=await Promise.all(['riders_men','riders_women'].map(table=>fetchByIds(client,table,'id,firstName,lastName,nationality','id',pending)));
-    for(const result of results) for(const r of result) names.set(r.id,{name:[r.firstName,r.lastName].filter(Boolean).join(' '),country:r.nationality});
+    for(const result of results) for(const r of result) {
+      names.set(r.id,{name:[r.firstName,r.lastName].filter(Boolean).join(' '),country:r.nationality});
+      riderRows.set(r.id,r);
+    }
   };
   // Equipos del ganador de cada entrada y de los líderes de las destacadas
   // (solo esas pintan líderes). Se lanzan EN PARALELO con la resolución de
@@ -148,9 +152,23 @@ export async function enrichResultFeed(client, entries, isEn=false) {
   const teamIds=[...new Set(valid.map(r=>r.teamId).filter(Boolean))];
   const teams=await fetchByIds(client,'teams','id,name,teamKind,selectionScope,countryCode,selectionCode','id',teamIds);
   const teamNames=new Map(teams.map(r=>[r.id,localizedTeamName(r.name,r,isEn)]));
-  const leaders=(ref,team=false)=>valid.filter(r=>r.stageRef===ref).map(row=>team
-    ? {name:teamNames.get(row.teamId)||row.riderDisplay,country:null}
-    : {...(names.get(row.globalRiderId)||(row._startlist ? {name:[row._startlist.firstName,row._startlist.lastName].filter(Boolean).join(' '),country:row._startlist.countryCode} : {name:row.riderDisplay,country:null})),_gid:row.globalRiderId}).filter(r=>r.name);
+  // Nombre vigente el día de la carrera (cambios de apellido con vigencia).
+  const nameHistory=await loadNameHistory(client);
+  const raceStart=new Map(entries.map(e=>[e.race.id,e.race.startDate]));
+  const nameAt=(id,raceId,current)=>{
+    const rider=riderRows.get(id);
+    if(!rider) return current;
+    const at=riderNameAt(rider,nameHistory,raceStart.get(raceId));
+    return [at.firstName,at.lastName].filter(Boolean).join(' ');
+  };
+  const leaders=(ref,team=false)=>valid.filter(r=>r.stageRef===ref).map(row=>{
+    if(team) return {name:teamNames.get(row.teamId)||row.riderDisplay,country:null};
+    const known=names.get(row.globalRiderId);
+    const base=known
+      ? {...known,name:nameAt(row.globalRiderId,row.raceId,known.name)}
+      : (row._startlist ? {name:[row._startlist.firstName,row._startlist.lastName].filter(Boolean).join(' '),country:row._startlist.countryCode} : {name:row.riderDisplay,country:null});
+    return {...base,_gid:row.globalRiderId};
+  }).filter(r=>r.name);
   // Equipo del corredor en la carrera (solo corredores; ver teamPairs).
   const withTeam=(winner,raceId)=> {
     const { _gid, ...rest } = winner;

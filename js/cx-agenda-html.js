@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import {cxRaceLevel} from './race-filters.js';
-import {waitingResultsHtml,resultsTrophyHtml,startlistCyclistHtml,tvIconHtml,rewindIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
+import {waitingResultsHtml,resultsTrophyHtml,startlistIconHtml,tvIconHtml,rewindIconHtml,tvStatusChipHtml} from './services/race-presentation.js';
 import {cxLogoHtml} from './components/cx-logo.js';
 import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
 import {countryFlag,categoryBadge,buildRaceHeader,raceLayoutHtml,raceDateRangeText,formatDateLabel,filterBroadcastsByRegion,seoShortMonth} from './shared.js';
@@ -72,7 +72,7 @@ function summaryBadgeHtml(race,date,open) {
 }
 export function cxCardBadgesHtml(race,date,open) {
   const startlist=open?cxAgendaStartlistCategory(race,date):null;
-  return `${tvBadgeHtml(race,date)}${summaryBadgeHtml(race,date,open)}${startlist?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,getLang(),'startlist',startlist.category))}">${startlistCyclistHtml} <span class="badge__text">${esc(t('stage.startlistLabel'))}</span></a>`:''}`;
+  return `${tvBadgeHtml(race,date)}${summaryBadgeHtml(race,date,open)}${startlist?`<a class="badge badge--startlist" href="${esc(cxRacePageUrl(race,getLang(),'startlist',startlist.category))}">${startlistIconHtml} <span class="badge__text">${esc(t('stage.startlistLabel'))}</span></a>`:''}`;
 }
 
 /**

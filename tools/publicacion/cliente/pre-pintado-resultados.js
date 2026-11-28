@@ -6,8 +6,9 @@ import { aplicarFiltros, chinchetaPendiente } from './filtros-resultados.js';
 
 const panel = document.getElementById('resultsFeedPanel');
 const raiz = document.getElementById('resultsContent');
+// Solo en la portada (/resultados/): /resultados/ciclocross/ siempre abre en Ciclocross.
 try {
-  if (panel.dataset.view === 'cx' && localStorage.getItem('cc_default_discipline') === 'road') raiz.dataset.fijada = '1';
+  if ('portada' in raiz.dataset && panel.dataset.view === 'cx' && localStorage.getItem('cc_default_discipline') === 'road') raiz.dataset.fijada = '1';
 } catch { /* Almacenamiento no disponible. */ }
 const colocar = () => {
   aplicarFiltros(raiz, panel, panel.dataset.view);

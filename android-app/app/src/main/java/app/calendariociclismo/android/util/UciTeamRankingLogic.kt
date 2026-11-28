@@ -114,7 +114,29 @@ object UciTeamRankingLogic {
         }
     }
 
-    /** Año de las invitaciones: el del ránking + 1. */
+    /** Origen de los puntos cuando el ránking suma clasificaciones o
+     *  penalizaciones posteriores a la última publicación oficial; null si
+     *  coincide con ella. Paridad con `uciRankingBasisText` de la web. */
+    fun basisText(rows: List<UciTeamRankingPresentation>, isEnglish: Boolean): String? {
+        if (rows.none { it.row.isAdjusted }) return null
+        val officialDate = rows.firstNotNullOfOrNull { it.row.officialRankingDate }
+            ?: return if (isEnglish) "Points from official results until the UCI publishes this season's ranking."
+            else "Puntos de las clasificaciones oficiales hasta que la UCI publique el ránking de esta temporada."
+        val date = DateFormatting.formatUciRankingDate(officialDate, isEnglish)
+        return if (isEnglish) "UCI ranking of $date plus later official results and commissaires' penalties."
+        else "Ránking UCI del $date más las clasificaciones oficiales y las sanciones del jurado posteriores."
+    }
+
+    /** Fecha y hora local de la última reescritura del ránking; sin
+     *  `syncedAt`, la fecha larga del ránking. Paridad con la web. */
+    fun updatedText(rows: List<UciTeamRankingPresentation>, isEnglish: Boolean): String? {
+        rows.mapNotNull { it.row.syncedAt }.maxOrNull()
+            ?.let { DateFormatting.formatUciRankingUpdatedAt(it, isEnglish) }
+            ?.let { return it }
+        return rows.firstOrNull()?.let { DateFormatting.formatUciRankingUpdated(it.row.rankingDate, isEnglish) }
+    }
+
+    /** Año de las invitaciones: el de la temporada del ránking + 1. */
     fun invitationYear(rows: List<UciTeamRankingPresentation>): Int =
         rows.firstOrNull()?.row?.invitationSeason
             ?: (java.time.LocalDate.now().year + 1)

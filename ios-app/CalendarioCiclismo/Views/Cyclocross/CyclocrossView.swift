@@ -953,7 +953,7 @@ struct CxRaceCard: View {
             }
             if let startlistCategory {
                 NavigationLink(value: CxDestination(raceId: race.id, anchor: "inscritos-" + startlistCategory.category, title: CyclocrossPresentation.name(race))) {
-                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Dorsales", "Startlist") : "", icon: showIcon ? LogoCyclistIcon.name : nil)
+                    RaceActionLabel(label: showLabel ? CyclocrossPresentation.t("Dorsales", "Startlist") : "", icon: showIcon ? StartlistIcon.name : nil)
                 }
                 // Estilo propio (como las cajas de categoría): el enlace
                 // interior prevalece sobre el de la tarjeta.

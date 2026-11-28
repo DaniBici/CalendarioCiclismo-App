@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lupa con una cifra en la lente: «Busca dorsal» de la tarjeta de Hoy. Mismo
+  trazo que la web (bibSearchIconHtml) e iOS (BibSearchIcon).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3.5,10.5 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 M21,21 L15.5,15.5 M9.2,9.3 L11.1,7.9 V13.5" />
+</vector>

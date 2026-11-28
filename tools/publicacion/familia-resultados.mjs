@@ -2,8 +2,9 @@
 // (js/resultados-feed-html.js, js/services/result-feed-entries.js). Depende de la hora:
 // se vuelve a pintar cada minuto y solo se publica si cambia.
 //
-// La página lleva la vista inicial y, en plantillas, las demás vistas: cambiar de pestaña
-// no espera a la red. «Cargar más» lee los días de archivos por mes.
+// Una página por vista (Últimos resultados, Ciclocross y el ránking UCI de cada género;
+// js/results/feed-pages.js). Cada una lleva su vista y, en plantillas, las demás: cambiar de
+// pestaña no espera a la red y la isla cambia la URL. «Cargar más» lee los días de archivos por mes.
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -72,7 +73,15 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
   const { supabase } = await load('js/shared.js');
   const { fetchResultEntries } = await load('js/services/result-feed-entries.js');
   const H = await load('js/resultados-feed-html.js');
-  const { cyclocrossHome } = await load('js/services/today-season.js');
+  const { cyclocrossHome, seasonCalendarYear } = await load('js/services/today-season.js');
+  const { FEED_PAGES, feedPageMeta, feedPagePath, pageGender, pageView } = await load('js/results/feed-pages.js');
+  const { uciRankingSeasonYear } = await load('js/results/uci-team-ranking.js');
+  const { feedPageHead } = await load('tools/site/results-views.mjs');
+  // Temporada del ránking publicado; sin filas, la de la fecha.
+  const temporadaRanking = (filas, hoy) => {
+    const fila = filas.find(row => row.gender === 'male') || filas[0];
+    return fila ? uciRankingSeasonYear(fila) : seasonCalendarYear(hoy);
+  };
   const { RESULTS_SEASON_START, initialResultsFromKey, resultsStartKey } = await load('js/services/result-feed-pagination.js');
   const { cxResultEntries } = await load('js/cx/results-feed.js');
   const { cxSeason } = await load('js/cx/presentation.js');
@@ -83,8 +92,6 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
 
   const isEn = lang === 'en';
   const locale = isEn ? 'en-GB' : 'es-ES';
-  const base = isEn ? 'en/results' : 'resultados';
-  const clave = `resultados-${lang}/feed`;
   // Entradas por mes: solo se recalculan los meses con clasificaciones o jornadas cambiadas.
   const porMes = new Map();
 
@@ -147,53 +154,74 @@ export async function crearFamiliaResultados({ lang, headerHtml, pie, huella }) 
     const panelCx = (reservaCx.filas.length ? H.cxDaysHtml(reservaCx.filas, rondas, isEn, locale, equiposCx, reservaCx.ocultas) : H.cxEmptyHtml(entradasCx.length > 0, isEn))
       + (entradasCx.some(entrada => entrada.date < cxDesde) ? H.feedMoreHtml('cxMoreBtn', isEn) : '');
 
-    const vistas = H.feedViews(cxTab);
-    const inicial = vistas[0];
-    const panelInicial = inicial === 'cx' ? panelCx : panelLatest;
-    const pestañas = activa => H.feedTabsHtml({ cxTab, activeView: activa, pinned: false, isEn });
-    const plantillas = [
-      ...vistas.flatMap(vista => [false, true].map(fijada =>
-        `<template data-pestanas="${vista}-${fijada ? 1 : 0}">${H.feedTabsHtml({ cxTab, activeView: vista, pinned: fijada, isEn })}</template>`)),
-      ...(inicial === 'cx' ? [`<template data-panel="latest">${panelLatest}</template>`] : []),
-    ].join('');
-    // El ránking pesa más que el resto de la página: va aparte y se trae sin esperar a usarlo.
-    const ranking = ['male', 'female'].map(genero => `<template data-panel="ranking-${genero}">${H.rankingBodyHtml(feed.uci_team_rankings, genero, isEn)}</template>`).join('');
+    // Una página por vista (js/results/feed-pages.js), todas con las mismas plantillas: cambiar de
+    // pestaña no espera a la red. Ciclocross entra en las pestañas mientras la home es Ciclocross
+    // y siempre en su propia página.
+    const vistasDe = pagina => H.feedViews(cxTab || pagina === 'cx');
+    const temporadas = { cxSeason: temporada, rankingSeason: temporadaRanking(feed.uci_team_rankings, hoy) };
+    const metas = Object.fromEntries(FEED_PAGES.map(pagina => [pagina, { ...feedPageMeta(pagina, lang, temporadas),
+      path: feedPagePath(pagina, lang), es: feedPagePath(pagina, 'es'), en: feedPagePath(pagina, 'en') }]));
+    const paneles = { latest: panelLatest, cx: panelCx };
+    // El ránking pesa más que el resto de la página: fuera de sus páginas va aparte y se trae sin
+    // esperar a usarlo.
+    const rankings = Object.fromEntries(['male', 'female'].map(genero => [genero, H.rankingBodyHtml(feed.uci_team_rankings, genero, isEn)]));
+    const plantillaRanking = genero => `<template data-panel="ranking-${genero}">${rankings[genero]}</template>`;
+    const version = huella(JSON.stringify({ paneles, rankings, metas, cxTab }));
 
-    // «Filtros» de cada vista con todo marcado; el script previo al primer pintado muestra el de
-    // la vista y aplica la selección guardada (cliente/filtros-resultados.js).
-    const menuFiltros = (vista, idPrefix, grupos) => `<div class="agenda-filter-slot feed-filter-slot" data-filtros="${vista}"${vista === inicial ? '' : ' hidden'}>`
-      + `${filterMenuHtml(grupos, newFilters(grupos), { idPrefix, activeClass: 'agenda-filter-btn--active', ...filterLabels(), buttonClass: 'agenda-filter-btn' })}</div>`;
-    const filtros = menuFiltros('latest', 'resultsRoadFilter', ROAD_FILTER_GROUPS) + (cxTab ? menuFiltros('cx', 'resultsCxFilter', cxFilterGroups(lang)) : '');
-    const contenido = `${H.feedHeroHtml(pestañas(inicial) + filtros, isEn)}\n      <div id="resultsFeedPanel" data-view="${inicial}">${panelInicial}</div>`;
-    const version = huella(contenido + plantillas + ranking);
-
-    const archivos = { [`f/resultados-${lang}/ranking.html`]: ranking };
+    const archivos = { [`f/resultados-${lang}/ranking.html`]: plantillaRanking('male') + plantillaRanking('female') };
     for (const mes of mesesFeed) {
       const dias = new Map();
       for (const entrada of entradasPorMes.get(mes)) (dias.get(entrada.date) || dias.set(entrada.date, []).get(entrada.date)).push(entrada);
       archivos[`f/resultados-${lang}/dias/${mes}.html`] = [...dias].map(([dia, filas]) => `<template data-dk="${dia}">${H.feedDaysHtml(filas, isEn, locale)}</template>`).join('');
     }
-    if (cxTab) {
-      const dias = new Map();
-      for (const entrada of entradasCx) (dias.get(entrada.date) || dias.set(entrada.date, []).get(entrada.date)).push(entrada);
-      const porMesCx = new Map();
-      for (const [dia, filas] of dias) {
-        const mes = mesDe(dia);
-        porMesCx.set(mes, `${porMesCx.get(mes) || ''}<template data-dk="${dia}">${H.cxDaysHtml(filas, rondas, isEn, locale, equiposCx)}</template>`);
-      }
-      for (const [mes, html] of porMesCx) archivos[`f/resultados-${lang}/cx/${mes}.html`] = html;
+    const diasCx = new Map();
+    for (const entrada of entradasCx) (diasCx.get(entrada.date) || diasCx.set(entrada.date, []).get(entrada.date)).push(entrada);
+    const porMesCx = new Map();
+    for (const [dia, filas] of diasCx) {
+      const mes = mesDe(dia);
+      porMesCx.set(mes, `${porMesCx.get(mes) || ''}<template data-dk="${dia}">${H.cxDaysHtml(filas, rondas, isEn, locale, equiposCx)}</template>`);
     }
+    for (const [mes, html] of porMesCx) archivos[`f/resultados-${lang}/cx/${mes}.html`] = html;
 
     const shell = activos.resultados.paginas[lang];
-    const head = shell.head.replace('</head>', `<style>#resultsContent[data-fijada] #resultsFeedPanel{visibility:hidden}@media(min-width:761px){#resultsContent:not([data-colocado]) #resultsFeedPanel{visibility:hidden}}</style><noscript><style>#resultsContent #resultsFeedPanel{visibility:visible!important}</style></noscript><meta name="cc:clave" content="${clave}"><meta name="cc:v" content="${version}"></head>`);
     const cabecera = `<header class="site-header" id="siteHeader">${headerHtml({ lang, hasBack: false, active: 'results' })}</header>`;
-    const atributos = `id="resultsContent" data-publicada="${version}" data-hoy="${hoy}" data-lang="${lang}"`
-      + ` data-desde="${desde}" data-cx-desde="${cxDesde}" data-cx-primera="${attr(entradasCx.at(-1)?.date || '')}"`
-      + ` data-filtro-vacio="${attr(isEn ? 'No results with these filters in this period.' : 'No hay resultados con estos filtros en este periodo.')}"`
-      + ` data-mas="${attr(isEn ? 'Load more results' : 'Cargar más resultados')}" data-cargando="${attr(isEn ? 'Loading…' : 'Cargando…')}"`
-      + ` data-error="${attr(isEn ? 'Unable to load more results. Try again.' : 'No se pudieron cargar más resultados. Inténtalo de nuevo.')}"`;
-    const pagina = `${head}<body>\n${RESERVA_ANDROID}\n${cabecera}\n<main ${atributos}>${contenido}<script>${activos.resultados.prePintado}</script></main>\n`
-      + `${plantillas}<script>ccMontarFijada()</script>\n${pie()}\n<script defer src="${activos.clasicos}"></script>\n<script type="module" src="${activos.resultados.isla}"></script>\n</body>\n</html>\n`;
-    return { slug: 'feed', clave, version, pagina, raceId: null, dayId: 'feed', fragmento: null, datos: null, ruta: base, archivos, filas: recientes.length, filasCx: visiblesCx.length };
+    const datosPaginas = `<script type="application/json" id="feedPages">${JSON.stringify(metas).replace(/</g, '\\u003c')}</script>`;
+
+    return FEED_PAGES.map((pagina, indice) => {
+      const vistas = vistasDe(pagina);
+      // La portada abre en la primera vista: Ciclocross mientras la home es Ciclocross, salvo con
+      // Carretera fijada (cliente/pre-pintado-resultados.js).
+      const inicial = pagina === 'latest' ? vistas[0] : pageView(pagina);
+      const genero = pageGender(pagina);
+      const pestanas = activa => H.feedTabsHtml({ views: vistas, activeView: activa, pinnable: cxTab, pinned: false, isEn });
+      const plantillas = [
+        ...vistas.flatMap(vista => [false, true].map(fijada =>
+          `<template data-pestanas="${vista}-${fijada ? 1 : 0}">${H.feedTabsHtml({ views: vistas, activeView: vista, pinnable: cxTab, pinned: fijada, isEn })}</template>`)),
+        ...vistas.filter(vista => vista !== 'ranking' && vista !== inicial).map(vista => `<template data-panel="${vista}">${paneles[vista]}</template>`),
+        ...(inicial === 'ranking' ? [plantillaRanking(genero === 'male' ? 'female' : 'male')] : []),
+      ].join('');
+      const panelInicial = inicial === 'ranking' ? rankings[genero] : paneles[inicial];
+
+      // «Filtros» de cada vista con todo marcado; el script previo al primer pintado muestra el de
+      // la vista y aplica la selección guardada (cliente/filtros-resultados.js).
+      const menuFiltros = (vista, idPrefix, grupos) => `<div class="agenda-filter-slot feed-filter-slot" data-filtros="${vista}"${vista === inicial ? '' : ' hidden'}>`
+        + `${filterMenuHtml(grupos, newFilters(grupos), { idPrefix, activeClass: 'agenda-filter-btn--active', ...filterLabels(), buttonClass: 'agenda-filter-btn' })}</div>`;
+      const filtros = menuFiltros('latest', 'resultsRoadFilter', ROAD_FILTER_GROUPS) + (vistas.includes('cx') ? menuFiltros('cx', 'resultsCxFilter', gruposCx) : '');
+      const contenido = `${H.feedHeroHtml(pestanas(inicial) + filtros, metas[pagina].h1)}\n      <div id="resultsFeedPanel" data-view="${inicial}"${inicial === 'ranking' ? ` data-genero="${genero}"` : ''}>${panelInicial}</div>`;
+
+      const clave = `resultados-${lang}/${pagina === 'latest' ? 'feed' : pagina}`;
+      const head = feedPageHead(shell.head, pagina, lang, temporadas).replace('</head>', `<style>#resultsContent[data-fijada] #resultsFeedPanel{visibility:hidden}@media(min-width:761px){#resultsContent:not([data-colocado]) #resultsFeedPanel{visibility:hidden}}</style><noscript><style>#resultsContent #resultsFeedPanel{visibility:visible!important}</style></noscript><meta name="cc:clave" content="${clave}"><meta name="cc:v" content="${version}"></head>`);
+      const atributos = `id="resultsContent" data-publicada="${version}" data-hoy="${hoy}" data-lang="${lang}" data-pagina="${pagina}"${pagina === 'latest' ? ' data-portada' : ''}`
+        + ` data-desde="${desde}" data-cx-desde="${cxDesde}" data-cx-primera="${attr(entradasCx.at(-1)?.date || '')}"`
+        + ` data-filtro-vacio="${attr(isEn ? 'No results with these filters in this period.' : 'No hay resultados con estos filtros en este periodo.')}"`
+        + ` data-mas="${attr(isEn ? 'Load more results' : 'Cargar más resultados')}" data-cargando="${attr(isEn ? 'Loading…' : 'Cargando…')}"`
+        + ` data-error="${attr(isEn ? 'Unable to load more results. Try again.' : 'No se pudieron cargar más resultados. Inténtalo de nuevo.')}"`;
+      const html = `${head}<body>\n${RESERVA_ANDROID}\n${cabecera}\n<main ${atributos}>${contenido}<script>${activos.resultados.prePintado}</script></main>\n`
+        + `${plantillas}${datosPaginas}<script>ccMontarFijada()</script>\n${pie()}\n<script defer src="${activos.clasicos}"></script>\n<script type="module" src="${activos.resultados.isla}"></script>\n</body>\n</html>\n`;
+      return {
+        slug: pagina === 'latest' ? 'feed' : pagina, clave, version, pagina: html, raceId: null, dayId: 'feed', fragmento: null, datos: null,
+        ruta: metas[pagina].path.replace(/^\/|\/$/g, ''), archivos: indice === 0 ? archivos : {}, filas: recientes.length, filasCx: visiblesCx.length,
+      };
+    });
   };
 }

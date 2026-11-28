@@ -1554,7 +1554,7 @@ private fun StageHeaderCard(
                             else -> stringResource(R.string.stage_doc_startlist_male)
                         }
                         AssetChip(
-                            icon = ImageVector.vectorResource(R.drawable.ic_logo_cyclist),
+                            icon = ImageVector.vectorResource(R.drawable.ic_startlist_bib),
                             label = label,
                             onClick = { navController.navigate(Routes.startlist(race.id)) },
                         )
@@ -2568,7 +2568,7 @@ private fun assetIcon(type: String?): ImageVector = when (type) {
     "ports" -> Icons.Filled.Terrain
     "live_text" -> Icons.Outlined.ChatBubbleOutline
     "pave" -> Icons.Filled.Terrain
-    "startlist" -> ImageVector.vectorResource(R.drawable.ic_logo_cyclist)
+    "startlist" -> ImageVector.vectorResource(R.drawable.ic_startlist_bib)
     else -> Icons.AutoMirrored.Outlined.InsertDriveFile
 }
 

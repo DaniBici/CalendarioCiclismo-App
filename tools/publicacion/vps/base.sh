@@ -72,6 +72,8 @@ for paso_node in prerender-jornadas prerender-inscritos prerender-resultados pre
   paso "$paso_node"
   node "tools/site/$paso_node.mjs" _site
 done
+paso 'Páginas de Últimos resultados'
+node tools/site/results-views.mjs _site
 paso 'Verificación'
 python3 tools/site/build_generated.py verify
 python3 tools/site/check_hreflang.py _site

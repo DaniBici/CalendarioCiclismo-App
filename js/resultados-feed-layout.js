@@ -1,6 +1,7 @@
 // Lo que Últimos resultados hace sobre el DOM ya pintado: lo usan la página
 // completa y la versión publicada.
 import { resultsStartKey } from './services/result-feed-pagination.js';
+import { localizeUciRankingUpdated } from './results/uci-team-ranking.js';
 // ── Rejilla de dos columnas ────────────────────────────────────────
 // Desde 761 px, como la rejilla de Hoy, cada día es una rejilla de dos
 // columnas (css/resultados.css, mismo punto de corte). Cada destacada ocupa en
@@ -78,6 +79,7 @@ export function filterFeedRows(panel, pasa, vacio, desde) {
 
 // Filas del ránking con explicación: un toque abre y cierra su regla.
 export function bindRankingRows(root) {
+  localizeUciRankingUpdated(root);
   const explainedRows = [...root.querySelectorAll('.uci-ranking-row--explained')];
   const closeRuleTooltips = (except = null) => {
     explainedRows.forEach((row) => {

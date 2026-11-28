@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -35,10 +36,10 @@ import app.calendariociclismo.android.ui.theme.neutralLinkBadgeColor
  * principal sobre gris al 8 %); `neutral`, la informativa (texto atenuado). El
  * acento queda solo para la selección (`selected`). Con `showLabel = false` se
  * muestra solo el icono, a la misma altura, y `label` queda como descripción de
- * accesibilidad.
+ * accesibilidad. `shape` permite unir dos etiquetas por un lado recto.
  */
 @Composable
-fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, showLabel: Boolean = true, secondIcon: ImageVector? = null) {
+fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, primaryAction: Boolean = false, selected: Boolean? = null, enabled: Boolean = true, neutral: Boolean = false, showLabel: Boolean = true, secondIcon: ImageVector? = null, shape: Shape = RoundedCornerShape(CCRadius.Control)) {
     val primary = MaterialTheme.colorScheme.primary
     val colors = when {
         primaryAction -> neutralLinkBadgeColor()
@@ -57,6 +58,7 @@ fun RaceActionBadge(label: String, onClick: () -> Unit, modifier: Modifier = Mod
             },
         enabled = enabled,
         horizontalPadding = if (showsText) 8.dp else 6.dp,
+        shape = shape,
     ) {
         if (showsText) {
             if (icon != null) Icon(icon, null, tint = colors.foreground, modifier = Modifier.size(12.dp))
@@ -87,9 +89,9 @@ internal fun CCBadgeSurface(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     horizontalPadding: Dp = 8.dp,
+    shape: Shape = RoundedCornerShape(CCRadius.Control),
     content: @Composable RowScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(CCRadius.Control)
     val row: @Composable () -> Unit = {
         Row(
             modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 3.dp),
@@ -115,7 +117,7 @@ fun ResultsTrophyAction(onClick: () -> Unit, contentDescription: String, modifie
 }
 
 /** Acción solo-icono con el mismo cuadro y color que la copa de resultados
- *  (bicicleta de dorsales en el programa CX). */
+ *  (dorsales en el programa CX). */
 @Composable
 fun RaceGlyphAction(icon: ImageVector, onClick: () -> Unit, contentDescription: String, modifier: Modifier = Modifier, boxSize: Dp = 24.dp, glyphSize: Dp = 18.dp) {
     Box(modifier.size(boxSize).clickable(role = Role.Button, onClickLabel = contentDescription, onClick = onClick), contentAlignment = Alignment.Center) {

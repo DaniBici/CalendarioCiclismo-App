@@ -564,7 +564,7 @@ struct StageHeaderCard: View {
                         ? LocaleService.t("Lista provisional", "Provisional Startlist")
                         : LocaleService.t("Dorsales", "Startlist")
                     NavigationLink(destination: StartlistView(raceId: race.id)) {
-                        ActionStripTile(icon: LogoCyclistIcon.name, label: startlistLabel)
+                        ActionStripTile(icon: StartlistIcon.name, label: startlistLabel)
                     }
                     .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View Provisional Startlist") : LocaleService.t("Ver dorsales", "View Startlist"))
                 }
@@ -2176,8 +2176,8 @@ struct ActionStripTile: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 17, height: 17)
-                } else if icon == LogoCyclistIcon.name {
-                    LogoCyclistIcon(size: 17)
+                } else if icon == StartlistIcon.name {
+                    StartlistIcon(size: 17)
                 } else {
                     Image(systemName: icon)
                         .font(.subheadline)

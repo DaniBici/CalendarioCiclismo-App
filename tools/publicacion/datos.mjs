@@ -323,6 +323,8 @@ const TABLAS = {
   team_seasons: { raza: 'd."teamId"', de: 'team_seasons d', abanico: 'select distinct "raceId"::text as r, "teamId"::text as origen from startlist_teams where "teamId" = any($1)' },
   riders_men: { raza: 'd.id', de: 'riders_men d', abanico: 'select distinct "raceId"::text as r, "globalRiderId"::text as origen from startlist_riders where "globalRiderId" = any($1)' },
   riders_women: { raza: 'd.id', de: 'riders_women d', abanico: 'select distinct "raceId"::text as r, "globalRiderId"::text as origen from startlist_riders where "globalRiderId" = any($1)' },
+  // Nombres anteriores de un corredor: repintan las carreras donde figura.
+  rider_name_history: { raza: 'd."riderId"', de: 'rider_name_history d', abanico: 'select distinct "raceId"::text as r, "globalRiderId"::text as origen from startlist_riders where "globalRiderId" = any($1)' },
 };
 
 const firmaDe = tabla => `select '${tabla}' as tabla, count(*)::text as n, coalesce(sum(xmin::text::bigint), 0)::text as s from ${tabla}`;
